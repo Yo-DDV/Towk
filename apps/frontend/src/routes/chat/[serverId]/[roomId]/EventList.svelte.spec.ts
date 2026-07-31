@@ -124,6 +124,23 @@ describe('EventList jump completion', () => {
     expect(document.querySelector('[data-testid="read-receipt-summary-msg-1"]')).toBeNull();
   });
 
+  it('cancels delayed read advancement when the call surface takes attention', async () => {
+    const props = {
+      eventIds: ['msg-1'],
+      eventActorId: 'other-user',
+      scrollToEventId: null,
+      readReceiptsEnabled: true
+    };
+    const rendered = render(EventListTestHarness, {
+      props: { ...props, attentionEnabled: true }
+    });
+
+    await rendered.rerender({ ...props, attentionEnabled: false });
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    expect(readReceiptMocks.advanceReadReceipt).not.toHaveBeenCalled();
+    rendered.unmount();
+  });
+
   it('shows a retryable load failure instead of the empty state', async () => {
     const onRetryLoad = vi.fn();
     render(EventListTestHarness, {

@@ -106,6 +106,7 @@ export type AudioLevelInfo = {
 };
 
 export type CallTransitionSoundDecision = 'play' | 'defer' | 'skip';
+export type VoiceCallJoinGuard = () => boolean;
 
 /** Metadata embedded in the LiveKit token by the backend. */
 type ParticipantMetadata = {
@@ -211,6 +212,13 @@ export class VoiceCallJoinError extends Error {
   }
 }
 
+export class VoiceCallJoinSupersededError extends Error {
+  constructor() {
+    super('voice call join superseded by a newer user intent');
+    this.name = 'VoiceCallJoinSupersededError';
+  }
+}
+
 export function getVoiceCallJoinErrorMessage(err: unknown): string {
   if (err instanceof VoiceCallJoinError) return err.userMessage;
 
@@ -223,6 +231,10 @@ export function getVoiceCallJoinErrorMessage(err: unknown): string {
   }
 
   return m['voice.join_failed']();
+}
+
+function assertCurrentJoinIntent(isCurrent: VoiceCallJoinGuard): void {
+  if (!isCurrent()) throw new VoiceCallJoinSupersededError();
 }
 
 export function getVoiceCallMediaDeviceErrorMessage(
@@ -308,6 +320,10 @@ export class VoiceCallState {
   isMuted = $state(false);
   // Local playback state for all remote microphone and screen-share audio.
   isOutputMuted = $state(false);
+  // LiveKit reports when browser autoplay policy prevents remote audio.
+  // This is distinct from an explicit user mute and remains actionable from
+  // the global dock through a direct click/tap gesture.
+  audioPlaybackBlocked = $state(false);
   // True while LiveKit is applying local device enable/disable changes.
   isMicrophonePending = $state(false);
   // The selected/system microphone route disappeared while the user intended
@@ -427,6 +443,10 @@ export class VoiceCallState {
   private siblingAudioControlInFlight = new SvelteMap<string, Promise<boolean>>();
   private siblingAudioStateRefreshInFlight = new SvelteMap<string, Promise<void>>();
   private interruptedParticipants = new SvelteMap<string, CallParticipantInfo>();
+  // A terminal room event and LiveKit's disconnect callback may arrive in
+  // either order. Keep exact IDs hidden for this call generation once the
+  // backend has committed their leave.
+  private terminalParticipantIds = new SvelteSet<string>();
 
   // Non-reactive audio level cache — updated at 60ms by the polling interval.
   // Deliberately NOT $state to avoid triggering Svelte reactivity at 60Hz.
@@ -487,6 +507,14 @@ export class VoiceCallState {
 
   get participantId(): string | null {
     return this.activeParticipantId;
+  }
+
+  get callId(): string | null {
+    return this.activeCallId;
+  }
+
+  get targetRoomId(): string | null {
+    return this.roomId ?? this.joinInFlightRoomId;
   }
 
   get deviceIndex(): number | null {
@@ -683,8 +711,11 @@ export class VoiceCallState {
     livekitUrl: string,
     roomId: string,
     mode: VoiceCallJoinMode = 'ask',
-    expectedCallId?: string
+    expectedCallId?: string,
+    isCurrent: VoiceCallJoinGuard = () => true
   ): Promise<VoiceCallJoinResult> {
+    assertCurrentJoinIntent(isCurrent);
+
     // Already in this call
     if (
       this.isInCall(roomId) &&
@@ -713,10 +744,10 @@ export class VoiceCallState {
       }
       // Re-enter the gate after settlement. Another queued request may already
       // own it now; this also coalesces repeated clicks for the newer room.
-      return this.join(livekitUrl, roomId, mode, expectedCallId);
+      return this.join(livekitUrl, roomId, mode, expectedCallId, isCurrent);
     }
 
-    const joinPromise = this.performJoin(livekitUrl, roomId, mode, expectedCallId);
+    const joinPromise = this.performJoin(livekitUrl, roomId, mode, expectedCallId, isCurrent);
     this.joinInFlight = joinPromise;
     this.joinInFlightRoomId = roomId;
     try {
@@ -733,10 +764,18 @@ export class VoiceCallState {
     livekitUrl: string,
     roomId: string,
     mode: VoiceCallJoinMode,
-    expectedCallId?: string
+    expectedCallId: string | undefined,
+    isCurrent: VoiceCallJoinGuard
   ): Promise<VoiceCallJoinResult> {
     return this.#coordinateVoiceCallJoin((leaveOtherVoiceCalls) =>
-      this.performCoordinatedJoin(livekitUrl, roomId, mode, expectedCallId, leaveOtherVoiceCalls)
+      this.performCoordinatedJoin(
+        livekitUrl,
+        roomId,
+        mode,
+        expectedCallId,
+        leaveOtherVoiceCalls,
+        isCurrent
+      )
     );
   }
 
@@ -745,9 +784,11 @@ export class VoiceCallState {
     roomId: string,
     mode: VoiceCallJoinMode,
     expectedCallId: string | undefined,
-    leaveOtherVoiceCalls: LeaveOtherVoiceCalls
+    leaveOtherVoiceCalls: LeaveOtherVoiceCalls,
+    isCurrent: VoiceCallJoinGuard
   ): Promise<VoiceCallJoinResult> {
     assertLiveKitE2EESupported();
+    assertCurrentJoinIntent(isCurrent);
     this.connecting = true;
     let joinIntentRecorded = false;
     let mediaConnectionStarted = false;
@@ -775,10 +816,12 @@ export class VoiceCallState {
         effectiveExpectedCallId
       );
       if (joinResult.status === 'selection-required') {
+        assertCurrentJoinIntent(isCurrent);
         return joinResult;
       }
       admittedCallId = joinResult.callId;
       joinIntentRecorded = true;
+      assertCurrentJoinIntent(isCurrent);
       const tokenResponse = await this.#api.getCallToken(
         roomId,
         joiningClientInstanceId,
@@ -798,10 +841,12 @@ export class VoiceCallState {
       if (participantId !== joinResult.participantId || deviceIndex !== joinResult.deviceIndex) {
         throw new Error('call token connection identity does not match admitted participant');
       }
+      assertCurrentJoinIntent(isCurrent);
 
       // The admission and token identity are authoritative now. Only at this
       // point may a cross-server coordinator release another healthy call.
       await leaveOtherVoiceCalls();
+      assertCurrentJoinIntent(isCurrent);
       if (this.connected || this.room || this.roomId || this.recoveryTarget) {
         const leaveCurrentCall = this.leave(false);
         // performLeave releases the previous room synchronously. Preserve the
@@ -809,6 +854,7 @@ export class VoiceCallState {
         // flight so PWA wake lock and OS media controls do not flicker off.
         this.connecting = true;
         await leaveCurrentCall;
+        assertCurrentJoinIntent(isCurrent);
       }
 
       this.cancelRecovery();
@@ -830,7 +876,11 @@ export class VoiceCallState {
         this.isOutputMuted = false;
       }
 
-      const { room } = await this.connectEncryptedRoom(livekitUrl, token, e2eeKey);
+      const { room } = await this.connectEncryptedRoom(livekitUrl, token, e2eeKey, () => {
+        assertCurrentJoinIntent(isCurrent);
+        return true;
+      });
+      assertCurrentJoinIntent(isCurrent);
 
       if (mode === 'companion') {
         this.applyAllParticipantAudioVolumes();
@@ -846,6 +896,7 @@ export class VoiceCallState {
           );
         }
       }
+      assertCurrentJoinIntent(isCurrent);
 
       this.connected = true;
       this.reconnecting = false;
@@ -861,7 +912,9 @@ export class VoiceCallState {
       }
       return joinResult;
     } catch (err) {
-      console.error('Failed to join voice call:', summarizeJoinError(err));
+      if (!(err instanceof VoiceCallJoinSupersededError)) {
+        console.error('Failed to join voice call:', summarizeJoinError(err));
+      }
       if (joinIntentRecorded) {
         await this.recordLeaveIntent(roomId, joiningClientInstanceId, admittedCallId);
       }
@@ -944,7 +997,10 @@ export class VoiceCallState {
     actorId: string | null,
     currentUserId: string | null
   ): void {
-    if (participantId) {
+    const matchesCurrentCall =
+      this.roomId === roomId && callId !== null && this.activeCallId === callId;
+    if (participantId && matchesCurrentCall) {
+      this.terminalParticipantIds.add(participantId);
       this.clearInterruptedParticipant(participantId);
       this.updateParticipants();
     }
@@ -963,6 +1019,11 @@ export class VoiceCallState {
   ): void {
     if (this.roomId !== roomId || this.activeCallId !== callId || !participantId) return;
     if (connectionState === 'interrupted') {
+      if (this.terminalParticipantIds.has(participantId)) {
+        this.clearInterruptedParticipant(participantId);
+        this.updateParticipants();
+        return;
+      }
       this.markParticipantInterrupted(participantId, interruptionDeadline);
     } else {
       this.clearInterruptedParticipant(participantId);
@@ -1217,7 +1278,36 @@ export class VoiceCallState {
     await this.setOutputMuted(!this.isOutputMuted);
   }
 
-  private async setOutputMuted(muted: boolean, broadcast = true): Promise<boolean> {
+  /**
+   * Toggle call output from a direct user gesture.
+   *
+   * `Room.startAudio()` must be invoked in the click/tap stack on browsers
+   * that enforce autoplay. The returned promise can still wait behind output
+   * routing; attached media remains hard-muted until that routing is stable.
+   */
+  async toggleOutputMuteFromGesture(): Promise<void> {
+    const room = this.room;
+    const muted = !this.isOutputMuted;
+    const playback =
+      room && !muted
+        ? room.startAudio().then(
+            () => {
+              if (this.room === room) this.audioPlaybackBlocked = false;
+            },
+            (error) => {
+              if (this.room === room) this.audioPlaybackBlocked = true;
+              throw error;
+            }
+          )
+        : null;
+    await this.setOutputMuted(muted, true, room && playback ? { room, playback } : null);
+  }
+
+  private async setOutputMuted(
+    muted: boolean,
+    broadcast = true,
+    gesturePlayback: { room: Room; playback: Promise<void> } | null = null
+  ): Promise<boolean> {
     if (this.outputToggleInFlight) {
       await this.outputToggleInFlight;
       if (this.isOutputMuted === muted) return true;
@@ -1226,7 +1316,13 @@ export class VoiceCallState {
     const room = this.room;
     if (!room) return false;
     const operation = this.serializeAudioOutputOperation(() =>
-      this.room === room ? this.performSetOutputMuted(room, muted) : Promise.resolve(false)
+      this.room === room
+        ? this.performSetOutputMuted(
+            room,
+            muted,
+            gesturePlayback?.room === room ? gesturePlayback.playback : null
+          )
+        : Promise.resolve(false)
     );
     this.outputToggleInFlight = operation;
     try {
@@ -1238,12 +1334,18 @@ export class VoiceCallState {
     }
   }
 
-  private async performSetOutputMuted(room: Room, newMuted: boolean): Promise<boolean> {
+  private async performSetOutputMuted(
+    room: Room,
+    newMuted: boolean,
+    gesturePlayback: Promise<void> | null = null
+  ): Promise<boolean> {
     if (this.isOutputMuted === newMuted) return true;
     if (!newMuted) {
       try {
-        await room.startAudio();
+        await (gesturePlayback ?? room.startAudio());
+        if (this.room === room) this.audioPlaybackBlocked = false;
       } catch {
+        if (this.room === room) this.audioPlaybackBlocked = true;
         this.notifyMediaDeviceError(m['voice.audio_playback_failed']());
         return false;
       }
@@ -2063,10 +2165,16 @@ export class VoiceCallState {
 
     room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       if (this.room !== room) return;
-      this.markParticipantInterrupted(
-        participant.identity,
-        new SvelteDate(Date.now() + 60_000).toISOString()
-      );
+      const metadata = parseParticipantMetadata(participant.metadata);
+      const participantId = metadata.participantId ?? participant.identity;
+      if (this.terminalParticipantIds.has(participantId)) {
+        this.clearInterruptedParticipant(participantId);
+      } else {
+        this.markParticipantInterrupted(
+          participantId,
+          new SvelteDate(Date.now() + 60_000).toISOString()
+        );
+      }
       this.removeSiblingAudioState(participant.identity);
       this.updateParticipants();
     });
@@ -2140,6 +2248,11 @@ export class VoiceCallState {
       if (this.room !== room) return;
       if (this.explicitMediaDeviceOperationDepth > 0) return;
       this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('device', err, 'event'));
+    });
+
+    room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+      if (this.room !== room) return;
+      this.audioPlaybackBlocked = room.canPlaybackAudio === false;
     });
 
     room.on(RoomEvent.ConnectionQualityChanged, () => {
@@ -2384,15 +2497,16 @@ export class VoiceCallState {
     this.isScreenShareEnabled = isParticipantScreenShareEnabled(this.room.localParticipant);
     this.applyAllParticipantAudioVolumes();
 
-    const connectedParticipants = allParticipants.map((p) => {
+    const connectedParticipants = allParticipants.flatMap((p) => {
       const md = parseParticipantMetadata(p.metadata);
       const isLocal = p === this.room!.localParticipant;
       const participantId = md.participantId ?? p.identity;
+      if (this.terminalParticipantIds.has(participantId)) return [];
       const userId = md.userId ?? p.identity;
       const canControlAudio = this.isControllableSibling(p);
       const siblingAudioState = canControlAudio ? this.siblingAudioStates[p.identity] : undefined;
       const networkQuality = this.participantNetworkQuality[p.identity];
-      return {
+      return [{
         identity: p.identity,
         participantId,
         userId,
@@ -2426,7 +2540,7 @@ export class VoiceCallState {
         isSiblingOutputControlPending:
           canControlAudio &&
           Boolean(this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'output')])
-      };
+      }];
     });
     const connectedIdentities = new SvelteSet(
       connectedParticipants.map((participant) => participant.identity)
@@ -2565,6 +2679,7 @@ export class VoiceCallState {
     this.joinInFlightRoomId = null;
     this.microphoneToggleInFlight = null;
     this.outputToggleInFlight = null;
+    this.audioPlaybackBlocked = false;
     this.cameraToggleInFlight = null;
     this.cameraDeviceSwitchInFlight = null;
     this.screenShareToggleInFlight = null;
@@ -2590,6 +2705,7 @@ export class VoiceCallState {
     this.isScreenSharePending = false;
     this.participants = [];
     this.clearInterruptedParticipants();
+    this.terminalParticipantIds.clear();
     this.locallyMutedParticipantIds = {};
     this.localAudioStateRevision = 0;
     this.siblingAudioStates = {};

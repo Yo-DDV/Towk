@@ -31,16 +31,11 @@ import {
   getVoiceCallJoinErrorMessage,
   PersistentReconnectPolicy,
   VoiceCallJoinError,
+  VoiceCallJoinSupersededError,
   VoiceCallState
 } from './voiceCall.svelte';
 import { Code, ConnectError } from '@connectrpc/connect';
-import {
-  AudioPresets,
-  DisconnectReason,
-  Room,
-  ScreenSharePresets,
-  type RoomOptions
-} from 'livekit-client';
+import { AudioPresets, DisconnectReason, Room, type RoomOptions } from 'livekit-client';
 
 const calls: string[] = [];
 let lastRoomOptions: RoomOptions | null = null;
@@ -1680,6 +1675,116 @@ describe('VoiceCallState', () => {
     expect(state.isInCall('R2')).toBe(true);
   });
 
+  it('compensates a superseded admission before LiveKit connects, then serves the latest room', async () => {
+    const firstAdmission = deferredValue<VoiceCallJoinResult>();
+    const joinCall = vi
+      .fn<VoiceCallAPI['joinCall']>()
+      .mockReturnValueOnce(firstAdmission.promise)
+      .mockResolvedValueOnce({
+        status: 'joined',
+        callId: 'call-2',
+        participantId: 'device-2',
+        deviceIndex: 1
+      });
+    const getCallToken = vi.fn<VoiceCallAPI['getCallToken']>(async (roomId) => ({
+      token: 'test',
+      e2eeKey: 'shared-e2ee-key',
+      callId: roomId === 'R2' ? 'call-2' : 'call-1',
+      participantId: roomId === 'R2' ? 'device-2' : 'device-1',
+      deviceIndex: 1
+    }));
+    const client = createVoiceCallClient({ joinCall, getCallToken });
+    const state = new VoiceCallState(client);
+    let currentIntent = 1;
+
+    const firstJoin = state.join(
+      'wss://livekit.example.test',
+      'R1',
+      'ask',
+      undefined,
+      () => currentIntent === 1
+    );
+    await flushPromises();
+
+    currentIntent = 2;
+    const secondJoin = state.join(
+      'wss://livekit.example.test',
+      'R2',
+      'ask',
+      undefined,
+      () => currentIntent === 2
+    );
+    firstAdmission.resolve({
+      status: 'joined',
+      callId: 'call-1',
+      participantId: 'device-1',
+      deviceIndex: 1
+    });
+
+    await expect(firstJoin).rejects.toBeInstanceOf(VoiceCallJoinSupersededError);
+    await expect(secondJoin).resolves.toMatchObject({ status: 'joined', callId: 'call-2' });
+
+    expect(joinCall.mock.calls.map((call) => call[0])).toEqual(['R1', 'R2']);
+    expect(getCallToken).toHaveBeenCalledTimes(1);
+    expect(getCallToken).toHaveBeenCalledWith('R2', expect.any(String), 'call-2');
+    expect(client.leaveCall).toHaveBeenCalledWith('R1', expect.any(String), 'call-1');
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(1);
+    expect(state.isInCall('R2')).toBe(true);
+  });
+
+  it('does not connect an older intent superseded while other calls are being released', async () => {
+    const releaseOtherCalls = deferredVoid();
+    const releaseStarted = deferredVoid();
+    const coordinate: CoordinateVoiceCallJoin = (join) =>
+      join(async () => {
+        releaseStarted.resolve();
+        await releaseOtherCalls.promise;
+      });
+    const joinCall = vi.fn<VoiceCallAPI['joinCall']>(async (roomId) => ({
+      status: 'joined',
+      callId: roomId === 'R1' ? 'call-1' : 'call-2',
+      participantId: roomId === 'R1' ? 'device-1' : 'device-2',
+      deviceIndex: 1
+    }));
+    const getCallToken = vi.fn<VoiceCallAPI['getCallToken']>(async (roomId) => ({
+      token: 'test',
+      e2eeKey: 'shared-e2ee-key',
+      callId: roomId === 'R1' ? 'call-1' : 'call-2',
+      participantId: roomId === 'R1' ? 'device-1' : 'device-2',
+      deviceIndex: 1
+    }));
+    const client = createVoiceCallClient({ joinCall, getCallToken });
+    const state = new VoiceCallState(client, coordinate);
+    let currentIntent = 1;
+
+    const firstJoin = state.join(
+      'wss://livekit.example.test',
+      'R1',
+      'ask',
+      undefined,
+      () => currentIntent === 1
+    );
+    await releaseStarted.promise;
+
+    currentIntent = 2;
+    const secondJoin = state.join(
+      'wss://livekit.example.test',
+      'R2',
+      'ask',
+      undefined,
+      () => currentIntent === 2
+    );
+    releaseOtherCalls.resolve();
+
+    await expect(firstJoin).rejects.toBeInstanceOf(VoiceCallJoinSupersededError);
+    await expect(secondJoin).resolves.toMatchObject({ status: 'joined', callId: 'call-2' });
+
+    expect(joinCall.mock.calls.map((call) => call[0])).toEqual(['R1', 'R2']);
+    expect(client.leaveCall).toHaveBeenCalledWith('R1', expect.any(String), 'call-1');
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(1);
+    expect(state.isInCall('R2')).toBe(true);
+  });
+
   it('exposes the target room while admission is still in flight', async () => {
     const admission = deferredValue<VoiceCallJoinResult>();
     const client = createVoiceCallClient({ joinCall: vi.fn(() => admission.promise) });
@@ -1691,6 +1796,8 @@ describe('VoiceCallState', () => {
     expect(state.isJoiningRoom('R-target')).toBe(true);
     expect(state.isJoiningRoom('R-other')).toBe(false);
     expect(state.roomId).toBeNull();
+    expect(state.targetRoomId).toBe('R-target');
+    expect(state.callId).toBeNull();
 
     admission.resolve({
       status: 'joined',
@@ -1702,6 +1809,8 @@ describe('VoiceCallState', () => {
 
     expect(state.isJoiningRoom('R-target')).toBe(false);
     expect(state.isInCall('R-target')).toBe(true);
+    expect(state.targetRoomId).toBe('R-target');
+    expect(state.callId).toBe('call-1');
   });
 
   it('coalesces duplicate leave actions while the leave intent is in flight', async () => {
@@ -3511,6 +3620,32 @@ describe('VoiceCallState', () => {
     expect(state.selectedOutputDeviceId).toBe('bluetooth-speaker');
   });
 
+  it('invokes LiveKit audio synchronously from the dock gesture before unmuting', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleOutputMute();
+    lastRoom?.startAudio.mockClear();
+
+    const unmuting = state.toggleOutputMuteFromGesture();
+
+    expect(lastRoom?.startAudio).toHaveBeenCalledOnce();
+    await unmuting;
+    expect(state.isOutputMuted).toBe(false);
+    expect(state.audioPlaybackBlocked).toBe(false);
+  });
+
+  it('keeps output muted and exposes autoplay blocking when gesture playback fails', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleOutputMute();
+    lastRoom?.startAudio.mockRejectedValueOnce(new DOMException('blocked', 'NotAllowedError'));
+
+    await state.toggleOutputMuteFromGesture();
+
+    expect(state.isOutputMuted).toBe(true);
+    expect(state.audioPlaybackBlocked).toBe(true);
+  });
+
   it('mutes attached remote audio elements as well as SDK volume controls', async () => {
     const microphoneElement = document.createElement('audio');
     const screenShareElement = document.createElement('audio');
@@ -4126,6 +4261,47 @@ describe('VoiceCallState', () => {
       connectionState: 'connected',
       interruptionDeadline: null
     });
+
+    await state.leave();
+  });
+
+  it('does not resurrect a terminally left remote participant as interrupted', async () => {
+    const remoteParticipant = {
+      identity: 'remote-device',
+      name: 'Remote User',
+      metadata:
+        '{"userId":"remote-user","participantId":"remote-device","deviceIndex":2,"login":"remote-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [{ isMuted: false, track: { source: 'microphone' } }])
+    };
+    mockRemoteParticipants.set('remote-device', remoteParticipant);
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+
+    state.handleParticipantLeftEvent(
+      'R1',
+      'call-1',
+      'remote-device',
+      'remote-user',
+      'local-user'
+    );
+    state.handleParticipantConnectionChangedEvent(
+      'R1',
+      'call-1',
+      'remote-device',
+      'interrupted',
+      new Date(Date.now() + 60_000).toISOString()
+    );
+    mockRemoteParticipants.delete('remote-device');
+    roomEventHandlers.get('ParticipantDisconnected')?.(remoteParticipant);
+
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-device')
+    ).toBeUndefined();
 
     await state.leave();
   });

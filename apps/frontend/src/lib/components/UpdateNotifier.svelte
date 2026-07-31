@@ -16,11 +16,16 @@ Include this component once at the root layout level.
   import { activatePendingServiceWorker } from '$lib/pwa/serviceWorkerUpdate';
   import { startVersionUpdateMonitor } from '$lib/pwa/versionUpdateMonitor';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
+  import { selectUpdatePolicy } from '$lib/pwa/updatePolicy';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
 
-  let updateToastShown = false;
+  let updateToastId: string | null = null;
+  let updateToastMode: 'reload' | 'update-after-call' | 'scheduled' | null = null;
   let reloadStarted = false;
+  let observedDuringCall = false;
+  let updateAfterCallRequested = false;
+  let websocketReconnectRequested = false;
 
   async function reloadLatestVersion() {
     if (reloadStarted) return;
@@ -36,19 +41,44 @@ Include this component once at the root layout level.
   }
 
   function handleAvailableUpdate() {
-    if (!updateToastShown) {
-      updateToastShown = true;
-      toast.info(m['ui.update_available'](), 0, {
-        label: m['ui.reload'](),
-        onClick: () => void reloadLatestVersion()
-      });
+    if (idleState.isInAnyCall) observedDuringCall = true;
+    const policy = selectUpdatePolicy({
+      isInCall: idleState.isInAnyCall,
+      canSafelyReload: idleState.canSafelyReload,
+      observedDuringCall,
+      updateAfterCallRequested
+    });
 
-      // Force-reconnect the WebSocket — a deploy means the old connection
-      // is stale even if the client thinks it's still connected
+    const requestedMode = updateAfterCallRequested ? 'scheduled' : policy.action;
+    if (updateToastMode !== requestedMode) {
+      if (updateToastId) toast.remove(updateToastId);
+      updateToastMode = requestedMode;
+      if (requestedMode === 'scheduled') {
+        updateToastId = toast.info(m['ui.update_waiting_for_call'](), 0);
+      } else {
+        updateToastId = toast.info(m['ui.update_available'](), 0, {
+          label:
+            requestedMode === 'update-after-call' ? m['ui.update_after_call']() : m['ui.reload'](),
+          onClick: () => {
+            if (idleState.isInAnyCall) {
+              updateAfterCallRequested = true;
+              handleAvailableUpdate();
+              return;
+            }
+            void reloadLatestVersion();
+          }
+        });
+      }
+    }
+
+    // Avoid perturbing signaling during a live/recovering call. The pending
+    // version will reconnect or reload once the call-safe policy allows it.
+    if (!idleState.isInAnyCall && !websocketReconnectRequested) {
+      websocketReconnectRequested = true;
       serverConnectionManager.originClient.forceReconnect('app update detected');
     }
 
-    if (idleState.canSafelyReload) {
+    if (policy.shouldAutoReload) {
       void reloadLatestVersion();
     }
   }

@@ -2,7 +2,7 @@ import type { RoomEventView } from '$lib/render/types';
 import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
 import type { EventWithMeta } from './messageGrouping';
 
-export type SystemGroupKind = 'join' | 'leave';
+export type SystemGroupKind = 'join' | 'leave' | 'call-join' | 'call-leave';
 
 /**
  * A discriminated union representing items in the virtual list.
@@ -28,6 +28,10 @@ function getSystemGroupKind(event: RoomEventView): SystemGroupKind | null {
       return 'join';
     case RoomEventKind.UserLeftRoom:
       return 'leave';
+    case RoomEventKind.CallParticipantJoined:
+      return 'call-join';
+    case RoomEventKind.CallParticipantLeft:
+      return 'call-leave';
     default:
       return null;
   }
@@ -38,8 +42,8 @@ function getSystemGroupKind(event: RoomEventView): SystemGroupKind | null {
  * Inserts the start-of-conversation marker, day separators, and the unread
  * separator as their own items.
  *
- * Consecutive `UserJoinedRoomEvent` (or consecutive `UserLeftRoomEvent`)
- * are coalesced into a single `system-group` item. The grouping breaks
+ * Consecutive room-membership or call-participant join/leave events are
+ * coalesced into a single `system-group` item. The grouping breaks
  * on: a different event kind, a day separator (timezone-aware via
  * `showDaySeparator`), or the unread separator.
  */

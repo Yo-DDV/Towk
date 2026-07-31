@@ -76,6 +76,8 @@
       "expired": "The shared content has expired. Share it to Towk again."
     },
     "update_available": "A new version is available",
+    "update_after_call": "Update after the call",
+    "update_waiting_for_call": "Towk will update after the call ends.",
     "reload": "Reload",
     "network": {
       "offline": "You're offline. Towk will keep trying to reconnect.",

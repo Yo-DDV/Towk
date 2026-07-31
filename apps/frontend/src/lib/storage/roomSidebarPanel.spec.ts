@@ -50,11 +50,9 @@ describe('room sidebar panel storage', () => {
   it('persists the selected panel per server and room', () => {
     setRoomSidebarPanel('server-a', 'room-1', 'files');
     setRoomSidebarPanel('server-a', 'room-2', 'members');
-    setRoomSidebarPanel('server-b', 'room-1', 'call');
 
     expect(getRoomSidebarPanel('server-a', 'room-1')).toBe('files');
     expect(getRoomSidebarPanel('server-a', 'room-2')).toBe('members');
-    expect(getRoomSidebarPanel('server-b', 'room-1')).toBe('call');
   });
 
   it('does not persist closed state across sessions', () => {
@@ -75,6 +73,15 @@ describe('room sidebar panel storage', () => {
     expect(getRoomSidebarPanel('server-a', 'room-1')).toBe('members');
   });
 
+  it('migrates the removed legacy call sidecar value to members', () => {
+    const key = serverStorageKey('server-a', roomSidebarPanelStorageSuffix('room-1'));
+
+    localStorage.setItem(key, 'call');
+
+    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBe('members');
+    expect(getRoomSidebarPanel('server-a', 'room-1')).toBe('members');
+  });
+
   it('falls back to members for unknown stored values', () => {
     const key = serverStorageKey('server-a', roomSidebarPanelStorageSuffix('room-1'));
 
@@ -83,10 +90,18 @@ describe('room sidebar panel storage', () => {
   });
 
   it('stores and consumes a pending panel open request for a specific room', () => {
-    setPendingRoomSidebarPanel('server-a', 'room-1', 'call');
+    setPendingRoomSidebarPanel('server-a', 'room-1', 'files');
 
     expect(consumePendingRoomSidebarPanel('server-a', 'room-2')).toBeNull();
-    expect(consumePendingRoomSidebarPanel('server-a', 'room-1')).toBe('call');
+    expect(consumePendingRoomSidebarPanel('server-a', 'room-1')).toBe('files');
     expect(consumePendingRoomSidebarPanel('server-a', 'room-1')).toBeNull();
+  });
+
+  it('discards a pending request for the removed call sidecar', () => {
+    const key = serverStorageKey('server-a', 'roomSidebarPanel:pendingOpen');
+    sessionStorage.setItem(key, JSON.stringify({ roomId: 'room-1', panel: 'call' }));
+
+    expect(consumePendingRoomSidebarPanel('server-a', 'room-1')).toBeNull();
+    expect(sessionStorage.getItem(key)).toBeNull();
   });
 });

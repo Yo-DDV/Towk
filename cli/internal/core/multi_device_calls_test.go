@@ -297,11 +297,17 @@ func TestLeaveCallParticipantPreservesSiblingDevice(t *testing.T) {
 	chatto, _ := setupTestCore(t)
 	ctx := testContext(t)
 	roomID := "room-exact-leave"
+	remover := &recordingLiveKitParticipantClient{}
+	chatto.callModel.livekit = remover
 
 	first, _ := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-1", CallJoinModeAsk)
 	second, _ := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-2", CallJoinModeCompanion)
+	active, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("active call missing before exact leave")
+	}
 
-	if err := chatto.LeaveCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-2", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+	if err := chatto.LeaveCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-2", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER, active.CallID); err != nil {
 		t.Fatalf("leave companion: %v", err)
 	}
 	participants := chatto.CallState.Participants(roomID)
@@ -313,6 +319,42 @@ func TestLeaveCallParticipantPreservesSiblingDevice(t *testing.T) {
 	}
 	if _, ok := chatto.CallState.ActiveCall(roomID); !ok {
 		t.Fatal("leaving one device must not end the call")
+	}
+	if len(remover.removed) != 1 {
+		t.Fatalf("LiveKit removals = %+v, want exact companion eviction", remover.removed)
+	}
+	removed := remover.removed[0]
+	if removed.spaceID != LegacySpaceIDForRoomKind(KindChannel) ||
+		removed.roomID != roomID ||
+		removed.callID != active.CallID ||
+		removed.userID != second.ParticipantID {
+		t.Fatalf("LiveKit removal = %+v, want exact companion %q in call %q", removed, second.ParticipantID, active.CallID)
+	}
+}
+
+func TestLeaveCallParticipantCommitsWhenLiveKitEvictionFails(t *testing.T) {
+	chatto, _ := setupTestCore(t)
+	ctx := testContext(t)
+	roomID := "room-exact-leave-livekit-failure"
+
+	first, _ := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-1", CallJoinModeAsk)
+	second, _ := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-2", CallJoinModeCompanion)
+	active, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("active call missing before exact leave")
+	}
+	chatto.callModel.livekit = &recordingLiveKitParticipantClient{removeErr: errors.New("livekit unavailable")}
+
+	if err := chatto.LeaveCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-2", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER, active.CallID); err != nil {
+		t.Fatalf("leave companion with LiveKit unavailable: %v", err)
+	}
+
+	participants := chatto.CallState.Participants(roomID)
+	if len(participants) != 1 || participants[0].ParticipantID != first.ParticipantID {
+		t.Fatalf("participants = %+v, want only sibling %q after durable leave", participants, first.ParticipantID)
+	}
+	if participants[0].ParticipantID == second.ParticipantID {
+		t.Fatalf("explicitly left participant %q remained projected", second.ParticipantID)
 	}
 }
 
@@ -345,6 +387,8 @@ func TestDelayedLeaveForOldCallCannotRemoveReplacementCallParticipant(t *testing
 	if !ok || secondCall.CallID == firstCall.CallID {
 		t.Fatalf("replacement call = %+v ok=%v, want call after %q", secondCall, ok, firstCall.CallID)
 	}
+	remover := &recordingLiveKitParticipantClient{}
+	chatto.callModel.livekit = remover
 
 	// This represents an HTTP LeaveCall request for the first call that was
 	// delayed until after the same browser session had joined its replacement.
@@ -355,6 +399,11 @@ func TestDelayedLeaveForOldCallCannotRemoveReplacementCallParticipant(t *testing
 	participants := chatto.CallState.Participants(roomID)
 	if len(participants) != 1 || participants[0].ParticipantID != second.ParticipantID || participants[0].CallID != secondCall.CallID {
 		t.Fatalf("participants after delayed leave = %+v, want replacement participant in call %q", participants, secondCall.CallID)
+	}
+	if len(remover.removed) != 1 ||
+		remover.removed[0].callID != firstCall.CallID ||
+		remover.removed[0].userID != first.ParticipantID {
+		t.Fatalf("delayed LiveKit removal = %+v, want only old call %q", remover.removed, firstCall.CallID)
 	}
 }
 

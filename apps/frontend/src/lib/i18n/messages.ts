@@ -858,6 +858,9 @@ const msg_room_attachment_too_many = (
 const msg_room_link_preview_delete_title = (): LocalizedString => messages().room_link_preview_delete_title(empty());
 const msg_room_link_preview_delete_prompt = (): LocalizedString => messages().room_link_preview_delete_prompt(empty());
 const msg_room_link_preview_delete_failed = (): LocalizedString => messages().room_link_preview_delete_failed(empty());
+const msg_room_workspace_switcher = (): LocalizedString => messages().room_workspace_switcher(empty());
+const msg_room_workspace_messages = (): LocalizedString => messages().room_workspace_messages(empty());
+const msg_room_workspace_call = (): LocalizedString => messages().room_workspace_call(empty());
 const msg_room_sidebar_extras = (): LocalizedString => messages().room_sidebar_extras(empty());
 const msg_room_sidebar_resize = (): LocalizedString => messages().room_sidebar_resize(empty());
 const msg_room_sidebar_hide = (): LocalizedString => messages().room_sidebar_hide(empty());
@@ -921,6 +924,10 @@ const msg_room_system_group_joined_room_one = (): LocalizedString => messages().
 const msg_room_system_group_joined_room_many = (): LocalizedString => messages().room_system_group_joined_room_many(empty());
 const msg_room_system_group_left_room_one = (): LocalizedString => messages().room_system_group_left_room_one(empty());
 const msg_room_system_group_left_room_many = (): LocalizedString => messages().room_system_group_left_room_many(empty());
+const msg_room_system_group_joined_call_one = (): LocalizedString => messages().room_system_group_joined_call_one(empty());
+const msg_room_system_group_joined_call_many = (): LocalizedString => messages().room_system_group_joined_call_many(empty());
+const msg_room_system_group_left_call_one = (): LocalizedString => messages().room_system_group_left_call_one(empty());
+const msg_room_system_group_left_call_many = (): LocalizedString => messages().room_system_group_left_call_many(empty());
 const msg_room_system_group_and = (): LocalizedString => messages().room_system_group_and(empty());
 const msg_room_system_group_show_less = (): LocalizedString => messages().room_system_group_show_less(empty());
 const msg_room_system_group_other_one = (
@@ -931,6 +938,10 @@ const msg_room_system_group_other_many = (
 ): LocalizedString => messages().room_system_group_other_many(inputs);
 const msg_room_system_event_joined_room = (): LocalizedString => messages().room_system_event_joined_room(empty());
 const msg_room_system_event_left_room = (): LocalizedString => messages().room_system_event_left_room(empty());
+const msg_room_system_event_started_call = (): LocalizedString => messages().room_system_event_started_call(empty());
+const msg_room_system_event_joined_call = (): LocalizedString => messages().room_system_event_joined_call(empty());
+const msg_room_system_event_left_call = (): LocalizedString => messages().room_system_event_left_call(empty());
+const msg_room_system_event_ended_call = (): LocalizedString => messages().room_system_event_ended_call(empty());
 const msg_room_system_event_archived_room = (): LocalizedString => messages().room_system_event_archived_room(empty());
 const msg_room_system_event_unarchived_room = (): LocalizedString => messages().room_system_event_unarchived_room(empty());
 const msg_room_system_defaults_announcements_description = (): LocalizedString => messages().room_system_defaults_announcements_description(empty());
@@ -1068,6 +1079,8 @@ const msg_ui_share_target_invalid_title = (): LocalizedString => messages().ui_s
 const msg_ui_share_target_invalid_description = (): LocalizedString => messages().ui_share_target_invalid_description(empty());
 const msg_ui_share_target_expired = (): LocalizedString => messages().ui_share_target_expired(empty());
 const msg_ui_update_available = (): LocalizedString => messages().ui_update_available(empty());
+const msg_ui_update_after_call = (): LocalizedString => messages().ui_update_after_call(empty());
+const msg_ui_update_waiting_for_call = (): LocalizedString => messages().ui_update_waiting_for_call(empty());
 const msg_ui_reload = (): LocalizedString => messages().ui_reload(empty());
 const msg_ui_network_offline = (): LocalizedString => messages().ui_network_offline(empty());
 const msg_ui_network_reconnecting = (): LocalizedString => messages().ui_network_reconnecting(empty());
@@ -1211,9 +1224,22 @@ const msg_room_list_empty_prefix = (): LocalizedString => messages().room_list_e
 const msg_room_list_empty_overview = (): LocalizedString => messages().room_list_empty_overview(empty());
 const msg_room_list_empty_suffix = (): LocalizedString => messages().room_list_empty_suffix(empty());
 const msg_voice_connecting = (): LocalizedString => messages().voice_connecting(empty());
+const msg_voice_dock_connected = (): LocalizedString => messages().voice_dock_connected(empty());
+const msg_voice_dock_joining = (): LocalizedString => messages().voice_dock_joining(empty());
+const msg_voice_dock_reconnecting = (): LocalizedString => messages().voice_dock_reconnecting(empty());
+const msg_voice_dock_audio_blocked = (): LocalizedString => messages().voice_dock_audio_blocked(empty());
+const msg_voice_dock_return_to_call = (
+  inputs: Parameters<LocaleMessages['voice_dock_return_to_call']>[0]
+): LocalizedString => messages().voice_dock_return_to_call(inputs);
+const msg_voice_dock_session_label = (
+  inputs: Parameters<LocaleMessages['voice_dock_session_label']>[0]
+): LocalizedString => messages().voice_dock_session_label(inputs);
 const msg_voice_joining = (): LocalizedString => messages().voice_joining(empty());
+const msg_voice_recording_conflict = (): LocalizedString => messages().voice_recording_conflict(empty());
 const msg_voice_starting = (): LocalizedString => messages().voice_starting(empty());
 const msg_voice_already_in_another_call = (): LocalizedString => messages().voice_already_in_another_call(empty());
+const msg_voice_switch_call_action = (): LocalizedString => messages().voice_switch_call_action(empty());
+const msg_voice_switch_call_message = (): LocalizedString => messages().voice_switch_call_message(empty());
 const msg_voice_join = (): LocalizedString => messages().voice_join(empty());
 const msg_voice_join_call = (): LocalizedString => messages().voice_join_call(empty());
 const msg_voice_start_call = (): LocalizedString => messages().voice_start_call(empty());
@@ -1228,7 +1254,12 @@ const msg_voice_stop_share_screen = (): LocalizedString => messages().voice_stop
 const msg_voice_user_settings = (): LocalizedString => messages().voice_user_settings(empty());
 const msg_voice_speaking = (): LocalizedString => messages().voice_speaking(empty());
 const msg_voice_muted = (): LocalizedString => messages().voice_muted(empty());
+const msg_voice_output_muted = (): LocalizedString => messages().voice_output_muted(empty());
 const msg_voice_poor_connection = (): LocalizedString => messages().voice_poor_connection(empty());
+const msg_voice_connection_quality_excellent = (): LocalizedString => messages().voice_connection_quality_excellent(empty());
+const msg_voice_connection_quality_good = (): LocalizedString => messages().voice_connection_quality_good(empty());
+const msg_voice_connection_quality_poor = (): LocalizedString => messages().voice_connection_quality_poor(empty());
+const msg_voice_connection_quality_unknown = (): LocalizedString => messages().voice_connection_quality_unknown(empty());
 const msg_voice_participant_reconnecting = (): LocalizedString => messages().voice_participant_reconnecting(empty());
 const msg_voice_participant_packet_loss = (
   inputs: Parameters<LocaleMessages['voice_participant_packet_loss']>[0]
@@ -1286,6 +1317,15 @@ const msg_voice_microphone_processing_status_requested = (): LocalizedString => 
 const msg_voice_microphone_processing_status_unavailable = (): LocalizedString => messages().voice_microphone_processing_status_unavailable(empty());
 const msg_voice_microphone_processing_status_off = (): LocalizedString => messages().voice_microphone_processing_status_off(empty());
 const msg_voice_participants = (): LocalizedString => messages().voice_participants(empty());
+const msg_voice_call_pages = (): LocalizedString => messages().voice_call_pages(empty());
+const msg_voice_previous_page = (): LocalizedString => messages().voice_previous_page(empty());
+const msg_voice_next_page = (): LocalizedString => messages().voice_next_page(empty());
+const msg_voice_page_status = (
+  inputs: Parameters<LocaleMessages['voice_page_status']>[0]
+): LocalizedString => messages().voice_page_status(inputs);
+const msg_voice_focus_media = (
+  inputs: Parameters<LocaleMessages['voice_focus_media']>[0]
+): LocalizedString => messages().voice_focus_media(inputs);
 const msg_voice_join_failed = (): LocalizedString => messages().voice_join_failed(empty());
 const msg_voice_call_no_longer_active = (): LocalizedString => messages().voice_call_no_longer_active(empty());
 const msg_voice_token_failed = (): LocalizedString => messages().voice_token_failed(empty());
@@ -1466,6 +1506,7 @@ const msg_composer_send_failed = (): LocalizedString => messages().composer_send
 const msg_composer_queued_offline = (): LocalizedString => messages().composer_queued_offline(empty());
 const msg_composer_attachments_need_connection = (): LocalizedString => messages().composer_attachments_need_connection(empty());
 const msg_composer_voice_record = (): LocalizedString => messages().composer_voice_record(empty());
+const msg_composer_voice_unavailable_during_call = (): LocalizedString => messages().composer_voice_unavailable_during_call(empty());
 const msg_composer_voice_requesting_microphone = (): LocalizedString => messages().composer_voice_requesting_microphone(empty());
 const msg_composer_voice_recording = (): LocalizedString => messages().composer_voice_recording(empty());
 const msg_composer_voice_stop = (): LocalizedString => messages().composer_voice_stop(empty());
@@ -2866,6 +2907,9 @@ export { msg_room_attachment_too_many as 'room.attachment.too_many' };
 export { msg_room_link_preview_delete_title as 'room.link_preview.delete_title' };
 export { msg_room_link_preview_delete_prompt as 'room.link_preview.delete_prompt' };
 export { msg_room_link_preview_delete_failed as 'room.link_preview.delete_failed' };
+export { msg_room_workspace_switcher as 'room.workspace.switcher' };
+export { msg_room_workspace_messages as 'room.workspace.messages' };
+export { msg_room_workspace_call as 'room.workspace.call' };
 export { msg_room_sidebar_extras as 'room.sidebar.extras' };
 export { msg_room_sidebar_resize as 'room.sidebar.resize' };
 export { msg_room_sidebar_hide as 'room.sidebar.hide' };
@@ -2915,12 +2959,20 @@ export { msg_room_system_group_joined_room_one as 'room.system_group.joined_room
 export { msg_room_system_group_joined_room_many as 'room.system_group.joined_room_many' };
 export { msg_room_system_group_left_room_one as 'room.system_group.left_room_one' };
 export { msg_room_system_group_left_room_many as 'room.system_group.left_room_many' };
+export { msg_room_system_group_joined_call_one as 'room.system_group.joined_call_one' };
+export { msg_room_system_group_joined_call_many as 'room.system_group.joined_call_many' };
+export { msg_room_system_group_left_call_one as 'room.system_group.left_call_one' };
+export { msg_room_system_group_left_call_many as 'room.system_group.left_call_many' };
 export { msg_room_system_group_and as 'room.system_group.and' };
 export { msg_room_system_group_show_less as 'room.system_group.show_less' };
 export { msg_room_system_group_other_one as 'room.system_group.other_one' };
 export { msg_room_system_group_other_many as 'room.system_group.other_many' };
 export { msg_room_system_event_joined_room as 'room.system_event.joined_room' };
 export { msg_room_system_event_left_room as 'room.system_event.left_room' };
+export { msg_room_system_event_started_call as 'room.system_event.started_call' };
+export { msg_room_system_event_joined_call as 'room.system_event.joined_call' };
+export { msg_room_system_event_left_call as 'room.system_event.left_call' };
+export { msg_room_system_event_ended_call as 'room.system_event.ended_call' };
 export { msg_room_system_event_archived_room as 'room.system_event.archived_room' };
 export { msg_room_system_event_unarchived_room as 'room.system_event.unarchived_room' };
 export { msg_room_system_defaults_announcements_description as 'room.system_defaults.announcements_description' };
@@ -3056,6 +3108,8 @@ export { msg_ui_share_target_invalid_title as 'ui.share_target.invalid_title' };
 export { msg_ui_share_target_invalid_description as 'ui.share_target.invalid_description' };
 export { msg_ui_share_target_expired as 'ui.share_target.expired' };
 export { msg_ui_update_available as 'ui.update_available' };
+export { msg_ui_update_after_call as 'ui.update_after_call' };
+export { msg_ui_update_waiting_for_call as 'ui.update_waiting_for_call' };
 export { msg_ui_reload as 'ui.reload' };
 export { msg_ui_network_offline as 'ui.network.offline' };
 export { msg_ui_network_reconnecting as 'ui.network.reconnecting' };
@@ -3171,9 +3225,18 @@ export { msg_room_list_empty_prefix as 'room_list.empty_prefix' };
 export { msg_room_list_empty_overview as 'room_list.empty_overview' };
 export { msg_room_list_empty_suffix as 'room_list.empty_suffix' };
 export { msg_voice_connecting as 'voice.connecting' };
+export { msg_voice_dock_connected as 'voice.dock.connected' };
+export { msg_voice_dock_joining as 'voice.dock.joining' };
+export { msg_voice_dock_reconnecting as 'voice.dock.reconnecting' };
+export { msg_voice_dock_audio_blocked as 'voice.dock.audio_blocked' };
+export { msg_voice_dock_return_to_call as 'voice.dock.return_to_call' };
+export { msg_voice_dock_session_label as 'voice.dock.session_label' };
 export { msg_voice_joining as 'voice.joining' };
+export { msg_voice_recording_conflict as 'voice.recording_conflict' };
 export { msg_voice_starting as 'voice.starting' };
 export { msg_voice_already_in_another_call as 'voice.already_in_another_call' };
+export { msg_voice_switch_call_action as 'voice.switch_call_action' };
+export { msg_voice_switch_call_message as 'voice.switch_call_message' };
 export { msg_voice_join as 'voice.join' };
 export { msg_voice_join_call as 'voice.join_call' };
 export { msg_voice_start_call as 'voice.start_call' };
@@ -3186,7 +3249,12 @@ export { msg_voice_stop_share_screen as 'voice.stop_share_screen' };
 export { msg_voice_user_settings as 'voice.user_settings' };
 export { msg_voice_speaking as 'voice.speaking' };
 export { msg_voice_muted as 'voice.muted' };
+export { msg_voice_output_muted as 'voice.output_muted' };
 export { msg_voice_poor_connection as 'voice.poor_connection' };
+export { msg_voice_connection_quality_excellent as 'voice.connection_quality_excellent' };
+export { msg_voice_connection_quality_good as 'voice.connection_quality_good' };
+export { msg_voice_connection_quality_poor as 'voice.connection_quality_poor' };
+export { msg_voice_connection_quality_unknown as 'voice.connection_quality_unknown' };
 export { msg_voice_participant_reconnecting as 'voice.participant_reconnecting' };
 export { msg_voice_participant_packet_loss as 'voice.participant_packet_loss' };
 export { msg_voice_participant_high_jitter as 'voice.participant_high_jitter' };
@@ -3238,6 +3306,11 @@ export { msg_voice_microphone_processing_status_requested as 'voice.microphone_p
 export { msg_voice_microphone_processing_status_unavailable as 'voice.microphone_processing_status_unavailable' };
 export { msg_voice_microphone_processing_status_off as 'voice.microphone_processing_status_off' };
 export { msg_voice_participants as 'voice.participants' };
+export { msg_voice_call_pages as 'voice.call_pages' };
+export { msg_voice_previous_page as 'voice.previous_page' };
+export { msg_voice_next_page as 'voice.next_page' };
+export { msg_voice_page_status as 'voice.page_status' };
+export { msg_voice_focus_media as 'voice.focus_media' };
 export { msg_voice_join_failed as 'voice.join_failed' };
 export { msg_voice_call_no_longer_active as 'voice.call_no_longer_active' };
 export { msg_voice_token_failed as 'voice.token_failed' };
@@ -3386,6 +3459,7 @@ export { msg_composer_send_failed as 'composer.send_failed' };
 export { msg_composer_queued_offline as 'composer.queued_offline' };
 export { msg_composer_attachments_need_connection as 'composer.attachments_need_connection' };
 export { msg_composer_voice_record as 'composer.voice.record' };
+export { msg_composer_voice_unavailable_during_call as 'composer.voice.unavailable_during_call' };
 export { msg_composer_voice_requesting_microphone as 'composer.voice.requesting_microphone' };
 export { msg_composer_voice_recording as 'composer.voice.recording' };
 export { msg_composer_voice_stop as 'composer.voice.stop' };

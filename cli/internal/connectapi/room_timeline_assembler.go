@@ -190,11 +190,48 @@ func (h *timelineHydrator) event(ctx context.Context, event *core.RoomEvent) (*a
 		apiEvent.Event = &apiv1.RoomTimelineEvent_UserJoinedRoom{UserJoinedRoom: roomEvent(payload.UserJoinedRoom.GetRoomId())}
 	case *corev1.Event_UserLeftRoom:
 		apiEvent.Event = &apiv1.RoomTimelineEvent_UserLeftRoom{UserLeftRoom: roomEvent(payload.UserLeftRoom.GetRoomId())}
+	case *corev1.Event_VoiceCallStarted:
+		apiEvent.Event = &apiv1.RoomTimelineEvent_CallStarted{CallStarted: callTimelineEvent(
+			payload.VoiceCallStarted.GetRoomId(),
+			payload.VoiceCallStarted.GetCallId(),
+			"",
+			0,
+		)}
+	case *corev1.Event_VoiceCallParticipantJoined:
+		apiEvent.Event = &apiv1.RoomTimelineEvent_CallParticipantJoined{CallParticipantJoined: callTimelineEvent(
+			payload.VoiceCallParticipantJoined.GetRoomId(),
+			payload.VoiceCallParticipantJoined.GetCallId(),
+			payload.VoiceCallParticipantJoined.GetParticipantId(),
+			payload.VoiceCallParticipantJoined.GetDeviceIndex(),
+		)}
+	case *corev1.Event_VoiceCallParticipantLeft:
+		apiEvent.Event = &apiv1.RoomTimelineEvent_CallParticipantLeft{CallParticipantLeft: callTimelineEvent(
+			payload.VoiceCallParticipantLeft.GetRoomId(),
+			payload.VoiceCallParticipantLeft.GetCallId(),
+			payload.VoiceCallParticipantLeft.GetParticipantId(),
+			payload.VoiceCallParticipantLeft.GetDeviceIndex(),
+		)}
+	case *corev1.Event_VoiceCallEnded:
+		apiEvent.Event = &apiv1.RoomTimelineEvent_CallEnded{CallEnded: callTimelineEvent(
+			payload.VoiceCallEnded.GetRoomId(),
+			payload.VoiceCallEnded.GetCallId(),
+			"",
+			0,
+		)}
 	default:
 		return nil, fmt.Errorf("unsupported room timeline event %T", payload)
 	}
 
 	return apiEvent, nil
+}
+
+func callTimelineEvent(roomID, callID, participantID string, deviceIndex uint32) *apiv1.RoomTimelineCallEvent {
+	return &apiv1.RoomTimelineCallEvent{
+		RoomId:        roomID,
+		CallId:        callID,
+		ParticipantId: participantID,
+		DeviceIndex:   deviceIndex,
+	}
 }
 
 func (h *timelineHydrator) messagePosted(ctx context.Context, event *core.RoomEvent, payload *corev1.MessagePostedEvent) (*apiv1.Message, error) {

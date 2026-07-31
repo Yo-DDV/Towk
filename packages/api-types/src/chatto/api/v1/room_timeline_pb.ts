@@ -17,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file chatto/api/v1/room_timeline.proto.
  */
 export const file_chatto_api_v1_room_timeline: GenFile = /*@__PURE__*/
-  fileDesc("CiFjaGF0dG8vYXBpL3YxL3Jvb21fdGltZWxpbmUucHJvdG8SDWNoYXR0by5hcGkudjEimAEKFFJvb21UaW1lbGluZUluY2x1ZGVzEj0KBXVzZXJzGAEgAygLMi4uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVJbmNsdWRlcy5Vc2Vyc0VudHJ5GkEKClVzZXJzRW50cnkSCwoDa2V5GAEgASgJEiIKBXZhbHVlGAIgASgLMhMuY2hhdHRvLmFwaS52MS5Vc2VyOgI4ASIoChVSb29tVGltZWxpbmVSb29tRXZlbnQSDwoHcm9vbV9pZBgBIAEoCSI8ChFSb29tTWVzc2FnZVBvc3RlZBInCgdtZXNzYWdlGAEgASgLMhYuY2hhdHRvLmFwaS52MS5NZXNzYWdlIuIEChFSb29tVGltZWxpbmVFdmVudBIKCgJpZBgBIAEoCRIuCgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghhY3Rvcl9pZBgDIAEoCRI6Cg5tZXNzYWdlX3Bvc3RlZBgKIAEoCzIgLmNoYXR0by5hcGkudjEuUm9vbU1lc3NhZ2VQb3N0ZWRIABI8Cgxyb29tX2NyZWF0ZWQYFCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEjwKDHJvb21fdXBkYXRlZBgVIAEoCzIkLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUm9vbUV2ZW50SAASPAoMcm9vbV9kZWxldGVkGBYgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI9Cg1yb29tX2FyY2hpdmVkGBcgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI/Cg9yb29tX3VuYXJjaGl2ZWQYGCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEkAKEHVzZXJfam9pbmVkX3Jvb20YHiABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEj4KDnVzZXJfbGVmdF9yb29tGB8gASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIAEIHCgVldmVudCLLAQoQUm9vbVRpbWVsaW5lUGFnZRIwCgZldmVudHMYASADKAsyIC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZUV2ZW50EhQKDHN0YXJ0X2N1cnNvchgCIAEoCRISCgplbmRfY3Vyc29yGAMgASgJEhEKCWhhc19vbGRlchgEIAEoCBIRCgloYXNfbmV3ZXIYBSABKAgSNQoIaW5jbHVkZXMYBiABKAsyIy5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZUluY2x1ZGVzImwKFEdldFJvb21FdmVudHNSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESDQoFbGltaXQYAiABKAUSEAoGYmVmb3JlGAMgASgJSAASDwoFYWZ0ZXIYBCABKAlIAEIICgZjdXJzb3IiRgoVR2V0Um9vbUV2ZW50c1Jlc3BvbnNlEi0KBHBhZ2UYASABKAsyHy5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVBhZ2UiYAoaR2V0Um9vbUV2ZW50c0Fyb3VuZFJlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARIZCghldmVudF9pZBgCIAEoCUIHukgEcgIQARINCgVsaW1pdBgDIAEoBSJiChtHZXRSb29tRXZlbnRzQXJvdW5kUmVzcG9uc2USLQoEcGFnZRgBIAEoCzIfLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUGFnZRIUCgx0YXJnZXRfaW5kZXgYAiABKAUilQEKFkdldFRocmVhZEV2ZW50c1JlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARIlChR0aHJlYWRfcm9vdF9ldmVudF9pZBgCIAEoCUIHukgEcgIQARINCgVsaW1pdBgDIAEoBRIQCgZiZWZvcmUYBCABKAlIABIPCgVhZnRlchgFIAEoCUgAQggKBmN1cnNvciJIChdHZXRUaHJlYWRFdmVudHNSZXNwb25zZRItCgRwYWdlGAEgASgLMh8uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVQYWdlIokBChxHZXRUaHJlYWRFdmVudHNBcm91bmRSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESJQoUdGhyZWFkX3Jvb3RfZXZlbnRfaWQYAiABKAlCB7pIBHICEAESGQoIZXZlbnRfaWQYAyABKAlCB7pIBHICEAESDQoFbGltaXQYBCABKAUiZAodR2V0VGhyZWFkRXZlbnRzQXJvdW5kUmVzcG9uc2USLQoEcGFnZRgBIAEoCzIfLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUGFnZRIUCgx0YXJnZXRfaW5kZXgYAiABKAVCrQEKEWNvbS5jaGF0dG8uYXBpLnYxQhFSb29tVGltZWxpbmVQcm90b1ABWi9obWFucy5kZS9jaGF0dG8vaW50ZXJuYWwvcGIvY2hhdHRvL2FwaS92MTthcGl2MaICA0NBWKoCDUNoYXR0by5BcGkuVjHKAg1DaGF0dG9cQXBpXFYx4gIZQ2hhdHRvXEFwaVxWMVxHUEJNZXRhZGF0YeoCD0NoYXR0bzo6QXBpOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_chatto_api_v1_message_types, file_chatto_api_v1_users, file_google_protobuf_timestamp]);
+  fileDesc("CiFjaGF0dG8vYXBpL3YxL3Jvb21fdGltZWxpbmUucHJvdG8SDWNoYXR0by5hcGkudjEimAEKFFJvb21UaW1lbGluZUluY2x1ZGVzEj0KBXVzZXJzGAEgAygLMi4uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVJbmNsdWRlcy5Vc2Vyc0VudHJ5GkEKClVzZXJzRW50cnkSCwoDa2V5GAEgASgJEiIKBXZhbHVlGAIgASgLMhMuY2hhdHRvLmFwaS52MS5Vc2VyOgI4ASIoChVSb29tVGltZWxpbmVSb29tRXZlbnQSDwoHcm9vbV9pZBgBIAEoCSI8ChFSb29tTWVzc2FnZVBvc3RlZBInCgdtZXNzYWdlGAEgASgLMhYuY2hhdHRvLmFwaS52MS5NZXNzYWdlIuwGChFSb29tVGltZWxpbmVFdmVudBIKCgJpZBgBIAEoCRIuCgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghhY3Rvcl9pZBgDIAEoCRI6Cg5tZXNzYWdlX3Bvc3RlZBgKIAEoCzIgLmNoYXR0by5hcGkudjEuUm9vbU1lc3NhZ2VQb3N0ZWRIABI8Cgxyb29tX2NyZWF0ZWQYFCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEjwKDHJvb21fdXBkYXRlZBgVIAEoCzIkLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUm9vbUV2ZW50SAASPAoMcm9vbV9kZWxldGVkGBYgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI9Cg1yb29tX2FyY2hpdmVkGBcgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI/Cg9yb29tX3VuYXJjaGl2ZWQYGCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEkAKEHVzZXJfam9pbmVkX3Jvb20YHiABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEj4KDnVzZXJfbGVmdF9yb29tGB8gASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI8CgxjYWxsX3N0YXJ0ZWQYKCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZUNhbGxFdmVudEgAEkcKF2NhbGxfcGFydGljaXBhbnRfam9pbmVkGCkgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVDYWxsRXZlbnRIABJFChVjYWxsX3BhcnRpY2lwYW50X2xlZnQYKiABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZUNhbGxFdmVudEgAEjoKCmNhbGxfZW5kZWQYKyABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZUNhbGxFdmVudEgAQgcKBWV2ZW50IssBChBSb29tVGltZWxpbmVQYWdlEjAKBmV2ZW50cxgBIAMoCzIgLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lRXZlbnQSFAoMc3RhcnRfY3Vyc29yGAIgASgJEhIKCmVuZF9jdXJzb3IYAyABKAkSEQoJaGFzX29sZGVyGAQgASgIEhEKCWhhc19uZXdlchgFIAEoCBI1CghpbmNsdWRlcxgGIAEoCzIjLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lSW5jbHVkZXMibAoUR2V0Um9vbUV2ZW50c1JlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARINCgVsaW1pdBgCIAEoBRIQCgZiZWZvcmUYAyABKAlIABIPCgVhZnRlchgEIAEoCUgAQggKBmN1cnNvciJGChVHZXRSb29tRXZlbnRzUmVzcG9uc2USLQoEcGFnZRgBIAEoCzIfLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUGFnZSJgChpHZXRSb29tRXZlbnRzQXJvdW5kUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEhkKCGV2ZW50X2lkGAIgASgJQge6SARyAhABEg0KBWxpbWl0GAMgASgFImIKG0dldFJvb21FdmVudHNBcm91bmRSZXNwb25zZRItCgRwYWdlGAEgASgLMh8uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVQYWdlEhQKDHRhcmdldF9pbmRleBgCIAEoBSKVAQoWR2V0VGhyZWFkRXZlbnRzUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEiUKFHRocmVhZF9yb290X2V2ZW50X2lkGAIgASgJQge6SARyAhABEg0KBWxpbWl0GAMgASgFEhAKBmJlZm9yZRgEIAEoCUgAEg8KBWFmdGVyGAUgASgJSABCCAoGY3Vyc29yIkgKF0dldFRocmVhZEV2ZW50c1Jlc3BvbnNlEi0KBHBhZ2UYASABKAsyHy5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVBhZ2UiiQEKHEdldFRocmVhZEV2ZW50c0Fyb3VuZFJlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARIlChR0aHJlYWRfcm9vdF9ldmVudF9pZBgCIAEoCUIHukgEcgIQARIZCghldmVudF9pZBgDIAEoCUIHukgEcgIQARINCgVsaW1pdBgEIAEoBSJkCh1HZXRUaHJlYWRFdmVudHNBcm91bmRSZXNwb25zZRItCgRwYWdlGAEgASgLMh8uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVQYWdlEhQKDHRhcmdldF9pbmRleBgCIAEoBSJnChVSb29tVGltZWxpbmVDYWxsRXZlbnQSDwoHcm9vbV9pZBgBIAEoCRIPCgdjYWxsX2lkGAIgASgJEhYKDnBhcnRpY2lwYW50X2lkGAMgASgJEhQKDGRldmljZV9pbmRleBgEIAEoDUKtAQoRY29tLmNoYXR0by5hcGkudjFCEVJvb21UaW1lbGluZVByb3RvUAFaL2htYW5zLmRlL2NoYXR0by9pbnRlcm5hbC9wYi9jaGF0dG8vYXBpL3YxO2FwaXYxogIDQ0FYqgINQ2hhdHRvLkFwaS5WMcoCDUNoYXR0b1xBcGlcVjHiAhlDaGF0dG9cQXBpXFYxXEdQQk1ldGFkYXRh6gIPQ2hhdHRvOjpBcGk6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_chatto_api_v1_message_types, file_chatto_api_v1_users, file_google_protobuf_timestamp]);
 
 /**
  * Related entities included beside timeline/feed events.
@@ -185,6 +185,38 @@ export type RoomTimelineEvent = Message<"chatto.api.v1.RoomTimelineEvent"> & {
      */
     value: RoomTimelineRoomEvent;
     case: "userLeftRoom";
+  } | {
+    /**
+     * A voice call started in the room.
+     *
+     * @generated from field: chatto.api.v1.RoomTimelineCallEvent call_started = 40;
+     */
+    value: RoomTimelineCallEvent;
+    case: "callStarted";
+  } | {
+    /**
+     * One participant connection joined the voice call.
+     *
+     * @generated from field: chatto.api.v1.RoomTimelineCallEvent call_participant_joined = 41;
+     */
+    value: RoomTimelineCallEvent;
+    case: "callParticipantJoined";
+  } | {
+    /**
+     * One participant connection left the voice call.
+     *
+     * @generated from field: chatto.api.v1.RoomTimelineCallEvent call_participant_left = 42;
+     */
+    value: RoomTimelineCallEvent;
+    case: "callParticipantLeft";
+  } | {
+    /**
+     * The voice call ended.
+     *
+     * @generated from field: chatto.api.v1.RoomTimelineCallEvent call_ended = 43;
+     */
+    value: RoomTimelineCallEvent;
+    case: "callEnded";
   } | { case: undefined; value?: undefined };
 };
 
@@ -556,3 +588,51 @@ export type GetThreadEventsAroundResponse = Message<"chatto.api.v1.GetThreadEven
  */
 export const GetThreadEventsAroundResponseSchema: GenMessage<GetThreadEventsAroundResponse> = /*@__PURE__*/
   messageDesc(file_chatto_api_v1_room_timeline, 12);
+
+/**
+ * Payload for durable voice-call lifecycle entries shown in the room timeline.
+ *
+ * These informational timeline entries do not represent posted messages and
+ * must not create unread markers or message notifications. Call-start and
+ * call-end entries leave participant_id and device_index empty. Participant
+ * entries identify the exact media-session connection so clients can
+ * distinguish multiple devices belonging to the same account.
+ *
+ * @generated from message chatto.api.v1.RoomTimelineCallEvent
+ */
+export type RoomTimelineCallEvent = Message<"chatto.api.v1.RoomTimelineCallEvent"> & {
+  /**
+   * Room containing the call.
+   *
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+
+  /**
+   * Stable call session ID.
+   *
+   * @generated from field: string call_id = 2;
+   */
+  callId: string;
+
+  /**
+   * Exact media-session participant ID for join and leave entries.
+   *
+   * @generated from field: string participant_id = 3;
+   */
+  participantId: string;
+
+  /**
+   * Stable display slot for concurrent connections from the same account.
+   *
+   * @generated from field: uint32 device_index = 4;
+   */
+  deviceIndex: number;
+};
+
+/**
+ * Describes the message chatto.api.v1.RoomTimelineCallEvent.
+ * Use `create(RoomTimelineCallEventSchema)` to create a new message.
+ */
+export const RoomTimelineCallEventSchema: GenMessage<RoomTimelineCallEvent> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_room_timeline, 13);

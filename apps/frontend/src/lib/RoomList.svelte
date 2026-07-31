@@ -20,21 +20,16 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import CollapsibleGroup from '$lib/ui/CollapsibleGroup.svelte';
   import EmptyState from '$lib/ui/EmptyState.svelte';
   import { useEvent, useTabResumeCallback, useRoomMarkedAsRead } from '$lib/hooks';
-  import {
-    roomSidebarPanelStorageSuffix,
-    setPendingRoomSidebarPanel,
-    setRoomSidebarPanel
-  } from '$lib/storage/roomSidebarPanel';
   import { serverStorageKey } from '$lib/storage/serverStorage';
-  import { useRenderData } from './render/data';
   import { PresenceStatus, RoomType, type UserAvatarUserView } from '$lib/render/types';
-  import UserAvatar, { UserAvatarViewData } from '$lib/components/UserAvatar.svelte';
+  import UserAvatar from '$lib/components/UserAvatar.svelte';
   import NotificationBadge from '$lib/ui/NotificationBadge.svelte';
   import UnreadDot from '$lib/ui/UnreadDot.svelte';
   import { notificationTarget } from '$lib/state/server/notifications.svelte';
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
-  import { appState } from '$lib/state/globals.svelte';
+  import { getCallJoinController } from '$lib/state/callJoinController.svelte';
+  import { appState, sidebarNav } from '$lib/state/globals.svelte';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
   import { privateDataScopeForServer } from '$lib/pwa/scope';
   import { warmRoomTimelineSnapshot } from '$lib/state/room/messages.svelte';
@@ -62,9 +57,9 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   const notificationStore = $derived(stores.notifications);
   const notificationLevelStore = $derived(stores.notificationLevels);
   const activeCallRooms = $derived(stores.activeCallRooms);
-  const voiceCallState = $derived(stores.voiceCall);
   const serverInfo = $derived(stores.serverInfo);
   const appUi = getAppUiState();
+  const callJoinController = getCallJoinController();
   const ROOM_NAVIGATION_WARMUP_TIMEOUT_MS = 650;
 
   const roomsStore = $derived(stores.rooms);
@@ -76,27 +71,6 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   function eventRoomId(event: EventEnvelope['event']): string | null {
     if (!event || !('roomId' in event) || typeof event.roomId !== 'string') return null;
     return event.roomId;
-  }
-
-  function callEventPayload(
-    event: EventEnvelope['event']
-  ): { roomId: string; callId: string; participantId: string | null; deviceIndex: number } | null {
-    if (
-      !event ||
-      !('roomId' in event) ||
-      typeof event.roomId !== 'string' ||
-      !('callId' in event) ||
-      typeof event.callId !== 'string'
-    ) {
-      return null;
-    }
-    const participantId =
-      'participantId' in event && typeof event.participantId === 'string' && event.participantId
-        ? event.participantId
-        : null;
-    const deviceIndex =
-      'deviceIndex' in event && typeof event.deviceIndex === 'number' ? event.deviceIndex : 0;
-    return { roomId: event.roomId, callId: event.callId, participantId, deviceIndex };
   }
 
   // Load active call room IDs whenever the active server has a LiveKit URL.
@@ -207,9 +181,8 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
 
   // --- Real-time event handlers ---
 
-  // Handle server events that this component cares about beyond the store
-  // refresh (which happens in ServerEventProvider): navigate away on leave,
-  // and update voice-call indicators.
+  // ServerStateStore owns call projection ingestion. This component only owns
+  // navigation when the current viewer leaves the active room.
   useEvent((serverEvent) => {
     const event = serverEvent.event;
     if (!event) return;
@@ -226,46 +199,6 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
           }
         }
         break;
-      case RoomEventKind.CallParticipantJoined: {
-        const call = callEventPayload(event);
-        if (!call) break;
-        const actor = serverEvent.actor
-          ? useRenderData(UserAvatarViewData, serverEvent.actor)
-          : null;
-        void activeCallRooms.handleJoin(
-          call.roomId,
-          call.callId,
-          actor,
-          call.participantId,
-          call.deviceIndex
-        );
-        break;
-      }
-      case RoomEventKind.CallParticipantLeft: {
-        const call = callEventPayload(event);
-        if (!call) break;
-        activeCallRooms.handleLeave(
-          call.roomId,
-          call.callId,
-          serverEvent.actorId ?? null,
-          call.participantId
-        );
-        voiceCallState.handleParticipantLeftEvent(
-          call.roomId,
-          call.callId,
-          call.participantId,
-          serverEvent.actorId ?? null,
-          roomsStore.currentUserId
-        );
-        break;
-      }
-      case RoomEventKind.CallEnded: {
-        const call = callEventPayload(event);
-        if (!call) break;
-        activeCallRooms.handleEnd(call.roomId, call.callId);
-        voiceCallState.handleCallEndedEvent(call.roomId, call.callId);
-        break;
-      }
     }
   });
 
@@ -295,43 +228,41 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     // window to be focused AND the tab visible — if the URL matches but
     // the user is on another app / tab, the dot should still light up so
     // they see the signal when they return.
-    if (event.roomId === activeRoomId && appState.isPresent) return;
+    if (
+      event.roomId === activeRoomId &&
+      appState.isPresent &&
+      appUi.roomPrimarySurfaceFor(activeServerId, event.roomId) === 'messages'
+    )
+      return;
     if (serverEvent.actorId === currentUserState.user?.id) return;
     if (notificationLevelStore.isRoomMuted(event.roomId)) return;
     roomUnreadStore.setRoomUnread(event.roomId, true);
   });
 
-  function wasCallIconClick(event: MouseEvent): boolean {
-    const target = event.target;
-    return target instanceof Element && target.closest('[data-testid="room-call-icon"]') !== null;
+  function joinRoomCall(roomId: string): void {
+    void callJoinController.request({
+      serverId: activeServerId,
+      roomId,
+      expectedCallId: activeCallRooms.getCallId(roomId) ?? undefined,
+      source: 'room-list'
+    });
   }
 
-  async function openRoomCallPanel(roomId: string): Promise<void> {
-    setRoomSidebarPanel(activeServerId, roomId, 'call');
-    setPendingRoomSidebarPanel(activeServerId, roomId, 'call');
-    window.dispatchEvent(
-      new StorageEvent('storage', {
-        key: serverStorageKey(activeServerId, roomSidebarPanelStorageSuffix(roomId)),
-        newValue: 'call'
-      })
-    );
-    await goto(resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId }));
+  function selectRoomMessages(room: RoomsListItem): void {
+    appUi.selectRoomPrimarySurface(activeServerId, room.id, 'messages');
+    if (sidebarNav.isMobile) sidebarNav.close();
   }
 
   function handleRoomLinkClick(event: MouseEvent, room: RoomsListItem): void {
-    if (room.viewerIsMember && activeCallRooms.has(room.id) && wasCallIconClick(event)) {
-      event.preventDefault();
-      void openRoomCallPanel(room.id);
-      return;
-    }
     if (event.defaultPrevented) return;
     if (!room.viewerIsMember) return;
-    if (room.id === activeRoomId) return;
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
       return;
     }
 
     event.preventDefault();
+    selectRoomMessages(room);
+    if (room.id === activeRoomId) return;
     void navigateToRoom(room);
   }
 
@@ -341,10 +272,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     if (event.key !== 'Enter' && event.key !== ' ') return;
 
     event.preventDefault();
-    if (activeCallRooms.has(room.id)) {
-      void openRoomCallPanel(room.id);
-      return;
-    }
+    selectRoomMessages(room);
     if (room.id === activeRoomId) return;
     void navigateToRoom(room);
   }
@@ -372,10 +300,9 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   }
 
   async function navigateToRoom(room: RoomsListItem): Promise<void> {
+    appUi.selectRoomPrimarySurface(activeServerId, room.id, 'messages');
     await waitForRoomNavigationWarmup(room).catch(() => undefined);
-    await goto(
-      resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })
-    );
+    await goto(resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id }));
   }
 
   async function handleNotificationBadgeClick(event: MouseEvent, roomId: string, isDM: boolean) {
@@ -486,32 +413,32 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     hasUnreadAttention ? 'font-semibold text-text-top hover:!text-text-top' : '',
     !isJoined ? 'opacity-60 hover:opacity-85' : ''
   ]}
-  <a
-    href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
-    class={rowClass}
-    aria-current={room.id === activeRoomId ? 'page' : undefined}
-    data-sveltekit-preload-code="hover"
-    data-sveltekit-preload-data="tap"
-    onpointerenter={() => void warmRoomTimeline(room)}
-    onfocus={() => void warmRoomTimeline(room)}
-    ontouchstart={() => void warmRoomTimeline(room)}
-    onclick={(e) => handleRoomLinkClick(e, room)}
-    onkeydown={(e) => handleRoomLinkKeydown(e, room)}
-  >
-    {#if isJoined}
-      <span class={['sidebar-icon', hasUnreadAttention ? 'text-text-top' : 'text-muted']}>#</span>
-    {:else if room.viewerCanJoinRoom}
-      <span class="sidebar-icon text-muted">+</span>
-    {:else}
-      <span class="sidebar-icon iconify text-muted uil--lock"></span>
-    {/if}
-    <span class="flex-1 truncate">{room.name}</span>
-    {#if isJoined && hasActiveCall}
-      {@render activeCallParticipants(room.id)}
-      {@render activeCallIcon()}
-    {/if}
+  <div class={rowClass} data-testid="room-list-row">
+    <a
+      href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
+      class="flex min-w-0 flex-1 items-center gap-2"
+      aria-current={room.id === activeRoomId ? 'page' : undefined}
+      data-sveltekit-preload-code="hover"
+      data-sveltekit-preload-data="tap"
+      onpointerenter={() => void warmRoomTimeline(room)}
+      onfocus={() => void warmRoomTimeline(room)}
+      ontouchstart={() => void warmRoomTimeline(room)}
+      onclick={(e) => handleRoomLinkClick(e, room)}
+      onkeydown={(e) => handleRoomLinkKeydown(e, room)}
+    >
+      {#if isJoined}
+        <span class={['sidebar-icon', hasUnreadAttention ? 'text-text-top' : 'text-muted']}>#</span>
+      {:else if room.viewerCanJoinRoom}
+        <span class="sidebar-icon text-muted">+</span>
+      {:else}
+        <span class="sidebar-icon iconify text-muted uil--lock"></span>
+      {/if}
+      <span class="flex-1 truncate">{room.name}</span>
+      {#if isJoined && hasActiveCall}
+        {@render activeCallParticipants(room.id)}
+      {/if}
+    </a>
 
-    <!-- Notification Indicator (warning color for mentions and thread replies) -->
     {#if isJoined && room.viewerNotificationCount > 0}
       {@const notificationPending = pendingNotificationRooms.has(room.id)}
       <button
@@ -537,7 +464,19 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
       <UnreadDot color="primary" testid="room-unread-dot" />
       <span class="sr-only">{m['room_list.unread_messages']()}</span>
     {/if}
-  </a>
+    {#if isJoined && hasActiveCall}
+      <button
+        type="button"
+        class="grid min-h-10 min-w-10 shrink-0 cursor-pointer place-items-center rounded-lg hover:bg-surface-200 focus-visible:outline-2 focus-visible:outline-primary"
+        aria-label={m['voice.join']()}
+        title={m['voice.join']()}
+        data-testid="room-call-action"
+        onclick={() => joinRoomCall(room.id)}
+      >
+        {@render activeCallIcon()}
+      </button>
+    {/if}
+  </div>
 {/snippet}
 
 {#snippet dmLink(room: RoomsListItem)}
@@ -545,32 +484,36 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   {@const hasUnread = roomUnreadStore.roomIsUnread(room.id)}
   {@const hasUnreadAttention =
     hasUnread && room.id !== activeRoomId && !notificationLevelStore.isRoomMuted(room.id)}
-  <a
-    href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
+  <div
     class={[
       'group/badges @container sidebar-item',
       room.id === activeRoomId ? 'bg-surface-100' : '',
       hasUnreadAttention ? 'font-semibold text-text-top hover:!text-text-top' : ''
     ]}
-    aria-current={room.id === activeRoomId ? 'page' : undefined}
-    data-sveltekit-preload-code="hover"
-    data-sveltekit-preload-data="tap"
-    onpointerenter={() => void warmRoomTimeline(room)}
-    onfocus={() => void warmRoomTimeline(room)}
-    ontouchstart={() => void warmRoomTimeline(room)}
-    onclick={(e) => handleRoomLinkClick(e, room)}
-    onkeydown={(e) => handleRoomLinkKeydown(e, room)}
+    data-testid="dm-list-row"
   >
-    <div class="flex shrink-0 -space-x-1">
-      {#each dmAvatarParticipants(room) as participant (participant.id)}
-        <UserAvatar user={participant} size="xs" />
-      {/each}
-    </div>
-    <span class="flex-1 truncate">{dmDisplayName(room)}</span>
-    {#if hasActiveCall}
-      {@render activeCallParticipants(room.id)}
-      {@render activeCallIcon()}
-    {/if}
+    <a
+      href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
+      class="flex min-w-0 flex-1 items-center gap-2"
+      aria-current={room.id === activeRoomId ? 'page' : undefined}
+      data-sveltekit-preload-code="hover"
+      data-sveltekit-preload-data="tap"
+      onpointerenter={() => void warmRoomTimeline(room)}
+      onfocus={() => void warmRoomTimeline(room)}
+      ontouchstart={() => void warmRoomTimeline(room)}
+      onclick={(e) => handleRoomLinkClick(e, room)}
+      onkeydown={(e) => handleRoomLinkKeydown(e, room)}
+    >
+      <div class="flex shrink-0 -space-x-1">
+        {#each dmAvatarParticipants(room) as participant (participant.id)}
+          <UserAvatar user={participant} size="xs" />
+        {/each}
+      </div>
+      <span class="flex-1 truncate">{dmDisplayName(room)}</span>
+      {#if hasActiveCall}
+        {@render activeCallParticipants(room.id)}
+      {/if}
+    </a>
 
     {#if room.viewerNotificationCount > 0}
       {@const notificationPending = pendingNotificationRooms.has(room.id)}
@@ -596,7 +539,19 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
       <UnreadDot color="primary" testid="dm-unread-dot" />
       <span class="sr-only">{m['room_list.unread_messages']()}</span>
     {/if}
-  </a>
+    {#if hasActiveCall}
+      <button
+        type="button"
+        class="grid min-h-10 min-w-10 shrink-0 cursor-pointer place-items-center rounded-lg hover:bg-surface-200 focus-visible:outline-2 focus-visible:outline-primary"
+        aria-label={m['voice.join']()}
+        title={m['voice.join']()}
+        data-testid="dm-call-action"
+        onclick={() => joinRoomCall(room.id)}
+      >
+        {@render activeCallIcon()}
+      </button>
+    {/if}
+  </div>
 {/snippet}
 
 {#snippet sidebarLink(item: RoomsListGroupItem)}

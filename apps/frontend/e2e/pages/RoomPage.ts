@@ -84,6 +84,11 @@ export class RoomPage {
     return this.page.locator('media-player');
   }
 
+  /** Lazy video preview that activates Vidstack on an explicit user gesture. */
+  get videoPlayerPosterShell(): Locator {
+    return this.page.getByTestId('video-player-poster-shell');
+  }
+
   /** Vidstack media controls bar */
   get mediaControls(): Locator {
     return this.page.locator('media-player media-controls');
@@ -906,10 +911,7 @@ export class RoomPage {
 
   /** The main room content div (where the drop zone is attached) */
   get roomDropZone(): Locator {
-    // Target the room content area that contains both the message input and the room header
-    return this.page.locator('div.relative.flex.min-h-0.min-w-0.flex-1.flex-col').filter({
-      has: this.page.getByTestId('message-input')
-    });
+    return this.page.getByTestId('room-messages-surface');
   }
 
   /** The active thread pane, which owns its thread-scoped drop zone. */

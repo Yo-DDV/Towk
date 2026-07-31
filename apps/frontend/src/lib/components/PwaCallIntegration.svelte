@@ -1,11 +1,15 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { serverRegistry } from '$lib/state/server/registry.svelte';
+  import {
+    leaveGlobalCallSession,
+    resolveCurrentGlobalCallStore,
+    resolveGlobalCallSession
+  } from '$lib/state/globalCallSession.svelte';
+  import { getAppUiState } from '$lib/state/appUi.svelte';
   import {
     CallAudioSessionController,
     CallMediaSessionController,
     CallWakeLockController,
-    selectCallIntegrationCandidate,
     type CallAudioSessionLike,
     type CallMediaSessionLike,
     type VisibilityDocumentLike,
@@ -32,37 +36,35 @@
       : new CallAudioSessionController(
           (navigator as Navigator & { audioSession?: CallAudioSessionLike }).audioSession
         );
+  const appUi = getAppUiState();
 
-  const activeCall = $derived.by(() => {
-    const candidates = [];
-    for (const server of serverRegistry.servers) {
-      const store = serverRegistry.getStore(server.id);
-      const call = store.voiceCall;
-      if (!call.isInAnyCall) continue;
-      const room = store.rooms.rooms.find((candidate) => candidate.id === call.roomId);
-      candidates.push({
-        call,
-        roomName: room?.name || call.roomId || m['voice.active_call'](),
-        serverName: store.serverInfo.name || server.name
-      });
-    }
-    return selectCallIntegrationCandidate(candidates);
-  });
+  const activeCall = $derived(resolveGlobalCallSession());
 
   $effect(() => {
     const active = activeCall;
+    const call = active?.store.voiceCall;
+    const room = active?.store.rooms.rooms.find((candidate) => candidate.id === active.roomId);
+    const runCurrent = (command: (current: NonNullable<typeof call>) => void | Promise<void>) => {
+      if (!active) return;
+      const store = resolveCurrentGlobalCallStore(active);
+      if (store) void Promise.resolve(command(store.voiceCall)).catch(() => undefined);
+    };
     wakeLockController?.sync(active !== null);
     audioSessionController?.sync(active !== null);
     mediaSessionController?.sync(
-      active
+      active && call
         ? {
-            title: m['voice.call_in']({ room: active.roomName }),
-            artist: active.serverName,
-            cameraActive: active.call.isCameraEnabled,
-            microphoneActive: !active.call.isMuted,
-            onHangup: () => active.call.leave(),
-            onToggleCamera: () => active.call.toggleCamera(),
-            onToggleMicrophone: () => active.call.toggleMute()
+            title: m['voice.call_in']({
+              room: room?.name || active.roomId || m['voice.active_call']()
+            }),
+            artist: active.store.serverInfo.name || active.serverId,
+            cameraActive: call.isCameraEnabled,
+            microphoneActive: !call.isMuted,
+            onHangup: async () => {
+              await leaveGlobalCallSession(active, appUi);
+            },
+            onToggleCamera: () => runCurrent((current) => current.toggleCamera()),
+            onToggleMicrophone: () => runCurrent((current) => current.toggleMute())
           }
         : null
     );
@@ -70,8 +72,10 @@
 
   onMount(() => {
     const handleVisibilityChange = () => {
-      void activeCall?.call
-        .handleDocumentVisibilityChange(document.visibilityState)
+      const session = resolveGlobalCallSession();
+      if (!session) return;
+      void resolveCurrentGlobalCallStore(session)
+        ?.voiceCall.handleDocumentVisibilityChange(document.visibilityState)
         .catch(() => undefined);
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);

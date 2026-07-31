@@ -144,6 +144,11 @@
       "delete_prompt": "Are you sure you want to remove this link preview? This cannot be undone.",
       "delete_failed": "Failed to delete link preview"
     },
+    "workspace": {
+      "switcher": "Room view",
+      "messages": "Messages",
+      "call": "Call"
+    },
     "sidebar": {
       "extras": "Room extras",
       "resize": "Resize room extras pane",
@@ -200,6 +205,10 @@
       "joined_room_many": "joined the room",
       "left_room_one": "left the room",
       "left_room_many": "left the room",
+      "joined_call_one": "joined the call",
+      "joined_call_many": "joined the call",
+      "left_call_one": "left the call",
+      "left_call_many": "left the call",
       "and": "and",
       "show_less": "show less",
       "other_one": "{count} other",
@@ -208,6 +217,10 @@
     "system_event": {
       "joined_room": "joined the room",
       "left_room": "left the room",
+      "started_call": "started the call",
+      "joined_call": "joined the call",
+      "left_call": "left the call",
+      "ended_call": "ended the call",
       "archived_room": "archived the room",
       "unarchived_room": "unarchived the room"
     },

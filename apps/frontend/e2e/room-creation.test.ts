@@ -56,8 +56,9 @@ test('create room with name exceeding max length shows error', async ({ page, ch
   // Submit
   await chatPage.roomFormSubmitButton.click();
 
-  // Should show error message from backend
-  await chatPage.expectValidationError('room name must be 30 characters or less');
+  // The dialog keeps transport details private; ConnectRPC contract tests cover
+  // the precise core validation message.
+  await chatPage.expectValidationError('Failed to create room');
 });
 
 test('create room with description exceeding max length shows error', async ({
@@ -80,8 +81,9 @@ test('create room with description exceeding max length shows error', async ({
   // Submit
   await chatPage.roomFormSubmitButton.click();
 
-  // Should show error message from backend
-  await chatPage.expectValidationError('room description must be 500 characters or less');
+  // The dialog keeps transport details private; ConnectRPC contract tests cover
+  // the precise core validation message.
+  await chatPage.expectValidationError('Failed to create room');
 });
 
 test('can leave room immediately after creating it', async ({ page, chatPage }) => {

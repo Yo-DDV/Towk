@@ -4,6 +4,7 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import type { ServerConnection } from '$lib/state/server/serverConnection.svelte';
 import type { RoomTimelineAPI } from '$lib/api-client/roomTimeline';
 import { RoomEventKind } from '$lib/render/eventKinds';
+import { PresenceStatus } from '$lib/render/types';
 import type { EventConnectionPage } from './messages/helpers';
 import {
   __resetTimelineWarmupStateForTests,
@@ -248,7 +249,12 @@ function callEvent(
     id,
     createdAt: '2026-05-27T00:00:01Z',
     actorId: 'u1',
-    actor: null,
+    actor: {
+      id: 'u1',
+      login: 'alice',
+      displayName: 'Alice',
+      avatarUrl: null
+    },
     event: {
       kind,
       roomId,
@@ -1509,7 +1515,7 @@ describe('MessagesStore — room lifecycle ownership', () => {
     store.dispose();
   });
 
-  it('ignores call lifecycle and participant events in the room timeline', async () => {
+  it('keeps only participant join and leave events in the room timeline', async () => {
     const fake = new FakeQueryClient(
       roomEventsResult({
         events: [],
@@ -1534,8 +1540,74 @@ describe('MessagesStore — room lifecycle ownership', () => {
     store.ingestServerEvent(callEvent(RoomEventKind.CallParticipantLeft, 'call-left') as never);
     store.ingestServerEvent(callEvent(RoomEventKind.CallEnded, 'call-ended') as never);
 
-    expect(store.rootEvents).toEqual([]);
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['call-joined', 'call-left']);
+    expect(
+      store.rootEvents.some((event) => event.event?.kind === RoomEventKind.MessagePosted)
+    ).toBe(false);
     expect(fake.queryMock).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
+  it('hides redundant call lifecycle rows loaded from older room history', async () => {
+    const fake = new FakeQueryClient(
+      roomEventsResult({
+        events: [
+          callEvent(RoomEventKind.CallStarted, 'call-started'),
+          callEvent(RoomEventKind.CallParticipantJoined, 'call-joined'),
+          callEvent(RoomEventKind.CallParticipantLeft, 'call-left'),
+          callEvent(RoomEventKind.CallEnded, 'call-ended')
+        ],
+        startCursor: null,
+        endCursor: null,
+        hasOlder: false,
+        hasNewer: false
+      })
+    );
+    const store = new MessagesStore(
+      fake as unknown as ServerConnection,
+      () => null,
+      timelineFromFixtures(fake)
+    );
+
+    store.setRoom('room-1');
+    await settle();
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['call-joined', 'call-left']);
+    store.dispose();
+  });
+
+  it('resolves actorless call events from the loaded room directory', async () => {
+    const getRoomEventsAround = vi.fn();
+    const store = new MessagesStore(
+      {} as ServerConnection,
+      () => null,
+      fakeTimelineAPI({ getRoomEventsAround }),
+      undefined,
+      (actorId) => ({
+        id: actorId,
+        login: 'alice',
+        displayName: 'Alice',
+        deleted: false,
+        avatarUrl: '/alice.png',
+        presenceStatus: PresenceStatus.Online
+      })
+    );
+
+    store.setRoom('room-1');
+    await settle();
+
+    store.ingestServerEvent({
+      ...callEvent(RoomEventKind.CallParticipantJoined, 'call-joined'),
+      actor: null
+    } as never);
+    await settle();
+
+    expect(getRoomEventsAround).not.toHaveBeenCalled();
+    expect(store.rootEvents).toHaveLength(1);
+    expect(store.rootEvents[0]).toMatchObject({
+      id: 'call-joined',
+      actor: { id: 'u1', displayName: 'Alice', avatarUrl: '/alice.png' }
+    });
     store.dispose();
   });
 
@@ -1579,6 +1651,30 @@ describe('MessagesStore — room lifecycle ownership', () => {
       actor: { id: 'u1', displayName: 'Alice' },
       event: { kind: RoomEventKind.RoomArchived, roomId: 'room-1' }
     });
+    store.dispose();
+  });
+
+  it('tolerates actorless call events during a rolling backend deployment', async () => {
+    const getRoomEventsAround = vi.fn(async () => {
+      throw new ConnectError('message not found', Code.NotFound);
+    });
+    const store = new MessagesStore(
+      {} as ServerConnection,
+      () => null,
+      fakeTimelineAPI({ getRoomEventsAround })
+    );
+
+    store.setRoom('room-1');
+    await settle();
+
+    store.ingestServerEvent({
+      ...callEvent(RoomEventKind.CallParticipantJoined, 'call-joined'),
+      actor: null
+    } as never);
+    await settle();
+
+    expect(getRoomEventsAround).toHaveBeenCalledOnce();
+    expect(store.rootEvents).toEqual([]);
     store.dispose();
   });
 

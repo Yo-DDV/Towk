@@ -16,6 +16,7 @@
     voiceMessageFilename,
     type VoiceMessageDraft
   } from '$lib/voiceMessages/policy';
+  import { voiceCaptureCoordinator } from '$lib/voiceMessages/captureCoordinator';
 
   type RecorderMode = 'idle' | 'requesting' | 'recording' | 'stopping' | 'review' | 'sending';
   type CompatibleAudioContextConstructor = typeof AudioContext;
@@ -25,21 +26,31 @@
 
   let {
     disabled = false,
+    disabledReason,
+    draftScope = '',
     maxUploadSize = VOICE_MESSAGE_DEFAULT_MAX_SIZE,
     onSend,
     onActiveChange
   }: {
     disabled?: boolean;
+    disabledReason?: string;
+    draftScope?: string;
     maxUploadSize?: number;
     onSend: (draft: VoiceMessageDraft) => Promise<boolean>;
     onActiveChange?: (active: boolean) => void;
   } = $props();
 
-  let mode = $state<RecorderMode>('idle');
+  // The composer scope is an instance identity: a prop change must not move an
+  // already-recorded draft to another room or thread.
+  // svelte-ignore state_referenced_locally
+  const instanceDraftScope = draftScope;
+  const initialDraft = voiceCaptureCoordinator.takeReviewDraft(instanceDraftScope);
+  let draft = $state<VoiceMessageDraft | null>(initialDraft);
+  let mode = $state<RecorderMode>(initialDraft ? 'review' : 'idle');
   let elapsedMs = $state(0);
   let liveLevel = $state(0);
   let livePeaks = $state<number[]>(Array.from({ length: LIVE_WAVEFORM_SAMPLE_COUNT }, () => 0));
-  let draft = $state<VoiceMessageDraft | null>(null);
+  const captureRegistration = voiceCaptureCoordinator.register();
 
   let mediaRecorder: MediaRecorder | null = null;
   let mediaStream: MediaStream | null = null;
@@ -65,6 +76,10 @@
 
   $effect(() => {
     onActiveChange?.(isActive);
+  });
+
+  $effect(() => {
+    captureRegistration.update(mode);
   });
 
   function clearElapsedTimer() {
@@ -322,7 +337,13 @@
     const recorder = mediaRecorder;
     cleanupCapture();
     if (recorder && recorder.state !== 'inactive') recorder.stop();
-    clearDraft();
+    if (draft && mode === 'review' && instanceDraftScope) {
+      voiceCaptureCoordinator.stashReviewDraft(instanceDraftScope, draft);
+      draft = null;
+    } else {
+      clearDraft();
+    }
+    captureRegistration.unregister();
   });
 </script>
 
@@ -333,8 +354,8 @@
       onclick={startRecording}
       {disabled}
       class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,transform] active:scale-95 enabled:hover:bg-surface-highlighted enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
-      aria-label={m['composer.voice.record']()}
-      title={m['composer.voice.record']()}
+      aria-label={disabled && disabledReason ? disabledReason : m['composer.voice.record']()}
+      title={disabled && disabledReason ? disabledReason : m['composer.voice.record']()}
       data-testid="voice-message-record-button"
     >
       <span class="iconify text-xl uil--microphone" aria-hidden="true"></span>
@@ -352,7 +373,9 @@
       <span
         class={[
           'iconify text-xl',
-          mode === 'sending' || mode === 'requesting' ? 'animate-spin uil--spinner-alt' : 'uil--microphone'
+          mode === 'sending' || mode === 'requesting'
+            ? 'animate-spin uil--spinner-alt'
+            : 'uil--microphone'
         ]}
       ></span>
     </span>
@@ -367,129 +390,129 @@
       data-testid="voice-message-recorder"
       aria-live="polite"
     >
-    {#if mode === 'requesting'}
-      <span
-        class="ml-2 iconify animate-spin text-xl text-primary uil--spinner-alt"
-        aria-hidden="true"
-      ></span>
-      <span class="min-w-0 flex-1 truncate text-sm text-muted">
-        {m['composer.voice.requesting_microphone']()}
-      </span>
-      <button
-        type="button"
-        onclick={cancelRecording}
-        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text"
-        aria-label={m['common.cancel']()}
-      >
-        <span class="iconify text-xl uil--times" aria-hidden="true"></span>
-      </button>
-    {:else if mode === 'recording' || mode === 'stopping'}
-      <button
-        type="button"
-        onclick={cancelRecording}
-        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400"
-        aria-label={m['composer.voice.cancel_recording']()}
-        title={m['composer.voice.cancel_recording']()}
-      >
-        <span class="iconify text-xl uil--trash-alt" aria-hidden="true"></span>
-      </button>
-
-      <div class="min-w-0 flex-1">
-        <div
-          class="relative flex h-[44px] items-center gap-[2px] overflow-hidden rounded-full bg-background/35 px-3"
-          data-testid="voice-message-live-waveform"
-          aria-hidden="true"
-        >
-          <span class="absolute inset-x-3 top-1/2 h-px bg-primary/20"></span>
-          {#each visualLivePeaks as peak, index (index)}
-            <span
-              class="relative min-w-[3px] flex-1 rounded-full bg-primary transition-[height,opacity] duration-75 motion-reduce:transition-none"
-              style={`height: ${Math.max(4, Math.round(peak * 36))}px; opacity: ${0.36 + peak * 0.64}`}
-            ></span>
-          {/each}
-        </div>
-        <div class="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] leading-none">
-          <span class={['font-mono tabular-nums', isNearLimit ? 'text-amber-400' : 'text-muted']}>
-            {formatVoiceMessageTime(elapsedMs)}
-          </span>
-          <span class="flex items-center gap-1 text-muted">
-            <span
-              class="h-1.5 w-1.5 rounded-full bg-red-500 motion-safe:animate-pulse"
-              style={`transform: scale(${1 + visualLiveLevel * 0.85})`}
-              aria-hidden="true"
-            ></span>
-            {isNearLimit
-              ? m['composer.voice.limit_remaining']({
-                  time: formatVoiceMessageTime(VOICE_MESSAGE_MAX_DURATION_MS - elapsedMs)
-                })
-              : m['composer.voice.recording']()}
-          </span>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onclick={stopRecording}
-        disabled={mode === 'stopping'}
-        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition-transform active:scale-95 disabled:cursor-wait disabled:opacity-60"
-        aria-label={m['composer.voice.stop']()}
-        title={m['composer.voice.stop']()}
-      >
-        <span class="h-3.5 w-3.5 rounded-[4px] bg-white" aria-hidden="true"></span>
-      </button>
-    {:else if draft}
-      <button
-        type="button"
-        onclick={cancelRecording}
-        disabled={mode === 'sending'}
-        class="col-start-1 row-start-2 flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400 disabled:opacity-50 sm:col-auto sm:row-auto"
-        aria-label={m['composer.voice.delete_draft']()}
-        title={m['composer.voice.delete_draft']()}
-      >
-        <span class="iconify text-xl uil--trash-alt" aria-hidden="true"></span>
-      </button>
-
-      <div
-        class="col-span-3 row-start-1 min-w-0 sm:col-auto sm:row-auto sm:flex-1"
-        data-testid="voice-message-preview-slot"
-      >
-        <VoiceMessagePlayer
-          src={draft.objectUrl}
-          durationMs={draft.durationMs}
-          waveformPeaks={draft.waveformPeaks}
-          filename={draft.file.name}
-          localPreview
-        />
-      </div>
-
-      <button
-        type="button"
-        onclick={recordAgain}
-        disabled={mode === 'sending'}
-        class="hidden h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-text disabled:opacity-50 sm:flex"
-        aria-label={m['composer.voice.record_again']()}
-        title={m['composer.voice.record_again']()}
-      >
-        <span class="iconify text-xl uil--redo" aria-hidden="true"></span>
-      </button>
-
-      <button
-        type="button"
-        onclick={sendDraft}
-        disabled={mode === 'sending'}
-        class="col-start-3 row-start-2 flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-[transform,filter] active:scale-95 enabled:hover:brightness-110 disabled:cursor-wait disabled:opacity-60 sm:col-auto sm:row-auto"
-        aria-label={m['composer.voice.send']()}
-        title={m['composer.voice.send']()}
-      >
+      {#if mode === 'requesting'}
         <span
-          class={[
-            'iconify text-xl',
-            mode === 'sending' ? 'animate-spin uil--spinner-alt' : 'uil--telegram-alt'
-          ]}
-        aria-hidden="true"
-      ></span>
-      </button>
-    {/if}
+          class="ml-2 iconify animate-spin text-xl text-primary uil--spinner-alt"
+          aria-hidden="true"
+        ></span>
+        <span class="min-w-0 flex-1 truncate text-sm text-muted">
+          {m['composer.voice.requesting_microphone']()}
+        </span>
+        <button
+          type="button"
+          onclick={cancelRecording}
+          class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text"
+          aria-label={m['common.cancel']()}
+        >
+          <span class="iconify text-xl uil--times" aria-hidden="true"></span>
+        </button>
+      {:else if mode === 'recording' || mode === 'stopping'}
+        <button
+          type="button"
+          onclick={cancelRecording}
+          class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400"
+          aria-label={m['composer.voice.cancel_recording']()}
+          title={m['composer.voice.cancel_recording']()}
+        >
+          <span class="iconify text-xl uil--trash-alt" aria-hidden="true"></span>
+        </button>
+
+        <div class="min-w-0 flex-1">
+          <div
+            class="relative flex h-[44px] items-center gap-[2px] overflow-hidden rounded-full bg-background/35 px-3"
+            data-testid="voice-message-live-waveform"
+            aria-hidden="true"
+          >
+            <span class="absolute inset-x-3 top-1/2 h-px bg-primary/20"></span>
+            {#each visualLivePeaks as peak, index (index)}
+              <span
+                class="relative min-w-[3px] flex-1 rounded-full bg-primary transition-[height,opacity] duration-75 motion-reduce:transition-none"
+                style={`height: ${Math.max(4, Math.round(peak * 36))}px; opacity: ${0.36 + peak * 0.64}`}
+              ></span>
+            {/each}
+          </div>
+          <div class="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] leading-none">
+            <span class={['font-mono tabular-nums', isNearLimit ? 'text-amber-400' : 'text-muted']}>
+              {formatVoiceMessageTime(elapsedMs)}
+            </span>
+            <span class="flex items-center gap-1 text-muted">
+              <span
+                class="h-1.5 w-1.5 rounded-full bg-red-500 motion-safe:animate-pulse"
+                style={`transform: scale(${1 + visualLiveLevel * 0.85})`}
+                aria-hidden="true"
+              ></span>
+              {isNearLimit
+                ? m['composer.voice.limit_remaining']({
+                    time: formatVoiceMessageTime(VOICE_MESSAGE_MAX_DURATION_MS - elapsedMs)
+                  })
+                : m['composer.voice.recording']()}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onclick={stopRecording}
+          disabled={mode === 'stopping'}
+          class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition-transform active:scale-95 disabled:cursor-wait disabled:opacity-60"
+          aria-label={m['composer.voice.stop']()}
+          title={m['composer.voice.stop']()}
+        >
+          <span class="h-3.5 w-3.5 rounded-[4px] bg-white" aria-hidden="true"></span>
+        </button>
+      {:else if draft}
+        <button
+          type="button"
+          onclick={cancelRecording}
+          disabled={mode === 'sending'}
+          class="col-start-1 row-start-2 flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400 disabled:opacity-50 sm:col-auto sm:row-auto"
+          aria-label={m['composer.voice.delete_draft']()}
+          title={m['composer.voice.delete_draft']()}
+        >
+          <span class="iconify text-xl uil--trash-alt" aria-hidden="true"></span>
+        </button>
+
+        <div
+          class="col-span-3 row-start-1 min-w-0 sm:col-auto sm:row-auto sm:flex-1"
+          data-testid="voice-message-preview-slot"
+        >
+          <VoiceMessagePlayer
+            src={draft.objectUrl}
+            durationMs={draft.durationMs}
+            waveformPeaks={draft.waveformPeaks}
+            filename={draft.file.name}
+            localPreview
+          />
+        </div>
+
+        <button
+          type="button"
+          onclick={recordAgain}
+          disabled={mode === 'sending'}
+          class="hidden h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-text disabled:opacity-50 sm:flex"
+          aria-label={m['composer.voice.record_again']()}
+          title={m['composer.voice.record_again']()}
+        >
+          <span class="iconify text-xl uil--redo" aria-hidden="true"></span>
+        </button>
+
+        <button
+          type="button"
+          onclick={sendDraft}
+          disabled={mode === 'sending'}
+          class="col-start-3 row-start-2 flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-[transform,filter] active:scale-95 enabled:hover:brightness-110 disabled:cursor-wait disabled:opacity-60 sm:col-auto sm:row-auto"
+          aria-label={m['composer.voice.send']()}
+          title={m['composer.voice.send']()}
+        >
+          <span
+            class={[
+              'iconify text-xl',
+              mode === 'sending' ? 'animate-spin uil--spinner-alt' : 'uil--telegram-alt'
+            ]}
+            aria-hidden="true"
+          ></span>
+        </button>
+      {/if}
     </div>
   {/if}
 </div>

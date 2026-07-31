@@ -64,10 +64,10 @@ test.describe('Multi-Tab Unread Sync', () => {
             // NORMAL preserves the generic unread state without creating a
             // counted notification for an unmentioned room message.
             await expect(async () => {
-              const generalLink = page3.locator('nav').locator('a', { hasText: '# general' });
-              await expect(generalLink).toHaveClass(/font-semibold/);
-              await expect(generalLink.getByTestId('room-notification-badge')).not.toBeVisible();
-              await expect(generalLink.getByTestId('room-unread-dot')).toBeVisible();
+              const generalRow = chatPage3.getRoomRow('general');
+              await expect(generalRow).toHaveClass(/font-semibold/);
+              await expect(generalRow.getByTestId('room-notification-badge')).not.toBeVisible();
+              await expect(generalRow.getByTestId('room-unread-dot')).toBeVisible();
             }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
 
             // Wait for WebSocket subscription to be established
@@ -81,10 +81,10 @@ test.describe('Multi-Tab Unread Sync', () => {
 
             // Tab 2 receives both the read event and notification dismissal.
             await expect(async () => {
-              const generalLink = page3.locator('nav').locator('a', { hasText: '# general' });
-              await expect(generalLink).not.toHaveClass(/font-semibold/);
-              await expect(generalLink.getByTestId('room-notification-badge')).not.toBeVisible();
-              await expect(generalLink.getByTestId('room-unread-dot')).not.toBeVisible();
+              const generalRow = chatPage3.getRoomRow('general');
+              await expect(generalRow).not.toHaveClass(/font-semibold/);
+              await expect(generalRow.getByTestId('room-notification-badge')).not.toBeVisible();
+              await expect(generalRow.getByTestId('room-unread-dot')).not.toBeVisible();
             }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
           }
         );
@@ -146,12 +146,12 @@ test.describe('Multi-window unread sync', () => {
             await waitForRoomUnreadViaConnect(page2, generalRoomId, true);
 
             // Both windows should see unread indicator on general room
-            const generalLink1 = page.locator('nav').locator('a', { hasText: '# general' });
-            const generalLink2 = page2.locator('nav').locator('a', { hasText: '# general' });
+            const generalRow1 = chatPage.getRoomRow('general');
+            const generalRow2 = chatPage2.getRoomRow('general');
 
             await expect(async () => {
-              await expect(generalLink1).toHaveClass(/font-semibold/);
-              await expect(generalLink2).toHaveClass(/font-semibold/);
+              await expect(generalRow1).toHaveClass(/font-semibold/);
+              await expect(generalRow2).toHaveClass(/font-semibold/);
             }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
           }
         );
@@ -184,8 +184,9 @@ test.describe('Unread indicators', () => {
 
     // Verify general has no unread indicator
     const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
+    const generalRow = chatPage.getRoomRow('general');
     await expect(generalLink).toBeVisible();
-    await expect(generalLink).not.toHaveClass(/font-semibold/);
+    await expect(generalRow).not.toHaveClass(/font-semibold/);
 
     // User B: Create account and open the server
     await withServerUser(
@@ -206,9 +207,9 @@ test.describe('Unread indicators', () => {
         // User A: NORMAL preserves the generic unread state without creating
         // a counted notification for an unmentioned room message.
         await expect(async () => {
-          await expect(generalLink).toHaveClass(/font-semibold/);
-          await expect(generalLink.getByTestId('room-notification-badge')).not.toBeVisible();
-          await expect(generalLink.getByTestId('room-unread-dot')).toBeVisible();
+          await expect(generalRow).toHaveClass(/font-semibold/);
+          await expect(generalRow.getByTestId('room-notification-badge')).not.toBeVisible();
+          await expect(generalRow.getByTestId('room-unread-dot')).toBeVisible();
         }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
 
         // User A: Navigate to general room
@@ -223,9 +224,9 @@ test.describe('Unread indicators', () => {
 
         // Verify the unread indicator is now gone
         await expect(async () => {
-          await expect(generalLink).not.toHaveClass(/font-semibold/);
-          await expect(generalLink.getByTestId('room-notification-badge')).not.toBeVisible();
-          await expect(generalLink.getByTestId('room-unread-dot')).not.toBeVisible();
+          await expect(generalRow).not.toHaveClass(/font-semibold/);
+          await expect(generalRow.getByTestId('room-notification-badge')).not.toBeVisible();
+          await expect(generalRow.getByTestId('room-unread-dot')).not.toBeVisible();
         }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
       }
     );
@@ -247,11 +248,11 @@ test.describe('Unread indicators', () => {
     await waitForRoomReady(page, 'announcements');
 
     // Both rooms should have no unread indicator since we've viewed them
-    const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
-    const announcementsLink = chatPage.roomList.locator('a', { hasText: '# announcements' });
+    const generalRow = chatPage.getRoomRow('general');
+    const announcementsRow = chatPage.getRoomRow('announcements');
 
-    await expect(generalLink).not.toHaveClass(/font-semibold/);
-    await expect(announcementsLink).not.toHaveClass(/font-semibold/);
+    await expect(generalRow).not.toHaveClass(/font-semibold/);
+    await expect(announcementsRow).not.toHaveClass(/font-semibold/);
   });
 });
 
@@ -855,9 +856,9 @@ test.describe('Unread dot stability after loadRooms refresh', () => {
         await waitForRoomUnreadViaConnect(page2, generalRoomId, true);
 
         // User B should see unread dot
-        const generalLink = chatPage2.roomList.locator('a', { hasText: '# general' });
+        const generalRow = chatPage2.getRoomRow('general');
         await expect(async () => {
-          await expect(generalLink).toHaveClass(/font-semibold/);
+          await expect(generalRow).toHaveClass(/font-semibold/);
         }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
 
         // User B enters general room → dot should clear
@@ -870,8 +871,8 @@ test.describe('Unread dot stability after loadRooms refresh', () => {
 
         // Verify the unread dot is gone
         await expect(async () => {
-          await expect(generalLink).not.toHaveClass(/font-semibold/);
-          const unreadDot = generalLink.locator('[data-testid="room-unread-dot"]');
+          await expect(generalRow).not.toHaveClass(/font-semibold/);
+          const unreadDot = generalRow.getByTestId('room-unread-dot');
           await expect(unreadDot).not.toBeVisible();
         }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
 
@@ -892,13 +893,13 @@ test.describe('Unread dot stability after loadRooms refresh', () => {
         });
 
         // Wait for the rename to be visible in User B's room list
-        const renamedLink = chatPage2.roomList.locator('a', { hasText: '# general-renamed' });
-        await expect(renamedLink).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
+        const renamedRow = chatPage2.getRoomRow('general-renamed');
+        await expect(renamedRow).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
 
         // The renamed room should NOT show an unread dot (the loadRooms refresh
         // should not have restored the stale unread state)
-        await expect(renamedLink).not.toHaveClass(/font-semibold/);
-        const unreadDot = renamedLink.locator('[data-testid="room-unread-dot"]');
+        await expect(renamedRow).not.toHaveClass(/font-semibold/);
+        const unreadDot = renamedRow.getByTestId('room-unread-dot');
         await expect(unreadDot).not.toBeVisible();
       }
     );
@@ -956,10 +957,10 @@ test.describe('Thread reply unread behavior', () => {
 
         // Verify UI: no unread dot on room — use toPass() to allow events to settle
         // before asserting absence (negative assertions need extra care)
-        const generalLink = chatPage2.roomList.locator('a', { hasText: '# general' });
-        const roomUnreadDot = generalLink.locator('[data-testid="room-unread-dot"]');
+        const generalRow = chatPage2.getRoomRow('general');
+        const roomUnreadDot = generalRow.getByTestId('room-unread-dot');
         await expect(async () => {
-          await expect(generalLink).not.toHaveClass(/font-semibold/);
+          await expect(generalRow).not.toHaveClass(/font-semibold/);
           await expect(roomUnreadDot).not.toBeVisible();
         }).toPass({ timeout: TIMEOUTS.UI_STANDARD, intervals: POLLING_INTERVALS });
 
@@ -973,7 +974,7 @@ test.describe('Thread reply unread behavior', () => {
 
         // User B should see unread dot on general room
         await expect(async () => {
-          await expect(generalLink).toHaveClass(/font-semibold/);
+          await expect(generalRow).toHaveClass(/font-semibold/);
         }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
       }
     );

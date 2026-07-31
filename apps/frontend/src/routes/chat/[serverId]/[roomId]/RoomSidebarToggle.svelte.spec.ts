@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { tick } from 'svelte';
+import '../../../../app.css';
 import RoomSidebarToggle from './RoomSidebarToggle.svelte';
 
 describe('RoomSidebarToggle', () => {
@@ -53,24 +54,6 @@ describe('RoomSidebarToggle', () => {
     expect(onToggle).toHaveBeenCalledWith('files');
   });
 
-  it('switches to the call panel', async () => {
-    const onToggle = vi.fn();
-    const { container } = render(RoomSidebarToggle, {
-      props: {
-        activePanel: 'members',
-        onToggle
-      }
-    });
-
-    const button = container.querySelector('[aria-label="Show call"]') as HTMLButtonElement | null;
-    expect(button).toBeTruthy();
-
-    button!.click();
-    await tick();
-
-    expect(onToggle).toHaveBeenCalledWith('call');
-  });
-
   it('can render only the files panel', async () => {
     const { container } = render(RoomSidebarToggle, {
       props: {
@@ -82,20 +65,6 @@ describe('RoomSidebarToggle', () => {
 
     expect(container.querySelector('[aria-label="Show members"]')).toBeFalsy();
     expect(container.querySelector('[aria-label="Show files"]')).toBeTruthy();
-  });
-
-  it('can render only files and call panels', async () => {
-    const { container } = render(RoomSidebarToggle, {
-      props: {
-        activePanel: null,
-        panels: ['files', 'call'],
-        onToggle: vi.fn()
-      }
-    });
-
-    expect(container.querySelector('[aria-label="Show members"]')).toBeFalsy();
-    expect(container.querySelector('[aria-label="Show files"]')).toBeTruthy();
-    expect(container.querySelector('[aria-label="Show call"]')).toBeTruthy();
   });
 
   it('uses a background-only pressed state for the active panel', async () => {
@@ -119,43 +88,6 @@ describe('RoomSidebarToggle', () => {
     expect(filesButton!.classList.contains('pane-header-icon-button-active')).toBe(true);
     expect(membersButton!.classList.contains('pane-header-icon-button')).toBe(true);
     expect(membersButton!.classList.contains('pane-header-icon-button-active')).toBe(false);
-  });
-
-  it('highlights and pulses the call tab when a call is active in the room', async () => {
-    const { container } = render(RoomSidebarToggle, {
-      props: {
-        activePanel: 'members',
-        hasActiveCall: true,
-        onToggle: vi.fn()
-      }
-    });
-
-    const callButton = container.querySelector(
-      '[aria-label="Show call"]'
-    ) as HTMLButtonElement | null;
-
-    expect(callButton).toBeTruthy();
-    expect(callButton!.classList.contains('text-accent')).toBe(true);
-    expect(callButton!.querySelector('[data-testid="active-call-pulse-icon"]')).toBeTruthy();
-  });
-
-  it('keeps the active call tab highlighted without the pulse twin when selected', async () => {
-    const { container } = render(RoomSidebarToggle, {
-      props: {
-        activePanel: 'call',
-        hasActiveCall: true,
-        onToggle: vi.fn()
-      }
-    });
-
-    const callButton = container.querySelector(
-      '[aria-label="Hide call"]'
-    ) as HTMLButtonElement | null;
-
-    expect(callButton).toBeTruthy();
-    expect(callButton!.classList.contains('text-accent')).toBe(true);
-    expect(callButton!.classList.contains('pane-header-icon-button-active')).toBe(true);
-    expect(callButton!.querySelector('[data-testid="active-call-pulse-icon"]')).toBeFalsy();
   });
 
   it('renders desktop-only by default', async () => {
@@ -186,6 +118,44 @@ describe('RoomSidebarToggle', () => {
     expect(group!.classList.contains('inline-flex')).toBe(true);
     expect(group!.classList.contains('lg:hidden')).toBe(true);
     expect(group!.classList.contains('hidden')).toBe(false);
+  });
+
+  it('gives call-header tools a visible bounded group when emphasized', async () => {
+    const { container } = render(RoomSidebarToggle, {
+      props: {
+        activePanel: null,
+        onToggle: vi.fn(),
+        mode: 'always',
+        emphasized: true
+      }
+    });
+
+    const group = container.querySelector<HTMLElement>('[data-testid="room-sidebar-toggle"]');
+    expect(group).not.toBeNull();
+    expect(group!.classList.contains('border')).toBe(true);
+    expect(group!.classList.contains('bg-surface')).toBe(true);
+    for (const button of group!.querySelectorAll<HTMLButtonElement>('button')) {
+      expect(button.classList.contains('bg-surface-100/70')).toBe(true);
+    }
+  });
+
+  it('uses the same 44px square target as the compact call tabs when emphasized', () => {
+    const { container } = render(RoomSidebarToggle, {
+      props: {
+        activePanel: null,
+        onToggle: vi.fn(),
+        mode: 'always',
+        emphasized: true
+      }
+    });
+
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>('button')];
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      const rect = button.getBoundingClientRect();
+      expect(Math.round(rect.width)).toBe(44);
+      expect(Math.round(rect.height)).toBe(44);
+    }
   });
 
   it('offers private DM deletion only when enabled', async () => {

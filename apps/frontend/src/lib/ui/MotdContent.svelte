@@ -13,7 +13,7 @@
 
 <span
   data-testid="motd-content"
-  class="prose prose-compact max-w-none flex-1 truncate text-center text-sm"
+  class="motd-content prose prose-compact max-w-none min-w-0 flex-1 truncate text-center text-sm whitespace-nowrap"
 >
   {#await loadMarkdown()}
     {motd}
@@ -27,3 +27,10 @@
     {motd}
   {/await}
 </span>
+
+<style>
+  .motd-content,
+  .motd-content :global(*) {
+    white-space: nowrap;
+  }
+</style>

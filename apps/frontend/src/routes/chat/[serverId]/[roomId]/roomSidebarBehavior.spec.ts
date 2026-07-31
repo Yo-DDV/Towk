@@ -23,15 +23,16 @@ describe('room sidebar behavior', () => {
     expect(canBanMembersFromRoomSidebar(false, undefined)).toBe(false);
   });
 
-  it('exposes files and calls as DM room sidebar panels', () => {
-    expect(DM_ROOM_SIDEBAR_PANELS).toEqual(['files', 'call']);
+  it('keeps only files in the DM room sidebar', () => {
+    expect(DM_ROOM_SIDEBAR_PANELS).toEqual(['files']);
   });
 
-  it('keeps channel room sidebar panels unchanged', () => {
+  it('keeps only members and files in the channel room sidebar', () => {
     expect(roomSidebarPanelForRoom(false, 'members')).toBe('members');
     expect(roomSidebarPanelForRoom(false, 'files')).toBe('files');
-    expect(roomSidebarPanelForRoom(false, 'call')).toBe('call');
     expect(roomSidebarPanelForRoom(false, null)).toBeNull();
+    expect(CHANNEL_ROOM_SIDEBAR_PANELS).toEqual(['members', 'files']);
+    expect(roomSidebarPanelsForRoom(false)).toEqual(['members', 'files']);
   });
 
   it('treats the members default as closed for DM rooms', () => {
@@ -43,31 +44,12 @@ describe('room sidebar behavior', () => {
     expect(roomSidebarPanelForRoom(true, 'files')).toBe('files');
   });
 
-  it('allows the call panel to open for DM rooms when LiveKit is configured', () => {
-    expect(roomSidebarPanelForRoom(true, 'call', true)).toBe('call');
+  it('returns files as the complete DM sidebar contract', () => {
+    expect(roomSidebarPanelsForRoom(true)).toEqual(['files']);
   });
 
-  it('hides the call panel when LiveKit is not configured', () => {
-    expect(roomSidebarPanelForRoom(false, 'call', false)).toBeNull();
-    expect(roomSidebarPanelForRoom(true, 'call', false)).toBeNull();
-    expect(roomSidebarPanelsForRoom(false, false)).toEqual(['members', 'files']);
-    expect(roomSidebarPanelsForRoom(true, false)).toEqual(['files']);
-  });
-
-  it('returns all channel panels when LiveKit is configured', () => {
-    expect(CHANNEL_ROOM_SIDEBAR_PANELS).toEqual(['members', 'files', 'call']);
-    expect(roomSidebarPanelsForRoom(false, true)).toEqual(['members', 'files', 'call']);
-  });
-
-  it('uses a fixed desktop width while keeping overlay and maximized layouts fluid', () => {
-    expect(roomSidebarShellClass('desktop', false)).toBe(
-      'border-l border-border w-64 shrink-0'
-    );
-    expect(roomSidebarShellClass('desktop', true)).toBe(
-      'border-l border-border min-w-0 flex-1'
-    );
-    expect(roomSidebarShellClass('overlay', false)).toBe(
-      'w-full min-w-0 flex-1 overflow-hidden'
-    );
+  it('uses a fixed desktop width and a fluid mobile overlay', () => {
+    expect(roomSidebarShellClass('desktop')).toBe('border-l border-border w-64 shrink-0');
+    expect(roomSidebarShellClass('overlay')).toBe('w-full min-w-0 flex-1 overflow-hidden');
   });
 });

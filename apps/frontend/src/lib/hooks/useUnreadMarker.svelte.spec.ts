@@ -66,16 +66,35 @@ describe('useUnreadMarker', () => {
     rendered.unmount();
   });
 
+  it('does not advance read state while the timeline attention gate is disabled', async () => {
+    const markAsRead = vi.fn().mockResolvedValue(null);
+
+    const rendered = render(Harness, {
+      props: {
+        targetId: 'room-1',
+        attentionEnabled: false,
+        markAsRead,
+        onReady: () => {}
+      }
+    });
+    flushSync();
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(markAsRead).not.toHaveBeenCalled();
+
+    await rendered.rerender({ attentionEnabled: true });
+    flushSync();
+    await vi.waitFor(() => expect(markAsRead).toHaveBeenCalledOnce());
+    rendered.unmount();
+  });
+
   it('uses the read-state window returned on refocus', async () => {
     const markedAtMs = Date.UTC(2026, 6, 8, 10, 0, 30);
     vi.spyOn(Date, 'now').mockReturnValue(markedAtMs);
-    const markAsRead = vi
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        previousLastReadAt: '2026-07-08T09:00:00.000Z',
-        lastReadAt: '2026-07-08T10:00:00.000Z'
-      });
+    const markAsRead = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+      previousLastReadAt: '2026-07-08T09:00:00.000Z',
+      lastReadAt: '2026-07-08T10:00:00.000Z'
+    });
     let api: HarnessAPI | undefined;
 
     const rendered = render(Harness, {
@@ -176,10 +195,7 @@ describe('useUnreadMarker', () => {
   it('preserves a pending refocus marker after a newer explicit read', async () => {
     const markedAtMs = Date.UTC(2026, 6, 8, 10, 0, 30);
     vi.spyOn(Date, 'now').mockReturnValue(markedAtMs);
-    let resolveRefocus!: (value: {
-      previousLastReadAt: string;
-      lastReadAt: string;
-    }) => void;
+    let resolveRefocus!: (value: { previousLastReadAt: string; lastReadAt: string }) => void;
     const refocusRead = new Promise<{
       previousLastReadAt: string;
       lastReadAt: string;

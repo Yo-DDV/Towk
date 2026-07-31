@@ -759,7 +759,9 @@ test.describe('Room Layout', () => {
         expect(roomNames).toContain('general');
         expect(roomNames).toContain('public');
         expect(roomNames).toContain('private');
-        await expect(page2.getByRole('link', { name: '+ private' })).toHaveClass(/opacity-60/);
+        const privateLink = page2.getByRole('link', { name: '+ private' });
+        const privateRow = page2.getByTestId('room-list-row').filter({ has: privateLink });
+        await expect(privateRow).toHaveClass(/opacity-60/);
       });
     });
   });

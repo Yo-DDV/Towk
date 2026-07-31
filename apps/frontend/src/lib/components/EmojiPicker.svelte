@@ -76,6 +76,7 @@ Uses the same section styling as MessageContextMenu (rounded-md bg-background se
     <input
       {@attach focusSearchInput}
       bind:value={query}
+      data-testid="emoji-picker-search"
       type="text"
       placeholder={m['emoji.search_placeholder']()}
       class="w-full rounded bg-surface-100 px-3 py-2.5 text-base outline-none placeholder:text-muted md:px-2.5 md:py-1.5 md:text-sm"

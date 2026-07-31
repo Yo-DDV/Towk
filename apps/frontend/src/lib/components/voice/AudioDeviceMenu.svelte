@@ -17,16 +17,21 @@ Reads available devices and current selection from `voiceCallState`.
   import { friendlyCameraDeviceNames } from '$lib/voice/cameraDevices';
   import { friendlyAudioDeviceNames } from '$lib/voice/audioDevices';
 
-  const voiceCallState = serverRegistry.getStore(getActiveServer()).voiceCall;
   import ContextMenu from '$lib/ui/ContextMenu.svelte';
 
   let {
     anchor,
-    onclose
+    onclose,
+    serverId
   }: {
     anchor: { top: number; bottom: number; left: number };
     onclose: () => void;
+    /** Explicit call authority for global controls; defaults to the routed server. */
+    serverId?: string;
   } = $props();
+
+  const targetServerId = $derived(serverId ?? getActiveServer());
+  const voiceCallState = $derived(serverRegistry.getStore(targetServerId).voiceCall);
 
   type DeviceSection = {
     kind: MediaDeviceKind;

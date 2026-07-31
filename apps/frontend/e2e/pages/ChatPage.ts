@@ -22,6 +22,18 @@ export class ChatPage {
     return this.page.locator('.room-list');
   }
 
+  /** A room's primary navigation link. */
+  getRoomLink(roomName: string): Locator {
+    return this.roomList.getByRole('link', { name: `# ${roomName}` });
+  }
+
+  /** The complete room row, including sibling notification and call actions. */
+  getRoomRow(roomName: string): Locator {
+    return this.roomList.getByTestId('room-list-row').filter({
+      has: this.page.getByRole('link', { name: `# ${roomName}` })
+    });
+  }
+
   /**
    * Navigate to the chat page.
    * Note: users may be redirected to the server root, their last room, or
@@ -29,8 +41,11 @@ export class ChatPage {
    */
   async goto(): Promise<void> {
     await this.page.goto('/chat');
-    // Wait for any /chat path - redirects happen based on user state
-    await this.page.waitForURL((url) => url.pathname.startsWith('/chat'));
+    // `/chat` and `/chat/{server}` are transitional routes. Wait until the
+    // client redirect reaches a concrete destination (overview, room, thread,
+    // settings, …) so an interaction cannot be detached by the pending
+    // replaceState navigation.
+    await this.page.waitForURL((url) => /^\/chat\/[^/]+\/[^/]+/.test(url.pathname));
   }
 
   /**
@@ -61,7 +76,7 @@ export class ChatPage {
    * Always waits for room UI to be ready before returning.
    */
   async enterRoom(roomName: string): Promise<RoomPage> {
-    const link = this.roomList.getByRole('link', { name: `# ${roomName}` });
+    const link = this.getRoomLink(roomName);
     await expect(link).toBeVisible();
 
     // Check if already in this room (aria-current="page" indicates active link)

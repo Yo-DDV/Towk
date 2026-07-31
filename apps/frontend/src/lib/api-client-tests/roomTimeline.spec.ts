@@ -5,6 +5,7 @@ import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 
 import {
   RoomTimelineEventSchema,
+  RoomTimelineCallEventSchema,
   RoomTimelinePageSchema,
   RoomTimelineRoomEventSchema,
   RoomMessagePostedSchema
@@ -402,5 +403,45 @@ describe('roomTimelinePageToEventConnectionPage', () => {
       id: 'join1',
       event: { kind: 'userJoinedRoom', roomId: 'room-1' }
     });
+  });
+
+  it('maps call lifecycle entries without turning them into message posts', () => {
+    const variants = [
+      ['callStarted', 'callStarted'],
+      ['callParticipantJoined', 'callParticipantJoined'],
+      ['callParticipantLeft', 'callParticipantLeft'],
+      ['callEnded', 'callEnded']
+    ] as const;
+    const page = create(RoomTimelinePageSchema, {
+      events: variants.map(([wireKind], index) =>
+        create(RoomTimelineEventSchema, {
+          id: `call-${index}`,
+          actorId: 'u1',
+          event: {
+            case: wireKind,
+            value: create(RoomTimelineCallEventSchema, {
+              roomId: 'room-1',
+              callId: 'call-1',
+              participantId: index === 1 || index === 2 ? 'participant-1' : '',
+              deviceIndex: index === 1 || index === 2 ? 2 : 0
+            })
+          }
+        })
+      )
+    });
+
+    const mapped = roomTimelinePageToEventConnectionPage(page);
+
+    expect(mapped.events.map((event) => event.event?.kind)).toEqual(
+      variants.map(([, renderKind]) => renderKind)
+    );
+    expect(mapped.events[1]?.event).toMatchObject({
+      kind: 'callParticipantJoined',
+      roomId: 'room-1',
+      callId: 'call-1',
+      participantId: 'participant-1',
+      deviceIndex: 2
+    });
+    expect(mapped.events.some((event) => event.event?.kind === 'messagePosted')).toBe(false);
   });
 });

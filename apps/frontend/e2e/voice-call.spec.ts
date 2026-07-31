@@ -110,22 +110,20 @@ async function listCallParticipantsViaConnect(
 }
 
 async function openCallTab(page: Page) {
-  await page.locator('[data-testid="room-sidebar-toggle"]:visible').getByLabel('Show call').click();
+  await page.getByTestId('room-call-tab').click();
 }
 
 test.describe('Voice calls', () => {
-  test('call tab appears in room sidebar toggle', async ({ page, chatPage }) => {
+  test('call workspace tab appears in rooms', async ({ page, chatPage }) => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
 
-    const callTab = page
-      .locator('[data-testid="room-sidebar-toggle"]:visible')
-      .getByLabel('Show call');
+    const callTab = page.getByTestId('room-call-tab');
     await expect(callTab).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
   });
 
-  test('call tab appears in DM rooms', async ({ page, browser, serverURL }) => {
+  test('call workspace tab appears in DM rooms', async ({ page, browser, serverURL }) => {
     // Create two users
     await createAndLoginTestUser(page);
 
@@ -134,10 +132,8 @@ test.describe('Voice calls', () => {
       const dmPage = new DMPage(page);
       await dmPage.startConversation(userB.login);
 
-      // Call tab should be visible in the DM room sidebar toggle
-      const callTab = page
-        .locator('[data-testid="room-sidebar-toggle"]:visible')
-        .getByLabel('Show call');
+      // Direct messages use the same central room workspace switcher.
+      const callTab = page.getByTestId('room-call-tab');
       await expect(callTab).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     });
   });
@@ -208,8 +204,8 @@ test.describe('Voice calls', () => {
     expect(first.deviceIndex).toBe(1);
 
     await openCallTab(page);
-    await page.getByTestId('call-join-button').click();
 
+    await expect(page.getByTestId('room-call-surface')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Join from another device?' })).toBeVisible();
     await expect(page.getByTestId('call-join-companion')).toBeEnabled();
     await expect(page.getByTestId('call-join-transfer')).toBeEnabled();
@@ -313,7 +309,7 @@ test.describe('Voice calls', () => {
     });
   });
 
-  test('observer panel appears when another user joins a call', async ({
+  test('active call participant appears in room navigation', async ({
     page,
     chatPage,
     browser,
@@ -326,8 +322,8 @@ test.describe('Voice calls', () => {
     await chatPage.enterRoom('general');
     const roomId = await getRoomIdByNameViaConnect(page, 'general');
 
-    // Observer panel should NOT be visible initially
-    await expect(page.getByTestId('call-observer-panel')).not.toBeVisible();
+    const roomCallParticipants = chatPage.roomList.getByTestId('room-call-participants');
+    await expect(roomCallParticipants).not.toBeVisible();
 
     // User B joins the same server and room
     await withServerUser(browser!, serverURL, async ({ page: page2, user: userB }) => {
@@ -344,29 +340,23 @@ test.describe('Voice calls', () => {
         }
       });
 
-      await openCallTab(page);
+      await expect(roomCallParticipants).toBeVisible({
+        timeout: TIMEOUTS.REALTIME_EVENT
+      });
+      await expect(roomCallParticipants.getByTestId('room-call-participant-avatar')).toHaveCount(1);
 
-      // User A should see the call sidebar observer state with a Join button
-      const observerPanel = page.getByTestId('call-observer-panel');
-      await expect(observerPanel).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
-      await expect(page.getByTestId('call-join-button')).toBeVisible();
-
-      // User A should see User B's display name in the participant list
-      await expect(observerPanel.getByTitle(userB.displayName)).toBeVisible();
-
-      // Simulate User B leaving — the open call tab falls back to its idle start-call state
+      // Simulate User B leaving — the navigation projection disappears.
       await page.request.post('/webhooks/test/call-leave', {
         data: { spaceId, roomId, userId: userB.id }
       });
 
-      await expect(observerPanel.getByTitle(userB.displayName)).not.toBeVisible({
+      await expect(roomCallParticipants).not.toBeVisible({
         timeout: TIMEOUTS.REALTIME_EVENT
       });
-      await expect(page.getByTestId('call-join-button')).toHaveText('Start call');
     });
   });
 
-  test('observer panel updates when participants join and leave', async ({
+  test('room navigation projection updates when participants join and leave', async ({
     page,
     chatPage,
     browser,
@@ -396,11 +386,13 @@ test.describe('Voice calls', () => {
           }
         });
 
-        await openCallTab(page);
-        const observerPanel = page.getByTestId('call-observer-panel');
-
-        await expect(observerPanel).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
-        await expect(observerPanel.getByTitle(userB.displayName)).toBeVisible();
+        const roomCallParticipants = chatPage.roomList.getByTestId('room-call-participants');
+        await expect(roomCallParticipants).toBeVisible({
+          timeout: TIMEOUTS.REALTIME_EVENT
+        });
+        await expect(roomCallParticipants.getByTestId('room-call-participant-avatar')).toHaveCount(
+          1
+        );
 
         // User C joins the call
         await page.request.post('/webhooks/test/call-join', {
@@ -414,31 +406,31 @@ test.describe('Voice calls', () => {
         });
 
         // Both participants should be visible
-        await expect(observerPanel.getByTitle(userC.displayName)).toBeVisible({
-          timeout: TIMEOUTS.REALTIME_EVENT
-        });
-        await expect(observerPanel.getByTitle(userB.displayName)).toBeVisible();
+        await expect
+          .poll(() => roomCallParticipants.getByTestId('room-call-participant-avatar').count(), {
+            timeout: TIMEOUTS.REALTIME_EVENT
+          })
+          .toBe(2);
 
         // User B leaves — User C should still be visible, panel still showing
         await page.request.post('/webhooks/test/call-leave', {
           data: { spaceId, roomId, userId: userB.id }
         });
 
-        await expect(observerPanel.getByTitle(userB.displayName)).not.toBeVisible({
-          timeout: TIMEOUTS.REALTIME_EVENT
-        });
-        await expect(observerPanel.getByTitle(userC.displayName)).toBeVisible();
-        await expect(observerPanel).toBeVisible();
+        await expect
+          .poll(() => roomCallParticipants.getByTestId('room-call-participant-avatar').count(), {
+            timeout: TIMEOUTS.REALTIME_EVENT
+          })
+          .toBe(1);
 
-        // User C leaves — the open call tab falls back to its idle start-call state
+        // User C leaves — the room navigation returns to its idle projection.
         await page.request.post('/webhooks/test/call-leave', {
           data: { spaceId, roomId, userId: userC.id }
         });
 
-        await expect(observerPanel.getByTitle(userC.displayName)).not.toBeVisible({
+        await expect(roomCallParticipants).not.toBeVisible({
           timeout: TIMEOUTS.REALTIME_EVENT
         });
-        await expect(page.getByTestId('call-join-button')).toHaveText('Start call');
       });
     });
   });

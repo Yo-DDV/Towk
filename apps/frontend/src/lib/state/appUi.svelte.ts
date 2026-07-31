@@ -12,6 +12,8 @@ export type AppRoomScope = {
   roomId: string;
 };
 
+export type RoomPrimarySurface = 'messages' | 'call';
+
 export type AppFullscreenSurface = {
   id?: string;
   surface: string;
@@ -22,7 +24,7 @@ export type AppFullscreenSurface = {
  *
  * The URL remains the source of truth for the active server/room; route
  * components report that scope here so sibling UI concerns such as the room
- * sidebar and call-wide mode can coordinate without custom event bridges.
+ * sidebar and primary room surface can coordinate without custom event bridges.
  */
 export class AppUiState {
   #activeServerId = $state<string | null>(null);
@@ -30,7 +32,7 @@ export class AppUiState {
   #desktopRoomSidebarSessionState = $state<Record<string, RoomSidebarPanelState | undefined>>({});
   #mobileRoomSidebarPanel = $state<RoomSidebarPanelState>(null);
   #mobileRoomSidebarScope = $state<string | null>(null);
-  #roomCallWideScope = $state<AppRoomScope | null>(null);
+  #roomPrimarySurfaceSessionState = $state<Record<string, RoomPrimarySurface | undefined>>({});
   #fullscreenSurface = $state<AppFullscreenSurface | null>(null);
 
   get activeServerId(): string | null {
@@ -47,26 +49,16 @@ export class AppUiState {
   }
 
   setActiveServer(serverId: string): void {
-    const previousScope = this.#activeRoomScopeKey;
-
     this.#activeServerId = serverId;
     this.#activeRoomId = null;
-    if (previousScope !== null) this.disableRoomCallWide();
   }
 
   setActiveRoomScope(serverId: string, roomId: string): void {
-    const previousScope = this.#activeRoomScopeKey;
     this.#activeServerId = serverId;
     this.#activeRoomId = roomId;
-
-    const nextScope = this.#activeRoomScopeKey;
-    if (previousScope !== null && previousScope !== nextScope) {
-      this.disableRoomCallWide();
-    }
   }
 
   clearActiveRoomScope(serverId: string, roomId: string): void {
-    this.disableRoomCallWideFor(serverId, roomId);
     if (this.#activeServerId !== serverId || this.#activeRoomId !== roomId) return;
     this.#activeRoomId = null;
   }
@@ -95,12 +87,10 @@ export class AppUiState {
 
   openDesktopRoomSidebarPanel(panel: RoomSidebarPanel): void {
     this.#setDesktopRoomSidebarPanel(panel);
-    if (panel !== 'call') this.disableRoomCallWideForActiveRoom();
   }
 
   closeDesktopRoomSidebarPanel(): void {
     this.#setDesktopRoomSidebarPanel(null);
-    this.disableRoomCallWideForActiveRoom();
   }
 
   toggleMobileRoomSidebarPanel(panel: RoomSidebarPanel): void {
@@ -124,39 +114,35 @@ export class AppUiState {
     this.#mobileRoomSidebarPanel = null;
   }
 
-  get roomCallWideScope(): AppRoomScope | null {
-    return this.#roomCallWideScope;
-  }
-
-  get isRoomCallWide(): boolean {
-    return this.#roomCallWideScope !== null;
-  }
-
-  isRoomCallWideFor(serverId: string, roomId: string): boolean {
+  get activeRoomPrimarySurface(): RoomPrimarySurface {
+    const scope = this.activeRoomScope;
+    if (!scope) return 'messages';
     return (
-      this.#roomCallWideScope?.serverId === serverId && this.#roomCallWideScope.roomId === roomId
+      this.#roomPrimarySurfaceSessionState[roomScopeKey(scope.serverId, scope.roomId)] ?? 'messages'
     );
   }
 
-  setRoomCallWide(serverId: string, roomId: string, wide: boolean): void {
-    this.#roomCallWideScope = wide ? { serverId, roomId } : null;
+  roomPrimarySurfaceFor(serverId: string, roomId: string): RoomPrimarySurface {
+    return this.#roomPrimarySurfaceSessionState[roomScopeKey(serverId, roomId)] ?? 'messages';
   }
 
-  toggleRoomCallWide(serverId: string, roomId: string): void {
-    this.setRoomCallWide(serverId, roomId, !this.isRoomCallWideFor(serverId, roomId));
+  selectRoomPrimarySurface(serverId: string, roomId: string, surface: RoomPrimarySurface): void {
+    const key = roomScopeKey(serverId, roomId);
+    if ((this.#roomPrimarySurfaceSessionState[key] ?? 'messages') === surface) return;
+    this.#roomPrimarySurfaceSessionState = {
+      ...this.#roomPrimarySurfaceSessionState,
+      [key]: surface
+    };
   }
 
-  disableRoomCallWide(): void {
-    this.#roomCallWideScope = null;
-  }
-
-  disableRoomCallWideFor(serverId: string, roomId: string): void {
-    if (this.isRoomCallWideFor(serverId, roomId)) this.disableRoomCallWide();
-  }
-
-  disableRoomCallWideForActiveRoom(): void {
+  selectActiveRoomPrimarySurface(surface: RoomPrimarySurface): void {
     const scope = this.activeRoomScope;
-    if (scope) this.disableRoomCallWideFor(scope.serverId, scope.roomId);
+    if (!scope) return;
+    this.selectRoomPrimarySurface(scope.serverId, scope.roomId, surface);
+  }
+
+  resetRoomPrimarySurface(serverId: string, roomId: string): void {
+    this.selectRoomPrimarySurface(serverId, roomId, 'messages');
   }
 
   get fullscreenSurface(): AppFullscreenSurface | null {

@@ -7,6 +7,7 @@ export type UnreadMarkerWindow = {
 
 type UseUnreadMarkerOptions<TReadResult> = {
   markAsRead: (targetId: string, upToEventId?: string) => Promise<TReadResult | null>;
+  attentionEnabled?: () => boolean;
   markerWindowFromReadResult: (
     result: TReadResult,
     markedAtMs: number
@@ -22,7 +23,11 @@ type UseUnreadMarkerOptions<TReadResult> = {
  */
 export function useUnreadMarker<TReadResult>(
   getTargetId: () => string,
-  { markAsRead, markerWindowFromReadResult }: UseUnreadMarkerOptions<TReadResult>
+  {
+    markAsRead,
+    attentionEnabled = () => true,
+    markerWindowFromReadResult
+  }: UseUnreadMarkerOptions<TReadResult>
 ) {
   let unreadMarkerEventId = $state<string | null>(null);
   let unreadMarkerWindow = $state<UnreadMarkerWindow | null>(null);
@@ -49,7 +54,7 @@ export function useUnreadMarker<TReadResult>(
 
   $effect(() => {
     const targetId = getTargetId();
-    const present = appState.isPresent;
+    const present = appState.isPresent && attentionEnabled();
 
     if (!present) {
       wasPresent = false;
@@ -71,7 +76,7 @@ export function useUnreadMarker<TReadResult>(
     const generation = ++readMarkerGeneration;
     markAsRead(targetId).then((result) => {
       if (generation !== readMarkerGeneration) return;
-      if (getTargetId() !== targetId || !result) return;
+      if (getTargetId() !== targetId || !attentionEnabled() || !result) return;
 
       unreadMarkerEventId = null;
       unreadMarkerWindow = markerWindowFromReadResult(result, markedAtMs);

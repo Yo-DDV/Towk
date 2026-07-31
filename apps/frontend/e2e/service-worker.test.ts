@@ -410,7 +410,7 @@ async function cacheSnapshot(page: Page) {
     return {
       cacheNames: await caches.keys(),
       rootShellCached: Boolean(await caches.match('/')),
-      fallbackShellCached: Boolean(await caches.match('/200.html')),
+      fallbackShellCached: Boolean(await caches.match('/offline.html')),
       manifestCached: Boolean(await caches.match('/manifest.webmanifest')),
       offlineSymbolCached: Boolean(await caches.match('/icons/symbol-256.png')),
       lazyStaticAssetCached: Boolean(await caches.match('/robots.txt')),

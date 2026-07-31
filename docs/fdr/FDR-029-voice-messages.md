@@ -1,7 +1,7 @@
 # FDR-029: Voice Messages
 
 **Status:** Active
-**Last reviewed:** 2026-07-18
+**Last reviewed:** 2026-07-27
 
 ## Overview
 
@@ -15,6 +15,7 @@ Room members can record, review, send, and play first-class voice messages in ch
 - Sent voice messages render as a compact, keyboard-accessible waveform player with play/pause, seek, elapsed/remaining time, and playback-speed controls. Ordinary uploaded audio files keep the generic audio-file treatment.
 - The same flow is available in channels, threads, and direct messages. Touch targets remain at least 44 by 44 CSS pixels and the layout fits supported phone, tablet, and desktop widths.
 - If recording APIs, microphone access, or a compatible recording format are unavailable, Towk explains the limitation without disrupting text and file messaging.
+- Joining, connecting, or recovering a call disables new voice-message capture. If capture already owns the microphone, the call intent is rejected with an explanation and the recording remains intact. A review draft survives switching to the room's Call surface and returns to the same main or thread composer; a permission request that resolves after cancellation immediately stops the late stream.
 
 ## Design Decisions
 

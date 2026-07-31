@@ -362,17 +362,26 @@ func TestRoomTimeline_RetainsOnlyVisibleEntriesAndMessagePostLookups(t *testing.
 
 	events := p.RoomEvents("R1", 20, 0)
 	if got := timelineEventIDs(events); !slices.Equal(got, []string{
+		"ENV-CALL-LEFT",
+		"ENV-CALL-JOINED",
 		"ENV-ECHO",
 		"ENV-ROOT",
 		"ENV-CREATE",
 	}) {
 		t.Fatalf("RoomEvents retained IDs = %v", got)
 	}
-	if got := p.RoomEventCount("R1"); got != 3 {
-		t.Fatalf("RoomEventCount = %d, want 3 visible entries", got)
+	if got := p.RoomEventCount("R1"); got != 5 {
+		t.Fatalf("RoomEventCount = %d, want 5 visible entries", got)
 	}
 
-	for _, eventID := range []string{"ENV-CREATE", "ENV-ROOT", "ENV-REPLY", "ENV-ECHO"} {
+	for _, eventID := range []string{
+		"ENV-CREATE",
+		"ENV-ROOT",
+		"ENV-REPLY",
+		"ENV-ECHO",
+		"ENV-CALL-JOINED",
+		"ENV-CALL-LEFT",
+	} {
 		if _, ok := p.Get(eventID); !ok {
 			t.Fatalf("Get(%s) ok=false, want true", eventID)
 		}
@@ -383,8 +392,6 @@ func TestRoomTimeline_RetainsOnlyVisibleEntriesAndMessagePostLookups(t *testing.
 		"ENV-RETRACT-ROOT",
 		"ENV-REACT",
 		"ENV-CALL-STARTED",
-		"ENV-CALL-JOINED",
-		"ENV-CALL-LEFT",
 		"ENV-CALL-ENDED",
 		"ENV-DECLARED-A1",
 	} {
@@ -712,7 +719,7 @@ func TestRoomTimeline_DerivedVisibleTimelineSkipsFoldedEntries(t *testing.T) {
 	}
 }
 
-func TestRoomTimeline_CallLifecycleVisibility(t *testing.T) {
+func TestRoomTimeline_OnlyParticipantTransitionsAreVisible(t *testing.T) {
 	p := NewRoomTimelineProjection()
 	applyAll(t, p, []*corev1.Event{
 		postedEvent(postedOpts{envelopeID: "ENV-M1", roomID: "R1", actorID: "U1", body: "root", at: 1}),
@@ -722,15 +729,19 @@ func TestRoomTimeline_CallLifecycleVisibility(t *testing.T) {
 		callEndedTimelineEvent("ENV-CALL-ENDED", "R1", "U1", "CALL1", 5),
 	})
 
-	if got := p.RoomEventCount("R1"); got != 1 {
-		t.Fatalf("RoomEventCount = %d, want 1 visible entry", got)
+	if got := p.RoomEventCount("R1"); got != 3 {
+		t.Fatalf("RoomEventCount = %d, want 3 visible entries", got)
 	}
-	if got := p.VisibleRoomEventCount("R1"); got != 1 {
-		t.Fatalf("VisibleRoomEventCount = %d, want 1", got)
+	if got := p.VisibleRoomEventCount("R1"); got != 3 {
+		t.Fatalf("VisibleRoomEventCount = %d, want 3", got)
 	}
 	visible := p.VisibleRoomTimeline("R1", 10, 0, nil)
-	if got := timelineEventIDs(visible); !slices.Equal(got, []string{"ENV-M1"}) {
-		t.Fatalf("derived visible timeline = %v, want message only", got)
+	if got := timelineEventIDs(visible); !slices.Equal(got, []string{
+		"ENV-CALL-LEFT",
+		"ENV-CALL-JOINED",
+		"ENV-M1",
+	}) {
+		t.Fatalf("derived visible timeline = %v, want participant transitions and message", got)
 	}
 }
 
@@ -1050,10 +1061,12 @@ func TestRoomTimeline_IgnoredRoomEventsDoNotRetainIdempotencyIDs(t *testing.T) {
 			},
 		},
 		{
-			Id:        "ENV-CALL",
+			Id:        "ENV-CALL-CONNECTION",
 			CreatedAt: timestamppb.New(fixedTime(2)),
-			Event: &corev1.Event_VoiceCallParticipantJoined{
-				VoiceCallParticipantJoined: &corev1.CallParticipantJoinedEvent{RoomId: "R1", CallId: "C1"},
+			Event: &corev1.Event_VoiceCallParticipantConnectionChanged{
+				VoiceCallParticipantConnectionChanged: &corev1.CallParticipantConnectionChangedEvent{
+					RoomId: "R1", CallId: "C1",
+				},
 			},
 		},
 	}

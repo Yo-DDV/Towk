@@ -18,6 +18,7 @@ responsive dialog backed by the detailed profile API.
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { startCallWith, startDMWith } from '$lib/dm/startDM';
+  import { getCallJoinController } from '$lib/state/callJoinController.svelte';
   import { goto, pushState, replaceState } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
@@ -62,6 +63,7 @@ responsive dialog backed by the detailed profile API.
   } = $props();
 
   const connection = useConnection();
+  const callJoinController = getCallJoinController();
   const componentId = $props.id();
   const historyMarker = `profile:${componentId}`;
   const rolesHeadingId = `${componentId}-roles-heading`;
@@ -186,7 +188,7 @@ responsive dialog backed by the detailed profile API.
 
   async function handleCall() {
     clearHistoryMarkerForAction();
-    await startCallWith(getActiveServer(), user.id);
+    await startCallWith(getActiveServer(), user.id, callJoinController);
   }
 
   async function handleBanFromRoom() {

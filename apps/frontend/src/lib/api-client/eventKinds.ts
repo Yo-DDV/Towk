@@ -1,4 +1,8 @@
 export const RoomEventKind = {
+  CallEnded: "callEnded",
+  CallParticipantJoined: "callParticipantJoined",
+  CallParticipantLeft: "callParticipantLeft",
+  CallStarted: "callStarted",
   MessagePosted: "messagePosted",
   RoomArchived: "roomArchived",
   RoomCreated: "roomCreated",

@@ -76,6 +76,8 @@
       "expired": "O conteúdo compartilhado expirou. Compartilhe-o novamente com o Towk."
     },
     "update_available": "Uma nova versão está disponível",
+    "update_after_call": "Atualizar após a chamada",
+    "update_waiting_for_call": "O Towk será atualizado quando a chamada terminar.",
     "reload": "Recarregar",
     "network": {
       "offline": "Você está offline. O Towk continuará tentando se reconectar.",

@@ -65,6 +65,7 @@
     // Filtering - whether to filter out thread replies (false for thread pane)
     filterThreadReplies = true,
     readReceiptThreadRootEventId = null,
+    attentionEnabled = true,
     // Up-arrow-to-edit
     enableLastEditableFinder = false,
     // Loading states
@@ -111,6 +112,7 @@
     // Filtering
     filterThreadReplies?: boolean;
     readReceiptThreadRootEventId?: string | null;
+    attentionEnabled?: boolean;
     // Up-arrow-to-edit
     enableLastEditableFinder?: boolean;
     // Loading states
@@ -1400,10 +1402,17 @@
       clearTimeout(readReceiptAdvanceTimer);
       readReceiptAdvanceTimer = null;
     }
-    if (!userSettings.readReceiptsEnabled || isRoomSwitching || !documentIsReadable()) return;
+    if (
+      !userSettings.readReceiptsEnabled ||
+      !attentionEnabled ||
+      isRoomSwitching ||
+      !documentIsReadable()
+    )
+      return;
 
     readReceiptAdvanceTimer = setTimeout(async () => {
       readReceiptAdvanceTimer = null;
+      if (!attentionEnabled || isRoomSwitching || !documentIsReadable()) return;
       const targetEventId = latestVisibleReadReceiptTarget(
         filteredEvents,
         visibleMessageEventIds(scrollContainer ?? null),
@@ -1430,6 +1439,7 @@
     void updateCounter;
     void messageEventCount;
     void userSettings.readReceiptsEnabled;
+    void attentionEnabled;
     void refreshReadReceiptSummaries();
     scheduleReadReceiptAdvance();
   });
