@@ -25,6 +25,7 @@
     onReplyInRoom,
     onReply,
     onOpenEmojiPicker,
+    deferEmojiPickerOpen = false,
     onClose
   }: {
     serverId: string;
@@ -46,6 +47,7 @@
     onReplyInRoom?: () => void;
     onReply?: () => void;
     onOpenEmojiPicker?: () => void;
+    deferEmojiPickerOpen?: boolean;
     onClose: () => void;
   } = $props();
 
@@ -83,6 +85,20 @@
   async function handleReaction(emoji: string) {
     await actions.toggleReaction(params, emoji, hasReacted(emoji));
     onClose();
+  }
+
+  function handleOpenEmojiPicker() {
+    if (!deferEmojiPickerOpen) {
+      onOpenEmojiPicker?.();
+      onClose();
+      return;
+    }
+
+    // Tear down this modal before mounting the picker modal. iOS can dispatch
+    // a delayed synthetic click after touchend; if both dialogs overlap, that
+    // click can land on the new backdrop and immediately dismiss the picker.
+    onClose();
+    requestAnimationFrame(() => onOpenEmojiPicker?.());
   }
 
   function handleReplyInRoom() {
@@ -132,10 +148,7 @@
       {#if onOpenEmojiPicker}
         <button
           class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-xl text-muted active:bg-surface-100"
-          onclick={() => {
-            onOpenEmojiPicker();
-            onClose();
-          }}
+          onclick={handleOpenEmojiPicker}
           aria-label={m['room.message.actions.more_reactions']()}
         >
           <span class="iconify uil--smile"></span>

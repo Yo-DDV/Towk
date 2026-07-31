@@ -7,10 +7,12 @@
   let {
     children,
     visible = $bindable(false),
+    dismissOnExternalInteraction = true,
     onclose
   }: {
     visible?: boolean;
     children: Snippet;
+    dismissOnExternalInteraction?: boolean;
     onclose?: () => void;
   } = $props();
 
@@ -20,8 +22,8 @@
   let closeTimer: ReturnType<typeof setTimeout> | null = null;
   let dragging = $state(false);
   let dragOffsetY = $state(0);
-  // Tracks whether the most recent pointerdown landed inside the sheet content.
-  // Snapshotting at pointerdown (rather than reading the click event's target /
+  // Tracks whether the most recent pointer/touch press landed inside the sheet content.
+  // Snapshotting at press start (rather than reading the click event's target /
   // coordinates) sidesteps mobile touch-to-click synthesis races where the
   // virtual keyboard appears between touchstart and click — re-positioning the
   // dialog and skewing both `e.target` and `e.clientY` by the time click fires.
@@ -47,11 +49,57 @@
     contentEl = node;
   }
 
+  function trackVisualViewport(node: HTMLDialogElement) {
+    const viewport = window.visualViewport;
+
+    function updateBounds() {
+      const top = Math.max(0, viewport?.offsetTop ?? 0);
+      const height = Math.max(0, viewport?.height ?? window.innerHeight);
+      node.style.top = `${top}px`;
+      node.style.height = `${height}px`;
+      node.style.maxHeight = `${height}px`;
+    }
+
+    viewport?.addEventListener('resize', updateBounds);
+    viewport?.addEventListener('scroll', updateBounds);
+    viewport?.addEventListener('scrollend', updateBounds);
+    window.addEventListener('resize', updateBounds);
+    updateBounds();
+
+    return () => {
+      viewport?.removeEventListener('resize', updateBounds);
+      viewport?.removeEventListener('scroll', updateBounds);
+      viewport?.removeEventListener('scrollend', updateBounds);
+      window.removeEventListener('resize', updateBounds);
+    };
+  }
+
+  function rememberPressTarget(target: EventTarget | null) {
+    const content = contentEl;
+    pointerDownInsideContent = !!content && target instanceof Node && content.contains(target);
+  }
+
   function handleNativeClose() {
     if (closeTimer) {
       clearTimeout(closeTimer);
       closeTimer = null;
     }
+
+    // A persistent sheet is closed only by an explicit application action
+    // (handle, swipe, selection, or parent state). Some WebKit/iOS close
+    // requests bypass the event ordering used by backdrop/focus heuristics.
+    // If the user agent closes the native dialog while the bound state is
+    // still visible and no explicit close is running, restore it.
+    if (!dismissOnExternalInteraction && visible && !closing) {
+      const dialog = dialogEl;
+      queueMicrotask(() => {
+        if (visible && dialog === dialogEl && dialog?.isConnected && !dialog.open) {
+          dialog.showModal();
+        }
+      });
+      return;
+    }
+
     visible = false;
     closing = false;
     dragging = false;
@@ -76,9 +124,12 @@
 
 <dialog
   {@attach syncSheetVisibility}
+  {@attach trackVisualViewport}
+  closedby={dismissOnExternalInteraction ? 'closerequest' : 'none'}
   onclose={handleNativeClose}
   oncancel={(e) => {
     e.preventDefault();
+    if (!dismissOnExternalInteraction) return;
     // On Android Chrome, the virtual keyboard appearance fires a spurious
     // cancel event on the dialog. If the most recent pointerdown landed inside
     // the sheet content (e.g. the user just tapped an input), this cancel is
@@ -103,21 +154,28 @@
     // click handler below; reading the click event's own target/coordinates is
     // unreliable on mobile because the virtual keyboard appearance between
     // touchstart and click re-positions the sheet.
-    const content = contentEl;
-    pointerDownInsideContent = !!content && content.contains(e.target as Node);
+    rememberPressTarget(e.target);
+  }}
+  ontouchstart={(e) => rememberPressTarget(e.target)}
+  onfocusin={(e) => {
+    // WebKit may transfer focus before the tapped input becomes
+    // document.activeElement, then emit a native dialog cancel while opening
+    // the keyboard. Preserve the internal target from focusin so that ordering
+    // cannot be mistaken for a backdrop dismissal.
+    rememberPressTarget(e.target);
   }}
   onclick={() => {
     // Only close when the original press landed on the backdrop, i.e. outside
     // the sheet content. Any tap inside the content (input focus, button) keeps
     // the sheet open regardless of what the synthesized click event reports.
-    if (!pointerDownInsideContent) close();
+    if (dismissOnExternalInteraction && !pointerDownInsideContent) close();
   }}
   class="bottom-sheet m-0 mt-auto w-full max-w-full bg-transparent p-0 backdrop:bg-black/50"
   class:closing
 >
   <div
     {@attach registerContent}
-    class="pb-safe rounded-t-xl border-t border-border bg-surface"
+    class="bottom-sheet-content pb-safe rounded-t-xl border-t border-border bg-surface"
     class:dragging
     style:transform={dragOffsetY > 0 ? `translateY(${dragOffsetY}px)` : undefined}
   >
@@ -181,7 +239,12 @@
     or settle-at-0 during close) animate smoothly. While `dragging` is true the
     transition is suppressed so the transform follows the finger 1:1.
   */
-  dialog.bottom-sheet > div {
+  .bottom-sheet-content {
+    container-type: inline-size;
+    max-height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     transition: transform 200ms ease-out;
   }
   dialog.bottom-sheet > div.dragging {
@@ -189,6 +252,14 @@
   }
 
   dialog.bottom-sheet[open] {
+    position: fixed;
+    right: 0;
+    bottom: auto;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
     animation: slide-up 200ms ease-out;
   }
 
