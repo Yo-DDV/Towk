@@ -45,6 +45,7 @@ body {
  * opaque avoids costly full-height live blur and keeps message text crisp. */
 .server-gutter,
 .server-sidebar,
+.current-user-bar,
 .pane-header,
 [data-testid='room-sidebar-mobile-pane'],
 [data-testid='room-sidebar-desktop-pane'],
@@ -56,6 +57,7 @@ body {
 
 .server-gutter,
 .server-sidebar,
+.current-user-bar,
 [data-testid='room-sidebar-mobile-pane'],
 [data-testid='room-sidebar-desktop-pane'] {
   --color-background: var(--towk-navigation);
@@ -75,6 +77,13 @@ body {
     inset 0 1px 0 var(--towk-edge-light),
     inset -1px 0 0 var(--towk-edge-shadow),
     10px 0 24px -22px var(--towk-ambient-shadow);
+}
+
+.current-user-bar {
+  border-top-color: var(--towk-stroke);
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    0 -10px 24px -22px var(--towk-ambient-shadow);
 }
 
 .pane-header {

@@ -72,11 +72,13 @@ export const titleState = new TitleState();
 // ---------------------------------------------------------------------------
 
 /**
- * Combined width of the Server Gutter (~68px, `left-17`) + Server Sidebar
- * (256px, `md:w-64`/`max-md:w-64`). The mobile sidebars slide off-screen by
- * this amount when fully closed.
+ * Mobile navigation geometry. Pixel constants keep the fixed gutter, the
+ * bounded server sidebar, and the swipe distance aligned even when the root
+ * font size is customized.
  */
-export const SIDEBAR_PANEL_WIDTH_PX = 68 + 256;
+export const SERVER_GUTTER_WIDTH_PX = 68;
+export const SERVER_SIDEBAR_MOBILE_WIDTH_PX = 256;
+export const SIDEBAR_PANEL_WIDTH_PX = SERVER_GUTTER_WIDTH_PX + SERVER_SIDEBAR_MOBILE_WIDTH_PX;
 
 type SidebarToggleHandler = () => boolean;
 

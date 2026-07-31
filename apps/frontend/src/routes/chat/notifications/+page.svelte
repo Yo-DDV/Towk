@@ -260,7 +260,7 @@
   <NotificationsServerSidebar />
 {/if}
 
-<div class="flex min-h-0 min-w-0 flex-1 flex-col">
+<div class="app-main-content flex min-h-0 min-w-0 flex-1 flex-col">
   <PaneHeader
     title={m['chat.notifications.title']()}
     subtitle={m['chat.notifications.subtitle']()}
