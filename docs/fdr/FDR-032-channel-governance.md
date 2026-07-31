@@ -40,8 +40,9 @@ message or governance write.
 
 ## Purge semantics
 
-Purge requires `room.purge-messages`, a fresh runtime credential (or a current
-password proof), the exact current room name, and an exact room revision.
+Purge requires an authenticated runtime credential, `room.purge-messages`, the
+exact current room name, and an exact room revision. It does not request or
+transport the account password.
 
 The command first appends `RoomHistoryPurgedEvent`. This event advances
 `history_epoch` and is the logical barrier: timeline, thread, reaction, search,
@@ -84,7 +85,7 @@ Required coverage includes:
 - locked additive versus subtractive mutations, including bypass;
 - logical barrier visibility before cleanup completion;
 - selective cleanup survival across restart and idempotent retry;
-- fresh-auth and exact-name confirmation;
+- authenticated-session, permission, and exact-name confirmation;
 - Connect API validation and stable error mapping;
 - desktop, narrow mobile, foldable, keyboard, screen-reader, and reduced-motion
   component/browser checks;

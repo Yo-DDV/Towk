@@ -48,7 +48,6 @@
   let purgePending = $state(false);
   let purgeError = $state<string | null>(null);
   let confirmationName = $state('');
-  let currentPassword = $state('');
   let confirmationTouched = $state(false);
   let operationTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -95,7 +94,6 @@
     if (!room.canPurgeMessages || purgePending) return;
     menuPosition = null;
     confirmationName = '';
-    currentPassword = '';
     confirmationTouched = false;
     purgeError = null;
     purgeVisible = true;
@@ -116,8 +114,7 @@
       const result = await api.purgeRoomHistory({
         roomId: room.id,
         expectedRevision: room.revision,
-        confirmationName,
-        currentPassword: currentPassword || undefined
+        confirmationName
       });
       if (!result.room || !result.operation) {
         throw new Error(m['common.error.not_found']());
@@ -318,13 +315,4 @@
     }}
   />
 
-  <TextInput
-    id="room-history-purge-password"
-    type="password"
-    label={m['room.governance.password_label']()}
-    description={m['room.governance.password_help']()}
-    bind:value={currentPassword}
-    disabled={purgePending}
-    autocomplete="current-password"
-  />
 </FormDialog>

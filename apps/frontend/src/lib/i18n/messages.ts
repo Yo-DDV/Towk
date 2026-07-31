@@ -952,8 +952,6 @@ const msg_room_governance_confirmation_placeholder = (
 const msg_room_governance_confirmation_error = (
   inputs: Parameters<LocaleMessages['room_governance_confirmation_error']>[0]
 ): LocalizedString => messages().room_governance_confirmation_error(inputs);
-const msg_room_governance_password_label = (): LocalizedString => messages().room_governance_password_label(empty());
-const msg_room_governance_password_help = (): LocalizedString => messages().room_governance_password_help(empty());
 const msg_room_governance_purge_submit = (): LocalizedString => messages().room_governance_purge_submit(empty());
 const msg_room_governance_purge_submitting = (): LocalizedString => messages().room_governance_purge_submitting(empty());
 const msg_room_governance_purge_committed = (
@@ -3026,8 +3024,6 @@ export { msg_room_governance_purge_warning as 'room.governance.purge_warning' };
 export { msg_room_governance_confirmation_label as 'room.governance.confirmation_label' };
 export { msg_room_governance_confirmation_placeholder as 'room.governance.confirmation_placeholder' };
 export { msg_room_governance_confirmation_error as 'room.governance.confirmation_error' };
-export { msg_room_governance_password_label as 'room.governance.password_label' };
-export { msg_room_governance_password_help as 'room.governance.password_help' };
 export { msg_room_governance_purge_submit as 'room.governance.purge_submit' };
 export { msg_room_governance_purge_submitting as 'room.governance.purge_submitting' };
 export { msg_room_governance_purge_committed as 'room.governance.purge_committed' };

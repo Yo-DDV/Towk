@@ -1077,10 +1077,8 @@ type PurgeRoomHistoryRequest struct {
 	RoomId           string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	ExpectedRevision uint64                 `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
 	ConfirmationName string                 `protobuf:"bytes,3,opt,name=confirmation_name,json=confirmationName,proto3" json:"confirmation_name,omitempty"`
-	// Optional current-password proof when the active credential is not fresh.
-	CurrentPassword string `protobuf:"bytes,4,opt,name=current_password,json=currentPassword,proto3" json:"current_password,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PurgeRoomHistoryRequest) Reset() {
@@ -1130,13 +1128,6 @@ func (x *PurgeRoomHistoryRequest) GetExpectedRevision() uint64 {
 func (x *PurgeRoomHistoryRequest) GetConfirmationName() string {
 	if x != nil {
 		return x.ConfirmationName
-	}
-	return ""
-}
-
-func (x *PurgeRoomHistoryRequest) GetCurrentPassword() string {
-	if x != nil {
-		return x.CurrentPassword
 	}
 	return ""
 }
@@ -2604,12 +2595,11 @@ const file_chatto_api_v1_rooms_proto_rawDesc = "" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12#\n" +
 	"\rhistory_epoch\x18\x03 \x01(\x04R\fhistoryEpoch\x12=\n" +
 	"\x06status\x18\x04 \x01(\x0e2%.chatto.api.v1.RoomHistoryPurgeStatusR\x06status\x12!\n" +
-	"\ffailure_code\x18\x05 \x01(\tR\vfailureCode\"\xd2\x01\n" +
+	"\ffailure_code\x18\x05 \x01(\tR\vfailureCode\"\xbf\x01\n" +
 	"\x17PurgeRoomHistoryRequest\x12 \n" +
 	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x124\n" +
 	"\x11expected_revision\x18\x02 \x01(\x04B\a\xbaH\x042\x02 \x00R\x10expectedRevision\x124\n" +
-	"\x11confirmation_name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x10confirmationName\x12)\n" +
-	"\x10current_password\x18\x04 \x01(\tR\x0fcurrentPassword\"\x8b\x01\n" +
+	"\x11confirmation_name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x10confirmationNameJ\x04\b\x04\x10\x05R\x10current_password\"\x8b\x01\n" +
 	"\x18PurgeRoomHistoryResponse\x12'\n" +
 	"\x04room\x18\x01 \x01(\v2\x13.chatto.api.v1.RoomR\x04room\x12F\n" +
 	"\toperation\x18\x02 \x01(\v2(.chatto.api.v1.RoomHistoryPurgeOperationR\toperation\"Q\n" +

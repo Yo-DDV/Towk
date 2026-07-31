@@ -124,7 +124,8 @@ type RoomServiceClient interface {
 	// Unlocks a channel. Requires room.lock.
 	UnlockRoom(context.Context, *connect.Request[v1.UnlockRoomRequest]) (*connect.Response[v1.UnlockRoomResponse], error)
 	// Places an immediate logical history barrier and starts selective cleanup.
-	// Requires room.purge-messages plus a fresh credential and exact room name.
+	// Requires an authenticated caller with room.purge-messages, plus the exact
+	// room name and revision.
 	PurgeRoomHistory(context.Context, *connect.Request[v1.PurgeRoomHistoryRequest]) (*connect.Response[v1.PurgeRoomHistoryResponse], error)
 	// Reads a purge operation started by the current user or a current room
 	// purge administrator.
@@ -566,7 +567,8 @@ type RoomServiceHandler interface {
 	// Unlocks a channel. Requires room.lock.
 	UnlockRoom(context.Context, *connect.Request[v1.UnlockRoomRequest]) (*connect.Response[v1.UnlockRoomResponse], error)
 	// Places an immediate logical history barrier and starts selective cleanup.
-	// Requires room.purge-messages plus a fresh credential and exact room name.
+	// Requires an authenticated caller with room.purge-messages, plus the exact
+	// room name and revision.
 	PurgeRoomHistory(context.Context, *connect.Request[v1.PurgeRoomHistoryRequest]) (*connect.Response[v1.PurgeRoomHistoryResponse], error)
 	// Reads a purge operation started by the current user or a current room
 	// purge administrator.

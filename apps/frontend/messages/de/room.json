@@ -221,8 +221,6 @@
       "confirmation_label": "Gib zur Bestätigung {room} ein",
       "confirmation_placeholder": "{room}",
       "confirmation_error": "Der Name muss genau {room} entsprechen.",
-      "password_label": "Aktuelles Passwort (falls angefordert)",
-      "password_help": "Leer lassen, wenn die letzte Anmeldung noch gültig ist.",
       "purge_submit": "Verlauf löschen",
       "purge_submitting": "Verlaufsbarriere wird erstellt…",
       "purge_committed": "Der frühere Verlauf in #{room} ist jetzt unzugänglich.",

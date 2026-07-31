@@ -102,7 +102,7 @@ describe('RoomGovernanceActions', () => {
     expect(onrefresh).toHaveBeenCalledOnce();
   });
 
-  it('requires the exact room name before starting a fresh-auth-capable purge', async () => {
+  it('requires only the exact room name before starting an authorized purge', async () => {
     mocks.purgeRoomHistory.mockResolvedValue({
       room: {
         ...room,
@@ -161,19 +161,14 @@ describe('RoomGovernanceActions', () => {
     expect(enter.defaultPrevented).toBe(true);
     expect(mocks.purgeRoomHistory).not.toHaveBeenCalled();
 
-    const password = [...container.querySelectorAll('input')].find(
-      (candidate) => candidate.type === 'password'
-    );
-    if (!(password instanceof HTMLInputElement)) throw new Error('password input not found');
-    fill(password, 'current-password');
+    expect(container.querySelector('input[type="password"]')).toBeNull();
     submit.click();
 
     await vi.waitFor(() =>
       expect(mocks.purgeRoomHistory).toHaveBeenCalledWith({
         roomId: room.id,
         expectedRevision: room.revision,
-        confirmationName: room.name,
-        currentPassword: 'current-password'
+        confirmationName: room.name
       })
     );
     expect(onhistorypurged).toHaveBeenCalledWith(1n);

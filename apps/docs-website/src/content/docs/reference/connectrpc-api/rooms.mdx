@@ -235,7 +235,8 @@ Result of unlocking a channel.
 ### PurgeRoomHistory
 
 Places an immediate logical history barrier and starts selective cleanup.
-Requires room.purge-messages plus a fresh credential and exact room name.
+Requires an authenticated caller with room.purge-messages, plus the exact
+room name and revision.
 
 ```http
 POST /api/connect/chatto.api.v1.RoomService/PurgeRoomHistory
@@ -252,7 +253,6 @@ Request to erase message-owned history while preserving the channel itself.
 | `room_id` | `string` | No field description provided. |
 | `expected_revision` | `uint64` | No field description provided. |
 | `confirmation_name` | `string` | No field description provided. |
-| `current_password` | `string` | Optional current-password proof when the active credential is not fresh. |
 
 
 <a id="chatto-api-v1-PurgeRoomHistoryResponse"></a>

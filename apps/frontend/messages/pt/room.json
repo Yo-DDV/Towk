@@ -221,8 +221,6 @@
       "confirmation_label": "Digite {room} para confirmar",
       "confirmation_placeholder": "{room}",
       "confirmation_error": "O nome deve corresponder exatamente a {room}.",
-      "password_label": "Senha atual (se solicitada)",
-      "password_help": "Deixe em branco se a autenticação recente ainda for válida.",
       "purge_submit": "Purgar histórico",
       "purge_submitting": "Criando barreira do histórico…",
       "purge_committed": "O histórico anterior de #{room} agora está inacessível.",

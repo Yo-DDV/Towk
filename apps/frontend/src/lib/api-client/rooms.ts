@@ -222,7 +222,6 @@ export function createRoomCommandAPI(config: ConnectAPIConfig) {
       roomId: string;
       expectedRevision: bigint;
       confirmationName: string;
-      currentPassword?: string;
     }): Promise<{
       room: PublicRoom | null;
       operation: RoomHistoryPurgeOperationView | null;
@@ -232,8 +231,7 @@ export function createRoomCommandAPI(config: ConnectAPIConfig) {
           {
             roomId: input.roomId,
             expectedRevision: input.expectedRevision,
-            confirmationName: input.confirmationName,
-            currentPassword: input.currentPassword ?? ''
+            confirmationName: input.confirmationName
           },
           { headers: headers() }
         );

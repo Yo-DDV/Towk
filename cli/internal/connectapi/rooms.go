@@ -131,9 +131,6 @@ func (s *roomService) PurgeRoomHistory(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, err
 	}
-	if err := s.api.requireFreshCredential(ctx, caller, req.Msg.GetCurrentPassword()); err != nil {
-		return nil, connectError(err)
-	}
 	room, operation, err := s.api.core.RoomCommands().PurgeHistory(ctx, core.RoomHistoryPurgeInput{
 		ActorID:          caller.UserID,
 		RoomID:           req.Msg.GetRoomId(),

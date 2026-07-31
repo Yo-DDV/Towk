@@ -3279,6 +3279,20 @@ func TestRoomServiceGovernanceCommands(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetRoom: %v", err)
 	}
+	if _, err := env.rooms.PurgeRoomHistory(env.ctx, connect.NewRequest(&apiv1.PurgeRoomHistoryRequest{
+		RoomId:           room.GetId(),
+		ExpectedRevision: room.GetRevision(),
+		ConfirmationName: room.GetName(),
+	})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated PurgeRoomHistory code = %v, want unauthenticated", connect.CodeOf(err))
+	}
+	if _, err := env.rooms.PurgeRoomHistory(ctx, connect.NewRequest(&apiv1.PurgeRoomHistoryRequest{
+		RoomId:           room.GetId(),
+		ExpectedRevision: room.GetRevision(),
+		ConfirmationName: room.GetName(),
+	})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("unauthorized PurgeRoomHistory code = %v, want permission denied", connect.CodeOf(err))
+	}
 	if err := env.core.GrantRoomPermission(env.ctx, core.SystemActorID, room.GetId(), core.RoleEveryone, core.PermRoomLock); err != nil {
 		t.Fatalf("GrantRoomPermission lock: %v", err)
 	}
@@ -3305,24 +3319,14 @@ func TestRoomServiceGovernanceCommands(t *testing.T) {
 	if _, err := env.rooms.PurgeRoomHistory(staleCtx, connect.NewRequest(&apiv1.PurgeRoomHistoryRequest{
 		RoomId:           room.GetId(),
 		ExpectedRevision: locked.Msg.GetRoom().GetRevision(),
-		ConfirmationName: room.GetName(),
+		ConfirmationName: "wrong-room-name",
 	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
-		t.Fatalf("PurgeRoomHistory without fresh credential code = %v, want failed precondition", connect.CodeOf(err))
+		t.Fatalf("PurgeRoomHistory wrong confirmation code = %v, want failed precondition", connect.CodeOf(err))
 	}
-	if _, err := env.rooms.PurgeRoomHistory(staleCtx, connect.NewRequest(&apiv1.PurgeRoomHistoryRequest{
-		RoomId:           room.GetId(),
-		ExpectedRevision: locked.Msg.GetRoom().GetRevision(),
-		ConfirmationName: room.GetName(),
-		CurrentPassword:  "wrong-password",
-	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("PurgeRoomHistory wrong password code = %v, want invalid argument", connect.CodeOf(err))
-	}
-
 	purged, err := env.rooms.PurgeRoomHistory(staleCtx, connect.NewRequest(&apiv1.PurgeRoomHistoryRequest{
 		RoomId:           room.GetId(),
 		ExpectedRevision: locked.Msg.GetRoom().GetRevision(),
 		ConfirmationName: room.GetName(),
-		CurrentPassword:  "password",
 	}))
 	if err != nil {
 		t.Fatalf("PurgeRoomHistory: %v", err)

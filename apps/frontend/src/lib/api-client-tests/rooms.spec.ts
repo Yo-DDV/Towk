@@ -235,7 +235,7 @@ describe('createRoomCommandAPI', () => {
     );
   });
 
-  it('forwards exact-name and fresh-auth purge inputs and maps durable operation state', async () => {
+  it('forwards the exact-name purge input without a password and maps durable operation state', async () => {
     mocks.purgeRoomHistory.mockResolvedValue({
       room: {
         id: 'room-1',
@@ -271,8 +271,7 @@ describe('createRoomCommandAPI', () => {
       api.purgeRoomHistory({
         roomId: 'room-1',
         expectedRevision: 10n,
-        confirmationName: 'general',
-        currentPassword: 'current-password'
+        confirmationName: 'general'
       })
     ).resolves.toMatchObject({
       room: { historyEpoch: 3n, revision: 11n },
@@ -287,8 +286,7 @@ describe('createRoomCommandAPI', () => {
       {
         roomId: 'room-1',
         expectedRevision: 10n,
-        confirmationName: 'general',
-        currentPassword: 'current-password'
+        confirmationName: 'general'
       },
       { headers: { Authorization: 'Bearer remote-token' } }
     );

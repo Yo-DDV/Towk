@@ -221,8 +221,6 @@
       "confirmation_label": "Saisissez {room} pour confirmer",
       "confirmation_placeholder": "{room}",
       "confirmation_error": "Le nom doit correspondre exactement à {room}.",
-      "password_label": "Mot de passe actuel (si demandé)",
-      "password_help": "Laissez vide si votre authentification récente est encore valide.",
       "purge_submit": "Purger l’historique",
       "purge_submitting": "Création de la barrière…",
       "purge_committed": "L’ancien historique de #{room} est maintenant inaccessible.",

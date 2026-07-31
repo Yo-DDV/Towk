@@ -175,11 +175,11 @@ message RoomHistoryPurgeOperation {
 
 // Request to erase message-owned history while preserving the channel itself.
 message PurgeRoomHistoryRequest {
+  reserved 4;
+  reserved "current_password";
   string room_id = 1 [(buf.validate.field).string.min_len = 1];
   uint64 expected_revision = 2 [(buf.validate.field).uint64.gt = 0];
   string confirmation_name = 3 [(buf.validate.field).string.min_len = 1];
-  // Optional current-password proof when the active credential is not fresh.
-  string current_password = 4;
 }
 
 // Result of placing the logical purge barrier and starting physical cleanup.
@@ -422,7 +422,8 @@ service RoomService {
   // Unlocks a channel. Requires room.lock.
   rpc UnlockRoom(UnlockRoomRequest) returns (UnlockRoomResponse);
   // Places an immediate logical history barrier and starts selective cleanup.
-  // Requires room.purge-messages plus a fresh credential and exact room name.
+  // Requires an authenticated caller with room.purge-messages, plus the exact
+  // room name and revision.
   rpc PurgeRoomHistory(PurgeRoomHistoryRequest) returns (PurgeRoomHistoryResponse);
   // Reads a purge operation started by the current user or a current room
   // purge administrator.
