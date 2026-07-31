@@ -26,6 +26,10 @@ func roomIDOfEvent(event *corev1.Event) string {
 		return e.RoomUnarchived.GetRoomId()
 	case *corev1.Event_RoomUniversalChanged:
 		return e.RoomUniversalChanged.GetRoomId()
+	case *corev1.Event_RoomPostingPolicyChanged:
+		return e.RoomPostingPolicyChanged.GetRoomId()
+	case *corev1.Event_RoomHistoryPurged:
+		return e.RoomHistoryPurged.GetRoomId()
 	case *corev1.Event_UserJoinedRoom:
 		return e.UserJoinedRoom.GetRoomId()
 	case *corev1.Event_UserLeftRoom:
@@ -155,6 +159,8 @@ func isVisibleRoomTimelineEntry(event *corev1.Event) bool {
 		*corev1.Event_RoomDeleted,
 		*corev1.Event_RoomArchived,
 		*corev1.Event_RoomUnarchived,
+		*corev1.Event_RoomPostingPolicyChanged,
+		*corev1.Event_RoomHistoryPurged,
 		*corev1.Event_UserJoinedRoom,
 		*corev1.Event_UserLeftRoom,
 		*corev1.Event_VoiceCallParticipantJoined,
@@ -191,6 +197,8 @@ func isDeliverableLiveEVTRoomEvent(event *corev1.Event) bool {
 		*corev1.Event_RoomArchived,
 		*corev1.Event_RoomUnarchived,
 		*corev1.Event_RoomUniversalChanged,
+		*corev1.Event_RoomPostingPolicyChanged,
+		*corev1.Event_RoomHistoryPurged,
 		*corev1.Event_UserJoinedRoom,
 		*corev1.Event_UserLeftRoom,
 		*corev1.Event_ThreadCreated,

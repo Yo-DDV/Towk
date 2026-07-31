@@ -13,16 +13,34 @@ import (
 )
 
 func (c *ChattoCore) purgeRoomAssets(ctx context.Context, actorID, roomID string, references *roomPurgeReferences) (attachmentsDeleted int, eventsDeleted int, err error) {
+	return c.purgeRoomAssetsWithScope(ctx, actorID, roomID, references, true)
+}
+
+func (c *ChattoCore) purgeSelectedRoomAssets(ctx context.Context, actorID, roomID string, references *roomPurgeReferences) (attachmentsDeleted int, eventsDeleted int, err error) {
+	return c.purgeRoomAssetsWithScope(ctx, actorID, roomID, references, false)
+}
+
+func (c *ChattoCore) purgeRoomAssetsWithScope(ctx context.Context, actorID, roomID string, references *roomPurgeReferences, includeAllRoomAssets bool) (attachmentsDeleted int, eventsDeleted int, err error) {
 	creationByID := make(map[string]*corev1.AssetCreatedEvent)
 	orderedIDs := make([]string, 0)
-	for _, creation := range c.Assets.RoomAssetCreations(roomID) {
-		if creation == nil || creation.GetAsset() == nil || creation.GetAsset().GetId() == "" {
-			continue
+	if includeAllRoomAssets {
+		for _, creation := range c.Assets.RoomAssetCreations(roomID) {
+			if creation == nil || creation.GetAsset() == nil || creation.GetAsset().GetId() == "" {
+				continue
+			}
+			assetID := creation.GetAsset().GetId()
+			references.assetIDs[assetID] = struct{}{}
+			references.provenAssetIDs[assetID] = struct{}{}
+			creationByID[assetID] = creation
+			orderedIDs = append(orderedIDs, assetID)
 		}
-		assetID := creation.GetAsset().GetId()
-		references.assetIDs[assetID] = struct{}{}
-		creationByID[assetID] = creation
-		orderedIDs = append(orderedIDs, assetID)
+	} else {
+		for assetID := range references.provenAssetIDs {
+			creation, _ := c.Assets.AssetCreation(assetID)
+			if creation != nil {
+				creationByID[assetID] = creation
+			}
+		}
 	}
 	remaining := make([]string, 0, len(references.assetIDs))
 	alreadyOrdered := make(map[string]struct{}, len(orderedIDs))

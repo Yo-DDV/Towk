@@ -17,6 +17,14 @@ enum RoomKind {
   ROOM_KIND_DM = 2;
 }
 
+// RoomPostingPolicy controls whether members may add new content to a channel.
+// Direct-message rooms always use OPEN and never expose this control.
+enum RoomPostingPolicy {
+  ROOM_POSTING_POLICY_UNSPECIFIED = 0;
+  ROOM_POSTING_POLICY_OPEN = 1;
+  ROOM_POSTING_POLICY_LOCKED = 2;
+}
+
 // Room represents a chat room on the server.
 // For channel rooms, group_id MUST point to a RoomGroup; DM rooms leave it empty.
 message Room {
@@ -46,6 +54,14 @@ message Room {
   // who is currently eligible to join the room. Explicit memberships are
   // preserved separately so disabling universal restores the previous state.
   bool universal = 9;
+  // Durable channel posting state. Legacy rooms decode UNSPECIFIED and are
+  // treated as OPEN.
+  RoomPostingPolicy posting_policy = 10;
+  // Monotonic generation advanced whenever message history is purged.
+  uint64 history_epoch = 11;
+  // Latest room-aggregate EVT sequence observed by the room catalog. Commands
+  // use it as an optimistic-concurrency fence.
+  uint64 revision = 12;
 }
 
 // User represents a user account

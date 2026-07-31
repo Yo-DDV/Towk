@@ -160,6 +160,10 @@ func (p *RoomTimelineProjection) Apply(event *corev1.Event, seq uint64) error {
 		return nil
 	}
 
+	if event.GetRoomHistoryPurged() != nil {
+		p.applyRoomHistoryPurgedLocked(roomID)
+	}
+
 	if ev := event.GetMessageBody(); ev != nil {
 		targetID := ev.GetEventId()
 		body := ev.GetBody()
@@ -252,6 +256,60 @@ func (p *RoomTimelineProjection) Apply(event *corev1.Event, seq uint64) error {
 	}
 	p.assets.applyLifecycleEvent(event)
 	return nil
+}
+
+func (p *RoomTimelineProjection) applyRoomHistoryPurgedLocked(roomID string) {
+	if roomID == "" {
+		return
+	}
+	messageIDs := make(map[string]struct{})
+	for _, idx := range p.messagePostsByRoom[roomID] {
+		entry := p.entryAtLocked(idx)
+		if entry == nil || entry.Event == nil || entry.Event.GetId() == "" {
+			continue
+		}
+		messageIDs[entry.Event.GetId()] = struct{}{}
+	}
+
+	visible := p.byRoom[roomID][:0]
+	for _, idx := range p.byRoom[roomID] {
+		entry := p.entryAtLocked(idx)
+		if entry == nil || entry.Event == nil || isMessageOwnedRoomEvent(entry.Event) {
+			continue
+		}
+		visible = append(visible, idx)
+	}
+	if len(visible) == 0 {
+		delete(p.byRoom, roomID)
+	} else {
+		p.byRoom[roomID] = visible
+	}
+	delete(p.messagePostsByRoom, roomID)
+
+	for eventID := range messageIDs {
+		delete(p.byEventID, eventID)
+		delete(p.latestBody, eventID)
+		delete(p.bodyEventSeqs, eventID)
+		delete(p.currentBodySeq, eventID)
+		delete(p.retractedFlags, eventID)
+		delete(p.tombstonedAt, eventID)
+		delete(p.hiddenEchoes, eventID)
+		p.removeAttachmentMessageLocked(eventID)
+		delete(p.echoLinks, eventID)
+	}
+	for originalID, echoIDs := range p.echoLinks {
+		filtered := echoIDs[:0]
+		for _, echoID := range echoIDs {
+			if _, removed := messageIDs[echoID]; !removed {
+				filtered = append(filtered, echoID)
+			}
+		}
+		if len(filtered) == 0 {
+			delete(p.echoLinks, originalID)
+		} else {
+			p.echoLinks[originalID] = filtered
+		}
+	}
 }
 
 func (p *RoomTimelineProjection) CompleteStartupReplay() {

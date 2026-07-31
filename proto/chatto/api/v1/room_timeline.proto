@@ -24,6 +24,18 @@ message RoomTimelineRoomEvent {
   string room_id = 1;
 }
 
+// Governance change rendered as a compact system row.
+message RoomTimelinePostingPolicyEvent {
+  string room_id = 1;
+  bool locked = 2;
+}
+
+// History barrier rendered as a compact system row.
+message RoomTimelineHistoryPurgedEvent {
+  string room_id = 1;
+  uint64 history_epoch = 2;
+}
+
 // Payload for a message-posted timeline event.
 message RoomMessagePosted {
   // Renderable message created by this timeline event.
@@ -55,6 +67,10 @@ message RoomTimelineEvent {
     RoomTimelineRoomEvent room_archived = 23;
     // The room was unarchived.
     RoomTimelineRoomEvent room_unarchived = 24;
+    // The channel posting policy changed.
+    RoomTimelinePostingPolicyEvent room_posting_policy_changed = 25;
+    // Earlier message-owned history was purged.
+    RoomTimelineHistoryPurgedEvent room_history_purged = 26;
     // A user joined the room.
     RoomTimelineRoomEvent user_joined_room = 30;
     // A user left the room.

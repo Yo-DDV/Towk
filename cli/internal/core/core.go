@@ -337,6 +337,7 @@ func (c *ChattoCore) Run(ctx context.Context) error {
 	g.Go(func() error { return c.callNotifications.Run(gctx) })
 	g.Go(func() error { return c.assetModel.Run(gctx) })
 	g.Go(func() error { return c.AssetUploads().RunCleanup(gctx) })
+	g.Go(func() error { return c.runRoomHistoryPurgeWorker(gctx) })
 
 	return g.Wait()
 }

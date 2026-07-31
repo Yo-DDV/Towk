@@ -369,8 +369,18 @@ func TestInitServerDefaults(t *testing.T) {
 			if perm.Category == CategoryMessage && perm.Permission != PermMessageManage {
 				continue
 			}
+			if perm.Permission == PermRoomLock ||
+				perm.Permission == PermRoomPurgeMessages ||
+				perm.Permission == PermRoomBypassLock {
+				continue
+			}
 			if got := core.RBAC.GetDecision(ScopeServer, "", RoleAdmin, perm.Permission); got != DecisionAllow {
 				t.Errorf("admin decision for %s = %s, want %s", perm.Permission, got, DecisionAllow)
+			}
+		}
+		for _, perm := range []Permission{PermRoomLock, PermRoomPurgeMessages, PermRoomBypassLock} {
+			if got := core.RBAC.GetDecision(ScopeServer, "", RoleAdmin, perm); got != DecisionNone {
+				t.Errorf("admin server decision for delegated permission %s = %s, want %s", perm, got, DecisionNone)
 			}
 		}
 		for _, perm := range []Permission{PermMessagePost, PermMessagePostInThread, PermMessageReact, PermMessageEcho} {

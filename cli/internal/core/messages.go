@@ -537,6 +537,9 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	if room.Archived {
 		return nil, ErrRoomArchived
 	}
+	if err := c.requireRoomAcceptsAdditiveContent(ctx, user_id, kind, room_id); err != nil {
+		return nil, err
+	}
 
 	// If replying to a message inside a thread, inherit its thread root.
 	// This keeps the data invariant intact even when callers (bots, older clients,
@@ -1051,6 +1054,9 @@ func (c *ChattoCore) EditMessage(ctx context.Context, actorID string, kind RoomK
 	}
 	if room.Archived {
 		return ErrRoomArchived
+	}
+	if err := c.requireRoomAcceptsAdditiveContent(ctx, actorID, kind, roomID); err != nil {
+		return err
 	}
 
 	eventID := eventIDFromBodyKey(messageBodyKey)

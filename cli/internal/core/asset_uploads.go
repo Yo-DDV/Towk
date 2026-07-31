@@ -490,6 +490,9 @@ func (m *AssetUploadModel) authorizeUpload(ctx context.Context, actorID, roomID 
 	if room.Archived {
 		return ErrRoomArchived
 	}
+	if err := m.core.requireRoomAcceptsAdditiveContent(ctx, actorID, kind, room.Id); err != nil {
+		return err
+	}
 	if voiceMessage {
 		canSendVoiceMessages, err := m.core.CanSendVoiceMessages(ctx, actorID, kind, room.Id)
 		if err != nil {

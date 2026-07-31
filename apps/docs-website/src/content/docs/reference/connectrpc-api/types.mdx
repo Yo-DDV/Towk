@@ -604,12 +604,25 @@ Clients should inspect the event oneof to choose the renderer for the event.
 | `event.room_deleted` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was deleted. |
 | `event.room_archived` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was archived. |
 | `event.room_unarchived` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was unarchived. |
+| `event.room_posting_policy_changed` | [`RoomTimelinePostingPolicyEvent`](#chatto-api-v1-RoomTimelinePostingPolicyEvent) | The channel posting policy changed. |
+| `event.room_history_purged` | [`RoomTimelineHistoryPurgedEvent`](#chatto-api-v1-RoomTimelineHistoryPurgedEvent) | Earlier message-owned history was purged. |
 | `event.user_joined_room` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | A user joined the room. |
 | `event.user_left_room` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | A user left the room. |
 | `event.call_started` | [`RoomTimelineCallEvent`](#chatto-api-v1-RoomTimelineCallEvent) | A voice call started in the room. |
 | `event.call_participant_joined` | [`RoomTimelineCallEvent`](#chatto-api-v1-RoomTimelineCallEvent) | One participant connection joined the voice call. |
 | `event.call_participant_left` | [`RoomTimelineCallEvent`](#chatto-api-v1-RoomTimelineCallEvent) | One participant connection left the voice call. |
 | `event.call_ended` | [`RoomTimelineCallEvent`](#chatto-api-v1-RoomTimelineCallEvent) | The voice call ended. |
+
+<a id="chatto-api-v1-RoomTimelineHistoryPurgedEvent"></a>
+
+### RoomTimelineHistoryPurgedEvent
+
+History barrier rendered as a compact system row.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `history_epoch` | `uint64` | No field description provided. |
 
 <a id="chatto-api-v1-RoomTimelineIncludes"></a>
 
@@ -647,6 +660,17 @@ window.
 | `has_newer` | `bool` | True when newer events are available after end_cursor. |
 | `includes` | [`RoomTimelineIncludes`](#chatto-api-v1-RoomTimelineIncludes) | Hot-path related entities needed to render the page without per-event hydration. |
 
+<a id="chatto-api-v1-RoomTimelinePostingPolicyEvent"></a>
+
+### RoomTimelinePostingPolicyEvent
+
+Governance change rendered as a compact system row.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `locked` | `bool` | No field description provided. |
+
 <a id="chatto-api-v1-RoomTimelineRoomEvent"></a>
 
 ### RoomTimelineRoomEvent
@@ -672,6 +696,9 @@ Public room metadata returned by room commands.
 | `archived` | `bool` | True when the room is archived and hidden from active room lists. |
 | `group_id` | `string` | Room group ID for channel rooms. Empty for direct-message rooms. |
 | `universal` | `bool` | True when a channel grants effective membership to eligible server members. |
+| `posting_policy` | [`RoomPostingPolicy`](#chatto-api-v1-RoomPostingPolicy) | Durable posting state. Direct-message rooms always return OPEN. |
+| `history_epoch` | `uint64` | Monotonic generation advanced after each history purge. |
+| `revision` | `uint64` | Optimistic-concurrency token for room-scoped governance commands. |
 
 <a id="chatto-api-v1-RoomBan"></a>
 
@@ -691,6 +718,20 @@ Active channel room ban with optional hydrated room and user references.
 | `reason` | `string` | Moderator-entered ban reason. |
 | `created_at` | `google.protobuf.Timestamp` | Time the ban was created. |
 | `expires_at` | `google.protobuf.Timestamp` | Optional future time when the ban expires. |
+
+<a id="chatto-api-v1-RoomHistoryPurgeOperation"></a>
+
+### RoomHistoryPurgeOperation
+
+Public, non-secret progress for one channel history purge.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `string` | No field description provided. |
+| `room_id` | `string` | No field description provided. |
+| `history_epoch` | `uint64` | No field description provided. |
+| `status` | [`RoomHistoryPurgeStatus`](#chatto-api-v1-RoomHistoryPurgeStatus) | No field description provided. |
+| `failure_code` | `string` | No field description provided. |
 
 <a id="chatto-api-v1-RoomSummary"></a>
 
@@ -1556,6 +1597,19 @@ Upload lifecycle state for a room-scoped attachment upload.
 | `ASSET_UPLOAD_STATUS_COMPLETED` | `2` | The upload has been completed and produced an attachment asset. |
 | `ASSET_UPLOAD_STATUS_CANCELLED` | `3` | The upload was cancelled or expired. |
 
+<a id="chatto-api-v1-RoomHistoryPurgeStatus"></a>
+
+### RoomHistoryPurgeStatus
+
+Lifecycle state for one history-purge operation.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `ROOM_HISTORY_PURGE_STATUS_UNSPECIFIED` | `0` | No value description provided. |
+| `ROOM_HISTORY_PURGE_STATUS_RUNNING` | `1` | No value description provided. |
+| `ROOM_HISTORY_PURGE_STATUS_COMPLETED` | `2` | No value description provided. |
+| `ROOM_HISTORY_PURGE_STATUS_FAILED` | `3` | No value description provided. |
+
 <a id="chatto-api-v1-RoomKind"></a>
 
 ### RoomKind
@@ -1567,6 +1621,18 @@ Kind of room represented by the public API.
 | `ROOM_KIND_UNSPECIFIED` | `0` | The room kind was not specified. |
 | `ROOM_KIND_CHANNEL` | `1` | A regular channel governed by server and room permissions. |
 | `ROOM_KIND_DM` | `2` | A direct-message conversation between members. |
+
+<a id="chatto-api-v1-RoomPostingPolicy"></a>
+
+### RoomPostingPolicy
+
+Posting state for a channel room.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `ROOM_POSTING_POLICY_UNSPECIFIED` | `0` | No value description provided. |
+| `ROOM_POSTING_POLICY_OPEN` | `1` | Members may add content according to their ordinary permissions. |
+| `ROOM_POSTING_POLICY_LOCKED` | `2` | New content is blocked unless the viewer has room.bypass-lock. |
 
 <a id="chatto-api-v1-RoomDirectoryScope"></a>
 

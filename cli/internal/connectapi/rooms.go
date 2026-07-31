@@ -92,6 +92,77 @@ func (s *roomService) UnarchiveRoom(ctx context.Context, req *connect.Request[ap
 	return connect.NewResponse(&apiv1.UnarchiveRoomResponse{Room: apiRoom(room)}), nil
 }
 
+func (s *roomService) LockRoom(ctx context.Context, req *connect.Request[apiv1.LockRoomRequest]) (*connect.Response[apiv1.LockRoomResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	room, err := s.api.core.RoomCommands().SetPostingPolicy(ctx, core.RoomPostingPolicyInput{
+		ActorID:          caller.UserID,
+		RoomID:           req.Msg.GetRoomId(),
+		ExpectedRevision: req.Msg.GetExpectedRevision(),
+		PostingPolicy:    corev1.RoomPostingPolicy_ROOM_POSTING_POLICY_LOCKED,
+	})
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(&apiv1.LockRoomResponse{Room: apiRoom(room)}), nil
+}
+
+func (s *roomService) UnlockRoom(ctx context.Context, req *connect.Request[apiv1.UnlockRoomRequest]) (*connect.Response[apiv1.UnlockRoomResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	room, err := s.api.core.RoomCommands().SetPostingPolicy(ctx, core.RoomPostingPolicyInput{
+		ActorID:          caller.UserID,
+		RoomID:           req.Msg.GetRoomId(),
+		ExpectedRevision: req.Msg.GetExpectedRevision(),
+		PostingPolicy:    corev1.RoomPostingPolicy_ROOM_POSTING_POLICY_OPEN,
+	})
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(&apiv1.UnlockRoomResponse{Room: apiRoom(room)}), nil
+}
+
+func (s *roomService) PurgeRoomHistory(ctx context.Context, req *connect.Request[apiv1.PurgeRoomHistoryRequest]) (*connect.Response[apiv1.PurgeRoomHistoryResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.api.requireFreshCredential(ctx, caller, req.Msg.GetCurrentPassword()); err != nil {
+		return nil, connectError(err)
+	}
+	room, operation, err := s.api.core.RoomCommands().PurgeHistory(ctx, core.RoomHistoryPurgeInput{
+		ActorID:          caller.UserID,
+		RoomID:           req.Msg.GetRoomId(),
+		ExpectedRevision: req.Msg.GetExpectedRevision(),
+		ConfirmationName: req.Msg.GetConfirmationName(),
+	})
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(&apiv1.PurgeRoomHistoryResponse{
+		Room:      apiRoom(room),
+		Operation: apiRoomHistoryPurgeOperation(operation),
+	}), nil
+}
+
+func (s *roomService) GetRoomHistoryPurgeOperation(ctx context.Context, req *connect.Request[apiv1.GetRoomHistoryPurgeOperationRequest]) (*connect.Response[apiv1.GetRoomHistoryPurgeOperationResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	operation, err := s.api.core.RoomCommands().GetHistoryPurgeOperation(ctx, caller.UserID, req.Msg.GetOperationId())
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(&apiv1.GetRoomHistoryPurgeOperationResponse{
+		Operation: apiRoomHistoryPurgeOperation(operation),
+	}), nil
+}
+
 func (s *roomService) JoinRoom(ctx context.Context, req *connect.Request[apiv1.JoinRoomRequest]) (*connect.Response[apiv1.JoinRoomResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
@@ -346,13 +417,16 @@ func apiRoom(room *corev1.Room) *apiv1.Room {
 		return nil
 	}
 	return &apiv1.Room{
-		Id:          room.Id,
-		Kind:        apiRoomKind(room.Kind),
-		Name:        room.Name,
-		Description: room.Description,
-		Archived:    room.Archived,
-		GroupId:     room.GroupId,
-		Universal:   room.Universal,
+		Id:            room.Id,
+		Kind:          apiRoomKind(room.Kind),
+		Name:          room.Name,
+		Description:   room.Description,
+		Archived:      room.Archived,
+		GroupId:       room.GroupId,
+		Universal:     room.Universal,
+		PostingPolicy: apiRoomPostingPolicy(room.GetPostingPolicy()),
+		HistoryEpoch:  room.GetHistoryEpoch(),
+		Revision:      room.GetRevision(),
 	}
 }
 
@@ -375,5 +449,34 @@ func apiRoomKind(kind corev1.RoomKind) apiv1.RoomKind {
 		return apiv1.RoomKind_ROOM_KIND_DM
 	default:
 		return apiv1.RoomKind_ROOM_KIND_UNSPECIFIED
+	}
+}
+
+func apiRoomPostingPolicy(policy corev1.RoomPostingPolicy) apiv1.RoomPostingPolicy {
+	if policy == corev1.RoomPostingPolicy_ROOM_POSTING_POLICY_LOCKED {
+		return apiv1.RoomPostingPolicy_ROOM_POSTING_POLICY_LOCKED
+	}
+	return apiv1.RoomPostingPolicy_ROOM_POSTING_POLICY_OPEN
+}
+
+func apiRoomHistoryPurgeOperation(operation *core.RoomHistoryPurgeOperation) *apiv1.RoomHistoryPurgeOperation {
+	if operation == nil {
+		return nil
+	}
+	status := apiv1.RoomHistoryPurgeStatus_ROOM_HISTORY_PURGE_STATUS_UNSPECIFIED
+	switch operation.Status {
+	case core.RoomHistoryPurgeRunning:
+		status = apiv1.RoomHistoryPurgeStatus_ROOM_HISTORY_PURGE_STATUS_RUNNING
+	case core.RoomHistoryPurgeCompleted:
+		status = apiv1.RoomHistoryPurgeStatus_ROOM_HISTORY_PURGE_STATUS_COMPLETED
+	case core.RoomHistoryPurgeFailed:
+		status = apiv1.RoomHistoryPurgeStatus_ROOM_HISTORY_PURGE_STATUS_FAILED
+	}
+	return &apiv1.RoomHistoryPurgeOperation{
+		Id:           operation.ID,
+		RoomId:       operation.RoomID,
+		HistoryEpoch: operation.HistoryEpoch,
+		Status:       status,
+		FailureCode:  operation.FailureCode,
 	}
 }

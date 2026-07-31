@@ -12,7 +12,7 @@ option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
 // Changing field numbers or structure below affects JetStream-stored data.
 //
 // Top-level Event oneof tags owned by this file:
-//   - 300-304: room lifecycle on evt.room.{roomId}.*
+//   - 300-308: room lifecycle and governance on evt.room.{roomId}.*
 //   - 310-311: room membership on evt.room.{roomId}.*
 //   - 320: server-wide account deletion fan-out
 //   - 330-334: voice call lifecycle and participant lifecycle on evt.room.{roomId}.*
@@ -78,6 +78,24 @@ message RoomUnarchivedEvent {
 message RoomUniversalChangedEvent {
   string room_id = 1;
   bool universal = 2;
+}
+
+// RoomPostingPolicyChangedEvent changes whether new member content may be
+// added to a channel. The previous policy remains available for audit and
+// deterministic client rendering.
+message RoomPostingPolicyChangedEvent {
+  string room_id = 1;
+  RoomPostingPolicy previous_policy = 2;
+  RoomPostingPolicy posting_policy = 3;
+}
+
+// RoomHistoryPurgedEvent is the durable logical barrier for a channel history
+// purge. Timeline readers must never return message-owned facts from an older
+// epoch, even while physical cleanup is still running.
+message RoomHistoryPurgedEvent {
+  string room_id = 1;
+  uint64 history_epoch = 2;
+  string operation_id = 3;
 }
 
 // ============================================================================

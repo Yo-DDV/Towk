@@ -17,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file chatto/api/v1/room_timeline.proto.
  */
 export const file_chatto_api_v1_room_timeline: GenFile = /*@__PURE__*/
-  fileDesc("CiFjaGF0dG8vYXBpL3YxL3Jvb21fdGltZWxpbmUucHJvdG8SDWNoYXR0by5hcGkudjEimAEKFFJvb21UaW1lbGluZUluY2x1ZGVzEj0KBXVzZXJzGAEgAygLMi4uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVJbmNsdWRlcy5Vc2Vyc0VudHJ5GkEKClVzZXJzRW50cnkSCwoDa2V5GAEgASgJEiIKBXZhbHVlGAIgASgLMhMuY2hhdHRvLmFwaS52MS5Vc2VyOgI4ASIoChVSb29tVGltZWxpbmVSb29tRXZlbnQSDwoHcm9vbV9pZBgBIAEoCSI8ChFSb29tTWVzc2FnZVBvc3RlZBInCgdtZXNzYWdlGAEgASgLMhYuY2hhdHRvLmFwaS52MS5NZXNzYWdlIuwGChFSb29tVGltZWxpbmVFdmVudBIKCgJpZBgBIAEoCRIuCgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghhY3Rvcl9pZBgDIAEoCRI6Cg5tZXNzYWdlX3Bvc3RlZBgKIAEoCzIgLmNoYXR0by5hcGkudjEuUm9vbU1lc3NhZ2VQb3N0ZWRIABI8Cgxyb29tX2NyZWF0ZWQYFCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEjwKDHJvb21fdXBkYXRlZBgVIAEoCzIkLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUm9vbUV2ZW50SAASPAoMcm9vbV9kZWxldGVkGBYgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI9Cg1yb29tX2FyY2hpdmVkGBcgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI/Cg9yb29tX3VuYXJjaGl2ZWQYGCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEkAKEHVzZXJfam9pbmVkX3Jvb20YHiABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEj4KDnVzZXJfbGVmdF9yb29tGB8gASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI8CgxjYWxsX3N0YXJ0ZWQYKCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZUNhbGxFdmVudEgAEkcKF2NhbGxfcGFydGljaXBhbnRfam9pbmVkGCkgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVDYWxsRXZlbnRIABJFChVjYWxsX3BhcnRpY2lwYW50X2xlZnQYKiABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZUNhbGxFdmVudEgAEjoKCmNhbGxfZW5kZWQYKyABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZUNhbGxFdmVudEgAQgcKBWV2ZW50IssBChBSb29tVGltZWxpbmVQYWdlEjAKBmV2ZW50cxgBIAMoCzIgLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lRXZlbnQSFAoMc3RhcnRfY3Vyc29yGAIgASgJEhIKCmVuZF9jdXJzb3IYAyABKAkSEQoJaGFzX29sZGVyGAQgASgIEhEKCWhhc19uZXdlchgFIAEoCBI1CghpbmNsdWRlcxgGIAEoCzIjLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lSW5jbHVkZXMibAoUR2V0Um9vbUV2ZW50c1JlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARINCgVsaW1pdBgCIAEoBRIQCgZiZWZvcmUYAyABKAlIABIPCgVhZnRlchgEIAEoCUgAQggKBmN1cnNvciJGChVHZXRSb29tRXZlbnRzUmVzcG9uc2USLQoEcGFnZRgBIAEoCzIfLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUGFnZSJgChpHZXRSb29tRXZlbnRzQXJvdW5kUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEhkKCGV2ZW50X2lkGAIgASgJQge6SARyAhABEg0KBWxpbWl0GAMgASgFImIKG0dldFJvb21FdmVudHNBcm91bmRSZXNwb25zZRItCgRwYWdlGAEgASgLMh8uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVQYWdlEhQKDHRhcmdldF9pbmRleBgCIAEoBSKVAQoWR2V0VGhyZWFkRXZlbnRzUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEiUKFHRocmVhZF9yb290X2V2ZW50X2lkGAIgASgJQge6SARyAhABEg0KBWxpbWl0GAMgASgFEhAKBmJlZm9yZRgEIAEoCUgAEg8KBWFmdGVyGAUgASgJSABCCAoGY3Vyc29yIkgKF0dldFRocmVhZEV2ZW50c1Jlc3BvbnNlEi0KBHBhZ2UYASABKAsyHy5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVBhZ2UiiQEKHEdldFRocmVhZEV2ZW50c0Fyb3VuZFJlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARIlChR0aHJlYWRfcm9vdF9ldmVudF9pZBgCIAEoCUIHukgEcgIQARIZCghldmVudF9pZBgDIAEoCUIHukgEcgIQARINCgVsaW1pdBgEIAEoBSJkCh1HZXRUaHJlYWRFdmVudHNBcm91bmRSZXNwb25zZRItCgRwYWdlGAEgASgLMh8uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVQYWdlEhQKDHRhcmdldF9pbmRleBgCIAEoBSJnChVSb29tVGltZWxpbmVDYWxsRXZlbnQSDwoHcm9vbV9pZBgBIAEoCRIPCgdjYWxsX2lkGAIgASgJEhYKDnBhcnRpY2lwYW50X2lkGAMgASgJEhQKDGRldmljZV9pbmRleBgEIAEoDUKtAQoRY29tLmNoYXR0by5hcGkudjFCEVJvb21UaW1lbGluZVByb3RvUAFaL2htYW5zLmRlL2NoYXR0by9pbnRlcm5hbC9wYi9jaGF0dG8vYXBpL3YxO2FwaXYxogIDQ0FYqgINQ2hhdHRvLkFwaS5WMcoCDUNoYXR0b1xBcGlcVjHiAhlDaGF0dG9cQXBpXFYxXEdQQk1ldGFkYXRh6gIPQ2hhdHRvOjpBcGk6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_chatto_api_v1_message_types, file_chatto_api_v1_users, file_google_protobuf_timestamp]);
+  fileDesc("CiFjaGF0dG8vYXBpL3YxL3Jvb21fdGltZWxpbmUucHJvdG8SDWNoYXR0by5hcGkudjEimAEKFFJvb21UaW1lbGluZUluY2x1ZGVzEj0KBXVzZXJzGAEgAygLMi4uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVJbmNsdWRlcy5Vc2Vyc0VudHJ5GkEKClVzZXJzRW50cnkSCwoDa2V5GAEgASgJEiIKBXZhbHVlGAIgASgLMhMuY2hhdHRvLmFwaS52MS5Vc2VyOgI4ASIoChVSb29tVGltZWxpbmVSb29tRXZlbnQSDwoHcm9vbV9pZBgBIAEoCSJBCh5Sb29tVGltZWxpbmVQb3N0aW5nUG9saWN5RXZlbnQSDwoHcm9vbV9pZBgBIAEoCRIOCgZsb2NrZWQYAiABKAgiSAoeUm9vbVRpbWVsaW5lSGlzdG9yeVB1cmdlZEV2ZW50Eg8KB3Jvb21faWQYASABKAkSFQoNaGlzdG9yeV9lcG9jaBgCIAEoBCI8ChFSb29tTWVzc2FnZVBvc3RlZBInCgdtZXNzYWdlGAEgASgLMhYuY2hhdHRvLmFwaS52MS5NZXNzYWdlIpAIChFSb29tVGltZWxpbmVFdmVudBIKCgJpZBgBIAEoCRIuCgpjcmVhdGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghhY3Rvcl9pZBgDIAEoCRI6Cg5tZXNzYWdlX3Bvc3RlZBgKIAEoCzIgLmNoYXR0by5hcGkudjEuUm9vbU1lc3NhZ2VQb3N0ZWRIABI8Cgxyb29tX2NyZWF0ZWQYFCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEjwKDHJvb21fdXBkYXRlZBgVIAEoCzIkLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUm9vbUV2ZW50SAASPAoMcm9vbV9kZWxldGVkGBYgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI9Cg1yb29tX2FyY2hpdmVkGBcgASgLMiQuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVSb29tRXZlbnRIABI/Cg9yb29tX3VuYXJjaGl2ZWQYGCABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAElQKG3Jvb21fcG9zdGluZ19wb2xpY3lfY2hhbmdlZBgZIAEoCzItLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUG9zdGluZ1BvbGljeUV2ZW50SAASTAoTcm9vbV9oaXN0b3J5X3B1cmdlZBgaIAEoCzItLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lSGlzdG9yeVB1cmdlZEV2ZW50SAASQAoQdXNlcl9qb2luZWRfcm9vbRgeIAEoCzIkLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUm9vbUV2ZW50SAASPgoOdXNlcl9sZWZ0X3Jvb20YHyABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVJvb21FdmVudEgAEjwKDGNhbGxfc3RhcnRlZBgoIAEoCzIkLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lQ2FsbEV2ZW50SAASRwoXY2FsbF9wYXJ0aWNpcGFudF9qb2luZWQYKSABKAsyJC5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZUNhbGxFdmVudEgAEkUKFWNhbGxfcGFydGljaXBhbnRfbGVmdBgqIAEoCzIkLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lQ2FsbEV2ZW50SAASOgoKY2FsbF9lbmRlZBgrIAEoCzIkLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lQ2FsbEV2ZW50SABCBwoFZXZlbnQiywEKEFJvb21UaW1lbGluZVBhZ2USMAoGZXZlbnRzGAEgAygLMiAuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVFdmVudBIUCgxzdGFydF9jdXJzb3IYAiABKAkSEgoKZW5kX2N1cnNvchgDIAEoCRIRCgloYXNfb2xkZXIYBCABKAgSEQoJaGFzX25ld2VyGAUgASgIEjUKCGluY2x1ZGVzGAYgASgLMiMuY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVJbmNsdWRlcyJsChRHZXRSb29tRXZlbnRzUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEg0KBWxpbWl0GAIgASgFEhAKBmJlZm9yZRgDIAEoCUgAEg8KBWFmdGVyGAQgASgJSABCCAoGY3Vyc29yIkYKFUdldFJvb21FdmVudHNSZXNwb25zZRItCgRwYWdlGAEgASgLMh8uY2hhdHRvLmFwaS52MS5Sb29tVGltZWxpbmVQYWdlImAKGkdldFJvb21FdmVudHNBcm91bmRSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESGQoIZXZlbnRfaWQYAiABKAlCB7pIBHICEAESDQoFbGltaXQYAyABKAUiYgobR2V0Um9vbUV2ZW50c0Fyb3VuZFJlc3BvbnNlEi0KBHBhZ2UYASABKAsyHy5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVBhZ2USFAoMdGFyZ2V0X2luZGV4GAIgASgFIpUBChZHZXRUaHJlYWRFdmVudHNSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESJQoUdGhyZWFkX3Jvb3RfZXZlbnRfaWQYAiABKAlCB7pIBHICEAESDQoFbGltaXQYAyABKAUSEAoGYmVmb3JlGAQgASgJSAASDwoFYWZ0ZXIYBSABKAlIAEIICgZjdXJzb3IiSAoXR2V0VGhyZWFkRXZlbnRzUmVzcG9uc2USLQoEcGFnZRgBIAEoCzIfLmNoYXR0by5hcGkudjEuUm9vbVRpbWVsaW5lUGFnZSKJAQocR2V0VGhyZWFkRXZlbnRzQXJvdW5kUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEiUKFHRocmVhZF9yb290X2V2ZW50X2lkGAIgASgJQge6SARyAhABEhkKCGV2ZW50X2lkGAMgASgJQge6SARyAhABEg0KBWxpbWl0GAQgASgFImQKHUdldFRocmVhZEV2ZW50c0Fyb3VuZFJlc3BvbnNlEi0KBHBhZ2UYASABKAsyHy5jaGF0dG8uYXBpLnYxLlJvb21UaW1lbGluZVBhZ2USFAoMdGFyZ2V0X2luZGV4GAIgASgFImcKFVJvb21UaW1lbGluZUNhbGxFdmVudBIPCgdyb29tX2lkGAEgASgJEg8KB2NhbGxfaWQYAiABKAkSFgoOcGFydGljaXBhbnRfaWQYAyABKAkSFAoMZGV2aWNlX2luZGV4GAQgASgNQq0BChFjb20uY2hhdHRvLmFwaS52MUIRUm9vbVRpbWVsaW5lUHJvdG9QAVovaG1hbnMuZGUvY2hhdHRvL2ludGVybmFsL3BiL2NoYXR0by9hcGkvdjE7YXBpdjGiAgNDQViqAg1DaGF0dG8uQXBpLlYxygINQ2hhdHRvXEFwaVxWMeICGUNoYXR0b1xBcGlcVjFcR1BCTWV0YWRhdGHqAg9DaGF0dG86OkFwaTo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_chatto_api_v1_message_types, file_chatto_api_v1_users, file_google_protobuf_timestamp]);
 
 /**
  * Related entities included beside timeline/feed events.
@@ -67,6 +67,54 @@ export const RoomTimelineRoomEventSchema: GenMessage<RoomTimelineRoomEvent> = /*
   messageDesc(file_chatto_api_v1_room_timeline, 1);
 
 /**
+ * Governance change rendered as a compact system row.
+ *
+ * @generated from message chatto.api.v1.RoomTimelinePostingPolicyEvent
+ */
+export type RoomTimelinePostingPolicyEvent = Message<"chatto.api.v1.RoomTimelinePostingPolicyEvent"> & {
+  /**
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+
+  /**
+   * @generated from field: bool locked = 2;
+   */
+  locked: boolean;
+};
+
+/**
+ * Describes the message chatto.api.v1.RoomTimelinePostingPolicyEvent.
+ * Use `create(RoomTimelinePostingPolicyEventSchema)` to create a new message.
+ */
+export const RoomTimelinePostingPolicyEventSchema: GenMessage<RoomTimelinePostingPolicyEvent> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_room_timeline, 2);
+
+/**
+ * History barrier rendered as a compact system row.
+ *
+ * @generated from message chatto.api.v1.RoomTimelineHistoryPurgedEvent
+ */
+export type RoomTimelineHistoryPurgedEvent = Message<"chatto.api.v1.RoomTimelineHistoryPurgedEvent"> & {
+  /**
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+
+  /**
+   * @generated from field: uint64 history_epoch = 2;
+   */
+  historyEpoch: bigint;
+};
+
+/**
+ * Describes the message chatto.api.v1.RoomTimelineHistoryPurgedEvent.
+ * Use `create(RoomTimelineHistoryPurgedEventSchema)` to create a new message.
+ */
+export const RoomTimelineHistoryPurgedEventSchema: GenMessage<RoomTimelineHistoryPurgedEvent> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_room_timeline, 3);
+
+/**
  * Payload for a message-posted timeline event.
  *
  * @generated from message chatto.api.v1.RoomMessagePosted
@@ -85,7 +133,7 @@ export type RoomMessagePosted = Message<"chatto.api.v1.RoomMessagePosted"> & {
  * Use `create(RoomMessagePostedSchema)` to create a new message.
  */
 export const RoomMessagePostedSchema: GenMessage<RoomMessagePosted> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 2);
+  messageDesc(file_chatto_api_v1_room_timeline, 4);
 
 /**
  * One event in a room or thread timeline.
@@ -171,6 +219,22 @@ export type RoomTimelineEvent = Message<"chatto.api.v1.RoomTimelineEvent"> & {
     case: "roomUnarchived";
   } | {
     /**
+     * The channel posting policy changed.
+     *
+     * @generated from field: chatto.api.v1.RoomTimelinePostingPolicyEvent room_posting_policy_changed = 25;
+     */
+    value: RoomTimelinePostingPolicyEvent;
+    case: "roomPostingPolicyChanged";
+  } | {
+    /**
+     * Earlier message-owned history was purged.
+     *
+     * @generated from field: chatto.api.v1.RoomTimelineHistoryPurgedEvent room_history_purged = 26;
+     */
+    value: RoomTimelineHistoryPurgedEvent;
+    case: "roomHistoryPurged";
+  } | {
+    /**
      * A user joined the room.
      *
      * @generated from field: chatto.api.v1.RoomTimelineRoomEvent user_joined_room = 30;
@@ -225,7 +289,7 @@ export type RoomTimelineEvent = Message<"chatto.api.v1.RoomTimelineEvent"> & {
  * Use `create(RoomTimelineEventSchema)` to create a new message.
  */
 export const RoomTimelineEventSchema: GenMessage<RoomTimelineEvent> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 3);
+  messageDesc(file_chatto_api_v1_room_timeline, 5);
 
 /**
  * Cursor page of room or thread timeline events.
@@ -287,7 +351,7 @@ export type RoomTimelinePage = Message<"chatto.api.v1.RoomTimelinePage"> & {
  * Use `create(RoomTimelinePageSchema)` to create a new message.
  */
 export const RoomTimelinePageSchema: GenMessage<RoomTimelinePage> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 4);
+  messageDesc(file_chatto_api_v1_room_timeline, 6);
 
 /**
  * Request for a page of room timeline events.
@@ -342,7 +406,7 @@ export type GetRoomEventsRequest = Message<"chatto.api.v1.GetRoomEventsRequest">
  * Use `create(GetRoomEventsRequestSchema)` to create a new message.
  */
 export const GetRoomEventsRequestSchema: GenMessage<GetRoomEventsRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 5);
+  messageDesc(file_chatto_api_v1_room_timeline, 7);
 
 /**
  * Response containing one room timeline page.
@@ -363,7 +427,7 @@ export type GetRoomEventsResponse = Message<"chatto.api.v1.GetRoomEventsResponse
  * Use `create(GetRoomEventsResponseSchema)` to create a new message.
  */
 export const GetRoomEventsResponseSchema: GenMessage<GetRoomEventsResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 6);
+  messageDesc(file_chatto_api_v1_room_timeline, 8);
 
 /**
  * Request for room timeline events around a specific event.
@@ -401,7 +465,7 @@ export type GetRoomEventsAroundRequest = Message<"chatto.api.v1.GetRoomEventsAro
  * Use `create(GetRoomEventsAroundRequestSchema)` to create a new message.
  */
 export const GetRoomEventsAroundRequestSchema: GenMessage<GetRoomEventsAroundRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 7);
+  messageDesc(file_chatto_api_v1_room_timeline, 9);
 
 /**
  * Response containing a room timeline window around a specific event.
@@ -429,7 +493,7 @@ export type GetRoomEventsAroundResponse = Message<"chatto.api.v1.GetRoomEventsAr
  * Use `create(GetRoomEventsAroundResponseSchema)` to create a new message.
  */
 export const GetRoomEventsAroundResponseSchema: GenMessage<GetRoomEventsAroundResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 8);
+  messageDesc(file_chatto_api_v1_room_timeline, 10);
 
 /**
  * Request for a page of events in one thread.
@@ -492,7 +556,7 @@ export type GetThreadEventsRequest = Message<"chatto.api.v1.GetThreadEventsReque
  * Use `create(GetThreadEventsRequestSchema)` to create a new message.
  */
 export const GetThreadEventsRequestSchema: GenMessage<GetThreadEventsRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 9);
+  messageDesc(file_chatto_api_v1_room_timeline, 11);
 
 /**
  * Response containing one thread timeline page.
@@ -513,7 +577,7 @@ export type GetThreadEventsResponse = Message<"chatto.api.v1.GetThreadEventsResp
  * Use `create(GetThreadEventsResponseSchema)` to create a new message.
  */
 export const GetThreadEventsResponseSchema: GenMessage<GetThreadEventsResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 10);
+  messageDesc(file_chatto_api_v1_room_timeline, 12);
 
 /**
  * Request for thread events around a specific event.
@@ -559,7 +623,7 @@ export type GetThreadEventsAroundRequest = Message<"chatto.api.v1.GetThreadEvent
  * Use `create(GetThreadEventsAroundRequestSchema)` to create a new message.
  */
 export const GetThreadEventsAroundRequestSchema: GenMessage<GetThreadEventsAroundRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 11);
+  messageDesc(file_chatto_api_v1_room_timeline, 13);
 
 /**
  * Response containing a thread timeline window around a specific event.
@@ -587,7 +651,7 @@ export type GetThreadEventsAroundResponse = Message<"chatto.api.v1.GetThreadEven
  * Use `create(GetThreadEventsAroundResponseSchema)` to create a new message.
  */
 export const GetThreadEventsAroundResponseSchema: GenMessage<GetThreadEventsAroundResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 12);
+  messageDesc(file_chatto_api_v1_room_timeline, 14);
 
 /**
  * Payload for durable voice-call lifecycle entries shown in the room timeline.
@@ -635,4 +699,4 @@ export type RoomTimelineCallEvent = Message<"chatto.api.v1.RoomTimelineCallEvent
  * Use `create(RoomTimelineCallEventSchema)` to create a new message.
  */
 export const RoomTimelineCallEventSchema: GenMessage<RoomTimelineCallEvent> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_room_timeline, 13);
+  messageDesc(file_chatto_api_v1_room_timeline, 15);

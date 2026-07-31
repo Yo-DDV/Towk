@@ -61,6 +61,9 @@ func (c *ChattoCore) AddReaction(ctx context.Context, kind RoomKind, roomID, mes
 	if room.Archived {
 		return false, ErrRoomArchived
 	}
+	if err := c.requireRoomAcceptsAdditiveContent(ctx, userID, kind, roomID); err != nil {
+		return false, err
+	}
 
 	messageEventID, err = c.canonicalReactionMessageEventID(roomID, messageEventID)
 	if err != nil {

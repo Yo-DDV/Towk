@@ -21,6 +21,15 @@ enum RoomKind {
   ROOM_KIND_DM = 2;
 }
 
+// Posting state for a channel room.
+enum RoomPostingPolicy {
+  ROOM_POSTING_POLICY_UNSPECIFIED = 0;
+  // Members may add content according to their ordinary permissions.
+  ROOM_POSTING_POLICY_OPEN = 1;
+  // New content is blocked unless the viewer has room.bypass-lock.
+  ROOM_POSTING_POLICY_LOCKED = 2;
+}
+
 // Public room metadata returned by room commands.
 message Room {
   // Stable room ID.
@@ -38,6 +47,12 @@ message Room {
   string group_id = 6;
   // True when a channel grants effective membership to eligible server members.
   bool universal = 7;
+  // Durable posting state. Direct-message rooms always return OPEN.
+  RoomPostingPolicy posting_policy = 8;
+  // Monotonic generation advanced after each history purge.
+  uint64 history_epoch = 9;
+  // Optimistic-concurrency token for room-scoped governance commands.
+  uint64 revision = 10;
 }
 
 // Lightweight room reference for cross-resource rows.
@@ -117,6 +132,70 @@ message UnarchiveRoomRequest {
 message UnarchiveRoomResponse {
   // Unarchived room.
   Room room = 1;
+}
+
+// Request to prevent ordinary members from adding channel content.
+message LockRoomRequest {
+  string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  uint64 expected_revision = 2 [(buf.validate.field).uint64.gt = 0];
+}
+
+// Result of locking a channel.
+message LockRoomResponse {
+  Room room = 1;
+}
+
+// Request to restore ordinary channel posting.
+message UnlockRoomRequest {
+  string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  uint64 expected_revision = 2 [(buf.validate.field).uint64.gt = 0];
+}
+
+// Result of unlocking a channel.
+message UnlockRoomResponse {
+  Room room = 1;
+}
+
+// Lifecycle state for one history-purge operation.
+enum RoomHistoryPurgeStatus {
+  ROOM_HISTORY_PURGE_STATUS_UNSPECIFIED = 0;
+  ROOM_HISTORY_PURGE_STATUS_RUNNING = 1;
+  ROOM_HISTORY_PURGE_STATUS_COMPLETED = 2;
+  ROOM_HISTORY_PURGE_STATUS_FAILED = 3;
+}
+
+// Public, non-secret progress for one channel history purge.
+message RoomHistoryPurgeOperation {
+  string id = 1;
+  string room_id = 2;
+  uint64 history_epoch = 3;
+  RoomHistoryPurgeStatus status = 4;
+  string failure_code = 5;
+}
+
+// Request to erase message-owned history while preserving the channel itself.
+message PurgeRoomHistoryRequest {
+  string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  uint64 expected_revision = 2 [(buf.validate.field).uint64.gt = 0];
+  string confirmation_name = 3 [(buf.validate.field).string.min_len = 1];
+  // Optional current-password proof when the active credential is not fresh.
+  string current_password = 4;
+}
+
+// Result of placing the logical purge barrier and starting physical cleanup.
+message PurgeRoomHistoryResponse {
+  Room room = 1;
+  RoomHistoryPurgeOperation operation = 2;
+}
+
+// Request to read a history-purge operation.
+message GetRoomHistoryPurgeOperationRequest {
+  string operation_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// Current history-purge operation state.
+message GetRoomHistoryPurgeOperationResponse {
+  RoomHistoryPurgeOperation operation = 1;
 }
 
 // Request to join a room as the current user.
@@ -338,6 +417,16 @@ service RoomService {
   // Restores an archived room to active room lists. The caller must be allowed
   // to manage rooms.
   rpc UnarchiveRoom(UnarchiveRoomRequest) returns (UnarchiveRoomResponse);
+  // Locks a channel against additive content. Requires room.lock.
+  rpc LockRoom(LockRoomRequest) returns (LockRoomResponse);
+  // Unlocks a channel. Requires room.lock.
+  rpc UnlockRoom(UnlockRoomRequest) returns (UnlockRoomResponse);
+  // Places an immediate logical history barrier and starts selective cleanup.
+  // Requires room.purge-messages plus a fresh credential and exact room name.
+  rpc PurgeRoomHistory(PurgeRoomHistoryRequest) returns (PurgeRoomHistoryResponse);
+  // Reads a purge operation started by the current user or a current room
+  // purge administrator.
+  rpc GetRoomHistoryPurgeOperation(GetRoomHistoryPurgeOperationRequest) returns (GetRoomHistoryPurgeOperationResponse);
   // Joins the room as the current user when room permissions allow it.
   rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse);
   // Joins every unarchived room in a group that the current user can join.

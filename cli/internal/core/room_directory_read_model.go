@@ -432,16 +432,20 @@ func (s *RoomDirectoryReadModel) roomViewerState(ctx context.Context, actorID st
 	if err != nil {
 		return DirectoryRoomViewerState{}, err
 	}
+	canAddContent, err := s.core.CanAddContentToRoom(ctx, actorID, kind, room.Id)
+	if err != nil {
+		return DirectoryRoomViewerState{}, err
+	}
 
 	messageActionsEnabled := isMember && !room.GetArchived()
 	memberActionsEnabled := isMember
 	canJoin = canJoin && !isMember && kind == KindChannel && !room.GetArchived()
-	canPostMessage = canPostMessage && messageActionsEnabled
-	canPostInThread = canPostInThread && messageActionsEnabled
-	canAttach = canAttach && messageActionsEnabled
-	canSendVoiceMessages = canSendVoiceMessages && messageActionsEnabled
+	canPostMessage = canPostMessage && messageActionsEnabled && canAddContent
+	canPostInThread = canPostInThread && messageActionsEnabled && canAddContent
+	canAttach = canAttach && messageActionsEnabled && canAddContent
+	canSendVoiceMessages = canSendVoiceMessages && messageActionsEnabled && canAddContent
 	canReact = canReact && messageActionsEnabled
-	canEcho = canEcho && messageActionsEnabled
+	canEcho = canEcho && messageActionsEnabled && canAddContent
 	canManageOthersMessage = canManageOthersMessage && memberActionsEnabled
 	if kind == KindDM {
 		canManageRoom = false
