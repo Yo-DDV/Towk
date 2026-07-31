@@ -911,6 +911,15 @@ func TestRoomTimeline_VideoManifestTerminalStateDoesNotRegress(t *testing.T) {
 func TestRoomTimeline_UnmanifestedVideoAttachments(t *testing.T) {
 	p := NewRoomTimelineProjection()
 	post := postedEvent(postedOpts{envelopeID: "ENV-M1", eventID: "M1", roomID: "R1", actorID: "U1", at: 1})
+	started := &corev1.Event{
+		Id: "ENV-VIDEO-STARTED",
+		Event: &corev1.Event_AssetProcessingStarted{
+			AssetProcessingStarted: &corev1.AssetProcessingStartedEvent{
+				AssetId:        "A-video",
+				MessageEventId: "ENV-M1",
+			},
+		},
+	}
 	processed := &corev1.Event{
 		Id: "ENV-VIDEO-OK",
 		Event: &corev1.Event_AssetProcessingSucceeded{
@@ -938,9 +947,13 @@ func TestRoomTimeline_UnmanifestedVideoAttachments(t *testing.T) {
 	if got[0].RoomID != "R1" || got[0].MessageEventID != "ENV-M1" {
 		t.Fatalf("UnmanifestedVideoAttachments ownership = room %q msg %q, want R1/ENV-M1", got[0].RoomID, got[0].MessageEventID)
 	}
+	applyAll(t, p, []*corev1.Event{started})
+	if got := p.UnmanifestedVideoAttachments(); len(got) != 1 || got[0].Attachment.GetId() != "A-video" {
+		t.Fatalf("UnmanifestedVideoAttachments after Started = %+v, want A-video recoverable", got)
+	}
 	applyAll(t, p, []*corev1.Event{processed})
 	if got := p.UnmanifestedVideoAttachments(); len(got) != 0 {
-		t.Fatalf("UnmanifestedVideoAttachments after manifest = %+v, want none", got)
+		t.Fatalf("UnmanifestedVideoAttachments after terminal manifest = %+v, want none", got)
 	}
 }
 
