@@ -14,6 +14,7 @@ handling around the shared positioning primitive.
 - `role` - ARIA role (default: "menu")
 - `ariaLabel` - ARIA label for the container
 - `presentation` - "auto" uses input capability, "floating" or "sheet" forces a mode
+- `dismissOnExternalInteraction` - Whether a sheet reacts to backdrop and native close requests
 - `class` - Additional CSS classes for the outer container (floating mode only)
 - `onclose` - Callback when the menu should be dismissed
 
@@ -35,6 +36,7 @@ ignored (the BottomSheet handles its own positioning).
     role = 'menu',
     ariaLabel,
     presentation = 'auto',
+    dismissOnExternalInteraction = true,
     class: className,
     onclose,
     onmouseenter,
@@ -46,6 +48,7 @@ ignored (the BottomSheet handles its own positioning).
     role?: string;
     ariaLabel?: string;
     presentation?: ContextMenuPresentation;
+    dismissOnExternalInteraction?: boolean;
     class?: string;
     onclose: () => void;
     onmouseenter?: () => void;
@@ -71,7 +74,7 @@ ignored (the BottomSheet handles its own positioning).
 <svelte:window onkeydown={handleKeydown} />
 
 {#if useSheet}
-  <BottomSheet bind:visible={sheetVisible} {onclose}>
+  <BottomSheet bind:visible={sheetVisible} {dismissOnExternalInteraction} {onclose}>
     {@render children()}
   </BottomSheet>
 {:else}
