@@ -353,6 +353,36 @@ describe('AdminRoomLayoutEditor', () => {
     });
   });
 
+  it('wraps group actions inside narrow cards without horizontal overflow', async () => {
+    const layout = makeLayout();
+    layout.initialized = true;
+    layout.groups = [group('g1', [room('r1', { name: 'general' })], 'Lobby')];
+    const { container } = renderEditor(layout);
+    const card = container.querySelector('.room-group-card');
+    const header = container.querySelector('.group-header');
+    const title = container.querySelector('.group-header h2');
+    const actions = container.querySelector('.group-header-actions');
+    if (
+      !(card instanceof HTMLElement) ||
+      !(header instanceof HTMLElement) ||
+      !(title instanceof HTMLElement) ||
+      !(actions instanceof HTMLElement)
+    ) {
+      throw new Error('group header geometry was unavailable');
+    }
+
+    card.style.width = '18rem';
+    await vi.waitFor(() => {
+      const headerBounds = header.getBoundingClientRect();
+      const titleBounds = title.getBoundingClientRect();
+      const actionBounds = actions.getBoundingClientRect();
+      expect(actionBounds.top).toBeGreaterThan(titleBounds.top);
+      expect(actionBounds.right).toBeLessThanOrEqual(headerBounds.right + 1);
+      expect(actionBounds.left).toBeGreaterThanOrEqual(headerBounds.left - 1);
+      expect(header.scrollWidth).toBeLessThanOrEqual(Math.ceil(headerBounds.width) + 1);
+    });
+  });
+
   it('enables the row action only for an archived room with server-confirmed capability', async () => {
     const layout = makeLayout();
     layout.initialized = true;

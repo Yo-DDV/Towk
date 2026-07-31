@@ -734,7 +734,7 @@
                 <Pill tone="muted">{group.items.length}</Pill>
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="group-header-actions flex items-center gap-2">
                 {#if group.canCreateRoom}
                   <Button variant="secondary" size="sm" onclick={() => openCreateRoom(group)}>
                     <span class="iconify uil--plus"></span>
@@ -1071,6 +1071,17 @@
   }
 
   @container (max-width: 34rem) {
+    .group-header {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .group-header-actions {
+      width: 100%;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
     .room-row {
       grid-template-columns: auto minmax(0, 1fr);
       align-items: stretch;
