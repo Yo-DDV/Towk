@@ -162,6 +162,7 @@ func (p *RoomTimelineProjection) Apply(event *corev1.Event, seq uint64) error {
 
 	if event.GetRoomHistoryPurged() != nil {
 		p.applyRoomHistoryPurgedLocked(roomID)
+		return nil
 	}
 
 	if ev := event.GetMessageBody(); ev != nil {
@@ -271,19 +272,14 @@ func (p *RoomTimelineProjection) applyRoomHistoryPurgedLocked(roomID string) {
 		messageIDs[entry.Event.GetId()] = struct{}{}
 	}
 
-	visible := p.byRoom[roomID][:0]
 	for _, idx := range p.byRoom[roomID] {
 		entry := p.entryAtLocked(idx)
-		if entry == nil || entry.Event == nil || isMessageOwnedRoomEvent(entry.Event) {
+		if entry == nil || entry.Event == nil || entry.Event.GetId() == "" {
 			continue
 		}
-		visible = append(visible, idx)
+		delete(p.byEventID, entry.Event.GetId())
 	}
-	if len(visible) == 0 {
-		delete(p.byRoom, roomID)
-	} else {
-		p.byRoom[roomID] = visible
-	}
+	delete(p.byRoom, roomID)
 	delete(p.messagePostsByRoom, roomID)
 
 	for eventID := range messageIDs {
@@ -323,6 +319,9 @@ func eventMutatesRoomTimelineProjection(event *corev1.Event) bool {
 		return false
 	}
 	if event.GetMessageBody() != nil || event.GetMessageRetracted() != nil {
+		return true
+	}
+	if event.GetRoomHistoryPurged() != nil {
 		return true
 	}
 	if isAssetLifecycleEvent(event) {

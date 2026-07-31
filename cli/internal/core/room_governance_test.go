@@ -195,6 +195,9 @@ func TestRoomHistoryPurgePreservesRoomAndRemovesMessageFacts(t *testing.T) {
 	if _, ok := chatto.RoomTimeline.Get(message.GetId()); ok {
 		t.Fatal("message remained logically visible after purge barrier")
 	}
+	if got := chatto.RoomTimeline.RoomEvents(room.Id, 50, 0); len(got) != 0 {
+		t.Fatalf("room timeline after purge = %v, want no visible entries", timelineEventIDs(got))
+	}
 	if err := chatto.processRoomHistoryPurge(ctx, operation.ID); err != nil {
 		t.Fatalf("processRoomHistoryPurge: %v", err)
 	}
@@ -217,6 +220,15 @@ func TestRoomHistoryPurgePreservesRoomAndRemovesMessageFacts(t *testing.T) {
 		if isMessageOwnedRoomEvent(event) {
 			t.Fatalf("message-owned event survived physical cleanup: %T", event.GetEvent())
 		}
+	}
+	replayedTimeline := NewRoomTimelineProjection()
+	for index, event := range roomEvents {
+		if err := replayedTimeline.Apply(event, uint64(index+1)); err != nil {
+			t.Fatalf("replay retained room event %d: %v", index, err)
+		}
+	}
+	if got := replayedTimeline.RoomEvents(room.Id, 50, 0); len(got) != 0 {
+		t.Fatalf("replayed room timeline after physical cleanup = %v, want no visible entries", timelineEventIDs(got))
 	}
 	state, _, err := chatto.GetRoomHistoryPurgeOperation(ctx, operation.ID)
 	if err != nil {
