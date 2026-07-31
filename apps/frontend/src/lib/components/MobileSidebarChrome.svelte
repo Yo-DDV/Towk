@@ -12,9 +12,7 @@
   const dragging = $derived(sidebarNav.dragOffset !== null);
   const mobileClosed = $derived(sidebarNav.isMobile && progress === 0 && !dragging);
   const tx = $derived((progress - 1) * SIDEBAR_PANEL_WIDTH_PX);
-  const mobileTransform = $derived(
-    sidebarNav.isMobile ? `translate3d(${tx}px, 0, 0)` : undefined
-  );
+  const mobileTransform = $derived(sidebarNav.isMobile ? `translate3d(${tx}px, 0, 0)` : undefined);
 </script>
 
 {#if sidebarNav.isMobile}
@@ -71,6 +69,11 @@
     --mobile-navigation-safe-left: env(safe-area-inset-left, 0px);
     --mobile-navigation-safe-right: env(safe-area-inset-right, 0px);
     --mobile-navigation-safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  :global(.mobile-navigation-swipe-region[data-call-dock-reserved='true']) {
+    box-sizing: border-box;
+    padding-bottom: var(--global-call-dock-reserved-height);
   }
 
   /*

@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f9fc" />
+    <title>You're offline · Towk</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          'IBM Plex Sans',
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: #f7f9fc;
+        color: #172033;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        display: grid;
+        min-height: 100vh;
+        min-height: 100dvh;
+        margin: 0;
+        padding: 1.5rem;
+        place-items: center;
+        background:
+          radial-gradient(circle at top, rgb(79 70 229 / 12%), transparent 38rem),
+          #f7f9fc;
+      }
+
+      main {
+        display: flex;
+        width: min(100%, 27rem);
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 2rem;
+        border: 1px solid #dbe1eb;
+        border-radius: 1.5rem;
+        background: rgb(255 255 255 / 88%);
+        box-shadow: 0 1.25rem 4rem rgb(23 32 51 / 12%);
+        text-align: center;
+      }
+
+      img {
+        width: 5rem;
+        height: 5rem;
+        object-fit: contain;
+      }
+
+      .status {
+        padding: 0.25rem 0.75rem;
+        border: 1px solid #dbe1eb;
+        border-radius: 999px;
+        color: #667085;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.5rem;
+      }
+
+      p {
+        margin: 0;
+        color: #667085;
+        line-height: 1.6;
+      }
+
+      button {
+        min-height: 2.75rem;
+        width: 100%;
+        cursor: pointer;
+        border: 0;
+        border-radius: 0.75rem;
+        background: #4f46e5;
+        color: white;
+        font: inherit;
+        font-weight: 600;
+      }
+
+      button:hover {
+        background: #4338ca;
+      }
+
+      button:focus-visible {
+        outline: 3px solid rgb(79 70 229 / 35%);
+        outline-offset: 3px;
+      }
+
+      .hint {
+        font-size: 0.875rem;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          background: #0b1020;
+          color: #f4f6fb;
+        }
+
+        body {
+          background:
+            radial-gradient(circle at top, rgb(129 140 248 / 18%), transparent 38rem),
+            #0b1020;
+        }
+
+        main {
+          border-color: #28334c;
+          background: rgb(18 26 45 / 92%);
+          box-shadow: 0 1.25rem 4rem rgb(0 0 0 / 35%);
+        }
+
+        .status {
+          border-color: #34405a;
+          color: #aab4c8;
+        }
+
+        p {
+          color: #aab4c8;
+        }
+
+        button {
+          background: #818cf8;
+          color: #111827;
+        }
+
+        button:hover {
+          background: #a5b4fc;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main data-testid="offline-state">
+      <img src="/icons/symbol-256.png" alt="" aria-hidden="true" />
+      <span class="status" data-copy="status">Offline</span>
+      <h1 data-copy="title">You're offline</h1>
+      <p data-copy="description">Check your internet connection, then try again.</p>
+      <button type="button" data-copy="retry">Try again</button>
+      <p class="hint" data-copy="hint">Towk will reconnect when your network is available.</p>
+    </main>
+    <script>
+      (() => {
+        const copy = {
+          en: {
+            status: 'Offline',
+            title: "You're offline",
+            description: 'Check your internet connection, then try again.',
+            retry: 'Try again',
+            hint: 'Towk will reconnect when your network is available.'
+          },
+          de: {
+            status: 'Offline',
+            title: 'Du bist offline',
+            description: 'Überprüfe deine Internetverbindung und versuche es erneut.',
+            retry: 'Erneut versuchen',
+            hint: 'Towk stellt die Verbindung wieder her, sobald dein Netzwerk verfügbar ist.'
+          },
+          fr: {
+            status: 'Hors connexion',
+            title: 'Vous êtes hors connexion',
+            description: 'Vérifiez votre connexion Internet, puis réessayez.',
+            retry: 'Réessayer',
+            hint: 'Towk se reconnectera dès que votre réseau sera disponible.'
+          },
+          es: {
+            status: 'Sin conexión',
+            title: 'No tienes conexión',
+            description: 'Comprueba tu conexión a Internet e inténtalo de nuevo.',
+            retry: 'Intentar de nuevo',
+            hint: 'Towk volverá a conectarse cuando la red esté disponible.'
+          },
+          pt: {
+            status: 'Offline',
+            title: 'Você está offline',
+            description: 'Verifique sua conexão com a Internet e tente novamente.',
+            retry: 'Tentar novamente',
+            hint: 'O Towk se reconectará quando sua rede estiver disponível.'
+          }
+        };
+        const supported = Object.keys(copy);
+        const stored = localStorage.getItem('PARAGLIDE_LOCALE');
+        const requested = stored ? [stored] : navigator.languages || [navigator.language];
+        const locale =
+          requested
+            .map((value) => String(value).toLowerCase())
+            .map((value) =>
+              supported.find((candidate) => value === candidate || value.startsWith(`${candidate}-`))
+            )
+            .find(Boolean) || 'en';
+        const messages = copy[locale];
+
+        document.documentElement.lang = locale;
+        document.title = `${messages.title} · Towk`;
+        for (const element of document.querySelectorAll('[data-copy]')) {
+          element.textContent = messages[element.dataset.copy];
+        }
+        document.querySelector('button').addEventListener('click', () => location.reload());
+      })();
+    </script>
+  </body>
+</html>

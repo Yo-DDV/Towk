@@ -27,6 +27,7 @@
     "attachments_need_connection": "Gardez ce brouillon ouvert : les pièces jointes nécessitent une connexion avant leur mise en attente.",
     "voice": {
       "record": "Enregistrer un message vocal",
+      "unavailable_during_call": "L’enregistrement vocal est indisponible pendant un appel.",
       "requesting_microphone": "Préparation du microphone…",
       "recording": "Enregistrement en cours",
       "stop": "Arrêter l’enregistrement",

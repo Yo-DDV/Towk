@@ -70,12 +70,13 @@ Uses the same section styling as MessageContextMenu (rounded-md bg-background se
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="flex w-full flex-col gap-2 md:w-72 md:gap-1" onkeydown={handleKeydown}>
+<div class="emoji-picker flex w-full flex-col gap-2 md:w-72 md:gap-1" onkeydown={handleKeydown}>
   <!-- Search section -->
   <div class="menu-section p-2 md:p-1">
     <input
       {@attach focusSearchInput}
       bind:value={query}
+      data-testid="emoji-picker-search"
       type="text"
       placeholder={m['emoji.search_placeholder']()}
       class="w-full rounded bg-surface-100 px-3 py-2.5 text-base outline-none placeholder:text-muted md:px-2.5 md:py-1.5 md:text-sm"
@@ -90,7 +91,7 @@ Uses the same section styling as MessageContextMenu (rounded-md bg-background se
         {#if searchResults.length === 0}
           <div class="py-6 text-center text-sm text-muted">{m['emoji.no_results']()}</div>
         {:else}
-          <div class="grid grid-cols-7 md:grid-cols-8">
+          <div class="emoji-picker-grid grid grid-cols-7 md:grid-cols-8">
             {#each searchResults as result (result.name)}
               <button
                 class="flex aspect-square cursor-pointer items-center justify-center rounded text-3xl hover:bg-surface-100 active:bg-surface-100 md:h-8 md:w-8 md:text-base"
@@ -109,7 +110,7 @@ Uses the same section styling as MessageContextMenu (rounded-md bg-background se
           >
             {m['emoji.recently_used']()}
           </div>
-          <div class="grid grid-cols-7 md:grid-cols-8">
+          <div class="emoji-picker-grid grid grid-cols-7 md:grid-cols-8">
             {#each recent as emoji (emoji)}
               <button
                 class="flex aspect-square cursor-pointer items-center justify-center rounded text-3xl hover:bg-surface-100 active:bg-surface-100 md:h-8 md:w-8 md:text-base"
@@ -126,7 +127,7 @@ Uses the same section styling as MessageContextMenu (rounded-md bg-background se
           >
             {categoryLabel(cat.name)}
           </div>
-          <div class="grid grid-cols-7 md:grid-cols-8">
+          <div class="emoji-picker-grid grid grid-cols-7 md:grid-cols-8">
             {#each cat.emojis as entry (entry.name)}
               <button
                 class="flex aspect-square cursor-pointer items-center justify-center rounded text-3xl hover:bg-surface-100 active:bg-surface-100 md:h-8 md:w-8 md:text-base"
@@ -142,3 +143,23 @@ Uses the same section styling as MessageContextMenu (rounded-md bg-background se
     </div>
   </div>
 </div>
+
+<style>
+  @container (min-width: 48rem) {
+    .emoji-picker {
+      width: 100%;
+    }
+
+    .emoji-picker-grid {
+      grid-template-columns: repeat(auto-fill, minmax(2.75rem, 1fr));
+    }
+
+    .emoji-picker-grid > button {
+      width: 100%;
+      max-width: 3rem;
+      height: auto;
+      justify-self: center;
+      font-size: 1.5rem;
+    }
+  }
+</style>

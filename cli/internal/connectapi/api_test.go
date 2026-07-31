@@ -7576,6 +7576,30 @@ func TestRoomTimelineHydratorSupportsVisibleCoreEvents(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "voice call participant joined",
+			event: &corev1.Event{
+				Id:      "Ecall-joined",
+				ActorId: env.viewer.Id,
+				Event: &corev1.Event_VoiceCallParticipantJoined{
+					VoiceCallParticipantJoined: &corev1.CallParticipantJoinedEvent{
+						RoomId: room.Id, CallId: "CALL1", ParticipantId: "P1", DeviceIndex: 2,
+					},
+				},
+			},
+		},
+		{
+			name: "voice call participant left",
+			event: &corev1.Event{
+				Id:      "Ecall-left",
+				ActorId: env.viewer.Id,
+				Event: &corev1.Event_VoiceCallParticipantLeft{
+					VoiceCallParticipantLeft: &corev1.CallParticipantLeftEvent{
+						RoomId: room.Id, CallId: "CALL1", ParticipantId: "P1", DeviceIndex: 2,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

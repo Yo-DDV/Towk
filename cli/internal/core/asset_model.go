@@ -318,7 +318,8 @@ func (s *AssetModel) UnmanifestedVideoAttachments() []VideoProcessingRequest {
 		if asset == nil {
 			continue
 		}
-		if _, hasManifest := s.VideoAttachmentManifest(owner.AssetID); hasManifest {
+		if manifest, hasManifest := s.VideoAttachmentManifest(owner.AssetID); hasManifest &&
+			manifest != nil && (manifest.Succeeded != nil || manifest.Failed != nil) {
 			continue
 		}
 		contentType := asset.GetContentType()

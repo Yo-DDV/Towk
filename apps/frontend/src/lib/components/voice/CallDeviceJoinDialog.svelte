@@ -8,7 +8,8 @@
     canShareScreen,
     busy = false,
     oncompanion,
-    ontransfer
+    ontransfer,
+    oncancel
   }: {
     visible?: boolean;
     companionAllowed: boolean;
@@ -16,6 +17,7 @@
     busy?: boolean;
     oncompanion: () => void;
     ontransfer: () => void;
+    oncancel?: () => void;
   } = $props();
 </script>
 
@@ -24,6 +26,7 @@
   title={m['voice.device_join_title']()}
   size="md"
   describedBy="call-device-join-description"
+  onclose={oncancel}
 >
   <div class="flex flex-col gap-4">
     <p id="call-device-join-description" class="text-sm text-muted">

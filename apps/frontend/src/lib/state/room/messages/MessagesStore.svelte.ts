@@ -418,7 +418,8 @@ export class MessagesStore {
     serverConnection: ServerConnection,
     private readonly getCurrentUserId: () => string | null,
     roomTimeline?: RoomTimelineAPI,
-    private readonly getPrivateDataScope?: () => PrivateDataScope | null
+    private readonly getPrivateDataScope?: () => PrivateDataScope | null,
+    private readonly resolveRoomActor?: (actorId: string) => RoomEventView['actor']
   ) {
     this.roomTimeline = roomTimeline ?? roomTimelineFromServerConnection(serverConnection);
   }
@@ -748,15 +749,24 @@ export class MessagesStore {
     if (
       kind === RoomEventKind.UserJoinedRoom ||
       kind === RoomEventKind.UserLeftRoom ||
+      kind === RoomEventKind.CallParticipantJoined ||
+      kind === RoomEventKind.CallParticipantLeft ||
       kind === RoomEventKind.RoomUpdated ||
       kind === RoomEventKind.RoomArchived ||
       kind === RoomEventKind.RoomUnarchived
     ) {
-      if (!spaceEvent.actor && this.roomTimeline) {
-        void this.fetchAndIngestSystemEvent(spaceEvent.id);
+      if (this.scope !== 'room') return;
+
+      let systemEvent = spaceEvent;
+      if (!systemEvent.actor && systemEvent.actorId) {
+        const actor = this.resolveRoomActor?.(systemEvent.actorId);
+        if (actor) systemEvent = { ...systemEvent, actor };
+      }
+      if (!systemEvent.actor && this.roomTimeline) {
+        void this.fetchAndIngestSystemEvent(systemEvent);
         return;
       }
-      this.onSystemEvent(spaceEvent);
+      this.onSystemEvent(systemEvent);
     }
   }
 
@@ -1144,10 +1154,19 @@ export class MessagesStore {
     }
   }
 
-  private async fetchAndIngestSystemEvent(eventId: string): Promise<void> {
-    const fetched = await this.fetchEventById(eventId);
-    if (fetched) {
-      this.ingestEvent(fetched);
+  private async fetchAndIngestSystemEvent(spaceEvent: RoomEventView): Promise<void> {
+    try {
+      const fetched = await this.fetchEventById(spaceEvent.id);
+      if (fetched) {
+        this.ingestEvent(fetched);
+      }
+    } catch (error) {
+      // During a rolling deployment, a newer frontend can receive a realtime
+      // system event before the timeline API knows how to project it. The
+      // authoritative catch-up will insert it once the backend is compatible;
+      // do not turn that temporary skew into an unhandled page error.
+      if (isConnectNotFound(error)) return;
+      throw error;
     }
   }
 

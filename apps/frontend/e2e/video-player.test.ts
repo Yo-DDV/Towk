@@ -54,8 +54,12 @@ test.describe('video player @ffmpeg', () => {
           timeout: TIMEOUTS.COMPLEX_OPERATION
         });
 
-        // User 1: The Vidstack <media-player> should appear once video processing
-        // completes and the custom elements are registered.
+        // User 1: processing first exposes a lazy preview. A user gesture then
+        // loads the Vidstack custom elements and replaces the preview.
+        await expect(roomPage.videoPlayerPosterShell).toBeVisible({
+          timeout: VIDEO_PROCESSING_TIMEOUT
+        });
+        await roomPage.videoPlayerPosterShell.click();
         await expect(roomPage.mediaPlayer).toBeVisible({ timeout: VIDEO_PROCESSING_TIMEOUT });
 
         // Verify Vidstack rendered its default video layout with controls.
@@ -75,6 +79,10 @@ test.describe('video player @ffmpeg', () => {
 
         // User 2: the asset processing completion event must also be delivered
         // via the subscription so that the second user sees the player without reloading.
+        await expect(roomPage2.videoPlayerPosterShell).toBeVisible({
+          timeout: VIDEO_PROCESSING_TIMEOUT
+        });
+        await roomPage2.videoPlayerPosterShell.click();
         await expect(roomPage2.mediaPlayer).toBeVisible({ timeout: VIDEO_PROCESSING_TIMEOUT });
 
         // Filter for critical errors (ignore noise like favicon 404s)

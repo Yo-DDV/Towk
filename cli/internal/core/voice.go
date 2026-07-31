@@ -374,10 +374,44 @@ func (c *ChattoCore) LeaveCallParticipant(ctx context.Context, kind RoomKind, ro
 	if c.callModel == nil {
 		return fmt.Errorf("call model is not initialized")
 	}
-	if callID := optionalCallID(expectedCallID); callID != "" {
-		return c.callModel.AppendParticipantLeftForCall(ctx, roomID, userID, VoiceCallParticipantID(userID, clientInstanceID), callID, source)
+	participantID := VoiceCallParticipantID(userID, clientInstanceID)
+	callID := optionalCallID(expectedCallID)
+	if callID == "" {
+		if active, ok := c.CallState.ActiveCall(roomID); ok {
+			callID = active.CallID
+		}
 	}
-	return c.callModel.AppendParticipantLeft(ctx, roomID, userID, VoiceCallParticipantID(userID, clientInstanceID), source)
+
+	var err error
+	if expected := optionalCallID(expectedCallID); expected != "" {
+		err = c.callModel.AppendParticipantLeftForCall(ctx, roomID, userID, participantID, expected, source)
+	} else {
+		err = c.callModel.AppendParticipantLeft(ctx, roomID, userID, participantID, source)
+	}
+	if err != nil {
+		return err
+	}
+
+	// The durable leave is authoritative. Explicitly evict only this exact
+	// connection after the commit so an SDK disconnect reported without a
+	// terminal reason cannot be projected as a recoverable network drop.
+	if callID != "" {
+		if err := c.callModel.RemoveLiveKitParticipantAfterCommit(
+			ctx,
+			LegacySpaceIDForRoomKind(kind),
+			roomID,
+			callID,
+			participantID,
+		); err != nil && c.logger != nil {
+			c.logger.Warn(
+				"Failed to remove explicitly left LiveKit participant",
+				"room_id", roomID,
+				"call_id", callID,
+				"error", err,
+			)
+		}
+	}
+	return nil
 }
 
 func (c *ChattoCore) RecordCallParticipantLeft(ctx context.Context, kind RoomKind, roomID, userID string, source corev1.CallParticipantEventSource) error {

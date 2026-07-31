@@ -371,6 +371,18 @@ describe('MessageContent component', () => {
     await expect.poll(() => q(container, 'em')).toBeTruthy();
   });
 
+  it('removes resolved markdown immediately when the message body changes', async () => {
+    const rendered = renderMessage('Original body');
+    await expect.poll(() => q(rendered.container, 'p')?.textContent).toBe('Original body');
+    const originalParagraph = q(rendered.container, 'p')!;
+
+    await rendered.rerender({ body: 'Edited body', edited: true });
+
+    expect(rendered.container.textContent).not.toContain('Original body');
+    expect(originalParagraph.isConnected).toBe(false);
+    await expect.poll(() => q(rendered.container, 'p')?.textContent).toBe('Edited body (edited)');
+  });
+
   it('renders bold content followed immediately by text', async () => {
     const { container } = renderMessage('fsdfsd **fsdf**fdsf');
 

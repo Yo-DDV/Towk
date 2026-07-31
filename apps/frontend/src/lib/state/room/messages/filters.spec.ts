@@ -63,6 +63,50 @@ describe('room message event filters', () => {
     expect(isRootRoomEvent(event({ roomId: 'room-1' } as never))).toBe(false);
   });
 
+  it.each([RoomEventKind.CallParticipantJoined, RoomEventKind.CallParticipantLeft])(
+    'keeps %s in the root room timeline',
+    (kind) => {
+      expect(
+        isRootRoomEvent(
+          event({
+            kind,
+            roomId: 'room-1',
+            callId: 'call-1',
+            participantId: 'participant-1',
+            deviceIndex: 1
+          } as never)
+        )
+      ).toBe(true);
+    }
+  );
+
+  it.each([RoomEventKind.CallStarted, RoomEventKind.CallEnded])(
+    'keeps redundant %s lifecycle state out of the root room timeline',
+    (kind) => {
+      expect(
+        isRootRoomEvent(
+          event({
+            kind,
+            roomId: 'room-1',
+            callId: 'call-1'
+          } as never)
+        )
+      ).toBe(false);
+    }
+  );
+
+  it('keeps connection-state churn out of the room timeline', () => {
+    expect(
+      isRootRoomEvent(
+        event({
+          kind: RoomEventKind.CallParticipantConnectionChanged,
+          roomId: 'room-1',
+          callId: 'call-1'
+        } as never)
+      )
+    ).toBe(false);
+  });
+
   it('uses local event kind for thread messages', () => {
     expect(
       isThreadEvent(

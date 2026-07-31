@@ -275,6 +275,29 @@ during the recovery window and can see packet-loss or jitter degradation for
 individual connections. A connection that does not return before the grace
 period is removed by reconciliation.
 
+## Using the Call Workspace
+
+- Start or join from the room header, the room list's dedicated call action, a
+  direct-message action, or an explicit call notification. Towk navigates to the
+  target room, admits the exact call generation, and then opens **Call** in the
+  room's central content area.
+- Use the room header's **Messages** and **Call** choices to read or write without
+  hanging up. Hidden Messages does not mark new messages as read, start typing,
+  accept file drops, or open a second voice-message microphone capture.
+- The global call dock remains available when you browse another room or server.
+  It identifies the call's room and server and provides incoming audio,
+  microphone, camera, screen sharing, devices, return-to-call, and hang-up
+  controls.
+- Without a screen share, participants appear in a container-sized gallery.
+  Constrained windows paginate the gallery rather than mounting every video.
+  During screen sharing, the selected share stays readable in the main stage and
+  the remaining participants and shares use a bounded filmstrip. When two people
+  share, select either share from the filmstrip; a later share does not replace
+  that manual choice.
+- A voice-message recording that already owns the microphone must be finished or
+  cancelled before joining. A voice-message draft that is already in review
+  remains available when you return to Messages.
+
 ## Call Controls and Devices
 
 - **Microphone and incoming-audio controls** — Mute the microphone or all remote
@@ -318,12 +341,15 @@ period is removed by reconciliation.
   second can join as a muted companion or transfer the call; sibling devices can
   control each other's microphone and incoming-audio mute state.
 - **Installed PWA integration** — Active and recovering calls retain the wake
-  lock and Media Session controls. Supporting WebKit engines also receive the
+  lock and Media Session controls for the owning room/server, even while another
+  server is displayed. Supporting WebKit engines also receive the
   duplex `play-and-record` Audio Session category. Towk detaches its optional Web
   Audio processing graph before the document is hidden and restores it after
   visibility returns, leaving the browser-native microphone track published in
-  between. A validated cross-room or cross-server switch releases old local
-  capture before the replacement connection starts.
+  between. A pending app update offers to update after the call and never
+  automatically reloads while joining, connected, or recovering. A validated
+  cross-room or cross-server switch releases old local capture before the
+  replacement connection starts.
 - **Active call indicators** — Rooms with active calls show the current call and
   projected participants even before the viewer joins.
 

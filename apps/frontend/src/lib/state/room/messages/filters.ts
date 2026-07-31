@@ -13,6 +13,8 @@ export function isRootRoomEvent(event: RoomEventView): boolean {
     case RoomEventKind.MessageRetracted:
     case RoomEventKind.UserJoinedRoom:
     case RoomEventKind.UserLeftRoom:
+    case RoomEventKind.CallParticipantJoined:
+    case RoomEventKind.CallParticipantLeft:
     case RoomEventKind.RoomUpdated:
     case RoomEventKind.RoomDeleted:
     case RoomEventKind.RoomArchived:

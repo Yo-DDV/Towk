@@ -17,7 +17,13 @@ vi.mock('$lib/state/presenceCache.svelte', () => ({
 }));
 
 function systemEvent(
-  kind: typeof RoomEventKind.UserJoinedRoom | typeof RoomEventKind.UserLeftRoom,
+  kind:
+    | typeof RoomEventKind.UserJoinedRoom
+    | typeof RoomEventKind.UserLeftRoom
+    | typeof RoomEventKind.CallStarted
+    | typeof RoomEventKind.CallParticipantJoined
+    | typeof RoomEventKind.CallParticipantLeft
+    | typeof RoomEventKind.CallEnded,
   actorName = 'Alice'
 ): RoomEventView {
   return {
@@ -54,4 +60,29 @@ describe('SystemEvent', () => {
 
     expect(container.textContent).toContain('Alice left the room');
   });
+
+  it.each([
+    [RoomEventKind.CallParticipantJoined, 'Alice joined the call'],
+    [RoomEventKind.CallParticipantLeft, 'Alice left the call']
+  ] as const)('renders %s as a quiet channel event', (kind, copy) => {
+    const { container } = render(SystemEvent, {
+      props: { event: systemEvent(kind, 'Alice') }
+    });
+
+    expect(container.textContent).toContain(copy);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector('[aria-live]')).toBeNull();
+  });
+
+  it.each([RoomEventKind.CallStarted, RoomEventKind.CallEnded])(
+    'does not render redundant %s lifecycle state',
+    (kind) => {
+      const { container } = render(SystemEvent, {
+        props: { event: systemEvent(kind, 'Alice') }
+      });
+
+      expect(container.textContent).toBe('');
+      expect(container.querySelector('[data-event-id]')).toBeNull();
+    }
+  );
 });

@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   unsubscribePush: vi.fn(),
   getLocale: vi.fn(() => 'fr'),
   appUi: {
-    disableRoomCallWideFor: vi.fn()
+    selectRoomPrimarySurface: vi.fn()
   },
   segmentToServerId: vi.fn((segment: string) => {
     if (segment === '-') return 'origin';
@@ -607,7 +607,7 @@ describe('pushNotifications native notification close helpers', () => {
 
 describe('notification navigation UI routing', () => {
   beforeEach(() => {
-    mocks.appUi.disableRoomCallWideFor.mockClear();
+    mocks.appUi.selectRoomPrimarySurface.mockClear();
     mocks.segmentToServerId.mockClear();
   });
 
@@ -625,20 +625,28 @@ describe('notification navigation UI routing', () => {
   it('prepares shared UI state for notification room paths', () => {
     prepareUiForNotificationPath(mocks.appUi, '/chat/-/room-1');
 
-    expect(mocks.appUi.disableRoomCallWideFor).toHaveBeenCalledWith('origin', 'room-1');
+    expect(mocks.appUi.selectRoomPrimarySurface).toHaveBeenCalledWith(
+      'origin',
+      'room-1',
+      'messages'
+    );
   });
 
   it('prepares shared UI state for notification targets', () => {
     prepareUiForNotificationTarget(mocks.appUi, 'origin', { roomId: 'room-1' });
 
-    expect(mocks.appUi.disableRoomCallWideFor).toHaveBeenCalledWith('origin', 'room-1');
+    expect(mocks.appUi.selectRoomPrimarySurface).toHaveBeenCalledWith(
+      'origin',
+      'room-1',
+      'messages'
+    );
   });
 
   it('ignores non-room notification paths', () => {
     prepareUiForNotificationPath(mocks.appUi, '/chat/notifications');
     prepareUiForNotificationPath(mocks.appUi, '/settings');
 
-    expect(mocks.appUi.disableRoomCallWideFor).not.toHaveBeenCalled();
+    expect(mocks.appUi.selectRoomPrimarySurface).not.toHaveBeenCalled();
   });
 });
 

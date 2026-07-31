@@ -5,13 +5,18 @@
   import NotificationSync from '$lib/components/NotificationSync.svelte';
   import PwaOutboxCoordinator from '$lib/components/PwaOutboxCoordinator.svelte';
   import PwaCallIntegration from '$lib/components/PwaCallIntegration.svelte';
+  import CallJoinDialogHost from '$lib/components/voice/CallJoinDialogHost.svelte';
+  import GlobalCallDock from '$lib/components/voice/GlobalCallDock.svelte';
   import { shouldPauseLiveEventsForStoredPresence } from '$lib/presenceTracking';
   import { createPresenceCache } from '$lib/state/presenceCache.svelte';
+  import { getAppUiState } from '$lib/state/appUi.svelte';
+  import { provideCallJoinController } from '$lib/state/callJoinController.svelte';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
   import { eventBusManager } from '$lib/state/server/eventBus.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { UserSettingsState } from '$lib/state/userSettings.svelte';
   import { createUserProfileCache } from '$lib/state/userProfiles.svelte';
+  import { sidebarNav } from '$lib/state/globals.svelte';
   import AuthenticatedChatProvider from './AuthenticatedChatProvider.svelte';
 
   let {
@@ -26,6 +31,7 @@
 
   const profileCache = createUserProfileCache();
   const presenceCache = createPresenceCache();
+  provideCallJoinController(getAppUiState());
 
   function startAuthenticatedBuses() {
     if (shouldPauseLiveEventsForStoredPresence()) {
@@ -53,7 +59,12 @@
 <NotificationSync />
 <PwaOutboxCoordinator />
 <PwaCallIntegration />
+<CallJoinDialogHost />
 <AuthStatusNotice />
+
+{#if !sidebarNav.isOpen}
+  <GlobalCallDock variant="floating" />
+{/if}
 
 <AuthenticatedChatProvider {user} {userSettings} {profileCache} {presenceCache}>
   {@render children()}

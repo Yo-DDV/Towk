@@ -16,7 +16,7 @@ const { mocks } = vi.hoisted(() => {
       listRooms: vi.fn(),
       goto: vi.fn(),
       appUi: {
-        disableRoomCallWideFor: vi.fn()
+        selectRoomPrimarySurface: vi.fn()
       },
       eventHandlers,
       registrar: {
@@ -240,7 +240,7 @@ describe('ServerSidebarEntry', () => {
     mocks.createRoomDirectoryAPI.mockReset();
     mocks.listRooms.mockReset();
     mocks.goto.mockClear();
-    mocks.appUi.disableRoomCallWideFor.mockClear();
+    mocks.appUi.selectRoomPrimarySurface.mockClear();
     mocks.eventHandlers.length = 0;
     mocks.registrar.onEvent.mockClear();
     mocks.registrar.onRoomMarkedAsRead.mockClear();
@@ -484,8 +484,12 @@ describe('ServerSidebarEntry', () => {
     (badge?.closest('button') as HTMLButtonElement).click();
 
     await vi.waitFor(() => {
-      expect(mocks.appUi.disableRoomCallWideFor).toHaveBeenCalledWith('remote', 'room-1');
-      expect(mocks.appUi.disableRoomCallWideFor.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(mocks.appUi.selectRoomPrimarySurface).toHaveBeenCalledWith(
+        'remote',
+        'room-1',
+        'messages'
+      );
+      expect(mocks.appUi.selectRoomPrimarySurface.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.goto.mock.invocationCallOrder[0]
       );
       expect(mocks.store.pendingHighlights.set).toHaveBeenCalledWith(

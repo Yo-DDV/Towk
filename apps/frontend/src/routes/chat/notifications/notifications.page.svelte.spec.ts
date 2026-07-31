@@ -8,7 +8,7 @@ const { mocks } = vi.hoisted(() => ({
   mocks: {
     goto: vi.fn(),
     appUi: {
-      disableRoomCallWideFor: vi.fn()
+      selectRoomPrimarySurface: vi.fn()
     },
     dismissNativeNotification: vi.fn(),
     reconcileNativeNotifications: vi.fn(),
@@ -97,8 +97,12 @@ describe('notifications page', () => {
     item.click();
 
     await vi.waitFor(() => {
-      expect(mocks.appUi.disableRoomCallWideFor).toHaveBeenCalledWith('origin', 'room-1');
-      expect(mocks.appUi.disableRoomCallWideFor.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(mocks.appUi.selectRoomPrimarySurface).toHaveBeenCalledWith(
+        'origin',
+        'room-1',
+        'messages'
+      );
+      expect(mocks.appUi.selectRoomPrimarySurface.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.goto.mock.invocationCallOrder[0]
       );
       expect(mocks.store.pendingHighlights.set).toHaveBeenCalledWith(

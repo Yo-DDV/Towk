@@ -34,6 +34,8 @@
   import { privateDataScopeForServer } from '$lib/pwa/scope';
   import CachedTimelineNotice from '$lib/components/CachedTimelineNotice.svelte';
   import { getAppUiState } from '$lib/state/appUi.svelte';
+  import { getCallJoinController } from '$lib/state/callJoinController.svelte';
+  import { resolveGlobalCallSession } from '$lib/state/globalCallSession.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
@@ -41,15 +43,9 @@
   import { serverIdToSegment } from '$lib/navigation';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { clearLastRoom, setLastRoom } from '$lib/storage/lastRoom';
-  import {
-    consumePendingRoomSidebarPanel,
-    roomSidebarPanelStorageSuffix,
-    type RoomSidebarPanel
-  } from '$lib/storage/roomSidebarPanel';
-  import { serverStorageKey } from '$lib/storage/serverStorage';
-  import { toast } from '$lib/ui/toast';
-  import { getVoiceCallJoinErrorMessage } from '$lib/state/server/voiceCall.svelte';
+  import type { RoomSidebarPanel } from '$lib/storage/roomSidebarPanel';
   import { callJoinActionFromURL } from '$lib/pwa/callJoinAction';
+  import { toast } from '$lib/ui/toast';
   import { preloadVideoPlayerElements } from '$lib/components/chat/VideoPlayer.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
@@ -61,6 +57,8 @@
   import RoomEventsPane from './RoomEventsPane.svelte';
   import RoomSidebar from './RoomSidebar.svelte';
   import RoomSidebarToggle from './RoomSidebarToggle.svelte';
+  import RoomPrimarySurfaceTabs from './RoomPrimarySurfaceTabs.svelte';
+  import VoiceCallPanel from '$lib/components/voice/VoiceCallPanel.svelte';
   import {
     canBanMembersFromRoomSidebar,
     roomSidebarPanelForRoom,
@@ -78,6 +76,7 @@
   const stores = serverRegistry.getStore(getActiveServer());
   const serverInfo = stores.serverInfo;
   const appUi = getAppUiState();
+  const callJoinController = getCallJoinController();
 
   // Thread navigation functions (URL-driven state)
   let pendingThreadHighlight = $state<string | null>(null);
@@ -89,6 +88,7 @@
   let pendingThreadReplyId = 0;
 
   function openThread(threadRootEventId: string, options: ThreadOpenOptions = {}) {
+    appUi.selectRoomPrimarySurface(getActiveServer(), roomId, 'messages');
     pendingThreadHighlight = options.highlightEventId ?? null;
     pendingThreadQuote = options.quoteText
       ? { id: ++pendingThreadQuoteId, text: options.quoteText }
@@ -120,7 +120,11 @@
     connection(),
     () => currentUser.user?.id ?? null,
     undefined,
-    () => privateDataScopeForServer(serverRegistry.getServer(getActiveServer()))
+    () => privateDataScopeForServer(serverRegistry.getServer(getActiveServer())),
+    (actorId) => {
+      const member = roomMembersStore.members.find((candidate) => candidate.id === actorId);
+      return member ? { ...member, deleted: member.deleted ?? false } : null;
+    }
   );
 
   onMount(() => {
@@ -191,12 +195,12 @@
     replaceState(resolve(action.nextUrl as `/chat/${string}/${string}`), { ...page.state });
 
     if (!action.expectedCallId || !serverInfo.livekitUrl) return;
-    void stores.voiceCall
-      .join(serverInfo.livekitUrl, roomId, 'ask', action.expectedCallId)
-      .catch((err) => {
-        stores.handleVoiceCallJoinFailed(roomId);
-        toast.error(getVoiceCallJoinErrorMessage(err));
-      });
+    void callJoinController.request({
+      serverId: getActiveServer(),
+      roomId,
+      expectedCallId: action.expectedCallId,
+      source: 'notification'
+    });
   });
 
   $effect(() => {
@@ -247,7 +251,10 @@
     };
   });
 
-  const unread = useRoomUnread(() => ({ roomId }));
+  const unread = useRoomUnread(() => ({
+    roomId,
+    attentionEnabled: appUi.roomPrimarySurfaceFor(getActiveServer(), roomId) === 'messages'
+  }));
 
   $effect(() => {
     roomFilesStore.setRoom(roomId);
@@ -395,7 +402,11 @@
       }
 
       if (!event.event.threadRootEventId && currentUser.user) {
-        if (actorId !== currentUser.user.id && appState.isPresent) {
+        if (
+          actorId !== currentUser.user.id &&
+          appState.isPresent &&
+          appUi.roomPrimarySurfaceFor(getActiveServer(), roomId) === 'messages'
+        ) {
           unread.markRoomAsRead(roomId, event.id);
         }
       }
@@ -425,23 +436,42 @@
     });
   }
   const activeRoomSidebarPanel = $derived(
-    roomSidebarPanelForRoom(room.isDM, appUi.activeDesktopRoomSidebarPanel, showVoiceCall)
+    roomSidebarPanelForRoom(room.isDM, appUi.activeDesktopRoomSidebarPanel)
   );
   const mobileRoomSidebarPanel = $derived(
-    roomSidebarPanelForRoom(room.isDM, appUi.mobileRoomSidebarPanel, showVoiceCall)
+    roomSidebarPanelForRoom(room.isDM, appUi.mobileRoomSidebarPanel)
   );
-  const roomSidebarTogglePanels = $derived(roomSidebarPanelsForRoom(room.isDM, showVoiceCall));
+  const roomSidebarTogglePanels = $derived(roomSidebarPanelsForRoom(room.isDM));
   const hasActiveRoomCall = $derived(
     stores.activeCallRooms.has(roomId) || stores.voiceCall.isInCall(roomId)
   );
-  const isDesktopCallMaximized = $derived(
-    activeRoomSidebarPanel === 'call' &&
-      hasActiveRoomCall &&
-      appUi.isRoomCallWideFor(getActiveServer(), roomId)
+  const selectedPrimarySurface = $derived(appUi.roomPrimarySurfaceFor(getActiveServer(), roomId));
+  const isCallSurface = $derived(showVoiceCall && selectedPrimarySurface === 'call');
+  const hasPendingDeviceSelection = $derived(
+    callJoinController.deviceSelection?.intent.serverId === getActiveServer() &&
+      callJoinController.deviceSelection?.intent.roomId === roomId
   );
+  const voiceCaptureDisabled = $derived(resolveGlobalCallSession() !== null);
 
   $effect(() => {
-    if (!hasActiveRoomCall) appUi.disableRoomCallWideFor(getActiveServer(), roomId);
+    if (!showVoiceCall && selectedPrimarySurface === 'call') {
+      appUi.resetRoomPrimarySurface(getActiveServer(), roomId);
+      return;
+    }
+    if (
+      isCallSurface &&
+      !hasActiveRoomCall &&
+      !stores.voiceCall.isJoiningRoom(roomId) &&
+      !hasPendingDeviceSelection
+    ) {
+      appUi.resetRoomPrimarySurface(getActiveServer(), roomId);
+    }
+  });
+
+  $effect(() => {
+    if (threadId && appUi.roomPrimarySurfaceFor(getActiveServer(), roomId) !== 'messages') {
+      appUi.selectRoomPrimarySurface(getActiveServer(), roomId, 'messages');
+    }
   });
 
   let leavingRoom = $state(false);
@@ -454,38 +484,12 @@
     appUi.closeDesktopRoomSidebarPanel();
   }
 
-  function toggleDesktopCallWide(): void {
-    if (activeRoomSidebarPanel !== 'call' || !hasActiveRoomCall) return;
-    appUi.toggleRoomCallWide(getActiveServer(), roomId);
-  }
-
-  function openRoomSidebarPanel(panel: RoomSidebarPanel): void {
-    if (window.matchMedia('(min-width: 1024px)').matches) {
-      appUi.openDesktopRoomSidebarPanel(panel);
-    } else {
-      appUi.openMobileRoomSidebarPanel(panel);
-    }
-  }
-
-  function handleRoomSidebarPanelStorage(event: StorageEvent): void {
-    const key = serverStorageKey(getActiveServer(), roomSidebarPanelStorageSuffix(roomId));
-    if (event.key !== key) return;
-    if (event.newValue !== 'call') return;
-
-    consumePendingRoomSidebarPanel(getActiveServer(), roomId);
-    openRoomSidebarPanel('call');
-  }
-
-  $effect(() => {
-    const pendingPanel = consumePendingRoomSidebarPanel(getActiveServer(), roomId);
-    if (pendingPanel) openRoomSidebarPanel(pendingPanel);
-  });
-
   function openFileMessage(
     messageEventId: string,
     threadRootEventId: string | null,
     closeMobile = false
   ): void {
+    appUi.selectRoomPrimarySurface(getActiveServer(), roomId, 'messages');
     if (threadRootEventId) {
       openThread(threadRootEventId, { highlightEventId: messageEventId });
     } else {
@@ -502,7 +506,7 @@
 
   // Drop zone attachment - only active when user can post and attach files.
   const roomDropZone = $derived(
-    room.roomData?.canPostMessage && room.roomData?.canAttach
+    !isCallSurface && room.roomData?.canPostMessage && room.roomData?.canAttach
       ? dropZone({
           onDrop: (files) => composerApi?.addFiles(files),
           onDragStateChange: (dragging) => (isDraggingFiles = dragging),
@@ -520,7 +524,6 @@
 </script>
 
 <svelte:window
-  onstorage={handleRoomSidebarPanelStorage}
   onkeydown={(e) => {
     if (e.key === 'Escape' && mobileRoomSidebarPanel && !e.defaultPrevented) {
       e.preventDefault();
@@ -571,105 +574,167 @@
 
   <div class="flex min-h-0 min-w-0 flex-1">
     <div
-      class={[
-        'relative flex min-h-0 min-w-0 flex-1 overflow-hidden',
-        isDesktopCallMaximized ? 'lg:hidden' : ''
-      ]}
+      class="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
       data-testid="room-view-region"
     >
       <div
         class={[
-          'relative flex min-h-0 min-w-0 flex-1 flex-col transition-opacity duration-200',
+          '@container relative flex min-h-0 min-w-0 flex-1 flex-col transition-opacity duration-200',
           threadId ? 'opacity-30' : '',
-          mobileRoomSidebarPanel ? 'max-lg:opacity-30' : ''
+          mobileRoomSidebarPanel ? (isCallSurface ? 'opacity-30' : 'max-lg:opacity-30') : ''
         ]}
         inert={threadId || mobileRoomSidebarPanel ? true : undefined}
-        {@attach roomDropZone}
       >
-        <DropZoneOverlay visible={isDraggingFiles} />
-
-        <PaneHeader {title} subtitle={roomDescription} loading={!room.roomData}>
+        <PaneHeader
+          {title}
+          subtitle={roomDescription}
+          loading={!room.roomData}
+          compactOnNarrow={isCallSurface}
+        >
           {#snippet actions()}
-            <RoomSidebarToggle
-              mode="mobile"
-              {canDeleteDirectMessage}
-              onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
-              activePanel={mobileRoomSidebarPanel}
-              panels={roomSidebarTogglePanels}
-              hasActiveCall={hasActiveRoomCall}
-              onToggle={(panel) => appUi.toggleMobileRoomSidebarPanel(panel)}
-            />
-            <RoomSidebarToggle
-              mode="desktop"
-              {canDeleteDirectMessage}
-              onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
-              activePanel={activeRoomSidebarPanel}
-              panels={roomSidebarTogglePanels}
-              hasActiveCall={hasActiveRoomCall}
-              onToggle={toggleDesktopRoomSidebarPanel}
-            />
+            {#if showVoiceCall}
+              <RoomPrimarySurfaceTabs
+                serverId={getActiveServer()}
+                {roomId}
+                hasActiveCall={hasActiveRoomCall}
+                onmessages={() => {
+                  if (threadId) closeThread();
+                }}
+              />
+            {/if}
+            {#if isCallSurface}
+              <RoomSidebarToggle
+                mode="always"
+                emphasized
+                {canDeleteDirectMessage}
+                onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
+                activePanel={mobileRoomSidebarPanel}
+                panels={roomSidebarTogglePanels}
+                onToggle={(panel) => appUi.toggleMobileRoomSidebarPanel(panel)}
+              />
+            {:else}
+              <RoomSidebarToggle
+                mode="mobile"
+                {canDeleteDirectMessage}
+                onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
+                activePanel={mobileRoomSidebarPanel}
+                panels={roomSidebarTogglePanels}
+                onToggle={(panel) => appUi.toggleMobileRoomSidebarPanel(panel)}
+              />
+              <RoomSidebarToggle
+                mode="desktop"
+                {canDeleteDirectMessage}
+                onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
+                activePanel={activeRoomSidebarPanel}
+                panels={roomSidebarTogglePanels}
+                onToggle={toggleDesktopRoomSidebarPanel}
+              />
+            {/if}
             {#if showLeaveRoom}
-              <button
-                class="group/pane-header-icon-button pane-header-icon-button"
-                onclick={() =>
-                  pushState('', {
-                    modal: {
-                      type: 'leaveRoom',
-                      roomId,
-                      roomName: room.roomData!.room.name
-                    }
-                  })}
-                disabled={leavingRoom}
-                title={m['room.leave.title']()}
+              <span
+                class={[
+                  isCallSurface
+                    ? 'inline-flex shrink-0 items-center rounded-xl border border-border bg-surface p-px'
+                    : 'contents'
+                ]}
+                data-testid="room-leave-action"
               >
-                <span class="pane-header-icon-glyph uil--sign-out-alt" aria-hidden="true"></span>
-              </button>
+                <button
+                  class={[
+                    'group/pane-header-icon-button pane-header-icon-button',
+                    isCallSurface && '!h-[44px] !w-[44px] bg-surface-100/70 text-text'
+                  ]}
+                  onclick={() =>
+                    pushState('', {
+                      modal: {
+                        type: 'leaveRoom',
+                        roomId,
+                        roomName: room.roomData!.room.name
+                      }
+                    })}
+                  disabled={leavingRoom}
+                  title={m['room.leave.title']()}
+                  aria-label={m['room.leave.title']()}
+                  data-testid="room-leave-button"
+                >
+                  <span class="pane-header-icon-glyph uil--sign-out-alt" aria-hidden="true"></span>
+                </button>
+              </span>
             {/if}
           {/snippet}
         </PaneHeader>
 
-        {#if roomMessageStore.isShowingCachedData}
-          <CachedTimelineNotice />
+        <div
+          id="room-messages-surface"
+          role="tabpanel"
+          aria-label={m['room.workspace.messages']()}
+          class={['flex min-h-0 flex-1 flex-col', isCallSurface && 'hidden']}
+          inert={isCallSurface ? true : undefined}
+          data-testid="room-messages-surface"
+          {@attach roomDropZone}
+        >
+          <DropZoneOverlay visible={isDraggingFiles && !isCallSurface} />
+
+          {#if roomMessageStore.isShowingCachedData}
+            <CachedTimelineNotice />
+          {/if}
+
+          <RoomEventsPane
+            {roomId}
+            messageStore={roomMessageStore}
+            unreadMarkerEventId={unread.unreadMarkerEventId}
+            unreadMarkerWindow={unread.unreadMarkerWindow}
+            onUnreadMarkerResolved={(eventId) => unread.setUnreadMarkerEventId(eventId)}
+            onUnreadMarkerCleared={() => unread.clearUnreadMarker()}
+            onOpenThread={openThread}
+            pendingHighlightId={pendingMainHighlightId}
+            onHighlightComplete={() => {
+              pendingMainHighlightId = null;
+            }}
+            attentionEnabled={!isCallSurface}
+            typingUserIds={isCallSurface ? [] : typingIndicator.userIds}
+            typingMembers={getRoomMembers()}
+          />
+
+          <MessageComposer
+            {roomId}
+            roomName={!room.isDM ? room.roomData?.room.name : undefined}
+            canPost={permissions.canPostMessage}
+            canAttach={composerCanAttach}
+            canVoice={composerCanVoice}
+            inReplyTo={replyState.messageEventId ?? undefined}
+            replyDisplayName={replyState.actorDisplayName || undefined}
+            replyExcerpt={replyState.excerpt || undefined}
+            onCancelReply={() => replyState.cancelReply()}
+            autoFocus={!isCallSurface && !threadId && !mobileRoomSidebarPanel}
+            {voiceCaptureDisabled}
+            onReady={(api) => (composerApi = api)}
+            onTyping={() => {
+              if (!isCallSurface) typingIndicator?.sendTypingIndicator();
+            }}
+            onMessageSent={(event) => {
+              typingIndicator?.resetDebounce();
+              if (event) {
+                roomMessageStore.ingestEvent(event);
+              } else {
+                void roomMessageStore.refreshCurrentWindow(null);
+              }
+            }}
+          />
+        </div>
+
+        {#if showVoiceCall}
+          <div
+            id="room-call-surface"
+            role="tabpanel"
+            aria-label={m['room.workspace.call']()}
+            class={['min-h-0 flex-1 flex-col bg-surface-100', isCallSurface ? 'flex' : 'hidden']}
+            inert={!isCallSurface ? true : undefined}
+            data-testid="room-call-surface"
+          >
+            <VoiceCallPanel {roomId} layout="stage" />
+          </div>
         {/if}
-
-        <RoomEventsPane
-          {roomId}
-          messageStore={roomMessageStore}
-          unreadMarkerEventId={unread.unreadMarkerEventId}
-          unreadMarkerWindow={unread.unreadMarkerWindow}
-          onUnreadMarkerResolved={(eventId) => unread.setUnreadMarkerEventId(eventId)}
-          onUnreadMarkerCleared={() => unread.clearUnreadMarker()}
-          onOpenThread={openThread}
-          pendingHighlightId={pendingMainHighlightId}
-          onHighlightComplete={() => {
-            pendingMainHighlightId = null;
-          }}
-          typingUserIds={typingIndicator.userIds}
-          typingMembers={getRoomMembers()}
-        />
-
-        <MessageComposer
-          {roomId}
-          roomName={!room.isDM ? room.roomData?.room.name : undefined}
-          canPost={permissions.canPostMessage}
-          canAttach={composerCanAttach}
-          canVoice={composerCanVoice}
-          inReplyTo={replyState.messageEventId ?? undefined}
-          replyDisplayName={replyState.actorDisplayName || undefined}
-          replyExcerpt={replyState.excerpt || undefined}
-          onCancelReply={() => replyState.cancelReply()}
-          autoFocus={!threadId && !mobileRoomSidebarPanel}
-          onReady={(api) => (composerApi = api)}
-          onTyping={() => typingIndicator?.sendTypingIndicator()}
-          onMessageSent={(event) => {
-            typingIndicator?.resetDebounce();
-            if (event) {
-              roomMessageStore.ingestEvent(event);
-            } else {
-              void roomMessageStore.refreshCurrentWindow(null);
-            }
-          }}
-        />
       </div>
 
       {#if threadId && room.roomData}
@@ -677,6 +742,7 @@
           {roomId}
           roomName={room.roomData.room.name}
           threadRootEventId={threadId}
+          {voiceCaptureDisabled}
           onClose={closeThread}
           canPostInThread={room.roomData.canPostInThread}
           canAttach={room.roomData.canAttach}
@@ -700,12 +766,15 @@
       {#if mobileRoomSidebarPanel}
         <button
           type="button"
-          class="absolute inset-0 z-10 bg-transparent lg:hidden"
+          class={['absolute inset-0 z-10 bg-transparent', !isCallSurface && 'lg:hidden']}
           aria-label={m['room.close_extras']()}
           onclick={() => appUi.closeMobileRoomSidebarPanel()}
         ></button>
         <div
-          class="absolute inset-y-0 right-0 z-20 flex min-h-0 max-w-full min-w-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)] lg:hidden"
+          class={[
+            'absolute inset-y-0 right-0 z-20 flex min-h-0 max-w-full min-w-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)]',
+            !isCallSurface && 'lg:hidden'
+          ]}
           data-testid="room-sidebar-mobile-pane"
           style:width={`${SIDEBAR_PANEL_WIDTH_PX}px`}
           transition:fly={{
@@ -719,10 +788,8 @@
             {roomId}
             activePanel={mobileRoomSidebarPanel}
             presentation="overlay"
-            hasActiveCall={hasActiveRoomCall}
             loading={room.isRoomLoading}
             filesStore={roomFilesStore}
-            livekitUrl={serverInfo.livekitUrl ?? undefined}
             canBanRoomMembers={canBanMembersFromRoomSidebar(
               room.isDM,
               room.roomData?.canBanRoomMembers
@@ -737,23 +804,16 @@
       {/if}
     </div>
 
-    {#if activeRoomSidebarPanel}
+    {#if activeRoomSidebarPanel && !isCallSurface}
       <div
-        class={[
-          'hidden min-h-0 min-w-0 lg:flex',
-          isDesktopCallMaximized ? 'flex-1' : 'shrink-0',
-          'surface-pop'
-        ]}
+        class="hidden min-h-0 min-w-0 shrink-0 surface-pop lg:flex"
         data-testid="room-sidebar-desktop-pane"
       >
         <RoomSidebar
           {roomId}
           activePanel={activeRoomSidebarPanel}
-          maximized={isDesktopCallMaximized}
-          hasActiveCall={hasActiveRoomCall}
           loading={room.isRoomLoading}
           filesStore={roomFilesStore}
-          livekitUrl={serverInfo.livekitUrl ?? undefined}
           canBanRoomMembers={canBanMembersFromRoomSidebar(
             room.isDM,
             room.roomData?.canBanRoomMembers
@@ -762,7 +822,6 @@
           membersStore={roomMembersStore}
           onOpenFile={(messageEventId, threadRootEventId) =>
             openFileMessage(messageEventId, threadRootEventId)}
-          onToggleMaximized={toggleDesktopCallWide}
           onClose={closeDesktopRoomSidebarPanel}
         />
       </div>

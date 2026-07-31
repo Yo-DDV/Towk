@@ -113,7 +113,7 @@ export class MessageComponent {
     await this.contextMenu.getByLabel('More reactions').click({ timeout: TIMEOUTS.REALTIME_EVENT });
 
     // The emoji picker opens in a new ContextMenu
-    const picker = this.page.locator('input[placeholder="Search emojis..."]');
+    const picker = this.page.getByTestId('emoji-picker-search');
     await expect(picker).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
     await picker.fill(search);
 
@@ -131,7 +131,7 @@ export class MessageComponent {
     await addReactionButton.click({ timeout: TIMEOUTS.REALTIME_EVENT });
 
     // The emoji picker opens in a ContextMenu
-    const picker = this.page.locator('input[placeholder="Search emojis..."]');
+    const picker = this.page.getByTestId('emoji-picker-search');
     await expect(picker).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
     await picker.fill(search);
 

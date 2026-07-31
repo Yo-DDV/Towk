@@ -7,12 +7,13 @@
   import type { ServerPermissions } from '$lib/state/server/permissions.svelte';
   import { createPresenceCache } from '$lib/state/presenceCache.svelte';
   import { createUserProfileCache } from '$lib/state/userProfiles.svelte';
+  import { provideAppUiState } from '$lib/state/appUi.svelte';
   import { serverRegistry, type RegisteredServer } from '$lib/state/server/registry.svelte';
   import type { ServerStateStore } from '$lib/state/server/store.svelte';
+  import GlobalCallDock from './GlobalCallDock.svelte';
 
   type VoiceCallPanelProps = {
     roomId: string;
-    livekitUrl: string;
     layout?: 'sidebar' | 'stage';
   };
 
@@ -20,22 +21,38 @@
     layout = 'stage',
     scenario = 'screen',
     reconnecting = false,
+    joining = false,
     microphoneRouteRecovering = false,
     interrupted = false,
     jitterWarning = false,
     simulateMobileCapabilities = false,
     microphoneProcessing = null,
+    participantCount = null,
+    dockVariant = 'sidebar',
+    viewportWidth = null,
+    viewportHeight = null,
     onStoreSeeded = null
   }: {
     layout?: 'sidebar' | 'stage';
     scenario?:
-      'screen' | 'screen-single-secondary' | 'camera' | 'mobile-camera' | 'voice' | 'devices';
+      | 'screen'
+      | 'dual-screen'
+      | 'screen-single-secondary'
+      | 'camera'
+      | 'mobile-camera'
+      | 'voice'
+      | 'devices';
     reconnecting?: boolean;
+    joining?: boolean;
     microphoneRouteRecovering?: boolean;
     interrupted?: boolean;
     jitterWarning?: boolean;
     simulateMobileCapabilities?: boolean;
     microphoneProcessing?: MicrophoneProcessingStatus | null;
+    participantCount?: number | null;
+    dockVariant?: 'sidebar' | 'floating';
+    viewportWidth?: string | null;
+    viewportHeight?: string | null;
     onStoreSeeded?: ((store: ServerStateStore) => void) | null;
   } = $props();
 
@@ -43,6 +60,7 @@
   const storybookServerId = 'storybook-call-server';
   createPresenceCache();
   createUserProfileCache();
+  provideAppUiState();
   let Panel = $state<Component<VoiceCallPanelProps> | null>(null);
 
   const permissions: ServerPermissions = {
@@ -214,6 +232,53 @@
       networkWarningMetric: jitterWarning ? 'jitter' : 'packetLoss'
     });
 
+    if (participantCount !== null) {
+      const names = [
+        'Alexandria-Montgomery-Des-Rives-Du-Nord-International',
+        'Bob',
+        'ChloeAvecUnPseudoSansEspaceQuiDoitResterParfaitementContenu',
+        'Dana',
+        'Elliot',
+        'Fatima',
+        'Gabriel',
+        'Hana',
+        'Isaac',
+        'Jade',
+        'Karim',
+        'Lina'
+      ];
+      return Array.from({ length: Math.max(0, participantCount) }, (_, index) =>
+        participant(`gallery-${index + 1}`, names[index % names.length], {
+          isLocal: index === 0,
+          isMuted: index % 3 === 1,
+          isLocallyMuted: index % 5 === 3,
+          connectionQuality: index % 7 === 6 ? 'poor' : index % 4 === 2 ? 'good' : 'excellent',
+          networkHealth: index % 7 === 6 ? 'poor' : index % 4 === 2 ? 'good' : 'excellent',
+          packetLossPercent: index % 7 === 6 ? 12.4 : null,
+          networkWarningMetric: index % 7 === 6 ? 'packetLoss' : null,
+          isCameraEnabled:
+            (scenario === 'camera' && index % 2 === 0) ||
+            ((scenario === 'screen' || scenario === 'dual-screen') && index % 3 === 1),
+          videoTrack:
+            (scenario === 'camera' && index % 2 === 0) ||
+            ((scenario === 'screen' || scenario === 'dual-screen') && index % 3 === 1)
+              ? cameraTrack
+              : null,
+          isScreenShareEnabled:
+            (scenario === 'screen' && index === 0) || (scenario === 'dual-screen' && index < 2),
+          isScreenShareAudioEnabled: scenario === 'screen' && index === 0,
+          screenShareTrack:
+            scenario === 'screen' && index === 0
+              ? localScreenTrack
+              : scenario === 'dual-screen' && index === 0
+                ? localScreenTrack
+                : scenario === 'dual-screen' && index === 1
+                  ? screenTrack
+                  : null
+        })
+      );
+    }
+
     if (scenario === 'devices') {
       return [
         participant('viewer-device-1', 'Alexandria Montgomery', {
@@ -260,6 +325,25 @@
       ];
     }
 
+    if (scenario === 'dual-screen') {
+      return [
+        participant('dana', 'Dana', {
+          isScreenShareEnabled: true,
+          isScreenShareAudioEnabled: true,
+          screenShareTrack: screenTrack
+        }),
+        participant('viewer', 'Alice', {
+          isLocal: true,
+          isCameraEnabled: true,
+          videoTrack: cameraTrack,
+          isScreenShareEnabled: true,
+          screenShareTrack: localScreenTrack
+        }),
+        bob,
+        chloe
+      ];
+    }
+
     if (scenario === 'camera' || scenario === 'mobile-camera') {
       return [viewer, bob, chloe];
     }
@@ -300,9 +384,14 @@
 
     store.permissions = permissions;
     store.rooms.currentUserId = 'viewer';
-    store.voiceCall.roomId = roomId;
-    store.voiceCall.connected = true;
-    store.voiceCall.connecting = false;
+    store.voiceCall.roomId = joining ? null : roomId;
+    store.voiceCall.connected = !joining;
+    store.voiceCall.connecting = joining;
+    (
+      store.voiceCall as unknown as {
+        joinInFlightRoomId: string | null;
+      }
+    ).joinInFlightRoomId = joining ? roomId : null;
     store.voiceCall.reconnecting = reconnecting;
     store.voiceCall.isMuted = false;
     store.voiceCall.microphoneRouteRecovering = microphoneRouteRecovering;
@@ -312,7 +401,7 @@
       noiseSuppression: 'unavailable'
     };
     store.voiceCall.isCameraEnabled = scenario !== 'voice';
-    store.voiceCall.isScreenShareEnabled = scenario === 'screen';
+    store.voiceCall.isScreenShareEnabled = scenario === 'screen' || scenario === 'dual-screen';
     if (scenario === 'mobile-camera') {
       store.voiceCall.videoDevices = [
         mediaDevice('front', 'videoinput', 'camera2 1, facing front'),
@@ -321,7 +410,7 @@
       ];
       store.voiceCall.selectedVideoDeviceId = 'front';
     }
-    store.voiceCall.participants = participantsForScenario();
+    store.voiceCall.participants = joining ? [] : participantsForScenario();
     onStoreSeeded?.(store);
   }
 
@@ -361,5 +450,19 @@
 </script>
 
 {#if Panel}
-  <Panel {roomId} livekitUrl="wss://livekit.invalid" {layout} />
+  <div
+    class="voice-call-story-region mobile-navigation-swipe-region relative flex min-h-0 w-full min-w-0 flex-1 flex-col"
+    style:width={viewportWidth ?? undefined}
+    style:height={viewportHeight ?? undefined}
+  >
+    <GlobalCallDock variant={dockVariant} />
+    <Panel {roomId} {layout} />
+  </div>
 {/if}
+
+<style>
+  :global(.voice-call-story-region[data-call-dock-reserved='true']) {
+    box-sizing: border-box;
+    padding-bottom: var(--global-call-dock-reserved-height);
+  }
+</style>

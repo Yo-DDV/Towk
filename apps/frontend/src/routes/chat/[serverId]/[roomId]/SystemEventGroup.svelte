@@ -25,6 +25,14 @@
         return count === 1
           ? m['room.system_group.left_room_one']()
           : m['room.system_group.left_room_many']();
+      case 'call-join':
+        return count === 1
+          ? m['room.system_group.joined_call_one']()
+          : m['room.system_group.joined_call_many']();
+      case 'call-leave':
+        return count === 1
+          ? m['room.system_group.left_call_one']()
+          : m['room.system_group.left_call_many']();
     }
   }
 

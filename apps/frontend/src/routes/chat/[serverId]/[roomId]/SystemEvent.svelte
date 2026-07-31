@@ -34,6 +34,10 @@
         return m['room.system_event.joined_room']();
       case RoomEventKind.UserLeftRoom:
         return m['room.system_event.left_room']();
+      case RoomEventKind.CallParticipantJoined:
+        return m['room.system_event.joined_call']();
+      case RoomEventKind.CallParticipantLeft:
+        return m['room.system_event.left_call']();
       case RoomEventKind.RoomArchived:
         return m['room.system_event.archived_room']();
       case RoomEventKind.RoomUnarchived:

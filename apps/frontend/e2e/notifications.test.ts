@@ -48,7 +48,7 @@ test.describe('Mention Notifications', () => {
     const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
     await expect(generalLink).toBeVisible();
     // The warning-colored badge indicates a mention notification.
-    const mentionBadge = generalLink.getByTestId('room-notification-badge');
+    const mentionBadge = chatPage.getRoomRow('general').getByTestId('room-notification-badge');
     await expect(mentionBadge).not.toBeVisible();
 
     // User B enters general room and mentions User A
@@ -135,7 +135,7 @@ test.describe('Mention Notifications', () => {
     await chatPage.enterRoom('announcements');
 
     const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
-    const mentionBadge = generalLink.getByTestId('room-notification-badge');
+    const mentionBadge = chatPage.getRoomRow('general').getByTestId('room-notification-badge');
 
     // User B: Mention User A in general
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'clearing mention test');
@@ -177,8 +177,9 @@ test.describe('All Messages Notifications', () => {
     await chatPage.goto();
     await chatPage.enterRoom('announcements');
 
-    const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
-    const roomNotificationBadge = generalLink.getByTestId('room-notification-badge');
+    const roomNotificationBadge = chatPage
+      .getRoomRow('general')
+      .getByTestId('room-notification-badge');
     await expect(roomNotificationBadge).not.toBeVisible();
 
     await withServerUser(browser!, serverURL, async ({ chatPage, roomPage }) => {
@@ -225,8 +226,9 @@ test.describe('Thread Reply Notifications (Cascading Indicators)', () => {
     // User A: Verify cascading notification indicators appear.
 
     // 1. Notification badge on the "general" room in room list.
-    const generalRoomLink = chatPage.roomList.locator('a', { hasText: '# general' });
-    const roomNotificationBadge = generalRoomLink.getByTestId('room-notification-badge');
+    const roomNotificationBadge = chatPage
+      .getRoomRow('general')
+      .getByTestId('room-notification-badge');
     await expect(roomNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
     await expect(roomNotificationBadge).toHaveText('1');
 
@@ -287,10 +289,11 @@ test.describe('Notification Bell & Page', () => {
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'bell icon test');
 
     // User A: in-app channel signals and the Towk notification center remain current.
-    const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
-    await expect(generalLink.getByTestId('room-notification-badge')).toBeVisible({
-      timeout: TIMEOUTS.REALTIME_EVENT
-    });
+    await expect(chatPage.getRoomRow('general').getByTestId('room-notification-badge')).toBeVisible(
+      {
+        timeout: TIMEOUTS.REALTIME_EVENT
+      }
+    );
     await notificationsPage.expectBellIndicatorVisible();
     await notificationsPage.goto();
     await notificationsPage.expectNotificationWithSummary('mentioned you');
@@ -825,8 +828,9 @@ test.describe('Cross-device Sync', () => {
 
     // The room-level notification badge on #general. Scoped to #general's room
     // link so we don't catch the bell or other rooms.
-    const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
-    const generalMentionBadge = generalLink.getByTestId('room-notification-badge');
+    const generalMentionBadge = chatPage
+      .getRoomRow('general')
+      .getByTestId('room-notification-badge');
 
     await withLoggedInServerWindow(browser!, serverURL, userA, async ({ page: page1b }) => {
       // User A: second tab, also navigated to announcements so #general's
@@ -835,8 +839,9 @@ test.describe('Cross-device Sync', () => {
       const chatPage1b = new ChatPage(page1b);
       const notificationsPage1b = new NotificationsPage(page1b);
       await chatPage1b.enterRoom('announcements');
-      const generalLink1b = chatPage1b.roomList.locator('a', { hasText: '# general' });
-      const generalMentionBadge1b = generalLink1b.getByTestId('room-notification-badge');
+      const generalMentionBadge1b = chatPage1b
+        .getRoomRow('general')
+        .getByTestId('room-notification-badge');
 
       // Only the first installation is backgrounded; the second stays foreground.
       await setAppForeground(page, false);
@@ -875,11 +880,12 @@ test.describe('Cross-device Sync', () => {
       await page1b.waitForURL(routes.patterns.anySpace);
       const chatPage1bAfter = new ChatPage(page1b);
       await chatPage1bAfter.enterRoom('announcements');
-      const generalLink1bAfter = chatPage1bAfter.roomList.locator('a', { hasText: '# general' });
       // Use toPass so we tolerate the brief window during reload where the
       // sidebar is still hydrating and the badge might briefly flash.
       await expect(async () => {
-        await expect(generalLink1bAfter.getByTestId('room-notification-badge')).not.toBeVisible();
+        await expect(
+          chatPage1bAfter.getRoomRow('general').getByTestId('room-notification-badge')
+        ).not.toBeVisible();
       }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
     });
   });
@@ -1140,8 +1146,8 @@ test.describe('Clickable Notification Badges', () => {
     await chatPage.enterRoom('announcements');
 
     // Verify notification badge appears on general room.
-    const roomNotificationBadge = page
-      .locator('.room-list a', { hasText: 'general' })
+    const roomNotificationBadge = chatPage
+      .getRoomRow('general')
       .getByTestId('room-notification-badge');
     await expect(roomNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
     await expect(roomNotificationBadge).toHaveText('1');
@@ -1179,8 +1185,8 @@ test.describe('Clickable Notification Badges', () => {
     await postRoomReplyFromServerUser(browser!, serverURL, rootMessage, `Room reply ${Date.now()}`);
 
     // User A: Verify notification badge on general room.
-    const roomNotificationBadge = page
-      .locator('.room-list a', { hasText: 'general' })
+    const roomNotificationBadge = chatPage
+      .getRoomRow('general')
       .getByTestId('room-notification-badge');
     await expect(roomNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
     await expect(roomNotificationBadge).toHaveText('1');
@@ -1233,8 +1239,9 @@ test.describe('Room Reply Notifications', () => {
     await notificationsPage.expectBellIndicatorVisible();
 
     // Verify notification badge on general room in room list.
-    const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
-    const roomNotificationBadge = generalLink.getByTestId('room-notification-badge');
+    const roomNotificationBadge = chatPage
+      .getRoomRow('general')
+      .getByTestId('room-notification-badge');
     await expect(roomNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
     await expect(roomNotificationBadge).toHaveText('1');
 
@@ -1306,10 +1313,11 @@ test.describe('Room Reply Notifications', () => {
     );
 
     await notificationsPage.expectBellIndicatorVisible();
-    const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
-    await expect(generalLink.getByTestId('room-notification-badge')).toBeVisible({
-      timeout: TIMEOUTS.REALTIME_EVENT
-    });
+    await expect(chatPage.getRoomRow('general').getByTestId('room-notification-badge')).toBeVisible(
+      {
+        timeout: TIMEOUTS.REALTIME_EVENT
+      }
+    );
 
     // User A: Enter the general room (should auto-dismiss the reply notification)
     await chatPage.enterRoom('general');

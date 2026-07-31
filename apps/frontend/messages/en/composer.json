@@ -27,6 +27,7 @@
     "attachments_need_connection": "Keep this draft open: attachments need a connection before they can be queued.",
     "voice": {
       "record": "Record a voice message",
+      "unavailable_during_call": "Voice recording is unavailable during a call.",
       "requesting_microphone": "Preparing your microphone…",
       "recording": "Recording",
       "stop": "Stop recording",

@@ -109,6 +109,64 @@
     return edited ? injectEditedMarker(wrapped, editedMarker) : wrapped;
   }
 
+  type RenderedMessage = {
+    body: string;
+    members: RoomMember[];
+    roleHandles: string[];
+    edited: boolean;
+    viewerLogin: string | undefined;
+    editedMarker: string;
+    html: string;
+  };
+
+  let renderGeneration = 0;
+  let renderedMessage = $state.raw<RenderedMessage | null>(null);
+
+  function isCurrentRender(value: RenderedMessage): boolean {
+    return (
+      value.body === body &&
+      value.members === members &&
+      value.roleHandles === roleHandles &&
+      value.edited === edited &&
+      value.viewerLogin === viewerLogin &&
+      value.editedMarker === editedMarker
+    );
+  }
+
+  $effect(() => {
+    const request = {
+      body,
+      members,
+      roleHandles,
+      edited,
+      viewerLogin,
+      editedMarker
+    };
+    const generation = ++renderGeneration;
+    renderedMessage = null;
+
+    void render(
+      request.body,
+      request.members,
+      request.roleHandles,
+      request.edited,
+      request.viewerLogin,
+      request.editedMarker
+    )
+      .then((html) => {
+        if (generation !== renderGeneration) return;
+        renderedMessage = { ...request, html };
+      })
+      .catch((error) => {
+        if (generation !== renderGeneration) return;
+        console.error('[MessageContent] Render failed:', error);
+      });
+
+    return () => {
+      if (generation === renderGeneration) renderGeneration++;
+    };
+  });
+
   // Handle clicks on links (open in system browser) and mentions (trigger callback).
   function handleContentClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
@@ -157,16 +215,10 @@
   </div>
 {:else}
   <div class="prose max-w-none min-w-0" role="presentation" onclick={handleContentClick}>
-    {#await render(body, members, roleHandles, edited, viewerLogin, editedMarker)}
+    {#if renderedMessage && isCurrentRender(renderedMessage)}
+      <MarkdownHtml html={renderedMessage.html} />
+    {:else}
       {body}
-    {:then html}
-      <MarkdownHtml {html} />
-    {:catch error}
-      {body}
-      {(() => {
-        console.error('[MessageContent] Render failed:', error);
-        return '';
-      })()}
-    {/await}
+    {/if}
   </div>
 {/if}

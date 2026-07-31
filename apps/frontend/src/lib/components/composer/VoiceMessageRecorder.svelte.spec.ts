@@ -236,4 +236,86 @@ describe('VoiceMessageRecorder', () => {
       )
     ).toHaveLength(42);
   });
+
+  it('stops a microphone stream that arrives after capture was cancelled', async () => {
+    let resolveStream!: (stream: MediaStream) => void;
+    getUserMedia.mockReturnValueOnce(
+      new Promise<MediaStream>((resolve) => {
+        resolveStream = resolve;
+      })
+    );
+    const { container } = render(VoiceMessageRecorder, {
+      props: { onSend: vi.fn(async () => true) }
+    });
+
+    await userEvent.click(container.querySelector('button[aria-label="Record a voice message"]')!);
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-testid="voice-message-recorder"]')).not.toBeNull()
+    );
+    await userEvent.click(container.querySelector('button[aria-label="Cancel"]')!);
+
+    resolveStream({ getTracks: () => [{ stop: trackStop }] } as unknown as MediaStream);
+
+    await vi.waitFor(() => expect(trackStop).toHaveBeenCalledOnce());
+    expect(container.querySelector('[data-testid="voice-message-live-waveform"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Record a voice message"]')).not.toBeNull();
+  });
+
+  it('hands a review draft to the next composer instance without revoking its preview', async () => {
+    vi.spyOn(performance, 'now').mockReturnValueOnce(1_000).mockReturnValue(2_000);
+    const props = {
+      draftScope: 'server-1:room-1:main',
+      onSend: vi.fn(async () => true)
+    };
+    const first = render(VoiceMessageRecorder, { props });
+
+    await userEvent.click(
+      first.container.querySelector('button[aria-label="Record a voice message"]')!
+    );
+    await userEvent.click(first.container.querySelector('button[aria-label="Stop recording"]')!);
+    await vi.waitFor(() =>
+      expect(first.container.querySelector('[data-testid="voice-message-preview"]')).not.toBeNull()
+    );
+
+    await first.rerender({
+      ...props,
+      draftScope: 'server-1:room-2:main'
+    });
+    first.unmount();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalledWith('blob:voice-preview');
+
+    const second = render(VoiceMessageRecorder, { props });
+    expect(second.container.querySelector('[data-testid="voice-message-preview"]')).not.toBeNull();
+
+    const unrelated = render(VoiceMessageRecorder, {
+      props: {
+        ...props,
+        draftScope: 'server-1:room-2:main'
+      }
+    });
+    expect(unrelated.container.querySelector('[data-testid="voice-message-preview"]')).toBeNull();
+    unrelated.unmount();
+
+    await userEvent.click(
+      second.container.querySelector('button[aria-label="Delete voice draft"]')!
+    );
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:voice-preview');
+  });
+
+  it('exposes why voice capture is disabled during a call', () => {
+    const { container } = render(VoiceMessageRecorder, {
+      props: {
+        disabled: true,
+        disabledReason: 'Voice recording is unavailable during a call.',
+        onSend: vi.fn(async () => true)
+      }
+    });
+
+    const recordButton = container.querySelector(
+      'button[aria-label="Voice recording is unavailable during a call."]'
+    ) as HTMLButtonElement | null;
+    expect(recordButton).not.toBeNull();
+    expect(recordButton?.disabled).toBe(true);
+    expect(recordButton?.title).toBe('Voice recording is unavailable during a call.');
+  });
 });

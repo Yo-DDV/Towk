@@ -2,6 +2,9 @@ package core
 
 import (
 	"testing"
+
+	"hmans.de/chatto/internal/events"
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 func TestChattoCore_GetRoomLastEvent(t *testing.T) {
@@ -586,5 +589,58 @@ func TestChattoCore_HasUnread_ThreadReplyDoesNotCauseUnread(t *testing.T) {
 	}
 	if !hasUnread {
 		t.Error("New root message should cause room-level unread")
+	}
+}
+
+func TestChattoCore_HasUnread_CallTimelineEventsDoNotCauseUnread(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "General", "General discussion")
+	starter, _ := core.CreateUser(ctx, "system", "call-starter", "Call starter", "password123")
+	reader, _ := core.CreateUser(ctx, "system", "call-reader", "Call reader", "password123")
+	core.JoinRoom(ctx, starter.Id, KindChannel, starter.Id, room.Id)
+	core.JoinRoom(ctx, reader.Id, KindChannel, reader.Id, room.Id)
+
+	rootEvent, err := core.PostMessage(ctx, KindChannel, room.Id, starter.Id, "Before the call", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if err := core.SetLastReadEventID(ctx, KindChannel, reader.Id, room.Id, rootEvent.Id); err != nil {
+		t.Fatalf("SetLastReadEventID: %v", err)
+	}
+
+	callID := NewCallID()
+	callEvents := []*corev1.Event{
+		newCallStartedEvent(room.Id, starter.Id, callID, "test-key", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER),
+		newCallParticipantEvent(room.Id, starter.Id, callID, true, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER),
+		newCallParticipantEvent(room.Id, starter.Id, callID, false, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER),
+		newCallEndedEvent(room.Id, starter.Id, callID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER),
+	}
+	for _, event := range callEvents {
+		if _, err := core.RoomTimelineProjector.AppendEventuallyAndWait(
+			ctx,
+			core.EventPublisher,
+			events.RoomAggregate(room.Id),
+			event,
+		); err != nil {
+			t.Fatalf("append call timeline event: %v", err)
+		}
+	}
+
+	lastID, _, exists, err := core.GetRoomLastEvent(ctx, KindChannel, room.Id)
+	if err != nil {
+		t.Fatalf("GetRoomLastEvent: %v", err)
+	}
+	if !exists || lastID != rootEvent.Id {
+		t.Fatalf("last root event = (%q, %v), want (%q, true)", lastID, exists, rootEvent.Id)
+	}
+
+	hasUnread, err := core.HasUnread(ctx, KindChannel, reader.Id, room.Id)
+	if err != nil {
+		t.Fatalf("HasUnread: %v", err)
+	}
+	if hasUnread {
+		t.Fatal("call timeline events must not cause room-level unread")
 	}
 }

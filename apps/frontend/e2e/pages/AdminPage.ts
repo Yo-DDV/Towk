@@ -462,15 +462,16 @@ export class AdminPage {
    * Assert that system stat cards are visible.
    */
   async expectSystemStatsVisible(): Promise<void> {
-    await expect(this.mainContent.getByText('JetStream Account')).toBeVisible();
-    await expect(this.mainContent.getByText('File Storage')).toBeVisible();
-    await expect(this.mainContent.getByText('Memory Storage')).toBeVisible();
-    await expect(this.mainContent.getByText('Stream Capacity')).toBeVisible();
-    await expect(this.mainContent.getByText('Consumer Capacity')).toBeVisible();
-    await expect(this.mainContent.getByText('Stream Activity')).toBeVisible();
-    await expect(this.mainContent.getByText('Stream Summary')).toBeVisible();
-    await expect(this.mainContent.getByText('Consumer Summary')).toBeVisible();
-    await expect(this.mainContent.getByText('Projection Summary')).toBeVisible();
+    const statLabel = (label: string) => this.mainContent.getByText(label, { exact: true }).first();
+    await expect(statLabel('JetStream Account')).toBeVisible();
+    await expect(statLabel('File Storage')).toBeVisible();
+    await expect(statLabel('Memory Storage')).toBeVisible();
+    await expect(statLabel('Stream Capacity')).toBeVisible();
+    await expect(statLabel('Consumer Capacity')).toBeVisible();
+    await expect(statLabel('Stream Activity')).toBeVisible();
+    await expect(statLabel('Stream Summary')).toBeVisible();
+    await expect(statLabel('Consumer Summary')).toBeVisible();
+    await expect(statLabel('Projection Summary')).toBeVisible();
   }
 
   /**

@@ -17,6 +17,10 @@ Design language:
   - Right-side action icons are `<HeaderIconButton>` instances passed
     via the `actions` snippet. They use the same fixed hit area and
     glyph size as other pane-header icons.
+  - `stackOnNarrow` keeps both title and actions visible below 520px by
+    moving the actions onto a second row.
+  - `compactOnNarrow` keeps dense actions on one row below 520px by
+    reducing the outer inset and inter-action gap while the title truncates.
 
 Use `backHref` for navigation-style "back to parent route" affordances
 (renders an anchor) or `onBack` for callback-style "close this slideover
@@ -40,6 +44,8 @@ choice).
     backHref,
     onBack,
     backLabel = m['ui.pane_header.back'](),
+    stackOnNarrow = false,
+    compactOnNarrow = false,
     // Deprecated: showMobileNav is no longer used since hamburger menu is always visible
     showMobileNav: _showMobileNav = false
   }: {
@@ -63,6 +69,10 @@ choice).
     onBack?: (event: MouseEvent) => void;
     /** Title attribute / aria-label for the back affordance. */
     backLabel?: string;
+    /** Stack title and actions below 520px when both are essential. */
+    stackOnNarrow?: boolean;
+    /** Preserve one bounded row below 520px for dense, already-compact actions. */
+    compactOnNarrow?: boolean;
     showMobileNav?: boolean;
   } = $props();
 
@@ -73,10 +83,20 @@ choice).
   data-ui="pane-header"
   class={[
     'pane-header flex h-14 shrink-0 items-center justify-between border-b border-border pr-4',
-    hasBack ? 'pl-2' : 'pl-4'
+    hasBack ? 'pl-2' : 'pl-4',
+    compactOnNarrow && '@max-[519px]:gap-1 @max-[519px]:px-2',
+    stackOnNarrow &&
+      '@max-[519px]:h-auto @max-[519px]:min-h-24 @max-[519px]:flex-wrap @max-[519px]:gap-y-1 @max-[519px]:px-2 @max-[519px]:py-1.5'
   ]}
+  data-testid="pane-header"
 >
-  <div class={['flex min-w-0 flex-1 items-center', hasBack ? 'gap-2' : 'gap-3']}>
+  <div
+    class={[
+      'flex min-w-0 flex-1 items-center',
+      hasBack ? 'gap-2' : 'gap-3',
+      stackOnNarrow && '@max-[519px]:w-full @max-[519px]:flex-none'
+    ]}
+  >
     {#if onBack}
       <button
         type="button"
@@ -111,12 +131,24 @@ choice).
         </div>
       {/if}
       {#if subtitle}
-        <span class="hidden truncate text-sm text-muted md:inline">{subtitle}</span>
+        <span
+          class={[
+            'hidden truncate text-sm text-muted md:inline',
+            stackOnNarrow && '@max-[519px]:!hidden'
+          ]}>{subtitle}</span
+        >
       {/if}
     </div>
   </div>
   {#if actions}
-    <div class="flex items-center gap-2">
+    <div
+      class={[
+        'flex shrink-0 items-center gap-2',
+        compactOnNarrow && '@max-[519px]:gap-1',
+        stackOnNarrow &&
+          '@max-[519px]:w-full @max-[519px]:min-w-0 @max-[519px]:justify-between @max-[519px]:gap-1'
+      ]}
+    >
       {@render actions()}
     </div>
   {/if}
