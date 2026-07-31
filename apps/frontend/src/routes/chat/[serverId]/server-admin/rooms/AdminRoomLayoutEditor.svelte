@@ -2,6 +2,18 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import CreateRoom from '$lib/CreateRoom.svelte';
+  import {
+    createRoomPurgeAPI,
+    RoomPurgeAPIError,
+    type RoomPurgeAPI,
+    type RoomPurgeAPIConfig,
+    type RoomPurgeErrorCode
+  } from '$lib/api-client/roomPurge';
+  import { roomPurgeMessages as rp } from '$lib/i18n/roomPurgeMessages';
+  import {
+    purgeDeletedRoomForServer,
+    type PurgeOfflineRoom
+  } from '$lib/pwa/roomDeletionCleanup';
   import type {
     AdminRoomGroup as GroupState,
     AdminRoomInfo as RoomInfo,
@@ -11,6 +23,7 @@
     GroupReorderResult,
     RoomMoveFlushResult
   } from '$lib/state/server/adminRoomLayout.svelte';
+  import { serverRegistry, type RegisteredServer } from '$lib/state/server/registry.svelte';
   import { EmptyState, Hint, Pill, ToggleChip } from '$lib/ui';
   import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
   import Dialog from '$lib/ui/Dialog.svelte';
@@ -23,15 +36,31 @@
   import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import * as m from '$lib/i18n/messages';
   import { localizedRoomDescription } from '$lib/roomLabels';
+  import PermanentRoomPurgeDialog from './PermanentRoomPurgeDialog.svelte';
+
+  type RoomPurgeAPIFactory = (config: RoomPurgeAPIConfig) => RoomPurgeAPI;
+  type PurgeDeletedRoom = (
+    server: RegisteredServer | null | undefined,
+    roomId: string,
+    purge?: PurgeOfflineRoom
+  ) => Promise<void>;
 
   let {
     layout,
     serverSegment,
-    onroomcreated
+    server = null,
+    onroomcreated,
+    onroompurged,
+    roomPurgeApiFactory = createRoomPurgeAPI,
+    purgeLocalRoom = purgeDeletedRoomForServer
   }: {
     layout: AdminRoomLayoutStore;
     serverSegment: string;
+    server?: RegisteredServer | null;
     onroomcreated?: () => void;
+    onroompurged?: (roomId: string) => void | Promise<void>;
+    roomPurgeApiFactory?: RoomPurgeAPIFactory;
+    purgeLocalRoom?: PurgeDeletedRoom;
   } = $props();
 
   type DndRoomItem = AdminSidebarItem & { id: string };
@@ -289,6 +318,179 @@
     archiveConfirmRoom = null;
   }
 
+  // --- Permanent room purge ---
+
+  const roomPurgeAPI = $derived(
+    server
+      ? roomPurgeApiFactory({
+          serverId: server.id,
+          baseUrl: server.url,
+          bearerToken: server.token,
+          onAuthenticationRequired: (serverId) =>
+            serverRegistry.handleAuthenticationRequired(serverId)
+        })
+      : null
+  );
+
+  let purgeCapability = $state<'loading' | 'allowed' | 'denied' | 'error'>('loading');
+  let purgeDialogVisible = $state(false);
+  let purgeRoom = $state<RoomInfo | null>(null);
+  let purgeRoomServerId = $state<string | null>(null);
+  let purgeLoading = $state(false);
+  let purgeError = $state<string | null>(null);
+  let serverPurgeCompleted = $state(false);
+  let localCleanupPending = $state(false);
+  let serverReportedAlreadyPurged = $state(false);
+
+  $effect(() => {
+    const currentAPI = roomPurgeAPI;
+    if (!currentAPI) {
+      purgeCapability = 'denied';
+      return;
+    }
+
+    const controller = new AbortController();
+    purgeCapability = 'loading';
+    void currentAPI
+      .capability(controller.signal)
+      .then((result) => {
+        purgeCapability = result.canPurgeArchivedRooms ? 'allowed' : 'denied';
+      })
+      .catch((caught) => {
+        if (caught instanceof DOMException && caught.name === 'AbortError') return;
+        purgeCapability = 'error';
+      });
+
+    return () => controller.abort();
+  });
+
+  function purgeActionTitle(room: RoomInfo): string {
+    const action = rp.actionAria(room.name);
+    if (!room.archived) return `${action} — ${rp.errorRoomNotArchived()}`;
+    if (purgeCapability === 'denied') return `${action} — ${rp.errorForbidden()}`;
+    if (purgeCapability !== 'allowed') {
+      return `${action} — ${rp.errorTemporarilyUnavailable()}`;
+    }
+    return action;
+  }
+
+  function isPurgeAvailable(room: RoomInfo): boolean {
+    return room.archived && purgeCapability === 'allowed';
+  }
+
+  function canPurgeRoom(room: RoomInfo): boolean {
+    return isPurgeAvailable(room) && !purgeLoading;
+  }
+
+  function openPurgeDialog(room: RoomInfo) {
+    if (!canPurgeRoom(room) || !server) return;
+    purgeRoom = room;
+    purgeRoomServerId = server.id;
+    purgeError = null;
+    serverPurgeCompleted = false;
+    localCleanupPending = false;
+    serverReportedAlreadyPurged = false;
+    purgeDialogVisible = true;
+  }
+
+  function handlePurgeDialogClose() {
+    if (purgeLoading) return;
+    purgeDialogVisible = false;
+    purgeRoom = null;
+    purgeRoomServerId = null;
+    purgeError = null;
+    serverPurgeCompleted = false;
+    localCleanupPending = false;
+    serverReportedAlreadyPurged = false;
+  }
+
+  $effect(() => {
+    const currentServerId = server?.id ?? null;
+    if (
+      purgeDialogVisible &&
+      purgeRoomServerId !== currentServerId &&
+      !purgeLoading
+    ) {
+      handlePurgeDialogClose();
+    }
+  });
+
+  function localizedPurgeError(caught: unknown): string {
+    if (!(caught instanceof RoomPurgeAPIError)) return rp.errorInternal();
+    const messages: Record<RoomPurgeErrorCode, () => string> = {
+      authentication_required: rp.errorAuthenticationRequired,
+      authentication_unavailable: rp.errorAuthenticationUnavailable,
+      forbidden: rp.errorForbidden,
+      invalid_room_id: rp.errorInvalidRoomID,
+      confirmation_mismatch: rp.errorConfirmationMismatch,
+      room_not_archived: rp.errorRoomNotArchived,
+      purge_in_progress: rp.errorPurgeInProgress,
+      purge_not_quiescent: rp.errorPurgeNotQuiescent,
+      room_not_found: rp.errorRoomNotFound,
+      timed_out: rp.errorTimedOut,
+      interrupted: rp.errorInterrupted,
+      temporarily_unavailable: rp.errorTemporarilyUnavailable,
+      invalid_request: rp.errorInvalidRequest,
+      invalid_response: rp.errorInvalidResponse,
+      network_error: rp.errorNetwork,
+      internal_error: rp.errorInternal
+    };
+    const base = messages[caught.code]?.() ?? rp.errorInternal();
+    return caught.retryAfterSeconds
+      ? `${base} ${rp.retryHint(caught.retryAfterSeconds)}`
+      : base;
+  }
+
+  async function purgeSelectedRoom(confirmation: string) {
+    const room = purgeRoom;
+    const api = roomPurgeAPI;
+    const currentServer = server;
+    if (!room || !api || !currentServer || purgeLoading) return;
+    if (purgeRoomServerId !== currentServer.id) {
+      handlePurgeDialogClose();
+      return;
+    }
+
+    purgeLoading = true;
+    purgeError = null;
+
+    if (!serverPurgeCompleted) {
+      try {
+        const result = await api.purge(room.id, confirmation);
+        serverReportedAlreadyPurged = result.alreadyPurged;
+        serverPurgeCompleted = true;
+      } catch (caught) {
+        purgeError = localizedPurgeError(caught);
+        purgeLoading = false;
+        return;
+      }
+    }
+
+    try {
+      await purgeLocalRoom(currentServer, room.id);
+      localCleanupPending = false;
+    } catch {
+      localCleanupPending = true;
+      purgeError = rp.localCleanupError();
+      purgeLoading = false;
+      return;
+    }
+
+    purgeLoading = false;
+    purgeDialogVisible = false;
+    toast.success(
+      serverReportedAlreadyPurged ? rp.alreadyPurged(room.name) : rp.success(room.name)
+    );
+
+    if (server?.id === currentServer.id) {
+      try {
+        await onroompurged?.(room.id);
+      } catch (caught) {
+        console.error('Failed to refresh room state after permanent deletion:', caught);
+      }
+    }
+  }
+
   // --- Permissions navigation ---
 
   function openGroupPermissions(group: GroupState) {
@@ -447,6 +649,14 @@
         onclick: () => confirmArchiveRoom(roomInfo)
       })}
     {/if}
+    {@render iconButton({
+      icon: 'uil--trash-alt',
+      title: purgeActionTitle(roomInfo),
+      tone: isPurgeAvailable(roomInfo) ? 'danger' : 'neutral',
+      disabled: !canPurgeRoom(roomInfo),
+      pressed: purgeDialogVisible && purgeRoom?.id === roomInfo.id,
+      onclick: () => openPurgeDialog(roomInfo)
+    })}
   {:else}
     {@render iconButton({
       icon: 'uil--pen',
@@ -498,7 +708,7 @@
           <section
             animate:flip={{ duration: 200 }}
             class={[
-              'overflow-hidden panel-shell panel-shell-raised transition-shadow',
+              'room-group-card overflow-hidden panel-shell panel-shell-raised transition-shadow',
               layout.draggingGroupId === group.id && 'shadow-lg ring-1 ring-accent/30'
             ]}
           >
@@ -571,12 +781,14 @@
               {#each group.items as room (room.id)}
                 <div
                   animate:flip={{ duration: 200 }}
-                  class={[
-                    'group flex cursor-grab items-center gap-3 rounded-lg py-2 pr-2 pl-3 hover:bg-surface-100',
-                    room.kind === 'room' && room.room.archived && 'opacity-60'
-                  ]}
+                  class="room-row group cursor-grab rounded-lg py-2 pr-2 pl-3 hover:bg-surface-100"
                 >
-                  <div class="min-w-0 flex-1">
+                  <div
+                    class={[
+                      'room-row-copy min-w-0',
+                      room.kind === 'room' && room.room.archived && 'opacity-60'
+                    ]}
+                  >
                     {#if room.kind === 'room'}
                       {@const description = localizedRoomDescription(
                         room.room.name,
@@ -616,7 +828,7 @@
                       <p class="truncate text-sm text-muted">{room.link.url}</p>
                     {/if}
                   </div>
-                  <div class="flex items-center gap-1.5">
+                  <div class="room-row-actions flex items-center gap-1.5">
                     {@render roomActions(room)}
                   </div>
                 </div>
@@ -803,3 +1015,59 @@
     {m['admin.rooms_admin.unarchive_room_prompt']({ room: unarchiveConfirmRoom.name })}
   </ConfirmDialog>
 {/if}
+
+<PermanentRoomPurgeDialog
+  bind:visible={purgeDialogVisible}
+  room={purgeRoom}
+  loading={purgeLoading}
+  retryingLocalCleanup={localCleanupPending}
+  error={purgeError}
+  onconfirm={(confirmation) => void purgeSelectedRoom(confirmation)}
+  onclose={handlePurgeDialogClose}
+/>
+
+<style>
+  .room-group-card {
+    container-type: inline-size;
+  }
+
+  .room-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
+  }
+
+  .room-row-actions {
+    min-width: 0;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  @container (max-width: 34rem) {
+    .room-row {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: stretch;
+    }
+
+    .room-row-actions {
+      width: 100%;
+      justify-self: stretch;
+      flex-wrap: wrap;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .room-row {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: stretch;
+    }
+
+    .room-row-actions {
+      width: 100%;
+      justify-self: stretch;
+      flex-wrap: wrap;
+    }
+  }
+</style>
