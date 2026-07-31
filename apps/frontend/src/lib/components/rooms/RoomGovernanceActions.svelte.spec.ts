@@ -79,6 +79,8 @@ describe('RoomGovernanceActions', () => {
 
     const trigger = container.querySelector('[data-testid="room-governance-menu-button"]');
     if (!(trigger instanceof HTMLButtonElement)) throw new Error('governance trigger not found');
+    expect(trigger.classList).toContain('!h-[44px]');
+    expect(trigger.classList).toContain('!w-[44px]');
     trigger.click();
     await vi.waitFor(() =>
       expect(container.querySelector('[data-testid="room-policy-action"]')).not.toBeNull()
@@ -128,6 +130,13 @@ describe('RoomGovernanceActions', () => {
       expect(container.querySelector('[data-testid="room-history-purge-action"]')).not.toBeNull()
     );
     buttonByText(container, 'Purge message history').click();
+
+    const dialogContent = await vi.waitFor(() => {
+      const content = container.querySelector('.dialog-content');
+      if (!(content instanceof HTMLElement)) throw new Error('purge dialog content not found');
+      return content;
+    });
+    expect(dialogContent.classList).toContain('max-h-[calc(100dvh-2rem)]');
 
     const confirmation = await vi.waitFor(() => {
       const input = [...container.querySelectorAll('input')].find(

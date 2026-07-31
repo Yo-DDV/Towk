@@ -164,7 +164,7 @@
   <button
     type="button"
     class={[
-      'group/pane-header-icon-button pane-header-icon-button',
+      'group/pane-header-icon-button pane-header-icon-button !h-[44px] !w-[44px]',
       menuPosition && 'pane-header-icon-button-active'
     ]}
     onclick={openMenu}
@@ -283,6 +283,7 @@
   bind:visible={purgeVisible}
   title={m['room.governance.purge_title']({ room: room.name })}
   size="sm"
+  tall
   submitLabel={m['room.governance.purge_submit']()}
   submitLoadingText={m['room.governance.purge_submitting']()}
   submitTone="danger"

@@ -39,6 +39,7 @@ The submit button's color follows `submitTone` (`primary` by default; use
     visible = $bindable(false),
     title,
     size = 'md',
+    tall = false,
     submitLabel = m['common.save'](),
     submitTone = 'primary',
     submitIcon = 'iconify uil--check',
@@ -57,6 +58,8 @@ The submit button's color follows `submitTone` (`primary` by default; use
     visible?: boolean;
     title: string;
     size?: 'sm' | 'md' | 'lg';
+    /** Lets long forms use the available viewport height on compact screens. */
+    tall?: boolean;
     submitLabel?: string;
     /** Visual weight of the submit button. */
     submitTone?: SubmitTone;
@@ -100,7 +103,14 @@ The submit button's color follows `submitTone` (`primary` by default; use
   const descriptionId = `${formDialogId}-description`;
 </script>
 
-<Dialog bind:visible {title} {size} describedBy={description ? descriptionId : undefined} {onclose}>
+<Dialog
+  bind:visible
+  {title}
+  {size}
+  {tall}
+  describedBy={description ? descriptionId : undefined}
+  {onclose}
+>
   <form onsubmit={handleSubmit} class="flex flex-col gap-5">
     {#if description}
       <div id={descriptionId} class="text-muted">
