@@ -37,7 +37,7 @@ export class ServerAdminRoomsPage {
    * Targets the draggable row div that contains the room name.
    */
   roomRow(name: string): Locator {
-    return this.page.locator('.cursor-grab', { hasText: name });
+    return this.page.locator('.room-row', { hasText: name });
   }
 
   /**
