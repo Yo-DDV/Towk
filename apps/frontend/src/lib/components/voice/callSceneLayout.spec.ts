@@ -137,6 +137,17 @@ describe('call scene container layout', () => {
     expect(computeFilmstripCapacity(290, 376)).toBe(1);
   });
 
+  it('reserves wider equal tiles when a participant card exposes two device controls', () => {
+    expect(computeFilmstripCapacity(720, 780, 220)).toBe(3);
+    expect(computeFilmstripTileWidth(720, 3)).toBe(232);
+    expect(computeFilmstripCapacity(640, 780, 220)).toBe(2);
+    expect(computeSceneGrid(390, 700, 4, 220)).toMatchObject({
+      capacity: 3,
+      columns: 1,
+      rows: 3
+    });
+  });
+
   it('paginates dense portrait galleries before 44px controls crowd the media', () => {
     expect(computeSceneGrid(390, 700, 12)).toEqual({
       capacity: 8,
@@ -163,6 +174,7 @@ describe('call scene container layout', () => {
   it('scales the filmstrip height on high-density desktop canvases', () => {
     expect(computeFilmstripMaxHeight(280, 449)).toBe(160);
     expect(computeFilmstripMaxHeight(290, 364)).toBe(144);
+    expect(computeFilmstripMaxHeight(320, 390)).toBe(160);
     expect(computeFilmstripMaxHeight(1_920, 1_000)).toBe(210);
     expect(computeFilmstripMaxHeight(1_280, 550)).toBe(180);
     expect(computeFilmstripMaxHeight(2_560, 1_300)).toBe(320);
