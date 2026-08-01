@@ -23,11 +23,6 @@ func (c *ChattoCore) ReplaceUserAvatarFromUpload(ctx context.Context, userID str
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
 
-	oldAvatar, err := c.GetUserAvatar(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-
 	processed, err := assets.ProcessAvatarAssetWithConfig(reader, c.AssetsConfig())
 	if err != nil {
 		return nil, invalidArgument(fmt.Sprintf("invalid avatar image: %v", err))
@@ -67,7 +62,8 @@ func (c *ChattoCore) ReplaceUserAvatarFromUpload(ctx context.Context, userID str
 		}
 	}
 
-	if err := c.SetUserAvatar(ctx, userID, asset); err != nil {
+	oldAvatar, err := c.setUserAvatarAndGetPrevious(ctx, userID, asset)
+	if err != nil {
 		c.CleanupAsset(context.WithoutCancel(ctx), DeprecatedAssetFromAsset(asset))
 		return nil, err
 	}

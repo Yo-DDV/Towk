@@ -9,9 +9,11 @@ import (
 	"image/png"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 
 	"hmans.de/chatto/internal/assets"
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 func TestReplaceUserAvatarFromUploadStoresAnimatedWebPAndUsesCanonicalDisplayURL(t *testing.T) {
@@ -118,6 +120,90 @@ func TestReplaceUserAvatarFromUploadRejectsInvalidReplacementWithoutChangingAvat
 	if closer, ok := reader.(io.Closer); ok {
 		closer.Close()
 	}
+}
+
+func TestReplaceUserAvatarFromUploadConcurrentReplacementsDeleteSupersededAssets(t *testing.T) {
+	c, _ := setupTestCore(t)
+	ctx := testContext(t)
+	user, err := c.CreateUser(ctx, SystemActorID, "avatar-concurrent", "Avatar Concurrent", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	initial, err := c.ReplaceUserAvatarFromUpload(ctx, user.GetId(), bytes.NewReader(testAvatarPNG(t, 32, 32)))
+	if err != nil {
+		t.Fatalf("store initial avatar: %v", err)
+	}
+
+	ready := make(chan struct{}, 2)
+	release := make(chan struct{})
+	type replacementResult struct {
+		asset *corev1.AssetRecord
+		err   error
+	}
+	results := make(chan replacementResult, 2)
+	for _, size := range []int{48, 64} {
+		data := testAvatarPNG(t, size, size)
+		go func() {
+			asset, replaceErr := c.ReplaceUserAvatarFromUpload(ctx, user.GetId(), &avatarBarrierReader{
+				Reader:  bytes.NewReader(data),
+				ready:   ready,
+				release: release,
+			})
+			results <- replacementResult{asset: asset, err: replaceErr}
+		}()
+	}
+	<-ready
+	<-ready
+	close(release)
+
+	replacements := make([]*corev1.AssetRecord, 0, 2)
+	for range 2 {
+		result := <-results
+		if result.err != nil {
+			t.Fatalf("concurrent replacement: %v", result.err)
+		}
+		replacements = append(replacements, result.asset)
+	}
+
+	current, err := c.GetUserAvatar(ctx, user.GetId())
+	if err != nil {
+		t.Fatalf("GetUserAvatar: %v", err)
+	}
+	if current == nil {
+		t.Fatal("current avatar is nil after concurrent replacements")
+	}
+
+	for _, superseded := range append([]*corev1.AssetRecord{initial}, replacements...) {
+		if superseded.GetId() == current.GetId() {
+			continue
+		}
+		if _, _, err := c.GetServerAssetFromAnyBackend(ctx, superseded.GetId()); err == nil {
+			t.Fatalf("superseded avatar %q is still present", superseded.GetId())
+		}
+	}
+	reader, _, err := c.GetServerAssetFromAnyBackend(ctx, current.GetId())
+	if err != nil {
+		t.Fatalf("current avatar %q is missing: %v", current.GetId(), err)
+	}
+	if closer, ok := reader.(io.Closer); ok {
+		closer.Close()
+	}
+}
+
+type avatarBarrierReader struct {
+	io.Reader
+	once    sync.Once
+	ready   chan<- struct{}
+	release <-chan struct{}
+}
+
+func (r *avatarBarrierReader) Read(p []byte) (int, error) {
+	r.once.Do(func() {
+		r.ready <- struct{}{}
+		<-r.release
+	})
+	return r.Reader.Read(p)
 }
 
 func testAvatarPNG(t *testing.T, width, height int) []byte {
