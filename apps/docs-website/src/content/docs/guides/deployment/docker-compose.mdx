@@ -297,6 +297,27 @@ Use **Server administration → System** to choose the live runtime profile. The
 environment variable above is only a hard operator ceiling; it does not replace
 the owner-selected profile.
 
+### LiveKit call capacity
+
+The Compose template starts LiveKit with `LIVEKIT_CPU_LIMIT=4.0`. This value is
+a ceiling rather than a reservation; a smaller host still cannot provide more
+CPU than it owns, and a shared host may need a lower explicit value. For rooms
+approaching 25–40 simultaneous audio publishers, run an all-to-all media test
+and retain at least 25% SFU CPU headroom. Record joins, disconnects, round-trip
+time, packet loss, audio concealment and LiveKit CPU. Do not treat a
+signaling-only room as a media capacity result, and report load-generator CPU
+pressure separately from server pressure.
+
+Increase the LiveKit ceiling or scale the SFU before accepting a result with
+sustained CPU above 75%, RTT above 500 ms, packet loss above 2%, audio
+concealment above 3%, or any participant loss. Recreate only the affected
+service after changing the ceiling:
+
+```bash
+docker compose config
+docker compose up -d --force-recreate livekit
+```
+
 <LinkCard
   title="Video Processing"
   href="/guides/infrastructure/video-processing/"

@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 
 const files = {
   compose: "examples/dockercompose/compose.yml",
+  envExample: "examples/dockercompose/env.example",
   checkedInConfig: "examples/dockercompose/livekit.yaml",
   frontendConfig: "apps/frontend/svelte.config.js",
   generator: "examples/dockercompose/init-env.sh",
@@ -173,6 +174,17 @@ export function findCallDeploymentViolations(contents) {
   ) {
     violations.push(
       "svelte.config.js: standard builds must enable precompression unless explicitly disabled",
+    );
+  }
+
+  const liveKitCpuLimits = [
+    contents.compose.match(/\$\{LIVEKIT_CPU_LIMIT:-([^}]+)\}/)?.[1],
+    contents.envExample?.match(/^LIVEKIT_CPU_LIMIT=(.+)$/m)?.[1],
+    contents.generator.match(/^LIVEKIT_CPU_LIMIT=(.+)$/m)?.[1],
+  ];
+  if (liveKitCpuLimits.some((value) => value !== "4.0")) {
+    violations.push(
+      "LiveKit: Compose, env.example and init-env.sh must keep the 4.0 CPU starting envelope aligned",
     );
   }
 

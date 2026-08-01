@@ -13,6 +13,7 @@ function deploymentFiles(checkedInConfig) {
   return {
     checkedInConfig,
     compose: [
+      'cpus: ${LIVEKIT_CPU_LIMIT:-4.0}',
       '"443:443/udp"',
       '"livekit/livekit-server:v1.13.4@sha256:189f7c81b704a36642bc5c7e2d3e1ae83744627c11978a23a251bf19fbec64e0"',
       '"50000-50200:50000-50200/udp"',
@@ -20,12 +21,14 @@ function deploymentFiles(checkedInConfig) {
       '"3478:3478/udp"',
       '"7881:7881/tcp"',
     ].join("\n"),
+    envExample: "LIVEKIT_CPU_LIMIT=4.0",
     frontendConfig:
       "const precompress = process.env.CHATTO_FRONTEND_PRECOMPRESS !== '0';",
     generator: `  port_range_start: 50000
   port_range_end: 50200
   relay_range_start: 50201
   relay_range_end: 50400
+LIVEKIT_CPU_LIMIT=4.0
 `,
     exampleReadme:
       "50000-50200 50201-50400 use_external_ip allow_restricted_peer_cidrs HTTP/3 TURN/TLS",
@@ -39,6 +42,21 @@ function deploymentFiles(checkedInConfig) {
 
 test("the checked-in call deployment keeps direct media and TURN relay ranges aligned", async () => {
   assert.deepEqual(await checkCallDeploymentConfig(), []);
+});
+
+test("rejects a LiveKit CPU envelope that drifts across Compose inputs", () => {
+  const files = deploymentFiles(`rtc:
+  port_range_start: 50000
+  port_range_end: 50200
+turn:
+  relay_range_start: 50201
+  relay_range_end: 50400
+`);
+  files.envExample = "LIVEKIT_CPU_LIMIT=2.0";
+
+  assert.deepEqual(findCallDeploymentViolations(files), [
+    "LiveKit: Compose, env.example and init-env.sh must keep the 4.0 CPU starting envelope aligned",
+  ]);
 });
 
 test("rejects a Compose deployment that makes Caddy HTTP/3 unreachable", () => {
@@ -97,13 +115,15 @@ turn:
   relay_range_end: 50400
 `,
     compose:
-      '"443:443/udp"\n"livekit/livekit-server:v1.13.4@sha256:189f7c81b704a36642bc5c7e2d3e1ae83744627c11978a23a251bf19fbec64e0"\n"50000-50200:50000-50200/udp"\n"3478:3478/udp"\n"7881:7881/tcp"',
+      'cpus: ${LIVEKIT_CPU_LIMIT:-4.0}\n"443:443/udp"\n"livekit/livekit-server:v1.13.4@sha256:189f7c81b704a36642bc5c7e2d3e1ae83744627c11978a23a251bf19fbec64e0"\n"50000-50200:50000-50200/udp"\n"3478:3478/udp"\n"7881:7881/tcp"',
+    envExample: "LIVEKIT_CPU_LIMIT=4.0",
     frontendConfig:
       "const precompress = process.env.CHATTO_FRONTEND_PRECOMPRESS !== '0';",
     generator: `  port_range_start: 50000
   port_range_end: 50200
   relay_range_start: 50200
   relay_range_end: 50400
+LIVEKIT_CPU_LIMIT=4.0
 `,
     exampleReadme:
       "50000-50200 50200-50400 use_external_ip allow_restricted_peer_cidrs HTTP/3 TURN/TLS",
@@ -246,6 +266,7 @@ turn:
   enabled: true
   relay_range_start: 50201
   relay_range_end: 50400
+LIVEKIT_CPU_LIMIT=4.0
 `;
 
   assert.deepEqual(findCallDeploymentViolations(files), [

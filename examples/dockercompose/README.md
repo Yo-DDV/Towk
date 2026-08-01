@@ -239,6 +239,18 @@ performance policy, but should still monitor CPU, memory, storage latency and
 call quality under its real workload. Do not raise only Towk while leaving NATS
 storage or LiveKit constrained.
 
+The Compose starting point gives LiveKit `LIVEKIT_CPU_LIMIT=4.0`. This is a CPU
+ceiling, not a reservation: hosts with fewer cores cannot supply more CPU than
+they have, and operators of small shared hosts should lower it deliberately.
+For rooms approaching 25–40 simultaneous audio publishers, keep at least 25%
+SFU CPU headroom during a representative all-to-all call. A qualification run
+must record successful joins, disconnects, round-trip time, packet loss, audio
+concealment and LiveKit CPU; signaling-only participants are not a media
+capacity test. Increase the ceiling or scale the SFU before accepting a row
+that sustains more than 75% CPU, exceeds 500 ms RTT, 2% packet loss or 3% audio
+concealment, or loses a participant. Generator CPU pressure must be reported
+separately from server pressure.
+
 After changing a container ceiling, render and recreate the stack:
 
 ```bash

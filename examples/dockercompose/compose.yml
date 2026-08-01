@@ -29,7 +29,7 @@ services:
     security_opt: [no-new-privileges:true]
     pids_limit: 512
     mem_limit: ${LIVEKIT_MEMORY_LIMIT:-2g}
-    cpus: ${LIVEKIT_CPU_LIMIT:-2.0}
+    cpus: ${LIVEKIT_CPU_LIMIT:-4.0}
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     ports:
