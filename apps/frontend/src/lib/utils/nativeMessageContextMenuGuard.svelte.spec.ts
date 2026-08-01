@@ -77,6 +77,18 @@ describe('installNativeMessageContextMenuGuard', () => {
     expect(internalHandler).toHaveBeenCalledOnce();
   });
 
+  it('captures before nested message content stops propagation', () => {
+    installGuard();
+    const { link } = createMessageFixture();
+    link.addEventListener('contextmenu', (event) => event.stopPropagation());
+
+    link.dispatchEvent(touchPointerEvent('pointerdown'));
+    const contextMenu = legacyContextMenu();
+    link.dispatchEvent(contextMenu);
+
+    expect(contextMenu.defaultPrevented).toBe(true);
+  });
+
   it('cancels a direct touch PointerEvent context menu inside a message', () => {
     installGuard();
     const { link } = createMessageFixture();
