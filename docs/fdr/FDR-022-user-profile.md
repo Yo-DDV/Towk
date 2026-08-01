@@ -1,7 +1,7 @@
 # FDR-022: User Profile
 
 **Status:** Active
-**Last reviewed:** 2026-07-25
+**Last reviewed:** 2026-08-01
 
 ## Overview
 
@@ -12,7 +12,7 @@ A user's profile carries the public identity they present to the rest of the ser
 - **Display name** — freely editable by the user. Shown in messages, member lists, mention autocomplete, etc.
 - **Login (username)** — editable by the user with a 30-day cooldown between changes. Each successful change records a timestamp; subsequent changes within the window are rejected with a clear error message.
 - **Case-only changes** (e.g., `alice` → `Alice`) bypass the cooldown.
-- **Avatar** — users upload an image; the server resizes to 256×256 max and stores it as lossless WebP. The old avatar is deleted after the new one is committed. Users can also delete their avatar (falling back to an initial-letter placeholder).
+- **Avatar** — users upload JPEG, PNG, WebP, or GIF content up to 10 MiB. The server resizes every avatar to a 256×256 maximum box, stores static inputs and single-frame GIFs as lossless WebP, and stores multi-frame GIFs as animated WebP forced to loop continuously. The old avatar binary is retained until the new avatar event commits, then deleted. Users can also delete their avatar (falling back to an initial-letter placeholder).
 - **Custom status** — users can set an emoji plus short text. The emoji is shown next to their name; the text is shown alongside it where space allows and as hover/accessible text in compact places.
 - **Custom status templates** — the web client offers preset statuses for lunch, vacation, and sick leave plus a custom mode. Presets store reserved text tokens in the same free-form status text field so each client can render the label in its active language. Custom mode stores the user's literal text.
 - **Custom status expiry** — users can optionally choose an expiry date and time. After that instant, projected reads and the web client hide the status automatically. Users can also clear it manually.
@@ -30,7 +30,7 @@ A user's profile carries the public identity they present to the rest of the ser
 ### 1. 30-day login change cooldown
 
 **Decision:** A user can change their login only once every 30 days.
-**Why:** Logins are the basis for `@mentions`, search results, and recognition across the server. Frequent changes are an impersonation/confusion risk — `@alice` today might be a different person tomorrow. A 30-day cooldown discourages rapid churn while still allowing occasional rename for legitimate reasons. Case-only changes are exempt because they don't change identity.
+**Why:** Logins are the basis for `@mentions`, search results, and recognition across the server. Frequent changes are an impersonation/confusion risk — `@alice` today might be a different person tomorrow. A 30-day cooldown discourages rapid churn while still allowing occasional rename for legitimate needs. Case-only changes are exempt because they don't change identity.
 **Tradeoff:** A user who legitimately needs to change twice in 30 days (e.g., picked a typo'd name) is stuck. The admin clear-cooldown affordance handles those cases.
 
 ### 2. Login uniqueness is enforced with projection catch-up and OCC
@@ -45,11 +45,11 @@ A user's profile carries the public identity they present to the rest of the ser
 **Why:** The cooldown is about the *user's* identity stability, not the admin's. An admin-driven correction shouldn't reset the user's own quota.
 **Tradeoff:** A user who keeps getting admin-renamed has a slightly confusing experience around when their next self-change is allowed. Acceptable; uncommon edge case.
 
-### 4. Avatars are WebP-only, capped at 256×256
+### 4. Avatars are canonical WebP assets capped at 256×256
 
-**Decision:** Uploaded avatars are resized to a 256×256 max box and re-encoded as lossless WebP. Original is discarded.
-**Why:** Avatars render at small sizes everywhere — 256px is the largest the UI ever shows. Storing originals is waste. Lossless WebP is small and supports transparency. See FDR-008's notes on the WebP/JPEG split for transparency vs photographic content.
-**Tradeoff:** A user uploading a high-resolution avatar can't ever get the original back. The 256×256 cap can't be inferred from the user's perspective unless documented.
+**Decision:** Uploaded JPEG, PNG, WebP, and GIF avatars are admitted only after magic-byte and decoded-image validation. Static inputs and single-frame GIFs are re-encoded as lossless WebP; multi-frame GIFs are composited, resized, encoded as animated WebP, and forced to loop continuously. Both the compressed upload and canonical result are capped at 10 MiB. Source dimensions are capped at 4,096 per axis and 16,777,216 pixels; animated avatars are additionally capped at 120 frames and 16,777,216 full-canvas frame-pixels. Original uploads are discarded. Because the animated asset is already canonical at 256 px, avatar reads return it directly instead of generating a static derivative.
+**Why:** Avatars render at small sizes everywhere — 256px is the largest the UI ever shows. Storing originals is waste. WebP supports transparency and animation while keeping one served media type. The byte, dimension, frame, and decoded-pixel budgets bound CPU, memory, storage, and transfer cost even for adversarially compressed GIFs. Retaining the previous binary until the profile event commits prevents a rejected or interrupted replacement from destroying the current avatar.
+**Tradeoff:** A user uploading a high-resolution avatar cannot recover the original. Animated avatars do not use smaller per-surface derivatives, so compact views rely on the browser's immutable cache for the shared 256 px asset. Avatar motion is decorative and must never convey presence, role, or other essential state; Towk does not currently expose an avatar-specific pause preference.
 
 ### 5. Server-side settings, not browser-local
 
