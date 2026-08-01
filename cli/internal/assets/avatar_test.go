@@ -48,8 +48,18 @@ func TestProcessAvatarAssetPreservesAnimationAndForcesInfiniteLoop(t *testing.T)
 }
 
 func TestProcessAvatarAssetKeepsStaticInputsStatic(t *testing.T) {
+	webpReader, err := ProcessAvatarImage(bytes.NewReader(createTestImage(80, 40)))
+	if err != nil {
+		t.Fatalf("create WebP fixture: %v", err)
+	}
+	webp, err := io.ReadAll(webpReader)
+	if err != nil {
+		t.Fatalf("read WebP fixture: %v", err)
+	}
+
 	for name, source := range map[string][]byte{
 		"png":              createTestImage(80, 40),
+		"webp":             webp,
 		"single-frame-gif": createStaticGIF(80, 40),
 	} {
 		t.Run(name, func(t *testing.T) {
