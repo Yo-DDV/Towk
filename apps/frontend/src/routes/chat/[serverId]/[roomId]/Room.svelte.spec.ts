@@ -48,6 +48,8 @@ const { mocks } = vi.hoisted(() => {
       },
       livekitUrl: null as string | null,
       roomKind: 1,
+      roomLocked: false,
+      canBypassLock: false,
       sidebarNav: {
         isMobile: false
       },
@@ -112,7 +114,10 @@ vi.mock('$lib/hooks', () => ({
         name: 'general',
         description: 'Room description',
         type: mocks.roomKind,
-        isUniversal: false
+        isUniversal: false,
+        isLocked: mocks.roomLocked,
+        historyEpoch: 0n,
+        revision: 1n
       },
       spaceName: 'Test Space',
       canPostMessage: true,
@@ -122,11 +127,15 @@ vi.mock('$lib/hooks', () => ({
       canManageOthersMessage: false,
       canEchoMessage: true,
       canManageRoom: false,
-      canBanRoomMembers: false
+      canBanRoomMembers: false,
+      canLockRoom: false,
+      canPurgeMessages: false,
+      canBypassLock: mocks.canBypassLock
     },
     dmData: null,
     isDM: mocks.roomKind === RoomKind.DM,
-    isRoomLoading: false
+    isRoomLoading: false,
+    refresh: vi.fn()
   }),
   useRoomUnread: () => ({
     unreadMarkerEventId: null,
@@ -350,6 +359,8 @@ beforeEach(() => {
   mocks.preloadVideoPlayerElements.mockReset();
   mocks.preloadVideoPlayerElements.mockResolvedValue(undefined);
   mocks.roomKind = RoomKind.CHANNEL;
+  mocks.roomLocked = false;
+  mocks.canBypassLock = false;
   mocks.sidebarNav.isMobile = false;
   mocks.pendingHighlightConsume.mockReset();
   mocks.pendingHighlightConsume.mockReturnValue(null);
@@ -371,6 +382,18 @@ beforeEach(() => {
 });
 
 describe('Room local message echo', () => {
+  it('keeps lock state out of the room header while retaining the composer notice', async () => {
+    mocks.roomLocked = true;
+    mocks.canBypassLock = true;
+
+    const { container } = render(Room, { props: { roomId: 'room-1' } });
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-testid="room-lock-composer-notice"]')).not.toBeNull();
+    });
+    expect(container.querySelector('[data-testid="room-locked-badge"]')).toBeNull();
+  });
+
   it('keeps the active call header compact instead of stacking it on narrow screens', async () => {
     mocks.livekitUrl = 'wss://livekit.example.test';
     mocks.activeCallRoomIds.add('room-1');

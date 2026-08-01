@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go/jetstream"
 	"hmans.de/chatto/internal/core"
+	"hmans.de/chatto/internal/events"
 )
 
 var (
@@ -86,6 +87,7 @@ func connectError(err error) error {
 		errors.Is(err, core.ErrMessageNotFound) ||
 		errors.Is(err, core.ErrMessageAttachmentNotFound) ||
 		errors.Is(err, core.ErrMessageLinkPreviewNotFound) ||
+		errors.Is(err, core.ErrRoomHistoryPurgeNotFound) ||
 		errors.Is(err, core.ErrRoleNotFound) ||
 		errors.Is(err, jetstream.ErrKeyNotFound) {
 		return connect.NewError(connect.CodeNotFound, err)
@@ -99,6 +101,9 @@ func connectError(err error) error {
 		return connect.NewError(connect.CodeResourceExhausted, err)
 	}
 	if errors.Is(err, core.ErrRoomArchived) ||
+		errors.Is(err, core.ErrRoomLocked) ||
+		errors.Is(err, core.ErrRoomHistoryNameMismatch) ||
+		errors.Is(err, core.ErrRoomHistoryPurgeInProgress) ||
 		errors.Is(err, core.ErrEditWindowExpired) ||
 		errors.Is(err, core.ErrLimitExceeded) ||
 		errors.Is(err, core.ErrFreshAuthRequired) ||
@@ -116,6 +121,9 @@ func connectError(err error) error {
 		errors.Is(err, core.ErrCallNoLongerActive) ||
 		errors.Is(err, core.ErrReadReceiptsDisabled) {
 		return connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	if errors.Is(err, events.ErrConflict) {
+		return connect.NewError(connect.CodeAborted, err)
 	}
 	return connectInternalError(err)
 }

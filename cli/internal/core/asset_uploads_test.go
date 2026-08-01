@@ -19,6 +19,7 @@ import (
 	"github.com/c2h5oh/datasize"
 	"github.com/nats-io/nats.go/jetstream"
 	"hmans.de/chatto/internal/config"
+	"hmans.de/chatto/internal/events"
 	"hmans.de/chatto/internal/testutil"
 )
 
@@ -459,6 +460,66 @@ func TestAssetUploadStaleChunkUpdateDoesNotDeleteCommittedChunk(t *testing.T) {
 	}
 	if attachment == nil || attachment.GetId() == "" {
 		t.Fatal("CompleteUpload did not return an attachment")
+	}
+}
+
+func TestAssetUploadCannotCrossRoomHistoryEpoch(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, SystemActorID, "history-upload", "History Upload", "password")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	room, err := core.CreateRoom(ctx, SystemActorID, KindChannel, "", "history-upload", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id); err != nil {
+		t.Fatalf("JoinRoom: %v", err)
+	}
+
+	content := []byte("source epoch attachment")
+	sum := sha256.Sum256(content)
+	upload, err := core.AssetUploads().CreateUpload(ctx, AssetUploadCreateInput{
+		ActorID:     user.Id,
+		RoomID:      room.Id,
+		Filename:    "source.txt",
+		ContentType: "text/plain",
+		Size:        int64(len(content)),
+		SHA256:      hex.EncodeToString(sum[:]),
+	})
+	if err != nil {
+		t.Fatalf("CreateUpload: %v", err)
+	}
+	if _, err := core.AssetUploads().UploadChunk(ctx, AssetUploadChunkInput{
+		ActorID:     user.Id,
+		UploadID:    upload.UploadID,
+		Offset:      0,
+		Content:     content,
+		ChunkSHA256: hex.EncodeToString(sum[:]),
+	}); err != nil {
+		t.Fatalf("UploadChunk: %v", err)
+	}
+
+	current, err := core.GetRoom(ctx, KindChannel, room.Id)
+	if err != nil {
+		t.Fatalf("GetRoom: %v", err)
+	}
+	if _, _, err := core.StartRoomHistoryPurge(ctx, RoomHistoryPurgeInput{
+		ActorID:          SystemActorID,
+		RoomID:           room.Id,
+		ExpectedRevision: current.GetRevision(),
+		ConfirmationName: current.GetName(),
+	}); err != nil {
+		t.Fatalf("StartRoomHistoryPurge: %v", err)
+	}
+
+	if _, _, err := core.AssetUploads().CompleteUpload(ctx, AssetUploadCompleteInput{
+		ActorID:  user.Id,
+		UploadID: upload.UploadID,
+	}); !errors.Is(err, events.ErrConflict) {
+		t.Fatalf("CompleteUpload after purge error = %v, want events.ErrConflict", err)
 	}
 }
 

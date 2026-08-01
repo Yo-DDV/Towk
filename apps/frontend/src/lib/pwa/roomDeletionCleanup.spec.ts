@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { RegisteredServer } from '$lib/state/server/registry.svelte';
-import { purgeDeletedRoomForServer } from './roomDeletionCleanup';
+import { purgeDeletedRoomForServer, purgeRoomHistoryForServer } from './roomDeletionCleanup';
 
 function server(overrides: Partial<RegisteredServer> = {}): RegisteredServer {
   return {
@@ -41,5 +41,22 @@ describe('purgeDeletedRoomForServer', () => {
     await purgeDeletedRoomForServer(server(), '', purge);
 
     expect(purge).not.toHaveBeenCalled();
+  });
+});
+
+describe('purgeRoomHistoryForServer', () => {
+  it('uses the exact authenticated room scope without room-deletion semantics', async () => {
+    const purge = vi.fn().mockResolvedValue(undefined);
+    await purgeRoomHistoryForServer(server(), 'R00000000000000', purge);
+
+    expect(purge).toHaveBeenCalledOnce();
+    expect(purge).toHaveBeenCalledWith(
+      {
+        serverId: 'towk-example',
+        serverUrl: 'https://towk.example',
+        userId: 'U00000000000000'
+      },
+      'R00000000000000'
+    );
   });
 });

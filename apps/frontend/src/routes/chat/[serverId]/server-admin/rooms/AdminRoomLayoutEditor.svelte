@@ -10,10 +10,7 @@
     type RoomPurgeErrorCode
   } from '$lib/api-client/roomPurge';
   import { roomPurgeMessages as rp } from '$lib/i18n/roomPurgeMessages';
-  import {
-    purgeDeletedRoomForServer,
-    type PurgeOfflineRoom
-  } from '$lib/pwa/roomDeletionCleanup';
+  import { purgeDeletedRoomForServer, type PurgeOfflineRoom } from '$lib/pwa/roomDeletionCleanup';
   import type {
     AdminRoomGroup as GroupState,
     AdminRoomInfo as RoomInfo,
@@ -33,10 +30,11 @@
   import { toast } from '$lib/ui/toast';
   import { getUniversalRoomHelpText } from '$lib/utils/roomCopy';
   import { flip } from 'svelte/animate';
-  import { dndzone, type DndEvent } from 'svelte-dnd-action';
+  import { dragHandle, dragHandleZone, type DndEvent } from 'svelte-dnd-action';
   import * as m from '$lib/i18n/messages';
   import { localizedRoomDescription } from '$lib/roomLabels';
   import PermanentRoomPurgeDialog from './PermanentRoomPurgeDialog.svelte';
+  import RoomGovernanceActions from '$lib/components/rooms/RoomGovernanceActions.svelte';
 
   type RoomPurgeAPIFactory = (config: RoomPurgeAPIConfig) => RoomPurgeAPI;
   type PurgeDeletedRoom = (
@@ -406,11 +404,7 @@
 
   $effect(() => {
     const currentServerId = server?.id ?? null;
-    if (
-      purgeDialogVisible &&
-      purgeRoomServerId !== currentServerId &&
-      !purgeLoading
-    ) {
+    if (purgeDialogVisible && purgeRoomServerId !== currentServerId && !purgeLoading) {
       handlePurgeDialogClose();
     }
   });
@@ -436,9 +430,7 @@
       internal_error: rp.errorInternal
     };
     const base = messages[caught.code]?.() ?? rp.errorInternal();
-    return caught.retryAfterSeconds
-      ? `${base} ${rp.retryHint(caught.retryAfterSeconds)}`
-      : base;
+    return caught.retryAfterSeconds ? `${base} ${rp.retryHint(caught.retryAfterSeconds)}` : base;
   }
 
   async function purgeSelectedRoom(confirmation: string) {
@@ -633,6 +625,21 @@
       title: m['admin.rooms_admin.room_permissions_title_fallback'](),
       onclick: () => openRoomPermissions(roomInfo)
     })}
+    {#if roomInfo.canLockRoom || roomInfo.canPurgeMessages}
+      <RoomGovernanceActions
+        mode="row"
+        room={{
+          id: roomInfo.id,
+          name: roomInfo.name,
+          isLocked: roomInfo.isLocked,
+          revision: roomInfo.revision,
+          canLockRoom: roomInfo.canLockRoom,
+          canPurgeMessages: roomInfo.canPurgeMessages
+        }}
+        onrefresh={() => layout.refresh()}
+        onhistorypurged={() => purgeLocalRoom(server, roomInfo.id).then(() => layout.refresh())}
+      />
+    {/if}
     {#if roomInfo.archived}
       {@render iconButton({
         icon: 'uil--redo',
@@ -695,7 +702,7 @@
 
       <div
         class="flex flex-col gap-4"
-        use:dndzone={{
+        use:dragHandleZone={{
           items: renderGroups,
           flipDurationMs: 200,
           dropTargetStyle: {},
@@ -714,6 +721,7 @@
           >
             <header class="group-header flex items-center gap-3 panel-header px-4 py-3">
               <span
+                use:dragHandle
                 role="button"
                 tabindex="0"
                 class="iconify shrink-0 cursor-grab text-lg text-muted uil--draggabledots hover:text-text"
@@ -726,7 +734,7 @@
                 <Pill tone="muted">{group.items.length}</Pill>
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="group-header-actions flex items-center gap-2">
                 {#if group.canCreateRoom}
                   <Button variant="secondary" size="sm" onclick={() => openCreateRoom(group)}>
                     <span class="iconify uil--plus"></span>
@@ -764,7 +772,7 @@
 
             <div
               class="min-h-12 p-2"
-              use:dndzone={{
+              use:dragHandleZone={{
                 items: group.items,
                 flipDurationMs: 200,
                 dropTargetStyle: {
@@ -781,8 +789,16 @@
               {#each group.items as room (room.id)}
                 <div
                   animate:flip={{ duration: 200 }}
-                  class="room-row group cursor-grab rounded-lg py-2 pr-2 pl-3 hover:bg-surface-100"
+                  class="room-row group rounded-lg py-2 pr-2 pl-2 hover:bg-surface-100"
                 >
+                  <span
+                    use:dragHandle
+                    role="button"
+                    tabindex="0"
+                    class="mt-0.5 iconify grid size-9 shrink-0 cursor-grab place-items-center rounded-lg text-lg text-muted uil--draggabledots hover:bg-surface-200 hover:text-text focus-visible:outline-2 focus-visible:outline-primary"
+                    title={m['admin.rooms_admin.drag_room']()}
+                    aria-label={m['admin.rooms_admin.drag_room']()}
+                  ></span>
                   <div
                     class={[
                       'room-row-copy min-w-0',
@@ -813,6 +829,15 @@
                               <Pill tone="muted" class="shrink-0 rounded-md px-1.5"
                                 >{m['admin.rooms_admin.archived']()}</Pill
                               >
+                            {/if}
+                            {#if room.room.isLocked}
+                              <Pill
+                                tone="danger"
+                                class="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5"
+                              >
+                                <span class="iconify text-xs uil--lock" aria-hidden="true"></span>
+                                {m['room.governance.locked_status']()}
+                              </Pill>
                             {/if}
                           </div>
                           {#if description}
@@ -1033,7 +1058,7 @@
 
   .room-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     column-gap: 0.75rem;
     row-gap: 0.5rem;
@@ -1046,25 +1071,24 @@
   }
 
   @container (max-width: 34rem) {
-    .room-row {
-      grid-template-columns: minmax(0, 1fr);
-      align-items: stretch;
-    }
-
-    .room-row-actions {
-      width: 100%;
-      justify-self: stretch;
+    .group-header {
+      align-items: flex-start;
       flex-wrap: wrap;
     }
-  }
 
-  @media (max-width: 640px) {
+    .group-header-actions {
+      width: 100%;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
     .room-row {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: auto minmax(0, 1fr);
       align-items: stretch;
     }
 
     .room-row-actions {
+      grid-column: 1 / -1;
       width: 100%;
       justify-self: stretch;
       flex-wrap: wrap;

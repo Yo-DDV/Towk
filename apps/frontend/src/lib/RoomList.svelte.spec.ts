@@ -340,6 +340,20 @@ describe('RoomList', () => {
     expect(dmLink.closest('[data-testid="dm-list-row"]')).toHaveClass('sidebar-item');
   });
 
+  it('keeps the lock indicator in the channel list', async () => {
+    const channel = (
+      mocks.store.rooms.rooms as Array<{ id: string; isLocked?: boolean }>
+    ).find((room) => room.id === 'channel-1');
+    if (!channel) throw new Error('Missing mocked room channel-1');
+    channel.isLocked = true;
+
+    const { container } = render(RoomList);
+
+    const channelLink = q(container, '[href="/chat/-/channel-1"]') as HTMLAnchorElement;
+    await expect.element(channelLink).toBeInTheDocument();
+    expect(channelLink.querySelector('[data-testid="room-list-locked-indicator"]')).not.toBeNull();
+  });
+
   it('hides plain unread attention for a muted direct-message room', async () => {
     setRoomUnread('dm-with-participants', true);
     mocks.store.notificationLevels.isRoomMuted.mockImplementation(

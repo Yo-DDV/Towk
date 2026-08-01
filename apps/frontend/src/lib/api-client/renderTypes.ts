@@ -266,6 +266,8 @@ export type RoomEventPayload =
   | { kind: 'roomMarkedAsRead'; roomId?: string }
   | { kind: 'roomMemberBanned' }
   | { kind: 'roomMemberUnbanned' }
+  | { kind: 'roomPostingPolicyChanged'; roomId: string; locked: boolean }
+  | { kind: 'roomHistoryPurged'; roomId: string; historyEpoch: bigint }
   | { kind: 'roomUnarchived'; roomId: string }
   | {
       kind: 'roomUniversalChanged';

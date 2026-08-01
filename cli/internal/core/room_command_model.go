@@ -43,6 +43,20 @@ type RoomIDInput struct {
 	RoomID  string
 }
 
+type RoomPostingPolicyInput struct {
+	ActorID          string
+	RoomID           string
+	ExpectedRevision uint64
+	PostingPolicy    corev1.RoomPostingPolicy
+}
+
+type RoomHistoryPurgeInput struct {
+	ActorID          string
+	RoomID           string
+	ExpectedRevision uint64
+	ConfirmationName string
+}
+
 type RoomUserInput struct {
 	ActorID string
 	RoomID  string
@@ -146,6 +160,55 @@ func (s *RoomCommandModel) UnarchiveRoom(ctx context.Context, input RoomIDInput)
 		return nil, err
 	}
 	return s.core.UnarchiveRoom(ctx, input.ActorID, kind, input.RoomID)
+}
+
+func (s *RoomCommandModel) SetPostingPolicy(ctx context.Context, input RoomPostingPolicyInput) (*corev1.Room, error) {
+	kind, err := s.authorizeRoomPermission(ctx, input.ActorID, input.RoomID, PermRoomLock)
+	if err != nil {
+		return nil, err
+	}
+	if kind != KindChannel {
+		return nil, invalidArgument("DM rooms cannot be locked")
+	}
+	return s.core.SetRoomPostingPolicy(
+		ctx,
+		input.ActorID,
+		input.RoomID,
+		input.PostingPolicy,
+		input.ExpectedRevision,
+	)
+}
+
+func (s *RoomCommandModel) PurgeHistory(ctx context.Context, input RoomHistoryPurgeInput) (*corev1.Room, *RoomHistoryPurgeOperation, error) {
+	kind, err := s.authorizeRoomPermission(ctx, input.ActorID, input.RoomID, PermRoomPurgeMessages)
+	if err != nil {
+		return nil, nil, err
+	}
+	if kind != KindChannel {
+		return nil, nil, invalidArgument("DM room history cannot be purged")
+	}
+	return s.core.StartRoomHistoryPurge(ctx, input)
+}
+
+func (s *RoomCommandModel) GetHistoryPurgeOperation(ctx context.Context, actorID, operationID string) (*RoomHistoryPurgeOperation, error) {
+	if err := requireAuthenticatedActor(actorID); err != nil {
+		return nil, err
+	}
+	operation, starterID, err := s.core.GetRoomHistoryPurgeOperation(ctx, operationID)
+	if err != nil {
+		return nil, err
+	}
+	if starterID == actorID {
+		return operation, nil
+	}
+	can, err := s.core.PermResolver().HasRoomPermission(ctx, actorID, KindChannel, operation.RoomID, PermRoomPurgeMessages)
+	if err != nil {
+		return nil, err
+	}
+	if !can {
+		return nil, ErrPermissionDenied
+	}
+	return operation, nil
 }
 
 func (s *RoomCommandModel) JoinRoom(ctx context.Context, input RoomIDInput) (*corev1.Room, error) {
@@ -265,6 +328,10 @@ func (s *RoomCommandModel) ListActiveRoomBans(ctx context.Context, input RoomBan
 }
 
 func (s *RoomCommandModel) authorizeRoomManage(ctx context.Context, actorID, roomID string) (RoomKind, error) {
+	return s.authorizeRoomPermission(ctx, actorID, roomID, PermRoomManage)
+}
+
+func (s *RoomCommandModel) authorizeRoomPermission(ctx context.Context, actorID, roomID string, permission Permission) (RoomKind, error) {
 	if err := requireAuthenticatedActor(actorID); err != nil {
 		return KindChannel, err
 	}
@@ -275,7 +342,7 @@ func (s *RoomCommandModel) authorizeRoomManage(ctx context.Context, actorID, roo
 	if kind == KindDM {
 		return KindChannel, invalidArgument("DM rooms cannot be managed through RoomService")
 	}
-	can, err := s.core.PermResolver().HasRoomPermission(ctx, actorID, kind, roomID, PermRoomManage)
+	can, err := s.core.PermResolver().HasRoomPermission(ctx, actorID, kind, roomID, permission)
 	if err != nil {
 		return KindChannel, err
 	}

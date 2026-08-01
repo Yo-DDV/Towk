@@ -434,6 +434,14 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
         <span class="sidebar-icon iconify text-muted uil--lock"></span>
       {/if}
       <span class="flex-1 truncate">{room.name}</span>
+      {#if room.isLocked}
+        <span
+          class="iconify shrink-0 text-sm text-warning uil--lock"
+          title={m['room_list.locked']()}
+          aria-label={m['room_list.locked']()}
+          data-testid="room-list-locked-indicator"
+        ></span>
+      {/if}
       {#if isJoined && hasActiveCall}
         {@render activeCallParticipants(room.id)}
       {/if}

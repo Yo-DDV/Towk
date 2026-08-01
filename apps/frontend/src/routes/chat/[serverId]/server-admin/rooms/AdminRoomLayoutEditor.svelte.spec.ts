@@ -11,6 +11,7 @@ import {
 } from '$lib/state/server/adminRoomLayout.svelte';
 import type { RegisteredServer } from '$lib/state/server/registry.svelte';
 import { q } from '$lib/test-utils';
+import { RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 import AdminRoomLayoutEditor from './AdminRoomLayoutEditor.svelte';
 
 vi.mock('$app/navigation', () => ({
@@ -38,7 +39,8 @@ vi.mock('$app/paths', () => ({
 }));
 
 vi.mock('svelte-dnd-action', () => ({
-  dndzone: () => ({
+  dragHandle: () => ({}),
+  dragHandleZone: () => ({
     update: vi.fn(),
     destroy: vi.fn()
   })
@@ -50,7 +52,13 @@ function room(id: string, overrides: Partial<AdminRoomInfo> = {}): AdminRoomInfo
     name: overrides.name ?? id,
     description: overrides.description ?? null,
     archived: overrides.archived ?? false,
-    isUniversal: overrides.isUniversal ?? false
+    isUniversal: overrides.isUniversal ?? false,
+    postingPolicy: overrides.postingPolicy ?? RoomPostingPolicy.OPEN,
+    historyEpoch: overrides.historyEpoch ?? 0n,
+    revision: overrides.revision ?? 1n,
+    isLocked: overrides.isLocked ?? false,
+    canLockRoom: overrides.canLockRoom ?? false,
+    canPurgeMessages: overrides.canPurgeMessages ?? false
   };
 }
 
@@ -342,6 +350,36 @@ describe('AdminRoomLayoutEditor', () => {
       expect(actionBounds.right).toBeLessThanOrEqual(rowBounds.right + 1);
       expect(actionBounds.left).toBeGreaterThanOrEqual(rowBounds.left - 1);
       expect(row.scrollWidth).toBeLessThanOrEqual(Math.ceil(rowBounds.width) + 1);
+    });
+  });
+
+  it('wraps group actions inside narrow cards without horizontal overflow', async () => {
+    const layout = makeLayout();
+    layout.initialized = true;
+    layout.groups = [group('g1', [room('r1', { name: 'general' })], 'Lobby')];
+    const { container } = renderEditor(layout);
+    const card = container.querySelector('.room-group-card');
+    const header = container.querySelector('.group-header');
+    const title = container.querySelector('.group-header h2');
+    const actions = container.querySelector('.group-header-actions');
+    if (
+      !(card instanceof HTMLElement) ||
+      !(header instanceof HTMLElement) ||
+      !(title instanceof HTMLElement) ||
+      !(actions instanceof HTMLElement)
+    ) {
+      throw new Error('group header geometry was unavailable');
+    }
+
+    card.style.width = '18rem';
+    await vi.waitFor(() => {
+      const headerBounds = header.getBoundingClientRect();
+      const titleBounds = title.getBoundingClientRect();
+      const actionBounds = actions.getBoundingClientRect();
+      expect(actionBounds.top).toBeGreaterThan(titleBounds.top);
+      expect(actionBounds.right).toBeLessThanOrEqual(headerBounds.right + 1);
+      expect(actionBounds.left).toBeGreaterThanOrEqual(headerBounds.left - 1);
+      expect(header.scrollWidth).toBeLessThanOrEqual(Math.ceil(headerBounds.width) + 1);
     });
   });
 

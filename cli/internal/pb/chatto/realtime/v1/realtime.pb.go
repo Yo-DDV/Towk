@@ -1005,6 +1005,8 @@ type RealtimeEventEnvelope struct {
 	//	*RealtimeEventEnvelope_UserJoinedRoom
 	//	*RealtimeEventEnvelope_UserLeftRoom
 	//	*RealtimeEventEnvelope_RoomUniversalChanged
+	//	*RealtimeEventEnvelope_RoomPostingPolicyChanged
+	//	*RealtimeEventEnvelope_RoomHistoryPurged
 	//	*RealtimeEventEnvelope_NotificationCreated
 	//	*RealtimeEventEnvelope_NotificationDismissed
 	//	*RealtimeEventEnvelope_NotificationLevelChanged
@@ -1224,6 +1226,24 @@ func (x *RealtimeEventEnvelope) GetRoomUniversalChanged() *RealtimeRoomUniversal
 	if x != nil {
 		if x, ok := x.Event.(*RealtimeEventEnvelope_RoomUniversalChanged); ok {
 			return x.RoomUniversalChanged
+		}
+	}
+	return nil
+}
+
+func (x *RealtimeEventEnvelope) GetRoomPostingPolicyChanged() *RealtimeRoomPostingPolicyChangedEvent {
+	if x != nil {
+		if x, ok := x.Event.(*RealtimeEventEnvelope_RoomPostingPolicyChanged); ok {
+			return x.RoomPostingPolicyChanged
+		}
+	}
+	return nil
+}
+
+func (x *RealtimeEventEnvelope) GetRoomHistoryPurged() *RealtimeRoomHistoryPurgedEvent {
+	if x != nil {
+		if x, ok := x.Event.(*RealtimeEventEnvelope_RoomHistoryPurged); ok {
+			return x.RoomHistoryPurged
 		}
 	}
 	return nil
@@ -1542,6 +1562,16 @@ type RealtimeEventEnvelope_RoomUniversalChanged struct {
 	RoomUniversalChanged *RealtimeRoomUniversalChangedEvent `protobuf:"bytes,47,opt,name=room_universal_changed,json=roomUniversalChanged,proto3,oneof"`
 }
 
+type RealtimeEventEnvelope_RoomPostingPolicyChanged struct {
+	// A channel was locked or unlocked.
+	RoomPostingPolicyChanged *RealtimeRoomPostingPolicyChangedEvent `protobuf:"bytes,48,opt,name=room_posting_policy_changed,json=roomPostingPolicyChanged,proto3,oneof"`
+}
+
+type RealtimeEventEnvelope_RoomHistoryPurged struct {
+	// A channel crossed a durable message-history purge barrier.
+	RoomHistoryPurged *RealtimeRoomHistoryPurgedEvent `protobuf:"bytes,49,opt,name=room_history_purged,json=roomHistoryPurged,proto3,oneof"`
+}
+
 type RealtimeEventEnvelope_NotificationCreated struct {
 	// A notification was created for the current user.
 	NotificationCreated *RealtimeNotificationCreatedEvent `protobuf:"bytes,60,opt,name=notification_created,json=notificationCreated,proto3,oneof"`
@@ -1701,6 +1731,10 @@ func (*RealtimeEventEnvelope_UserJoinedRoom) isRealtimeEventEnvelope_Event() {}
 func (*RealtimeEventEnvelope_UserLeftRoom) isRealtimeEventEnvelope_Event() {}
 
 func (*RealtimeEventEnvelope_RoomUniversalChanged) isRealtimeEventEnvelope_Event() {}
+
+func (*RealtimeEventEnvelope_RoomPostingPolicyChanged) isRealtimeEventEnvelope_Event() {}
+
+func (*RealtimeEventEnvelope_RoomHistoryPurged) isRealtimeEventEnvelope_Event() {}
 
 func (*RealtimeEventEnvelope_NotificationCreated) isRealtimeEventEnvelope_Event() {}
 
@@ -2248,6 +2282,118 @@ func (x *RealtimeRoomUniversalChangedEvent) GetUniversal() bool {
 	return false
 }
 
+// Channel posting-policy invalidation signal.
+//
+// The latest locked state is inline. Hydrate the room to refresh its revision
+// and the viewer's effective governance permissions.
+type RealtimeRoomPostingPolicyChangedEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	Locked        bool                   `protobuf:"varint,2,opt,name=locked,proto3" json:"locked,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RealtimeRoomPostingPolicyChangedEvent) Reset() {
+	*x = RealtimeRoomPostingPolicyChangedEvent{}
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RealtimeRoomPostingPolicyChangedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RealtimeRoomPostingPolicyChangedEvent) ProtoMessage() {}
+
+func (x *RealtimeRoomPostingPolicyChangedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RealtimeRoomPostingPolicyChangedEvent.ProtoReflect.Descriptor instead.
+func (*RealtimeRoomPostingPolicyChangedEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *RealtimeRoomPostingPolicyChangedEvent) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *RealtimeRoomPostingPolicyChangedEvent) GetLocked() bool {
+	if x != nil {
+		return x.Locked
+	}
+	return false
+}
+
+// Channel history-purge invalidation signal.
+//
+// Clients must immediately invalidate cached timeline state from every earlier
+// epoch and hydrate the room before accepting new writes.
+type RealtimeRoomHistoryPurgedEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	HistoryEpoch  uint64                 `protobuf:"varint,2,opt,name=history_epoch,json=historyEpoch,proto3" json:"history_epoch,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RealtimeRoomHistoryPurgedEvent) Reset() {
+	*x = RealtimeRoomHistoryPurgedEvent{}
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RealtimeRoomHistoryPurgedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RealtimeRoomHistoryPurgedEvent) ProtoMessage() {}
+
+func (x *RealtimeRoomHistoryPurgedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RealtimeRoomHistoryPurgedEvent.ProtoReflect.Descriptor instead.
+func (*RealtimeRoomHistoryPurgedEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *RealtimeRoomHistoryPurgedEvent) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *RealtimeRoomHistoryPurgedEvent) GetHistoryEpoch() uint64 {
+	if x != nil {
+		return x.HistoryEpoch
+	}
+	return 0
+}
+
 // Notification-created signal for the connected user.
 //
 // Hydrate full notification rows with `NotificationService.GetNotification` or
@@ -2275,7 +2421,7 @@ type RealtimeNotificationCreatedEvent struct {
 
 func (x *RealtimeNotificationCreatedEvent) Reset() {
 	*x = RealtimeNotificationCreatedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[21]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2287,7 +2433,7 @@ func (x *RealtimeNotificationCreatedEvent) String() string {
 func (*RealtimeNotificationCreatedEvent) ProtoMessage() {}
 
 func (x *RealtimeNotificationCreatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[21]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2300,7 +2446,7 @@ func (x *RealtimeNotificationCreatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeNotificationCreatedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeNotificationCreatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{21}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *RealtimeNotificationCreatedEvent) GetNotificationId() string {
@@ -2359,7 +2505,7 @@ type RealtimeNotificationDismissedEvent struct {
 
 func (x *RealtimeNotificationDismissedEvent) Reset() {
 	*x = RealtimeNotificationDismissedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[22]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2371,7 +2517,7 @@ func (x *RealtimeNotificationDismissedEvent) String() string {
 func (*RealtimeNotificationDismissedEvent) ProtoMessage() {}
 
 func (x *RealtimeNotificationDismissedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[22]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2384,7 +2530,7 @@ func (x *RealtimeNotificationDismissedEvent) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use RealtimeNotificationDismissedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeNotificationDismissedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{22}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *RealtimeNotificationDismissedEvent) GetNotificationId() string {
@@ -2413,7 +2559,7 @@ type RealtimeNotificationLevelChangedEvent struct {
 
 func (x *RealtimeNotificationLevelChangedEvent) Reset() {
 	*x = RealtimeNotificationLevelChangedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[23]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2425,7 +2571,7 @@ func (x *RealtimeNotificationLevelChangedEvent) String() string {
 func (*RealtimeNotificationLevelChangedEvent) ProtoMessage() {}
 
 func (x *RealtimeNotificationLevelChangedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[23]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2438,7 +2584,7 @@ func (x *RealtimeNotificationLevelChangedEvent) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use RealtimeNotificationLevelChangedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeNotificationLevelChangedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{23}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *RealtimeNotificationLevelChangedEvent) GetRoomId() string {
@@ -2481,7 +2627,7 @@ type RealtimeThreadFollowChangedEvent struct {
 
 func (x *RealtimeThreadFollowChangedEvent) Reset() {
 	*x = RealtimeThreadFollowChangedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[24]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2493,7 +2639,7 @@ func (x *RealtimeThreadFollowChangedEvent) String() string {
 func (*RealtimeThreadFollowChangedEvent) ProtoMessage() {}
 
 func (x *RealtimeThreadFollowChangedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[24]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2506,7 +2652,7 @@ func (x *RealtimeThreadFollowChangedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeThreadFollowChangedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeThreadFollowChangedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{24}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *RealtimeThreadFollowChangedEvent) GetRoomId() string {
@@ -2546,7 +2692,7 @@ type RealtimeThreadCreatedEvent struct {
 
 func (x *RealtimeThreadCreatedEvent) Reset() {
 	*x = RealtimeThreadCreatedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[25]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2558,7 +2704,7 @@ func (x *RealtimeThreadCreatedEvent) String() string {
 func (*RealtimeThreadCreatedEvent) ProtoMessage() {}
 
 func (x *RealtimeThreadCreatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[25]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2571,7 +2717,7 @@ func (x *RealtimeThreadCreatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeThreadCreatedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeThreadCreatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{25}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *RealtimeThreadCreatedEvent) GetRoomId() string {
@@ -2602,7 +2748,7 @@ type RealtimeRoomMarkedAsReadEvent struct {
 
 func (x *RealtimeRoomMarkedAsReadEvent) Reset() {
 	*x = RealtimeRoomMarkedAsReadEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[26]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2614,7 +2760,7 @@ func (x *RealtimeRoomMarkedAsReadEvent) String() string {
 func (*RealtimeRoomMarkedAsReadEvent) ProtoMessage() {}
 
 func (x *RealtimeRoomMarkedAsReadEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[26]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2627,7 +2773,7 @@ func (x *RealtimeRoomMarkedAsReadEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeRoomMarkedAsReadEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeRoomMarkedAsReadEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{26}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *RealtimeRoomMarkedAsReadEvent) GetRoomId() string {
@@ -2657,7 +2803,7 @@ type RealtimeServerUpdatedEvent struct {
 
 func (x *RealtimeServerUpdatedEvent) Reset() {
 	*x = RealtimeServerUpdatedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[27]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2669,7 +2815,7 @@ func (x *RealtimeServerUpdatedEvent) String() string {
 func (*RealtimeServerUpdatedEvent) ProtoMessage() {}
 
 func (x *RealtimeServerUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[27]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2682,7 +2828,7 @@ func (x *RealtimeServerUpdatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeServerUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeServerUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{27}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *RealtimeServerUpdatedEvent) GetName() string {
@@ -2735,7 +2881,7 @@ type RealtimeUserProfileUpdatedEvent struct {
 
 func (x *RealtimeUserProfileUpdatedEvent) Reset() {
 	*x = RealtimeUserProfileUpdatedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[28]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2747,7 +2893,7 @@ func (x *RealtimeUserProfileUpdatedEvent) String() string {
 func (*RealtimeUserProfileUpdatedEvent) ProtoMessage() {}
 
 func (x *RealtimeUserProfileUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[28]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2760,7 +2906,7 @@ func (x *RealtimeUserProfileUpdatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeUserProfileUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeUserProfileUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{28}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *RealtimeUserProfileUpdatedEvent) GetUserId() string {
@@ -2818,7 +2964,7 @@ type RealtimeUserCustomStatusSetEvent struct {
 
 func (x *RealtimeUserCustomStatusSetEvent) Reset() {
 	*x = RealtimeUserCustomStatusSetEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[29]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2830,7 +2976,7 @@ func (x *RealtimeUserCustomStatusSetEvent) String() string {
 func (*RealtimeUserCustomStatusSetEvent) ProtoMessage() {}
 
 func (x *RealtimeUserCustomStatusSetEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[29]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2843,7 +2989,7 @@ func (x *RealtimeUserCustomStatusSetEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeUserCustomStatusSetEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeUserCustomStatusSetEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{29}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *RealtimeUserCustomStatusSetEvent) GetUserId() string {
@@ -2888,7 +3034,7 @@ type RealtimeUserCustomStatusClearedEvent struct {
 
 func (x *RealtimeUserCustomStatusClearedEvent) Reset() {
 	*x = RealtimeUserCustomStatusClearedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[30]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2900,7 +3046,7 @@ func (x *RealtimeUserCustomStatusClearedEvent) String() string {
 func (*RealtimeUserCustomStatusClearedEvent) ProtoMessage() {}
 
 func (x *RealtimeUserCustomStatusClearedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[30]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2913,7 +3059,7 @@ func (x *RealtimeUserCustomStatusClearedEvent) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use RealtimeUserCustomStatusClearedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeUserCustomStatusClearedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{30}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *RealtimeUserCustomStatusClearedEvent) GetUserId() string {
@@ -2942,7 +3088,7 @@ type RealtimeServerUserPreferencesUpdatedEvent struct {
 
 func (x *RealtimeServerUserPreferencesUpdatedEvent) Reset() {
 	*x = RealtimeServerUserPreferencesUpdatedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[31]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2954,7 +3100,7 @@ func (x *RealtimeServerUserPreferencesUpdatedEvent) String() string {
 func (*RealtimeServerUserPreferencesUpdatedEvent) ProtoMessage() {}
 
 func (x *RealtimeServerUserPreferencesUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[31]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2967,7 +3113,7 @@ func (x *RealtimeServerUserPreferencesUpdatedEvent) ProtoReflect() protoreflect.
 
 // Deprecated: Use RealtimeServerUserPreferencesUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeServerUserPreferencesUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{31}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *RealtimeServerUserPreferencesUpdatedEvent) GetTimezone() string {
@@ -3015,7 +3161,7 @@ type RealtimeReadReceiptAdvancedEvent struct {
 
 func (x *RealtimeReadReceiptAdvancedEvent) Reset() {
 	*x = RealtimeReadReceiptAdvancedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[32]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3027,7 +3173,7 @@ func (x *RealtimeReadReceiptAdvancedEvent) String() string {
 func (*RealtimeReadReceiptAdvancedEvent) ProtoMessage() {}
 
 func (x *RealtimeReadReceiptAdvancedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[32]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3040,7 +3186,7 @@ func (x *RealtimeReadReceiptAdvancedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeReadReceiptAdvancedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeReadReceiptAdvancedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{32}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *RealtimeReadReceiptAdvancedEvent) GetRoomId() string {
@@ -3073,7 +3219,7 @@ type RealtimeRoomGroupsUpdatedEvent struct {
 
 func (x *RealtimeRoomGroupsUpdatedEvent) Reset() {
 	*x = RealtimeRoomGroupsUpdatedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[33]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3085,7 +3231,7 @@ func (x *RealtimeRoomGroupsUpdatedEvent) String() string {
 func (*RealtimeRoomGroupsUpdatedEvent) ProtoMessage() {}
 
 func (x *RealtimeRoomGroupsUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[33]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3098,7 +3244,7 @@ func (x *RealtimeRoomGroupsUpdatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeRoomGroupsUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeRoomGroupsUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{33}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *RealtimeRoomGroupsUpdatedEvent) GetChanged() bool {
@@ -3123,7 +3269,7 @@ type RealtimeServerMemberDeletedEvent struct {
 
 func (x *RealtimeServerMemberDeletedEvent) Reset() {
 	*x = RealtimeServerMemberDeletedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[34]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3135,7 +3281,7 @@ func (x *RealtimeServerMemberDeletedEvent) String() string {
 func (*RealtimeServerMemberDeletedEvent) ProtoMessage() {}
 
 func (x *RealtimeServerMemberDeletedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[34]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3148,7 +3294,7 @@ func (x *RealtimeServerMemberDeletedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeServerMemberDeletedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeServerMemberDeletedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{34}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *RealtimeServerMemberDeletedEvent) GetUserId() string {
@@ -3178,7 +3324,7 @@ type RealtimeAssetProcessingEvent struct {
 
 func (x *RealtimeAssetProcessingEvent) Reset() {
 	*x = RealtimeAssetProcessingEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[35]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3190,7 +3336,7 @@ func (x *RealtimeAssetProcessingEvent) String() string {
 func (*RealtimeAssetProcessingEvent) ProtoMessage() {}
 
 func (x *RealtimeAssetProcessingEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[35]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3203,7 +3349,7 @@ func (x *RealtimeAssetProcessingEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeAssetProcessingEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeAssetProcessingEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{35}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *RealtimeAssetProcessingEvent) GetRoomId() string {
@@ -3244,7 +3390,7 @@ type RealtimeAssetDeletedEvent struct {
 
 func (x *RealtimeAssetDeletedEvent) Reset() {
 	*x = RealtimeAssetDeletedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[36]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3256,7 +3402,7 @@ func (x *RealtimeAssetDeletedEvent) String() string {
 func (*RealtimeAssetDeletedEvent) ProtoMessage() {}
 
 func (x *RealtimeAssetDeletedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[36]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3269,7 +3415,7 @@ func (x *RealtimeAssetDeletedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeAssetDeletedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeAssetDeletedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{36}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *RealtimeAssetDeletedEvent) GetRoomId() string {
@@ -3313,7 +3459,7 @@ type RealtimeCallEvent struct {
 
 func (x *RealtimeCallEvent) Reset() {
 	*x = RealtimeCallEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[37]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3325,7 +3471,7 @@ func (x *RealtimeCallEvent) String() string {
 func (*RealtimeCallEvent) ProtoMessage() {}
 
 func (x *RealtimeCallEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[37]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3338,7 +3484,7 @@ func (x *RealtimeCallEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeCallEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeCallEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{37}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *RealtimeCallEvent) GetRoomId() string {
@@ -3411,7 +3557,7 @@ type RealtimeMentionNotificationEvent struct {
 
 func (x *RealtimeMentionNotificationEvent) Reset() {
 	*x = RealtimeMentionNotificationEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[38]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3423,7 +3569,7 @@ func (x *RealtimeMentionNotificationEvent) String() string {
 func (*RealtimeMentionNotificationEvent) ProtoMessage() {}
 
 func (x *RealtimeMentionNotificationEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[38]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3436,7 +3582,7 @@ func (x *RealtimeMentionNotificationEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeMentionNotificationEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeMentionNotificationEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{38}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *RealtimeMentionNotificationEvent) GetRoomId() string {
@@ -3491,7 +3637,7 @@ type RealtimeNewDirectMessageNotificationEvent struct {
 
 func (x *RealtimeNewDirectMessageNotificationEvent) Reset() {
 	*x = RealtimeNewDirectMessageNotificationEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[39]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3503,7 +3649,7 @@ func (x *RealtimeNewDirectMessageNotificationEvent) String() string {
 func (*RealtimeNewDirectMessageNotificationEvent) ProtoMessage() {}
 
 func (x *RealtimeNewDirectMessageNotificationEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[39]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3516,7 +3662,7 @@ func (x *RealtimeNewDirectMessageNotificationEvent) ProtoReflect() protoreflect.
 
 // Deprecated: Use RealtimeNewDirectMessageNotificationEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeNewDirectMessageNotificationEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{39}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *RealtimeNewDirectMessageNotificationEvent) GetRoomId() string {
@@ -3565,7 +3711,7 @@ type RealtimeSessionTerminatedEvent struct {
 
 func (x *RealtimeSessionTerminatedEvent) Reset() {
 	*x = RealtimeSessionTerminatedEvent{}
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[40]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3577,7 +3723,7 @@ func (x *RealtimeSessionTerminatedEvent) String() string {
 func (*RealtimeSessionTerminatedEvent) ProtoMessage() {}
 
 func (x *RealtimeSessionTerminatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[40]
+	mi := &file_chatto_realtime_v1_realtime_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3590,7 +3736,7 @@ func (x *RealtimeSessionTerminatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RealtimeSessionTerminatedEvent.ProtoReflect.Descriptor instead.
 func (*RealtimeSessionTerminatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{40}
+	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *RealtimeSessionTerminatedEvent) GetReason() string {
@@ -3659,7 +3805,7 @@ const file_chatto_realtime_v1_realtime_proto_rawDesc = "" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1c\n" +
 	"\treconnect\x18\x03 \x01(\bR\treconnect\x12$\n" +
-	"\x0eretry_after_ms\x18\x04 \x01(\rR\fretryAfterMs\"\xda \n" +
+	"\x0eretry_after_ms\x18\x04 \x01(\rR\fretryAfterMs\"\xbc\"\n" +
 	"\x15RealtimeEventEnvelope\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -3681,7 +3827,9 @@ const file_chatto_realtime_v1_realtime_proto_rawDesc = "" +
 	"\x0froom_unarchived\x18, \x01(\v2%.chatto.realtime.v1.RealtimeRoomEventH\x00R\x0eroomUnarchived\x12Q\n" +
 	"\x10user_joined_room\x18- \x01(\v2%.chatto.realtime.v1.RealtimeRoomEventH\x00R\x0euserJoinedRoom\x12M\n" +
 	"\x0euser_left_room\x18. \x01(\v2%.chatto.realtime.v1.RealtimeRoomEventH\x00R\fuserLeftRoom\x12m\n" +
-	"\x16room_universal_changed\x18/ \x01(\v25.chatto.realtime.v1.RealtimeRoomUniversalChangedEventH\x00R\x14roomUniversalChanged\x12i\n" +
+	"\x16room_universal_changed\x18/ \x01(\v25.chatto.realtime.v1.RealtimeRoomUniversalChangedEventH\x00R\x14roomUniversalChanged\x12z\n" +
+	"\x1broom_posting_policy_changed\x180 \x01(\v29.chatto.realtime.v1.RealtimeRoomPostingPolicyChangedEventH\x00R\x18roomPostingPolicyChanged\x12d\n" +
+	"\x13room_history_purged\x181 \x01(\v22.chatto.realtime.v1.RealtimeRoomHistoryPurgedEventH\x00R\x11roomHistoryPurged\x12i\n" +
 	"\x14notification_created\x18< \x01(\v24.chatto.realtime.v1.RealtimeNotificationCreatedEventH\x00R\x13notificationCreated\x12o\n" +
 	"\x16notification_dismissed\x18= \x01(\v26.chatto.realtime.v1.RealtimeNotificationDismissedEventH\x00R\x15notificationDismissed\x12y\n" +
 	"\x1anotification_level_changed\x18> \x01(\v29.chatto.realtime.v1.RealtimeNotificationLevelChangedEventH\x00R\x18notificationLevelChanged\x12j\n" +
@@ -3739,7 +3887,13 @@ const file_chatto_realtime_v1_realtime_proto_rawDesc = "" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"Z\n" +
 	"!RealtimeRoomUniversalChangedEvent\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x1c\n" +
-	"\tuniversal\x18\x02 \x01(\bR\tuniversal\"\xbd\x02\n" +
+	"\tuniversal\x18\x02 \x01(\bR\tuniversal\"X\n" +
+	"%RealtimeRoomPostingPolicyChangedEvent\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x16\n" +
+	"\x06locked\x18\x02 \x01(\bR\x06locked\"^\n" +
+	"\x1eRealtimeRoomHistoryPurgedEvent\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12#\n" +
+	"\rhistory_epoch\x18\x02 \x01(\x04R\fhistoryEpoch\"\xbd\x02\n" +
 	" RealtimeNotificationCreatedEvent\x12'\n" +
 	"\x0fnotification_id\x18\x01 \x01(\tR\x0enotificationId\x12\x1c\n" +
 	"\aroom_id\x18\x02 \x01(\tH\x00R\x06roomId\x88\x01\x01\x12\x1e\n" +
@@ -3868,7 +4022,7 @@ func file_chatto_realtime_v1_realtime_proto_rawDescGZIP() []byte {
 }
 
 var file_chatto_realtime_v1_realtime_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_chatto_realtime_v1_realtime_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_chatto_realtime_v1_realtime_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_chatto_realtime_v1_realtime_proto_goTypes = []any{
 	(RealtimeCallParticipantConnectionState)(0),       // 0: chatto.realtime.v1.RealtimeCallParticipantConnectionState
 	(RealtimeCallEventSource)(0),                      // 1: chatto.realtime.v1.RealtimeCallEventSource
@@ -3893,30 +4047,32 @@ var file_chatto_realtime_v1_realtime_proto_goTypes = []any{
 	(*RealtimePresenceChangedEvent)(nil),              // 20: chatto.realtime.v1.RealtimePresenceChangedEvent
 	(*RealtimeRoomEvent)(nil),                         // 21: chatto.realtime.v1.RealtimeRoomEvent
 	(*RealtimeRoomUniversalChangedEvent)(nil),         // 22: chatto.realtime.v1.RealtimeRoomUniversalChangedEvent
-	(*RealtimeNotificationCreatedEvent)(nil),          // 23: chatto.realtime.v1.RealtimeNotificationCreatedEvent
-	(*RealtimeNotificationDismissedEvent)(nil),        // 24: chatto.realtime.v1.RealtimeNotificationDismissedEvent
-	(*RealtimeNotificationLevelChangedEvent)(nil),     // 25: chatto.realtime.v1.RealtimeNotificationLevelChangedEvent
-	(*RealtimeThreadFollowChangedEvent)(nil),          // 26: chatto.realtime.v1.RealtimeThreadFollowChangedEvent
-	(*RealtimeThreadCreatedEvent)(nil),                // 27: chatto.realtime.v1.RealtimeThreadCreatedEvent
-	(*RealtimeRoomMarkedAsReadEvent)(nil),             // 28: chatto.realtime.v1.RealtimeRoomMarkedAsReadEvent
-	(*RealtimeServerUpdatedEvent)(nil),                // 29: chatto.realtime.v1.RealtimeServerUpdatedEvent
-	(*RealtimeUserProfileUpdatedEvent)(nil),           // 30: chatto.realtime.v1.RealtimeUserProfileUpdatedEvent
-	(*RealtimeUserCustomStatusSetEvent)(nil),          // 31: chatto.realtime.v1.RealtimeUserCustomStatusSetEvent
-	(*RealtimeUserCustomStatusClearedEvent)(nil),      // 32: chatto.realtime.v1.RealtimeUserCustomStatusClearedEvent
-	(*RealtimeServerUserPreferencesUpdatedEvent)(nil), // 33: chatto.realtime.v1.RealtimeServerUserPreferencesUpdatedEvent
-	(*RealtimeReadReceiptAdvancedEvent)(nil),          // 34: chatto.realtime.v1.RealtimeReadReceiptAdvancedEvent
-	(*RealtimeRoomGroupsUpdatedEvent)(nil),            // 35: chatto.realtime.v1.RealtimeRoomGroupsUpdatedEvent
-	(*RealtimeServerMemberDeletedEvent)(nil),          // 36: chatto.realtime.v1.RealtimeServerMemberDeletedEvent
-	(*RealtimeAssetProcessingEvent)(nil),              // 37: chatto.realtime.v1.RealtimeAssetProcessingEvent
-	(*RealtimeAssetDeletedEvent)(nil),                 // 38: chatto.realtime.v1.RealtimeAssetDeletedEvent
-	(*RealtimeCallEvent)(nil),                         // 39: chatto.realtime.v1.RealtimeCallEvent
-	(*RealtimeMentionNotificationEvent)(nil),          // 40: chatto.realtime.v1.RealtimeMentionNotificationEvent
-	(*RealtimeNewDirectMessageNotificationEvent)(nil), // 41: chatto.realtime.v1.RealtimeNewDirectMessageNotificationEvent
-	(*RealtimeSessionTerminatedEvent)(nil),            // 42: chatto.realtime.v1.RealtimeSessionTerminatedEvent
-	(*timestamppb.Timestamp)(nil),                     // 43: google.protobuf.Timestamp
-	(v1.PresenceStatus)(0),                            // 44: chatto.api.v1.PresenceStatus
-	(v1.NotificationLevel)(0),                         // 45: chatto.api.v1.NotificationLevel
-	(v1.TimeFormat)(0),                                // 46: chatto.api.v1.TimeFormat
+	(*RealtimeRoomPostingPolicyChangedEvent)(nil),     // 23: chatto.realtime.v1.RealtimeRoomPostingPolicyChangedEvent
+	(*RealtimeRoomHistoryPurgedEvent)(nil),            // 24: chatto.realtime.v1.RealtimeRoomHistoryPurgedEvent
+	(*RealtimeNotificationCreatedEvent)(nil),          // 25: chatto.realtime.v1.RealtimeNotificationCreatedEvent
+	(*RealtimeNotificationDismissedEvent)(nil),        // 26: chatto.realtime.v1.RealtimeNotificationDismissedEvent
+	(*RealtimeNotificationLevelChangedEvent)(nil),     // 27: chatto.realtime.v1.RealtimeNotificationLevelChangedEvent
+	(*RealtimeThreadFollowChangedEvent)(nil),          // 28: chatto.realtime.v1.RealtimeThreadFollowChangedEvent
+	(*RealtimeThreadCreatedEvent)(nil),                // 29: chatto.realtime.v1.RealtimeThreadCreatedEvent
+	(*RealtimeRoomMarkedAsReadEvent)(nil),             // 30: chatto.realtime.v1.RealtimeRoomMarkedAsReadEvent
+	(*RealtimeServerUpdatedEvent)(nil),                // 31: chatto.realtime.v1.RealtimeServerUpdatedEvent
+	(*RealtimeUserProfileUpdatedEvent)(nil),           // 32: chatto.realtime.v1.RealtimeUserProfileUpdatedEvent
+	(*RealtimeUserCustomStatusSetEvent)(nil),          // 33: chatto.realtime.v1.RealtimeUserCustomStatusSetEvent
+	(*RealtimeUserCustomStatusClearedEvent)(nil),      // 34: chatto.realtime.v1.RealtimeUserCustomStatusClearedEvent
+	(*RealtimeServerUserPreferencesUpdatedEvent)(nil), // 35: chatto.realtime.v1.RealtimeServerUserPreferencesUpdatedEvent
+	(*RealtimeReadReceiptAdvancedEvent)(nil),          // 36: chatto.realtime.v1.RealtimeReadReceiptAdvancedEvent
+	(*RealtimeRoomGroupsUpdatedEvent)(nil),            // 37: chatto.realtime.v1.RealtimeRoomGroupsUpdatedEvent
+	(*RealtimeServerMemberDeletedEvent)(nil),          // 38: chatto.realtime.v1.RealtimeServerMemberDeletedEvent
+	(*RealtimeAssetProcessingEvent)(nil),              // 39: chatto.realtime.v1.RealtimeAssetProcessingEvent
+	(*RealtimeAssetDeletedEvent)(nil),                 // 40: chatto.realtime.v1.RealtimeAssetDeletedEvent
+	(*RealtimeCallEvent)(nil),                         // 41: chatto.realtime.v1.RealtimeCallEvent
+	(*RealtimeMentionNotificationEvent)(nil),          // 42: chatto.realtime.v1.RealtimeMentionNotificationEvent
+	(*RealtimeNewDirectMessageNotificationEvent)(nil), // 43: chatto.realtime.v1.RealtimeNewDirectMessageNotificationEvent
+	(*RealtimeSessionTerminatedEvent)(nil),            // 44: chatto.realtime.v1.RealtimeSessionTerminatedEvent
+	(*timestamppb.Timestamp)(nil),                     // 45: google.protobuf.Timestamp
+	(v1.PresenceStatus)(0),                            // 46: chatto.api.v1.PresenceStatus
+	(v1.NotificationLevel)(0),                         // 47: chatto.api.v1.NotificationLevel
+	(v1.TimeFormat)(0),                                // 48: chatto.api.v1.TimeFormat
 }
 var file_chatto_realtime_v1_realtime_proto_depIdxs = []int32{
 	4,  // 0: chatto.realtime.v1.RealtimeClientFrame.hello:type_name -> chatto.realtime.v1.RealtimeClientHello
@@ -3930,8 +4086,8 @@ var file_chatto_realtime_v1_realtime_proto_depIdxs = []int32{
 	12, // 8: chatto.realtime.v1.RealtimeServerFrame.error:type_name -> chatto.realtime.v1.RealtimeError
 	13, // 9: chatto.realtime.v1.RealtimeServerFrame.close:type_name -> chatto.realtime.v1.RealtimeClose
 	10, // 10: chatto.realtime.v1.RealtimeServerFrame.pong:type_name -> chatto.realtime.v1.RealtimePong
-	43, // 11: chatto.realtime.v1.RealtimeHeartbeat.created_at:type_name -> google.protobuf.Timestamp
-	43, // 12: chatto.realtime.v1.RealtimeEventEnvelope.created_at:type_name -> google.protobuf.Timestamp
+	45, // 11: chatto.realtime.v1.RealtimeHeartbeat.created_at:type_name -> google.protobuf.Timestamp
+	45, // 12: chatto.realtime.v1.RealtimeEventEnvelope.created_at:type_name -> google.protobuf.Timestamp
 	15, // 13: chatto.realtime.v1.RealtimeEventEnvelope.message_posted:type_name -> chatto.realtime.v1.RealtimeMessagePostedEvent
 	16, // 14: chatto.realtime.v1.RealtimeEventEnvelope.message_edited:type_name -> chatto.realtime.v1.RealtimeMessageEditedEvent
 	17, // 15: chatto.realtime.v1.RealtimeEventEnvelope.message_retracted:type_name -> chatto.realtime.v1.RealtimeMessageRetractedEvent
@@ -3947,45 +4103,47 @@ var file_chatto_realtime_v1_realtime_proto_depIdxs = []int32{
 	21, // 25: chatto.realtime.v1.RealtimeEventEnvelope.user_joined_room:type_name -> chatto.realtime.v1.RealtimeRoomEvent
 	21, // 26: chatto.realtime.v1.RealtimeEventEnvelope.user_left_room:type_name -> chatto.realtime.v1.RealtimeRoomEvent
 	22, // 27: chatto.realtime.v1.RealtimeEventEnvelope.room_universal_changed:type_name -> chatto.realtime.v1.RealtimeRoomUniversalChangedEvent
-	23, // 28: chatto.realtime.v1.RealtimeEventEnvelope.notification_created:type_name -> chatto.realtime.v1.RealtimeNotificationCreatedEvent
-	24, // 29: chatto.realtime.v1.RealtimeEventEnvelope.notification_dismissed:type_name -> chatto.realtime.v1.RealtimeNotificationDismissedEvent
-	25, // 30: chatto.realtime.v1.RealtimeEventEnvelope.notification_level_changed:type_name -> chatto.realtime.v1.RealtimeNotificationLevelChangedEvent
-	26, // 31: chatto.realtime.v1.RealtimeEventEnvelope.thread_follow_changed:type_name -> chatto.realtime.v1.RealtimeThreadFollowChangedEvent
-	28, // 32: chatto.realtime.v1.RealtimeEventEnvelope.room_marked_as_read:type_name -> chatto.realtime.v1.RealtimeRoomMarkedAsReadEvent
-	27, // 33: chatto.realtime.v1.RealtimeEventEnvelope.thread_created:type_name -> chatto.realtime.v1.RealtimeThreadCreatedEvent
-	29, // 34: chatto.realtime.v1.RealtimeEventEnvelope.server_updated:type_name -> chatto.realtime.v1.RealtimeServerUpdatedEvent
-	30, // 35: chatto.realtime.v1.RealtimeEventEnvelope.user_profile_updated:type_name -> chatto.realtime.v1.RealtimeUserProfileUpdatedEvent
-	31, // 36: chatto.realtime.v1.RealtimeEventEnvelope.user_custom_status_set:type_name -> chatto.realtime.v1.RealtimeUserCustomStatusSetEvent
-	32, // 37: chatto.realtime.v1.RealtimeEventEnvelope.user_custom_status_cleared:type_name -> chatto.realtime.v1.RealtimeUserCustomStatusClearedEvent
-	33, // 38: chatto.realtime.v1.RealtimeEventEnvelope.server_user_preferences_updated:type_name -> chatto.realtime.v1.RealtimeServerUserPreferencesUpdatedEvent
-	35, // 39: chatto.realtime.v1.RealtimeEventEnvelope.room_groups_updated:type_name -> chatto.realtime.v1.RealtimeRoomGroupsUpdatedEvent
-	36, // 40: chatto.realtime.v1.RealtimeEventEnvelope.server_member_deleted:type_name -> chatto.realtime.v1.RealtimeServerMemberDeletedEvent
-	34, // 41: chatto.realtime.v1.RealtimeEventEnvelope.read_receipt_advanced:type_name -> chatto.realtime.v1.RealtimeReadReceiptAdvancedEvent
-	37, // 42: chatto.realtime.v1.RealtimeEventEnvelope.asset_processing_started:type_name -> chatto.realtime.v1.RealtimeAssetProcessingEvent
-	37, // 43: chatto.realtime.v1.RealtimeEventEnvelope.asset_processing_succeeded:type_name -> chatto.realtime.v1.RealtimeAssetProcessingEvent
-	37, // 44: chatto.realtime.v1.RealtimeEventEnvelope.asset_processing_failed:type_name -> chatto.realtime.v1.RealtimeAssetProcessingEvent
-	38, // 45: chatto.realtime.v1.RealtimeEventEnvelope.asset_deleted:type_name -> chatto.realtime.v1.RealtimeAssetDeletedEvent
-	39, // 46: chatto.realtime.v1.RealtimeEventEnvelope.call_started:type_name -> chatto.realtime.v1.RealtimeCallEvent
-	39, // 47: chatto.realtime.v1.RealtimeEventEnvelope.call_participant_joined:type_name -> chatto.realtime.v1.RealtimeCallEvent
-	39, // 48: chatto.realtime.v1.RealtimeEventEnvelope.call_participant_left:type_name -> chatto.realtime.v1.RealtimeCallEvent
-	39, // 49: chatto.realtime.v1.RealtimeEventEnvelope.call_ended:type_name -> chatto.realtime.v1.RealtimeCallEvent
-	40, // 50: chatto.realtime.v1.RealtimeEventEnvelope.mention_notification:type_name -> chatto.realtime.v1.RealtimeMentionNotificationEvent
-	41, // 51: chatto.realtime.v1.RealtimeEventEnvelope.new_direct_message_notification:type_name -> chatto.realtime.v1.RealtimeNewDirectMessageNotificationEvent
-	42, // 52: chatto.realtime.v1.RealtimeEventEnvelope.session_terminated:type_name -> chatto.realtime.v1.RealtimeSessionTerminatedEvent
-	39, // 53: chatto.realtime.v1.RealtimeEventEnvelope.call_participant_connection_changed:type_name -> chatto.realtime.v1.RealtimeCallEvent
-	44, // 54: chatto.realtime.v1.RealtimePresenceChangedEvent.status:type_name -> chatto.api.v1.PresenceStatus
-	45, // 55: chatto.realtime.v1.RealtimeNotificationLevelChangedEvent.level:type_name -> chatto.api.v1.NotificationLevel
-	45, // 56: chatto.realtime.v1.RealtimeNotificationLevelChangedEvent.effective_level:type_name -> chatto.api.v1.NotificationLevel
-	43, // 57: chatto.realtime.v1.RealtimeUserCustomStatusSetEvent.expires_at:type_name -> google.protobuf.Timestamp
-	46, // 58: chatto.realtime.v1.RealtimeServerUserPreferencesUpdatedEvent.time_format:type_name -> chatto.api.v1.TimeFormat
-	1,  // 59: chatto.realtime.v1.RealtimeCallEvent.source:type_name -> chatto.realtime.v1.RealtimeCallEventSource
-	0,  // 60: chatto.realtime.v1.RealtimeCallEvent.connection_state:type_name -> chatto.realtime.v1.RealtimeCallParticipantConnectionState
-	43, // 61: chatto.realtime.v1.RealtimeCallEvent.interruption_deadline:type_name -> google.protobuf.Timestamp
-	62, // [62:62] is the sub-list for method output_type
-	62, // [62:62] is the sub-list for method input_type
-	62, // [62:62] is the sub-list for extension type_name
-	62, // [62:62] is the sub-list for extension extendee
-	0,  // [0:62] is the sub-list for field type_name
+	23, // 28: chatto.realtime.v1.RealtimeEventEnvelope.room_posting_policy_changed:type_name -> chatto.realtime.v1.RealtimeRoomPostingPolicyChangedEvent
+	24, // 29: chatto.realtime.v1.RealtimeEventEnvelope.room_history_purged:type_name -> chatto.realtime.v1.RealtimeRoomHistoryPurgedEvent
+	25, // 30: chatto.realtime.v1.RealtimeEventEnvelope.notification_created:type_name -> chatto.realtime.v1.RealtimeNotificationCreatedEvent
+	26, // 31: chatto.realtime.v1.RealtimeEventEnvelope.notification_dismissed:type_name -> chatto.realtime.v1.RealtimeNotificationDismissedEvent
+	27, // 32: chatto.realtime.v1.RealtimeEventEnvelope.notification_level_changed:type_name -> chatto.realtime.v1.RealtimeNotificationLevelChangedEvent
+	28, // 33: chatto.realtime.v1.RealtimeEventEnvelope.thread_follow_changed:type_name -> chatto.realtime.v1.RealtimeThreadFollowChangedEvent
+	30, // 34: chatto.realtime.v1.RealtimeEventEnvelope.room_marked_as_read:type_name -> chatto.realtime.v1.RealtimeRoomMarkedAsReadEvent
+	29, // 35: chatto.realtime.v1.RealtimeEventEnvelope.thread_created:type_name -> chatto.realtime.v1.RealtimeThreadCreatedEvent
+	31, // 36: chatto.realtime.v1.RealtimeEventEnvelope.server_updated:type_name -> chatto.realtime.v1.RealtimeServerUpdatedEvent
+	32, // 37: chatto.realtime.v1.RealtimeEventEnvelope.user_profile_updated:type_name -> chatto.realtime.v1.RealtimeUserProfileUpdatedEvent
+	33, // 38: chatto.realtime.v1.RealtimeEventEnvelope.user_custom_status_set:type_name -> chatto.realtime.v1.RealtimeUserCustomStatusSetEvent
+	34, // 39: chatto.realtime.v1.RealtimeEventEnvelope.user_custom_status_cleared:type_name -> chatto.realtime.v1.RealtimeUserCustomStatusClearedEvent
+	35, // 40: chatto.realtime.v1.RealtimeEventEnvelope.server_user_preferences_updated:type_name -> chatto.realtime.v1.RealtimeServerUserPreferencesUpdatedEvent
+	37, // 41: chatto.realtime.v1.RealtimeEventEnvelope.room_groups_updated:type_name -> chatto.realtime.v1.RealtimeRoomGroupsUpdatedEvent
+	38, // 42: chatto.realtime.v1.RealtimeEventEnvelope.server_member_deleted:type_name -> chatto.realtime.v1.RealtimeServerMemberDeletedEvent
+	36, // 43: chatto.realtime.v1.RealtimeEventEnvelope.read_receipt_advanced:type_name -> chatto.realtime.v1.RealtimeReadReceiptAdvancedEvent
+	39, // 44: chatto.realtime.v1.RealtimeEventEnvelope.asset_processing_started:type_name -> chatto.realtime.v1.RealtimeAssetProcessingEvent
+	39, // 45: chatto.realtime.v1.RealtimeEventEnvelope.asset_processing_succeeded:type_name -> chatto.realtime.v1.RealtimeAssetProcessingEvent
+	39, // 46: chatto.realtime.v1.RealtimeEventEnvelope.asset_processing_failed:type_name -> chatto.realtime.v1.RealtimeAssetProcessingEvent
+	40, // 47: chatto.realtime.v1.RealtimeEventEnvelope.asset_deleted:type_name -> chatto.realtime.v1.RealtimeAssetDeletedEvent
+	41, // 48: chatto.realtime.v1.RealtimeEventEnvelope.call_started:type_name -> chatto.realtime.v1.RealtimeCallEvent
+	41, // 49: chatto.realtime.v1.RealtimeEventEnvelope.call_participant_joined:type_name -> chatto.realtime.v1.RealtimeCallEvent
+	41, // 50: chatto.realtime.v1.RealtimeEventEnvelope.call_participant_left:type_name -> chatto.realtime.v1.RealtimeCallEvent
+	41, // 51: chatto.realtime.v1.RealtimeEventEnvelope.call_ended:type_name -> chatto.realtime.v1.RealtimeCallEvent
+	42, // 52: chatto.realtime.v1.RealtimeEventEnvelope.mention_notification:type_name -> chatto.realtime.v1.RealtimeMentionNotificationEvent
+	43, // 53: chatto.realtime.v1.RealtimeEventEnvelope.new_direct_message_notification:type_name -> chatto.realtime.v1.RealtimeNewDirectMessageNotificationEvent
+	44, // 54: chatto.realtime.v1.RealtimeEventEnvelope.session_terminated:type_name -> chatto.realtime.v1.RealtimeSessionTerminatedEvent
+	41, // 55: chatto.realtime.v1.RealtimeEventEnvelope.call_participant_connection_changed:type_name -> chatto.realtime.v1.RealtimeCallEvent
+	46, // 56: chatto.realtime.v1.RealtimePresenceChangedEvent.status:type_name -> chatto.api.v1.PresenceStatus
+	47, // 57: chatto.realtime.v1.RealtimeNotificationLevelChangedEvent.level:type_name -> chatto.api.v1.NotificationLevel
+	47, // 58: chatto.realtime.v1.RealtimeNotificationLevelChangedEvent.effective_level:type_name -> chatto.api.v1.NotificationLevel
+	45, // 59: chatto.realtime.v1.RealtimeUserCustomStatusSetEvent.expires_at:type_name -> google.protobuf.Timestamp
+	48, // 60: chatto.realtime.v1.RealtimeServerUserPreferencesUpdatedEvent.time_format:type_name -> chatto.api.v1.TimeFormat
+	1,  // 61: chatto.realtime.v1.RealtimeCallEvent.source:type_name -> chatto.realtime.v1.RealtimeCallEventSource
+	0,  // 62: chatto.realtime.v1.RealtimeCallEvent.connection_state:type_name -> chatto.realtime.v1.RealtimeCallParticipantConnectionState
+	45, // 63: chatto.realtime.v1.RealtimeCallEvent.interruption_deadline:type_name -> google.protobuf.Timestamp
+	64, // [64:64] is the sub-list for method output_type
+	64, // [64:64] is the sub-list for method input_type
+	64, // [64:64] is the sub-list for extension type_name
+	64, // [64:64] is the sub-list for extension extendee
+	0,  // [0:64] is the sub-list for field type_name
 }
 
 func init() { file_chatto_realtime_v1_realtime_proto_init() }
@@ -4025,6 +4183,8 @@ func file_chatto_realtime_v1_realtime_proto_init() {
 		(*RealtimeEventEnvelope_UserJoinedRoom)(nil),
 		(*RealtimeEventEnvelope_UserLeftRoom)(nil),
 		(*RealtimeEventEnvelope_RoomUniversalChanged)(nil),
+		(*RealtimeEventEnvelope_RoomPostingPolicyChanged)(nil),
+		(*RealtimeEventEnvelope_RoomHistoryPurged)(nil),
 		(*RealtimeEventEnvelope_NotificationCreated)(nil),
 		(*RealtimeEventEnvelope_NotificationDismissed)(nil),
 		(*RealtimeEventEnvelope_NotificationLevelChanged)(nil),
@@ -4055,22 +4215,22 @@ func file_chatto_realtime_v1_realtime_proto_init() {
 	file_chatto_realtime_v1_realtime_proto_msgTypes[13].OneofWrappers = []any{}
 	file_chatto_realtime_v1_realtime_proto_msgTypes[15].OneofWrappers = []any{}
 	file_chatto_realtime_v1_realtime_proto_msgTypes[17].OneofWrappers = []any{}
-	file_chatto_realtime_v1_realtime_proto_msgTypes[21].OneofWrappers = []any{}
-	file_chatto_realtime_v1_realtime_proto_msgTypes[27].OneofWrappers = []any{}
-	file_chatto_realtime_v1_realtime_proto_msgTypes[28].OneofWrappers = []any{}
-	file_chatto_realtime_v1_realtime_proto_msgTypes[31].OneofWrappers = []any{}
-	file_chatto_realtime_v1_realtime_proto_msgTypes[32].OneofWrappers = []any{}
-	file_chatto_realtime_v1_realtime_proto_msgTypes[35].OneofWrappers = []any{}
-	file_chatto_realtime_v1_realtime_proto_msgTypes[36].OneofWrappers = []any{}
+	file_chatto_realtime_v1_realtime_proto_msgTypes[23].OneofWrappers = []any{}
+	file_chatto_realtime_v1_realtime_proto_msgTypes[29].OneofWrappers = []any{}
+	file_chatto_realtime_v1_realtime_proto_msgTypes[30].OneofWrappers = []any{}
+	file_chatto_realtime_v1_realtime_proto_msgTypes[33].OneofWrappers = []any{}
+	file_chatto_realtime_v1_realtime_proto_msgTypes[34].OneofWrappers = []any{}
+	file_chatto_realtime_v1_realtime_proto_msgTypes[37].OneofWrappers = []any{}
 	file_chatto_realtime_v1_realtime_proto_msgTypes[38].OneofWrappers = []any{}
-	file_chatto_realtime_v1_realtime_proto_msgTypes[39].OneofWrappers = []any{}
+	file_chatto_realtime_v1_realtime_proto_msgTypes[40].OneofWrappers = []any{}
+	file_chatto_realtime_v1_realtime_proto_msgTypes[41].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_realtime_v1_realtime_proto_rawDesc), len(file_chatto_realtime_v1_realtime_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   41,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

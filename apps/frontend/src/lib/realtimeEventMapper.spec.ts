@@ -13,6 +13,8 @@ import {
   RealtimeNewDirectMessageNotificationEventSchema,
   RealtimeNotificationCreatedEventSchema,
   RealtimeReadReceiptAdvancedEventSchema,
+  RealtimeRoomHistoryPurgedEventSchema,
+  RealtimeRoomPostingPolicyChangedEventSchema,
   RealtimeServerUserPreferencesUpdatedEventSchema,
   RealtimeUserProfileUpdatedEventSchema
 } from '@towk/api-types/realtime/v1/realtime_pb';
@@ -20,6 +22,46 @@ import { TimeFormat as APITimeFormat } from '@towk/api-types/api/v1/viewer_pb';
 import { TimeFormat } from '$lib/render/types';
 
 describe('realtimeEventToEventEnvelope', () => {
+  it('maps room governance invalidations with the authoritative epoch and lock state', () => {
+    const policy = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-policy',
+        actorId: 'moderator-1',
+        event: {
+          case: 'roomPostingPolicyChanged',
+          value: create(RealtimeRoomPostingPolicyChangedEventSchema, {
+            roomId: 'room-1',
+            locked: true
+          })
+        }
+      })
+    );
+    const purge = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-purge',
+        actorId: 'owner-1',
+        event: {
+          case: 'roomHistoryPurged',
+          value: create(RealtimeRoomHistoryPurgedEventSchema, {
+            roomId: 'room-1',
+            historyEpoch: 4n
+          })
+        }
+      })
+    );
+
+    expect(policy?.event).toEqual({
+      kind: RoomEventKind.RoomPostingPolicyChanged,
+      roomId: 'room-1',
+      locked: true
+    });
+    expect(purge?.event).toEqual({
+      kind: RoomEventKind.RoomHistoryPurged,
+      roomId: 'room-1',
+      historyEpoch: 4n
+    });
+  });
+
   it('preserves the exact call connection on participant transitions', () => {
     const event = realtimeEventToEventEnvelope(
       create(RealtimeEventEnvelopeSchema, {

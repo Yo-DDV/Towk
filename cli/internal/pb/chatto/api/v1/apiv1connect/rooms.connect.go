@@ -42,6 +42,16 @@ const (
 	// RoomServiceUnarchiveRoomProcedure is the fully-qualified name of the RoomService's UnarchiveRoom
 	// RPC.
 	RoomServiceUnarchiveRoomProcedure = "/chatto.api.v1.RoomService/UnarchiveRoom"
+	// RoomServiceLockRoomProcedure is the fully-qualified name of the RoomService's LockRoom RPC.
+	RoomServiceLockRoomProcedure = "/chatto.api.v1.RoomService/LockRoom"
+	// RoomServiceUnlockRoomProcedure is the fully-qualified name of the RoomService's UnlockRoom RPC.
+	RoomServiceUnlockRoomProcedure = "/chatto.api.v1.RoomService/UnlockRoom"
+	// RoomServicePurgeRoomHistoryProcedure is the fully-qualified name of the RoomService's
+	// PurgeRoomHistory RPC.
+	RoomServicePurgeRoomHistoryProcedure = "/chatto.api.v1.RoomService/PurgeRoomHistory"
+	// RoomServiceGetRoomHistoryPurgeOperationProcedure is the fully-qualified name of the RoomService's
+	// GetRoomHistoryPurgeOperation RPC.
+	RoomServiceGetRoomHistoryPurgeOperationProcedure = "/chatto.api.v1.RoomService/GetRoomHistoryPurgeOperation"
 	// RoomServiceJoinRoomProcedure is the fully-qualified name of the RoomService's JoinRoom RPC.
 	RoomServiceJoinRoomProcedure = "/chatto.api.v1.RoomService/JoinRoom"
 	// RoomServiceJoinRoomGroupProcedure is the fully-qualified name of the RoomService's JoinRoomGroup
@@ -109,6 +119,17 @@ type RoomServiceClient interface {
 	// Restores an archived room to active room lists. The caller must be allowed
 	// to manage rooms.
 	UnarchiveRoom(context.Context, *connect.Request[v1.UnarchiveRoomRequest]) (*connect.Response[v1.UnarchiveRoomResponse], error)
+	// Locks a channel against additive content. Requires room.lock.
+	LockRoom(context.Context, *connect.Request[v1.LockRoomRequest]) (*connect.Response[v1.LockRoomResponse], error)
+	// Unlocks a channel. Requires room.lock.
+	UnlockRoom(context.Context, *connect.Request[v1.UnlockRoomRequest]) (*connect.Response[v1.UnlockRoomResponse], error)
+	// Places an immediate logical history barrier and starts selective cleanup.
+	// Requires an authenticated caller with room.purge-messages, plus the exact
+	// room name and revision.
+	PurgeRoomHistory(context.Context, *connect.Request[v1.PurgeRoomHistoryRequest]) (*connect.Response[v1.PurgeRoomHistoryResponse], error)
+	// Reads a purge operation started by the current user or a current room
+	// purge administrator.
+	GetRoomHistoryPurgeOperation(context.Context, *connect.Request[v1.GetRoomHistoryPurgeOperationRequest]) (*connect.Response[v1.GetRoomHistoryPurgeOperationResponse], error)
 	// Joins the room as the current user when room permissions allow it.
 	JoinRoom(context.Context, *connect.Request[v1.JoinRoomRequest]) (*connect.Response[v1.JoinRoomResponse], error)
 	// Joins every unarchived room in a group that the current user can join.
@@ -206,6 +227,30 @@ func NewRoomServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			httpClient,
 			baseURL+RoomServiceUnarchiveRoomProcedure,
 			connect.WithSchema(roomServiceMethods.ByName("UnarchiveRoom")),
+			connect.WithClientOptions(opts...),
+		),
+		lockRoom: connect.NewClient[v1.LockRoomRequest, v1.LockRoomResponse](
+			httpClient,
+			baseURL+RoomServiceLockRoomProcedure,
+			connect.WithSchema(roomServiceMethods.ByName("LockRoom")),
+			connect.WithClientOptions(opts...),
+		),
+		unlockRoom: connect.NewClient[v1.UnlockRoomRequest, v1.UnlockRoomResponse](
+			httpClient,
+			baseURL+RoomServiceUnlockRoomProcedure,
+			connect.WithSchema(roomServiceMethods.ByName("UnlockRoom")),
+			connect.WithClientOptions(opts...),
+		),
+		purgeRoomHistory: connect.NewClient[v1.PurgeRoomHistoryRequest, v1.PurgeRoomHistoryResponse](
+			httpClient,
+			baseURL+RoomServicePurgeRoomHistoryProcedure,
+			connect.WithSchema(roomServiceMethods.ByName("PurgeRoomHistory")),
+			connect.WithClientOptions(opts...),
+		),
+		getRoomHistoryPurgeOperation: connect.NewClient[v1.GetRoomHistoryPurgeOperationRequest, v1.GetRoomHistoryPurgeOperationResponse](
+			httpClient,
+			baseURL+RoomServiceGetRoomHistoryPurgeOperationProcedure,
+			connect.WithSchema(roomServiceMethods.ByName("GetRoomHistoryPurgeOperation")),
 			connect.WithClientOptions(opts...),
 		),
 		joinRoom: connect.NewClient[v1.JoinRoomRequest, v1.JoinRoomResponse](
@@ -333,30 +378,34 @@ func NewRoomServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // roomServiceClient implements RoomServiceClient.
 type roomServiceClient struct {
-	createRoom              *connect.Client[v1.CreateRoomRequest, v1.CreateRoomResponse]
-	updateRoom              *connect.Client[v1.UpdateRoomRequest, v1.UpdateRoomResponse]
-	archiveRoom             *connect.Client[v1.ArchiveRoomRequest, v1.ArchiveRoomResponse]
-	unarchiveRoom           *connect.Client[v1.UnarchiveRoomRequest, v1.UnarchiveRoomResponse]
-	joinRoom                *connect.Client[v1.JoinRoomRequest, v1.JoinRoomResponse]
-	joinRoomGroup           *connect.Client[v1.JoinRoomGroupRequest, v1.JoinRoomGroupResponse]
-	startDM                 *connect.Client[v1.StartDMRequest, v1.StartDMResponse]
-	leaveRoom               *connect.Client[v1.LeaveRoomRequest, v1.LeaveRoomResponse]
-	listMembers             *connect.Client[v1.ListRoomMembersRequest, v1.ListRoomMembersResponse]
-	getMember               *connect.Client[v1.GetRoomMemberRequest, v1.GetRoomMemberResponse]
-	batchGetMembers         *connect.Client[v1.BatchGetRoomMembersRequest, v1.BatchGetRoomMembersResponse]
-	addMember               *connect.Client[v1.AddMemberRequest, v1.AddMemberResponse]
-	removeMember            *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
-	listBans                *connect.Client[v1.ListBansRequest, v1.ListBansResponse]
-	listRoomAttachments     *connect.Client[v1.ListRoomAttachmentsRequest, v1.ListRoomAttachmentsResponse]
-	updateTypingIndicator   *connect.Client[v1.UpdateTypingIndicatorRequest, v1.UpdateTypingIndicatorResponse]
-	getRoomEvents           *connect.Client[v1.GetRoomEventsRequest, v1.GetRoomEventsResponse]
-	getRoomEventsAround     *connect.Client[v1.GetRoomEventsAroundRequest, v1.GetRoomEventsAroundResponse]
-	markRoomAsRead          *connect.Client[v1.MarkRoomAsReadRequest, v1.MarkRoomAsReadResponse]
-	advanceReadReceipt      *connect.Client[v1.AdvanceReadReceiptRequest, v1.AdvanceReadReceiptResponse]
-	getReadReceiptSummaries *connect.Client[v1.GetReadReceiptSummariesRequest, v1.GetReadReceiptSummariesResponse]
-	listReadReceiptReaders  *connect.Client[v1.ListReadReceiptReadersRequest, v1.ListReadReceiptReadersResponse]
-	banMember               *connect.Client[v1.BanMemberRequest, v1.BanMemberResponse]
-	unbanMember             *connect.Client[v1.UnbanMemberRequest, v1.UnbanMemberResponse]
+	createRoom                   *connect.Client[v1.CreateRoomRequest, v1.CreateRoomResponse]
+	updateRoom                   *connect.Client[v1.UpdateRoomRequest, v1.UpdateRoomResponse]
+	archiveRoom                  *connect.Client[v1.ArchiveRoomRequest, v1.ArchiveRoomResponse]
+	unarchiveRoom                *connect.Client[v1.UnarchiveRoomRequest, v1.UnarchiveRoomResponse]
+	lockRoom                     *connect.Client[v1.LockRoomRequest, v1.LockRoomResponse]
+	unlockRoom                   *connect.Client[v1.UnlockRoomRequest, v1.UnlockRoomResponse]
+	purgeRoomHistory             *connect.Client[v1.PurgeRoomHistoryRequest, v1.PurgeRoomHistoryResponse]
+	getRoomHistoryPurgeOperation *connect.Client[v1.GetRoomHistoryPurgeOperationRequest, v1.GetRoomHistoryPurgeOperationResponse]
+	joinRoom                     *connect.Client[v1.JoinRoomRequest, v1.JoinRoomResponse]
+	joinRoomGroup                *connect.Client[v1.JoinRoomGroupRequest, v1.JoinRoomGroupResponse]
+	startDM                      *connect.Client[v1.StartDMRequest, v1.StartDMResponse]
+	leaveRoom                    *connect.Client[v1.LeaveRoomRequest, v1.LeaveRoomResponse]
+	listMembers                  *connect.Client[v1.ListRoomMembersRequest, v1.ListRoomMembersResponse]
+	getMember                    *connect.Client[v1.GetRoomMemberRequest, v1.GetRoomMemberResponse]
+	batchGetMembers              *connect.Client[v1.BatchGetRoomMembersRequest, v1.BatchGetRoomMembersResponse]
+	addMember                    *connect.Client[v1.AddMemberRequest, v1.AddMemberResponse]
+	removeMember                 *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
+	listBans                     *connect.Client[v1.ListBansRequest, v1.ListBansResponse]
+	listRoomAttachments          *connect.Client[v1.ListRoomAttachmentsRequest, v1.ListRoomAttachmentsResponse]
+	updateTypingIndicator        *connect.Client[v1.UpdateTypingIndicatorRequest, v1.UpdateTypingIndicatorResponse]
+	getRoomEvents                *connect.Client[v1.GetRoomEventsRequest, v1.GetRoomEventsResponse]
+	getRoomEventsAround          *connect.Client[v1.GetRoomEventsAroundRequest, v1.GetRoomEventsAroundResponse]
+	markRoomAsRead               *connect.Client[v1.MarkRoomAsReadRequest, v1.MarkRoomAsReadResponse]
+	advanceReadReceipt           *connect.Client[v1.AdvanceReadReceiptRequest, v1.AdvanceReadReceiptResponse]
+	getReadReceiptSummaries      *connect.Client[v1.GetReadReceiptSummariesRequest, v1.GetReadReceiptSummariesResponse]
+	listReadReceiptReaders       *connect.Client[v1.ListReadReceiptReadersRequest, v1.ListReadReceiptReadersResponse]
+	banMember                    *connect.Client[v1.BanMemberRequest, v1.BanMemberResponse]
+	unbanMember                  *connect.Client[v1.UnbanMemberRequest, v1.UnbanMemberResponse]
 }
 
 // CreateRoom calls chatto.api.v1.RoomService.CreateRoom.
@@ -377,6 +426,26 @@ func (c *roomServiceClient) ArchiveRoom(ctx context.Context, req *connect.Reques
 // UnarchiveRoom calls chatto.api.v1.RoomService.UnarchiveRoom.
 func (c *roomServiceClient) UnarchiveRoom(ctx context.Context, req *connect.Request[v1.UnarchiveRoomRequest]) (*connect.Response[v1.UnarchiveRoomResponse], error) {
 	return c.unarchiveRoom.CallUnary(ctx, req)
+}
+
+// LockRoom calls chatto.api.v1.RoomService.LockRoom.
+func (c *roomServiceClient) LockRoom(ctx context.Context, req *connect.Request[v1.LockRoomRequest]) (*connect.Response[v1.LockRoomResponse], error) {
+	return c.lockRoom.CallUnary(ctx, req)
+}
+
+// UnlockRoom calls chatto.api.v1.RoomService.UnlockRoom.
+func (c *roomServiceClient) UnlockRoom(ctx context.Context, req *connect.Request[v1.UnlockRoomRequest]) (*connect.Response[v1.UnlockRoomResponse], error) {
+	return c.unlockRoom.CallUnary(ctx, req)
+}
+
+// PurgeRoomHistory calls chatto.api.v1.RoomService.PurgeRoomHistory.
+func (c *roomServiceClient) PurgeRoomHistory(ctx context.Context, req *connect.Request[v1.PurgeRoomHistoryRequest]) (*connect.Response[v1.PurgeRoomHistoryResponse], error) {
+	return c.purgeRoomHistory.CallUnary(ctx, req)
+}
+
+// GetRoomHistoryPurgeOperation calls chatto.api.v1.RoomService.GetRoomHistoryPurgeOperation.
+func (c *roomServiceClient) GetRoomHistoryPurgeOperation(ctx context.Context, req *connect.Request[v1.GetRoomHistoryPurgeOperationRequest]) (*connect.Response[v1.GetRoomHistoryPurgeOperationResponse], error) {
+	return c.getRoomHistoryPurgeOperation.CallUnary(ctx, req)
 }
 
 // JoinRoom calls chatto.api.v1.RoomService.JoinRoom.
@@ -493,6 +562,17 @@ type RoomServiceHandler interface {
 	// Restores an archived room to active room lists. The caller must be allowed
 	// to manage rooms.
 	UnarchiveRoom(context.Context, *connect.Request[v1.UnarchiveRoomRequest]) (*connect.Response[v1.UnarchiveRoomResponse], error)
+	// Locks a channel against additive content. Requires room.lock.
+	LockRoom(context.Context, *connect.Request[v1.LockRoomRequest]) (*connect.Response[v1.LockRoomResponse], error)
+	// Unlocks a channel. Requires room.lock.
+	UnlockRoom(context.Context, *connect.Request[v1.UnlockRoomRequest]) (*connect.Response[v1.UnlockRoomResponse], error)
+	// Places an immediate logical history barrier and starts selective cleanup.
+	// Requires an authenticated caller with room.purge-messages, plus the exact
+	// room name and revision.
+	PurgeRoomHistory(context.Context, *connect.Request[v1.PurgeRoomHistoryRequest]) (*connect.Response[v1.PurgeRoomHistoryResponse], error)
+	// Reads a purge operation started by the current user or a current room
+	// purge administrator.
+	GetRoomHistoryPurgeOperation(context.Context, *connect.Request[v1.GetRoomHistoryPurgeOperationRequest]) (*connect.Response[v1.GetRoomHistoryPurgeOperationResponse], error)
 	// Joins the room as the current user when room permissions allow it.
 	JoinRoom(context.Context, *connect.Request[v1.JoinRoomRequest]) (*connect.Response[v1.JoinRoomResponse], error)
 	// Joins every unarchived room in a group that the current user can join.
@@ -586,6 +666,30 @@ func NewRoomServiceHandler(svc RoomServiceHandler, opts ...connect.HandlerOption
 		RoomServiceUnarchiveRoomProcedure,
 		svc.UnarchiveRoom,
 		connect.WithSchema(roomServiceMethods.ByName("UnarchiveRoom")),
+		connect.WithHandlerOptions(opts...),
+	)
+	roomServiceLockRoomHandler := connect.NewUnaryHandler(
+		RoomServiceLockRoomProcedure,
+		svc.LockRoom,
+		connect.WithSchema(roomServiceMethods.ByName("LockRoom")),
+		connect.WithHandlerOptions(opts...),
+	)
+	roomServiceUnlockRoomHandler := connect.NewUnaryHandler(
+		RoomServiceUnlockRoomProcedure,
+		svc.UnlockRoom,
+		connect.WithSchema(roomServiceMethods.ByName("UnlockRoom")),
+		connect.WithHandlerOptions(opts...),
+	)
+	roomServicePurgeRoomHistoryHandler := connect.NewUnaryHandler(
+		RoomServicePurgeRoomHistoryProcedure,
+		svc.PurgeRoomHistory,
+		connect.WithSchema(roomServiceMethods.ByName("PurgeRoomHistory")),
+		connect.WithHandlerOptions(opts...),
+	)
+	roomServiceGetRoomHistoryPurgeOperationHandler := connect.NewUnaryHandler(
+		RoomServiceGetRoomHistoryPurgeOperationProcedure,
+		svc.GetRoomHistoryPurgeOperation,
+		connect.WithSchema(roomServiceMethods.ByName("GetRoomHistoryPurgeOperation")),
 		connect.WithHandlerOptions(opts...),
 	)
 	roomServiceJoinRoomHandler := connect.NewUnaryHandler(
@@ -718,6 +822,14 @@ func NewRoomServiceHandler(svc RoomServiceHandler, opts ...connect.HandlerOption
 			roomServiceArchiveRoomHandler.ServeHTTP(w, r)
 		case RoomServiceUnarchiveRoomProcedure:
 			roomServiceUnarchiveRoomHandler.ServeHTTP(w, r)
+		case RoomServiceLockRoomProcedure:
+			roomServiceLockRoomHandler.ServeHTTP(w, r)
+		case RoomServiceUnlockRoomProcedure:
+			roomServiceUnlockRoomHandler.ServeHTTP(w, r)
+		case RoomServicePurgeRoomHistoryProcedure:
+			roomServicePurgeRoomHistoryHandler.ServeHTTP(w, r)
+		case RoomServiceGetRoomHistoryPurgeOperationProcedure:
+			roomServiceGetRoomHistoryPurgeOperationHandler.ServeHTTP(w, r)
 		case RoomServiceJoinRoomProcedure:
 			roomServiceJoinRoomHandler.ServeHTTP(w, r)
 		case RoomServiceJoinRoomGroupProcedure:
@@ -781,6 +893,22 @@ func (UnimplementedRoomServiceHandler) ArchiveRoom(context.Context, *connect.Req
 
 func (UnimplementedRoomServiceHandler) UnarchiveRoom(context.Context, *connect.Request[v1.UnarchiveRoomRequest]) (*connect.Response[v1.UnarchiveRoomResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.RoomService.UnarchiveRoom is not implemented"))
+}
+
+func (UnimplementedRoomServiceHandler) LockRoom(context.Context, *connect.Request[v1.LockRoomRequest]) (*connect.Response[v1.LockRoomResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.RoomService.LockRoom is not implemented"))
+}
+
+func (UnimplementedRoomServiceHandler) UnlockRoom(context.Context, *connect.Request[v1.UnlockRoomRequest]) (*connect.Response[v1.UnlockRoomResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.RoomService.UnlockRoom is not implemented"))
+}
+
+func (UnimplementedRoomServiceHandler) PurgeRoomHistory(context.Context, *connect.Request[v1.PurgeRoomHistoryRequest]) (*connect.Response[v1.PurgeRoomHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.RoomService.PurgeRoomHistory is not implemented"))
+}
+
+func (UnimplementedRoomServiceHandler) GetRoomHistoryPurgeOperation(context.Context, *connect.Request[v1.GetRoomHistoryPurgeOperationRequest]) (*connect.Response[v1.GetRoomHistoryPurgeOperationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.RoomService.GetRoomHistoryPurgeOperation is not implemented"))
 }
 
 func (UnimplementedRoomServiceHandler) JoinRoom(context.Context, *connect.Request[v1.JoinRoomRequest]) (*connect.Response[v1.JoinRoomResponse], error) {
