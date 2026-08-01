@@ -74,9 +74,7 @@ function touchList(clientX: number, clientY: number, count: number): TouchList {
 function legacyTouchEvent(type: string, clientX = 24, clientY = 32, count = 1) {
   const event = new Event(type, { bubbles: true, cancelable: true }) as TouchEvent;
   const activeTouches =
-    type === 'touchcancel'
-      ? touchList(clientX, clientY, 0)
-      : touchList(clientX, clientY, count);
+    type === 'touchcancel' ? touchList(clientX, clientY, 0) : touchList(clientX, clientY, count);
   Object.defineProperties(event, {
     touches: { value: activeTouches },
     changedTouches: { value: touchList(clientX, clientY, Math.max(1, count)) }
@@ -223,9 +221,7 @@ describe('installNativeMessageContextMenuGuard', () => {
     const { link } = createMessageFixture();
 
     link.dispatchEvent(legacyTouchEvent('touchstart', 40, 50));
-    link.dispatchEvent(
-      legacyTouchEvent('touchmove', 40 + TOUCH_CONTEXT_MENU_MAX_DRIFT_PX + 1, 50)
-    );
+    link.dispatchEvent(legacyTouchEvent('touchmove', 40 + TOUCH_CONTEXT_MENU_MAX_DRIFT_PX + 1, 50));
     const contextMenu = legacyContextMenu(40, 50);
     link.dispatchEvent(contextMenu);
 
