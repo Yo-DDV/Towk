@@ -14,9 +14,9 @@ describe('ContextMenu accessibility', () => {
       }
     });
 
-    const dialog = container.querySelector('dialog');
-    const menu = container.querySelector('[role="menu"]');
-    const item = container.querySelector('[role="menuitem"]');
+    const dialog = container.querySelector<HTMLDialogElement>('dialog');
+    const menu = container.querySelector<HTMLElement>('[role="menu"]');
+    const item = container.querySelector<HTMLElement>('[role="menuitem"]');
 
     expect(dialog).not.toBeNull();
     expect(menu).not.toBeNull();

@@ -34,10 +34,18 @@ beforeAll(() => {
   originalClose = HTMLDialogElement.prototype.close;
 
   HTMLElement.prototype.showPopover = function showPopover() {
-    this.setAttribute('popover-open', '');
+    if (originalShowPopover) {
+      originalShowPopover.call(this);
+    } else {
+      this.setAttribute('popover-open', '');
+    }
   };
   HTMLElement.prototype.hidePopover = function hidePopover() {
-    this.removeAttribute('popover-open');
+    if (originalHidePopover) {
+      originalHidePopover.call(this);
+    } else {
+      this.removeAttribute('popover-open');
+    }
   };
   HTMLDialogElement.prototype.showModal = function showModal() {
     this.setAttribute('open', '');
@@ -89,9 +97,11 @@ describe('ContextMenu', () => {
       presentation: 'sheet',
       onclose,
       children: testSnippet(`
-        <button type="button" role="menuitem" data-testid="reply">Reply</button>
-        <button type="button" role="menuitem" data-testid="disabled" disabled>Disabled</button>
-        <button type="button" role="menuitem" data-testid="delete">Delete</button>
+        <div>
+          <button type="button" role="menuitem" data-testid="reply">Reply</button>
+          <button type="button" role="menuitem" data-testid="disabled" disabled>Disabled</button>
+          <button type="button" role="menuitem" data-testid="delete">Delete</button>
+        </div>
       `)
     });
 
@@ -99,8 +109,7 @@ describe('ContextMenu', () => {
     const disabled = q(container, '[data-testid="disabled"]') as HTMLButtonElement;
     const deleteAction = q(container, '[data-testid="delete"]') as HTMLButtonElement;
 
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
-    expect(document.activeElement).toBe(reply);
+    await vi.waitFor(() => expect(document.activeElement).toBe(reply));
     expect(reply.tabIndex).toBe(0);
     expect(disabled.tabIndex).toBe(-1);
 
@@ -128,8 +137,7 @@ describe('ContextMenu', () => {
       const { container } = renderMenu({ onclose });
       const item = q(container, '[role="menuitem"]') as HTMLButtonElement;
 
-      await new Promise<void>((resolve) => queueMicrotask(resolve));
-      expect(document.activeElement).toBe(item);
+      await vi.waitFor(() => expect(document.activeElement).toBe(item));
 
       item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       await new Promise<void>((resolve) => queueMicrotask(() => queueMicrotask(resolve)));
