@@ -12,7 +12,7 @@ handling around the shared positioning primitive.
 - `position` - Viewport coordinates {x, y} for point-based positioning (context menus)
 - `anchor` - Element rect {top, bottom, left} for anchor-based positioning (popovers)
 - `role` - ARIA role (default: "menu")
-- `ariaLabel` - ARIA label for the container
+- `ariaLabel` - ARIA label for the floating menu and touch-sheet dialog
 - `presentation` - "auto" uses input capability, "floating" or "sheet" forces a mode
 - `dismissOnExternalInteraction` - Whether a sheet reacts to backdrop and native close requests
 - `class` - Additional CSS classes for the outer container (floating mode only)
@@ -74,8 +74,10 @@ ignored (the BottomSheet handles its own positioning).
 <svelte:window onkeydown={handleKeydown} />
 
 {#if useSheet}
-  <BottomSheet bind:visible={sheetVisible} {dismissOnExternalInteraction} {onclose}>
-    {@render children()}
+  <BottomSheet bind:visible={sheetVisible} {ariaLabel} {dismissOnExternalInteraction} {onclose}>
+    <div {role} aria-label={ariaLabel} class="flex flex-col gap-1">
+      {@render children()}
+    </div>
   </BottomSheet>
 {:else}
   <FloatingPopover
