@@ -1485,7 +1485,8 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
     expect(panel.closest('[data-call-media-card]')).toBe(mediaCard);
     expect(panel.textContent).toContain('Receiving');
     expect(panel.textContent).toContain('1920 × 1080');
-    expect(panel.textContent).not.toContain('Technical details');
+    expect(panel.textContent).toContain('Technical details');
+    expect(panel.querySelector('details')?.open).toBe(false);
     expect(panel.textContent).toContain('AV1');
 
     container
