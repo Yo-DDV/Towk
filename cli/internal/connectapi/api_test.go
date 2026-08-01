@@ -4363,6 +4363,9 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 	if _, err := env.core.JoinRoom(env.ctx, member.Id, core.KindChannel, member.Id, room.Id); err != nil {
 		t.Fatalf("JoinRoom member: %v", err)
 	}
+	if err := env.core.AssignAdminRole(env.ctx, member.Id); err != nil {
+		t.Fatalf("AssignAdminRole member: %v", err)
+	}
 	if err := env.core.SetPresence(env.ctx, member.Id, core.PresenceStatusDoNotDisturb); err != nil {
 		t.Fatalf("SetPresence member: %v", err)
 	}
@@ -4402,6 +4405,9 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 	if got.GetUser().GetId() != member.Id || got.GetUser().GetDisplayName() != "Room Alice" || got.GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_DO_NOT_DISTURB {
 		t.Fatalf("room member = %+v, want hydrated Room Alice", got)
 	}
+	if roles := strings.Join(got.GetRoles(), ","); roles != "everyone,admin" {
+		t.Fatalf("room member roles = %q, want everyone,admin", roles)
+	}
 
 	getResp, err := env.rooms.GetMember(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetRoomMemberRequest{RoomId: room.Id, UserId: member.Id}))
 	if err != nil {
@@ -4409,6 +4415,8 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 	}
 	if got := getResp.Msg.GetMember(); got.GetUser().GetId() != member.Id || got.GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_DO_NOT_DISTURB {
 		t.Fatalf("GetMember member = %+v, want room member", got)
+	} else if roles := strings.Join(got.GetRoles(), ","); roles != "everyone,admin" {
+		t.Fatalf("GetMember roles = %q, want everyone,admin", roles)
 	}
 	if _, err := env.rooms.GetMember(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetRoomMemberRequest{RoomId: room.Id, UserId: outsider.Id})); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("non-member GetMember code = %v, want not_found", connect.CodeOf(err))
@@ -4424,6 +4432,9 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 	gotBatch := batchResp.Msg.GetMembers()
 	if len(gotBatch) != 2 || gotBatch[0].GetUser().GetId() != member.Id || gotBatch[1].GetUser().GetId() != env.viewer.Id {
 		t.Fatalf("BatchGetMembers members = %+v, want member,viewer", gotBatch)
+	}
+	if roles := strings.Join(gotBatch[0].GetRoles(), ","); roles != "everyone,admin" {
+		t.Fatalf("BatchGetMembers member roles = %q, want everyone,admin", roles)
 	}
 }
 
