@@ -30,7 +30,7 @@ describe('frontend design-system registry', () => {
       const registered = registeredComponents(module);
 
       expect(exported.length).toBeGreaterThan(0);
-      expect(registered).toEqual(expect.arrayContaining(exported));
+      expect(registered).toEqual(exported);
     }
   });
 
