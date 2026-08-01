@@ -119,6 +119,16 @@ describe('RoomGovernanceActions', () => {
     window.dispatchEvent(new Event('resize'));
     await vi.waitFor(() => expect(menu.getBoundingClientRect().right).toBeCloseTo(384, 0));
 
+    buttonByText(container, 'Lock room').focus();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await vi.waitFor(() => expect(container.querySelector('[role="menu"]')).toBeNull());
+    await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
+
+    trigger.click();
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-testid="room-policy-action"]')).not.toBeNull()
+    );
+
     buttonByText(container, 'Lock room').click();
     await vi.waitFor(() =>
       expect(mocks.lockRoom).toHaveBeenCalledWith({

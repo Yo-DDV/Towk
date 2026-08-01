@@ -80,6 +80,11 @@
     if (menuPosition && menuTrigger?.isConnected) menuPosition = positionMenu(menuTrigger);
   }
 
+  function closeMenu() {
+    menuPosition = null;
+    requestAnimationFrame(() => menuTrigger?.isConnected && menuTrigger.focus());
+  }
+
   async function togglePolicy() {
     if (!room.canLockRoom || policyPending) return;
     menuPosition = null;
@@ -210,7 +215,7 @@
     position={menuPosition}
     ariaLabel={m['room.governance.menu_label']()}
     class="w-80 max-w-[calc(100vw-1rem)]"
-    onclose={() => (menuPosition = null)}
+    onclose={closeMenu}
   >
     <div class="menu-section p-1.5">
       <div class="flex items-center gap-2 px-2.5 pt-1.5 pb-2">
