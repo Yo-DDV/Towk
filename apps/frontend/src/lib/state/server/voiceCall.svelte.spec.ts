@@ -35,7 +35,13 @@ import {
   VoiceCallState
 } from './voiceCall.svelte';
 import { Code, ConnectError } from '@connectrpc/connect';
-import { AudioPresets, DisconnectReason, Room, type RoomOptions } from 'livekit-client';
+import {
+  AudioPresets,
+  DisconnectReason,
+  Room,
+  VideoQuality,
+  type RoomOptions
+} from 'livekit-client';
 
 const calls: string[] = [];
 let lastRoomOptions: RoomOptions | null = null;
@@ -131,6 +137,7 @@ let localTrackPublications: Array<{
     mediaStreamTrack?: MediaStreamTrack;
     getProcessor?: () => { name: string } | null;
     setProcessor?: typeof microphoneSetProcessor;
+    setPublishingQuality?: ReturnType<typeof vi.fn>;
   };
 }> = [];
 let mockRemoteParticipants = new Map<string, unknown>();
@@ -210,7 +217,7 @@ vi.mock('livekit-client', () => {
         if (enabled) {
           localTrackPublications.push({
             isMuted: false,
-            track: { source: 'camera' }
+            track: { source: 'camera', setPublishingQuality: vi.fn() }
           });
         }
       }),
@@ -251,9 +258,10 @@ vi.mock('livekit-client', () => {
           return performRpcResponder(params);
         }
       ),
-      getTrackPublication: vi.fn((source: string) =>
-        source === 'microphone' ? microphonePublication : undefined
-      ),
+      getTrackPublication: vi.fn((source: string) => {
+        if (source === 'microphone') return microphonePublication;
+        return localTrackPublications.find((publication) => publication.track.source === source);
+      }),
       identity: 'device-1',
       name: 'Local User',
       metadata:
@@ -384,7 +392,7 @@ vi.mock('livekit-client', () => {
       Reconnecting: 'reconnecting',
       SignalReconnecting: 'signalReconnecting'
     },
-    VideoQuality: { HIGH: 2 },
+    VideoQuality: { LOW: 0, HIGH: 2 },
     VideoPresets: { h720: { resolution: { width: 1280, height: 720 } } },
     VideoPreset: class MockVideoPreset {
       encoding: { maxBitrate: number; maxFramerate: number; priority?: RTCPriorityType };
@@ -2591,7 +2599,7 @@ describe('VoiceCallState', () => {
     expect(state.matchesActiveCall('R1', null)).toBe(false);
   });
 
-  it('publishes adaptive high-resolution screen sharing at 30 FPS and requests browser-tab audio', async () => {
+  it('publishes bandwidth-bounded screen sharing with call-safe browser-tab audio', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
@@ -2610,16 +2618,16 @@ describe('VoiceCallState', () => {
         systemAudio: 'exclude'
       },
       {
-        audioPreset: AudioPresets.musicHighQualityStereo,
+        audioPreset: AudioPresets.speech,
         backupCodec: false,
-        degradationPreference: 'maintain-resolution',
+        degradationPreference: 'balanced',
         dtx: true,
-        forceStereo: true,
+        forceStereo: false,
         red: true,
-        screenShareEncoding: { maxBitrate: 8_000_000, maxFramerate: 30, priority: 'high' },
+        screenShareEncoding: { maxBitrate: 5_000_000, maxFramerate: 30, priority: 'high' },
         screenShareSimulcastLayers: [
           expect.objectContaining({
-            encoding: { maxBitrate: 2_000_000, maxFramerate: 30, priority: 'high' },
+            encoding: { maxBitrate: 1_500_000, maxFramerate: 30, priority: 'high' },
             width: 1280,
             height: 720
           })
@@ -2662,9 +2670,28 @@ describe('VoiceCallState', () => {
         resolution: { width: 1920, height: 1080, frameRate: 60 }
       }),
       expect.objectContaining({
-        screenShareEncoding: { maxBitrate: 12_000_000, maxFramerate: 60, priority: 'high' }
+        screenShareEncoding: { maxBitrate: 8_000_000, maxFramerate: 60, priority: 'high' }
       })
     );
+  });
+
+  it('caps an active camera to its low layer while screen sharing and restores it afterward', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleCamera();
+    const cameraTrack = localTrackPublications.find(
+      (publication) => publication.track.source === 'camera'
+    )!.track;
+    if (!cameraTrack.setPublishingQuality) throw new Error('mock camera quality control missing');
+
+    await state.toggleScreenShare();
+
+    expect(cameraTrack.setPublishingQuality).toHaveBeenCalledWith(VideoQuality.LOW);
+
+    await state.toggleScreenShare();
+
+    expect(cameraTrack.setPublishingQuality).toHaveBeenLastCalledWith(VideoQuality.HIGH);
   });
 
   it('falls back to VP8 only when the sender explicitly reports no H.264 encoder', async () => {
@@ -2719,7 +2746,7 @@ describe('VoiceCallState', () => {
       videoCodec: 'vp8',
       screenShareSimulcastLayers: [
         {
-          encoding: { maxBitrate: 2_000_000, maxFramerate: 30, priority: 'high' },
+          encoding: { maxBitrate: 1_500_000, maxFramerate: 30, priority: 'high' },
           width: 1280,
           height: 720
         }
@@ -3970,6 +3997,11 @@ describe('VoiceCallState', () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleCamera();
+    const cameraTrack = localTrackPublications.find(
+      (publication) => publication.track.source === 'camera'
+    )!.track;
+    if (!cameraTrack.setPublishingQuality) throw new Error('mock camera quality control missing');
     screenShareFailure = new Error('permission denied');
 
     await state.toggleScreenShare();
@@ -3982,6 +4014,8 @@ describe('VoiceCallState', () => {
     expect(state.isScreenShareEnabled).toBe(false);
     expect(state.isInAnyCall).toBe(true);
     expect(state.roomId).toBe('R1');
+    expect(cameraTrack.setPublishingQuality).toHaveBeenNthCalledWith(1, VideoQuality.LOW);
+    expect(cameraTrack.setPublishingQuality).toHaveBeenLastCalledWith(VideoQuality.HIGH);
     expect(toastMocks.error).toHaveBeenCalledWith('Screen sharing was canceled or blocked.');
     expect(toastMocks.error).toHaveBeenCalledOnce();
   });
@@ -4165,14 +4199,22 @@ describe('VoiceCallState', () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleCamera();
+    const cameraTrack = localTrackPublications.find(
+      (publication) => publication.track.source === 'camera'
+    )!.track;
+    if (!cameraTrack.setPublishingQuality) throw new Error('mock camera quality control missing');
     await state.toggleScreenShare();
     expect(state.isScreenShareEnabled).toBe(true);
 
-    localTrackPublications = [];
+    localTrackPublications = localTrackPublications.filter(
+      (publication) => publication.track.source === 'camera'
+    );
     roomEventHandlers.get('LocalTrackUnpublished')?.();
 
     expect(state.isScreenShareEnabled).toBe(false);
     expect(state.participants[0].screenShareTrack).toBeNull();
+    expect(cameraTrack.setPublishingQuality).toHaveBeenLastCalledWith(VideoQuality.HIGH);
   });
 
   it('locally mutes and unmutes remote participant audio for the current session only', async () => {

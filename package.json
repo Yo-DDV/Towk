@@ -32,7 +32,10 @@
     ],
     "ignoredBuiltDependencies": [
       "@tailwindcss/oxide"
-    ]
+    ],
+    "patchedDependencies": {
+      "livekit-client@2.21.0": "patches/livekit-client@2.21.0.patch"
+    }
   },
   "devDependencies": {
     "knip": "^6.29.0"
