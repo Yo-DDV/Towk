@@ -39,14 +39,52 @@ async function type(input: HTMLInputElement, value: string) {
 }
 
 describe('EmojiPicker', () => {
-  it('uses the available sheet width on an unfolded viewport', () => {
+  it('uses a wider but bounded floating width on desktop', () => {
     const { container } = renderPicker();
-    container.style.containerType = 'inline-size';
+    container.style.width = '900px';
+
+    const picker = container.firstElementChild as HTMLElement;
+    const width = picker.getBoundingClientRect().width;
+
+    expect(width).toBeGreaterThan(360);
+    expect(width).toBeLessThanOrEqual(384);
+    expect(width).toBeLessThanOrEqual(window.innerWidth - 32);
+  });
+
+  it('uses the available sheet width and caps excessive line length', () => {
+    const { container } = renderPicker();
+    container.classList.add('bottom-sheet');
     container.style.width = '900px';
 
     const picker = container.firstElementChild as HTMLElement;
 
-    expect(picker.getBoundingClientRect().width).toBeGreaterThan(800);
+    expect(picker.getBoundingClientRect().width).toBe(768);
+  });
+
+  it('fills a narrow reaction sheet without horizontal overflow', () => {
+    const { container } = renderPicker();
+    container.classList.add('bottom-sheet');
+    container.style.width = '288px';
+
+    const picker = container.firstElementChild as HTMLElement;
+
+    expect(picker.getBoundingClientRect().width).toBe(288);
+    expect(picker.scrollWidth).toBeLessThanOrEqual(picker.clientWidth);
+  });
+
+  it('keeps touch-sized emoji targets while adapting the grid columns', () => {
+    const { container } = renderPicker();
+    container.classList.add('bottom-sheet');
+    container.style.width = '288px';
+
+    const grid = container.querySelector('.emoji-picker-grid') as HTMLElement;
+    const emojis = Array.from(grid.querySelectorAll('button')) as HTMLButtonElement[];
+    const firstEmoji = emojis[0];
+    const firstRowPositions = new Set(emojis.slice(0, 7).map((emoji) => emoji.offsetLeft));
+
+    expect(firstRowPositions.size).toBe(6);
+    expect(firstEmoji.getBoundingClientRect().width).toBeGreaterThanOrEqual(44);
+    expect(firstEmoji.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
   });
 
   describe('default state (no search)', () => {
