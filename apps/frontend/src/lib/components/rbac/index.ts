@@ -1,4 +1,5 @@
 export { default as RoleForm } from './RoleForm.svelte';
+export { default as RoleColorField } from './RoleColorField.svelte';
 export { default as DeleteRoleModal } from './DeleteRoleModal.svelte';
 export { default as PermissionExplanationTable } from './PermissionExplanationTable.svelte';
 export { default as PermissionMatrix } from './PermissionMatrix.svelte';

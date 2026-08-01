@@ -66,7 +66,8 @@ describe('createRoleAPI', () => {
           description: 'Moderates rooms',
           isSystem: true,
           position: 100,
-          pingable: true
+          pingable: true,
+          color: '#16A34A'
         }
       ]
     });
@@ -88,7 +89,8 @@ describe('createRoleAPI', () => {
           permissionDenials: [],
           isSystem: true,
           position: 100,
-          pingable: true
+          pingable: true,
+          color: '#16A34A'
         }
       ],
       viewerCanManageRoles: false,
@@ -103,7 +105,8 @@ describe('createRoleAPI', () => {
       description: 'Moderates rooms',
       isSystem: true,
       position: 100,
-      pingable: true
+      pingable: true,
+      color: '#16A34A'
     };
     mocks.getPublicRole.mockResolvedValue({ role });
     mocks.batchGetRoles.mockResolvedValue({ roles: [role] });
@@ -137,7 +140,8 @@ describe('createRoleAPI', () => {
             description: 'Moderates rooms',
             isSystem: true,
             position: 100,
-            pingable: true
+            pingable: true,
+            color: '#16A34A'
           },
           permissions: ['room.manage'],
           permissionDenials: ['message.post']
@@ -164,7 +168,8 @@ describe('createRoleAPI', () => {
           permissionDenials: ['message.post'],
           isSystem: true,
           position: 100,
-          pingable: true
+          pingable: true,
+          color: '#16A34A'
         }
       ],
       viewerCanManageRoles: true,
@@ -181,7 +186,8 @@ describe('createRoleAPI', () => {
           description: '',
           isSystem: false,
           position: 10,
-          pingable: false
+          pingable: false,
+          color: '#2563EB'
         },
         permissions: [],
         permissionDenials: []
@@ -205,7 +211,8 @@ describe('createRoleAPI', () => {
         permissionDenials: [],
         isSystem: false,
         position: 10,
-        pingable: false
+        pingable: false,
+        color: '#2563EB'
       },
       users: [{ id: 'user-1', login: 'alice', displayName: 'Alice' }],
       viewerCanManageRoles: true,
@@ -222,7 +229,8 @@ describe('createRoleAPI', () => {
       permissionDenials: [],
       isSystem: false,
       position: 10,
-      pingable: true
+      pingable: true,
+      color: '#2563EB'
     };
     const apiRole = {
       role: {
@@ -231,7 +239,8 @@ describe('createRoleAPI', () => {
         description: role.description,
         isSystem: role.isSystem,
         position: role.position,
-        pingable: role.pingable
+        pingable: role.pingable,
+        color: role.color
       },
       permissions: role.permissions,
       permissionDenials: role.permissionDenials
@@ -249,7 +258,8 @@ describe('createRoleAPI', () => {
         name: 'helpdesk',
         displayName: 'Support',
         description: 'Support queue',
-        pingable: false
+        pingable: false,
+        color: '#2563EB'
       })
     ).resolves.toMatchObject({ displayName: 'Support' });
     await expect(api.deleteRole('helpdesk')).resolves.toBe(true);
@@ -262,7 +272,8 @@ describe('createRoleAPI', () => {
         name: 'helpdesk',
         displayName: 'Support',
         description: 'Support queue',
-        pingable: false
+        pingable: false,
+        color: '#2563EB'
       },
       { headers: { Authorization: 'Bearer token' } }
     );

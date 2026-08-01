@@ -1334,6 +1334,11 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 	if err := env.core.AssignServerRole(env.ctx, core.SystemActorID, env.viewer.Id, core.RoleAdmin); err != nil {
 		t.Fatalf("AssignServerRole admin: %v", err)
 	}
+	if _, err := env.roles.CreateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.CreateRoleRequest{
+		Name: "unsafe-color", DisplayName: "Unsafe Color", Color: stringPtr("red"),
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("unsafe color CreateRole code = %v, want invalid argument", connect.CodeOf(err))
+	}
 
 	if _, err := env.roles.CreateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.CreateRoleRequest{
 		Name:        "InvalidName",
@@ -1347,12 +1352,13 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 		DisplayName: "Helpdesk",
 		Description: "Support queue",
 		Pingable:    true,
+		Color:       stringPtr("#2563eb"),
 	}))
 	if err != nil {
 		t.Fatalf("CreateRole: %v", err)
 	}
-	if got := createResp.Msg.GetRole().GetRole(); got.GetName() != "helpdesk" || !got.GetPingable() {
-		t.Fatalf("created role = %+v, want helpdesk pingable", got)
+	if got := createResp.Msg.GetRole().GetRole(); got.GetName() != "helpdesk" || !got.GetPingable() || got.GetColor() != "#2563EB" {
+		t.Fatalf("created role = %+v, want helpdesk pingable with normalized color", got)
 	}
 
 	if _, err := env.roles.CreateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.CreateRoleRequest{
@@ -1371,7 +1377,7 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("public GetRole: %v", err)
 	}
-	if got := publicGetResp.Msg.GetRole(); got.GetName() != "helpdesk" || got.GetDisplayName() != "Helpdesk" || !got.GetPingable() {
+	if got := publicGetResp.Msg.GetRole(); got.GetName() != "helpdesk" || got.GetDisplayName() != "Helpdesk" || !got.GetPingable() || got.GetColor() != "#2563EB" {
 		t.Fatalf("public GetRole role = %+v, want helpdesk metadata", got)
 	}
 	if _, err := env.publicRoles.GetRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetRoleRequest{Name: "missing-role"})); connect.CodeOf(err) != connect.CodeNotFound {
@@ -1430,17 +1436,19 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 		t.Fatalf("empty UpdateRole code = %v, want invalid argument", connect.CodeOf(err))
 	}
 	pingable := false
+	updatedColor := "#db2777"
 	updateResp, err := env.roles.UpdateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.UpdateRoleRequest{
 		Name:        "helpdesk",
 		DisplayName: stringPtr("Support"),
 		Description: stringPtr("Support team"),
 		Pingable:    &pingable,
+		Color:       &updatedColor,
 	}))
 	if err != nil {
 		t.Fatalf("UpdateRole: %v", err)
 	}
-	if updateResp.Msg.GetRole().GetRole().GetDisplayName() != "Support" || updateResp.Msg.GetRole().GetRole().GetPingable() {
-		t.Fatalf("updated role = %+v, want Support pingable false", updateResp.Msg.GetRole())
+	if got := updateResp.Msg.GetRole().GetRole(); got.GetDisplayName() != "Support" || got.GetPingable() || got.GetColor() != "#DB2777" {
+		t.Fatalf("updated role = %+v, want Support pingable false with normalized color", updateResp.Msg.GetRole())
 	}
 	partialRoleResp, err := env.roles.UpdateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.UpdateRoleRequest{
 		Name:        "helpdesk",
@@ -1449,8 +1457,8 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("partial UpdateRole: %v", err)
 	}
-	if got := partialRoleResp.Msg.GetRole().GetRole(); got.GetDisplayName() != "Support" || got.GetDescription() != "Escalation queue" || got.GetPingable() {
-		t.Fatalf("partial role = %+v, want preserved display/pingable and updated description", got)
+	if got := partialRoleResp.Msg.GetRole().GetRole(); got.GetDisplayName() != "Support" || got.GetDescription() != "Escalation queue" || got.GetPingable() || got.GetColor() != "#DB2777" {
+		t.Fatalf("partial role = %+v, want preserved display/pingable/color and updated description", got)
 	}
 
 	if _, err := env.roles.DeleteRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.DeleteRoleRequest{

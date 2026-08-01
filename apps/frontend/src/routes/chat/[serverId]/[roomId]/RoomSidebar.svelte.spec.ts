@@ -11,6 +11,7 @@ import { PresenceStatus } from '$lib/render/types';
 import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { callFullscreenMedia } from '$lib/state/callFullscreenMedia.svelte';
 import RoomSidebarTestHarness from './RoomSidebarTestHarness.svelte';
+import type { ServerRole } from '$lib/api-client/roles';
 
 const queryMock = vi.hoisted(() => vi.fn());
 const memberDirectoryMocks = vi.hoisted(() => ({
@@ -232,13 +233,33 @@ vi.mock('$lib/state/userProfiles.svelte', () => ({
     load()
 }));
 
-function member(index: number): RoomMember {
+function member(index: number, roles: string[] = []): RoomMember {
   return {
     id: `user-${index}`,
     login: `user${index}`,
     displayName: `User ${index}`,
     avatarUrl: null,
-    presenceStatus: PresenceStatus.Online
+    presenceStatus: PresenceStatus.Online,
+    roles
+  };
+}
+
+function serverRole(
+  name: string,
+  displayName: string,
+  position: number,
+  color: string
+): ServerRole {
+  return {
+    name,
+    displayName,
+    description: '',
+    permissions: [],
+    permissionDenials: [],
+    isSystem: ['owner', 'admin', 'moderator', 'everyone'].includes(name),
+    position,
+    pingable: false,
+    color
   };
 }
 
@@ -324,7 +345,7 @@ function memberPage(members: RoomMember[], totalCount = members.length, hasMore 
       deleted: member.deleted ?? false,
       avatarUrl: member.avatarUrl ?? null,
       customStatus: member.customStatus ?? null,
-      roles: [],
+      roles: member.roles ?? [],
       createdAt: null
     })),
     totalCount,
@@ -545,6 +566,42 @@ describe('RoomSidebar', () => {
     expect(callStore.activeCallRooms.getParticipantCallPresenceInAnyRoom).toHaveBeenCalledWith(
       'user-2'
     );
+  });
+
+  it('separates online members by highest role with Unicode labels and safe accents', async () => {
+    mockRoomMembers([
+      member(1, ['everyone', 'moderator', 'owner']),
+      member(2, ['moderator']),
+      member(3, ['helpers']),
+      member(4, ['everyone']),
+      { ...member(5, ['owner']), presenceStatus: PresenceStatus.Offline }
+    ]);
+    const roles = [
+      serverRole('everyone', 'Everyone', 0, ''),
+      serverRole('helpers', '🛟 Équipe d’aide', 10, '#2563EB'),
+      serverRole('moderator', 'Moderator', 100, '#16A34A'),
+      serverRole('owner', 'Owner', 1000, '#F97316')
+    ];
+
+    const { container } = render(RoomSidebarTestHarness, {
+      props: { roomData: roomData([], 0, false), roles }
+    });
+
+    await vi.waitFor(() => {
+      expect(buttonByText(container, 'Owner — 1')).toBeTruthy();
+      expect(buttonByText(container, 'Moderator — 1')).toBeTruthy();
+      expect(buttonByText(container, '🛟 Équipe d’aide — 1')).toBeTruthy();
+      expect(buttonByText(container, 'Online (1)')).toBeTruthy();
+      expect(buttonByText(container, 'Offline (1)')).toBeTruthy();
+    });
+
+    const userOne = container.querySelector('[title="View profile of User 1"] .role-member-name');
+    expect(userOne).toBeTruthy();
+    expect((userOne as HTMLElement).style.getPropertyValue('--member-role-color')).toBe('#F97316');
+    expect(container.querySelectorAll('[title="View profile of User 1"]')).toHaveLength(1);
+    expect(
+      container.querySelector('[title="View profile of User 5"] .role-member-name')
+    ).toBeNull();
   });
 
   it('filters room members locally without changing the canonical total count', async () => {

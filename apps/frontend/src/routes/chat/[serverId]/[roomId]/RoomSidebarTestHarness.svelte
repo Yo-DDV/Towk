@@ -12,6 +12,7 @@ mounting the full chat room shell.
   import { RoomFilesStore, RoomMembersStore, setRoomMembersStore } from '$lib/state/room';
   import { setUserSettings, UserSettingsState } from '$lib/state/userSettings.svelte';
   import RoomSidebar, { type RoomSidebarPanel } from './RoomSidebar.svelte';
+  import type { ServerRole } from '$lib/api-client/roles';
 
   let {
     roomId = 'room-1',
@@ -20,6 +21,7 @@ mounting the full chat room shell.
     presentation = 'desktop',
     currentUserId = 'viewer',
     canBanRoomMembers = false,
+    roles = [],
     fileGroupingNow,
     onPresenceCacheReady,
     onOpenFile,
@@ -31,6 +33,7 @@ mounting the full chat room shell.
     presentation?: 'desktop' | 'overlay';
     currentUserId?: string | null;
     canBanRoomMembers?: boolean;
+    roles?: ServerRole[];
     fileGroupingNow?: Date;
     onPresenceCacheReady?: (cache: PresenceCache) => void;
     onOpenFile?: (messageEventId: string, threadRootEventId: string | null) => void;
@@ -65,6 +68,7 @@ mounting the full chat room shell.
   {presentation}
   loading={false}
   {canBanRoomMembers}
+  {roles}
   {currentUserId}
   membersStore={roomMembersStore}
   filesStore={roomFilesStore}

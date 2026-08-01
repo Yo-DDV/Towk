@@ -1,7 +1,7 @@
 # FDR-001: Roles & Permissions (RBAC)
 
 **Status:** Active
-**Last reviewed:** 2026-07-15
+**Last reviewed:** 2026-08-01
 
 ## Overview
 
@@ -15,7 +15,9 @@ Towk controls who can do what through role-based access control. Every authentic
 - Permission grants/denies can be configured at three scopes: per-server (global override/default), per room-group, and per room. For non-owners, any applicable deny wins; otherwise any applicable allow grants access.
 - Permissions gate capabilities, not every form of visibility. For example, DM read access comes from room membership, while `message.post` gates starting DMs and sending root DM messages.
 - Server admins can drag-and-drop to reorder custom roles. System role positions are fixed for ordering consistency.
-- Custom role display names are limited to 80 bytes; descriptions are limited to 500 bytes.
+- Role display names are Unicode text limited to 80 code points and may contain accents and emoji; descriptions are limited to 500 bytes. Stable role names remain lowercase ASCII handles.
+- Role colors are display-only `#RRGGBB` metadata. Fresh servers use orange for `owner`, violet for `admin`, green for `moderator`, standard text for `everyone`, and a stable palette default for new custom roles.
+- The online member list renders one section per represented explicit role. A member with several roles appears once under the highest-position role; members without a represented explicit role stay in the ordinary Online section, and all offline members stay in the separate Offline section.
 - Owners are always granted all permissions. An effective owner is either assigned the durable `owner` role or has a verified email listed in `owners.emails` in `towk.toml`.
 - Assigning or revoking the `owner` role is an owner-only, fresh-authenticated action. A grant of `role.assign` can manage every other assignable role but cannot create or remove owners.
 - Owner mutations are serialized against the full RBAC aggregate. Concurrent attempts by owners to remove each other cannot leave the server without an effective owner through the public admin API.
@@ -75,6 +77,14 @@ User-triggered RBAC events are audit facts as well as state facts, so their even
 **Decision:** Permission grant/deny/clear events store `scope` as `{kind, id}` (`SERVER`, `GROUP`, `ROOM`) and `subject` as `{kind, id}` (`ROLE`, `USER`).
 **Why:** The old flattened fields made role/user permission subjects indistinguishable and relied on string conventions for scope. The typed shape freezes the domain model before beta and prevents future role IDs from colliding with user IDs.
 **Tradeoff:** Event constructors do a little more validation, and compatibility readers for older persisted event shapes have to infer subject kind from legacy wire fields.
+
+### 9. Role presentation metadata never changes authorization
+
+**Decision:** A role color is validated and persisted with the role but is never read by permission resolution. Member-list grouping uses role position only to choose a single display section, not to infer authority. Section headings and counts remain visible so color is never the sole role indicator.
+**Why:** Operators need to identify responsibilities quickly without introducing a second authorization hierarchy or a color-dependent accessibility barrier.
+**Tradeoff:** The same user can hold several effective roles while appearing under only one member-list heading. Administrative role details remain the authoritative place to inspect every assignment.
+
+Historical role-created events without color remain readable. During projection replay, system roles receive their current display defaults and custom roles receive a deterministic palette fallback derived from their creation position; no destructive migration is required.
 
 ## Permissions
 

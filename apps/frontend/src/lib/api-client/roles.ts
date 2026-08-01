@@ -21,6 +21,7 @@ export type ServerRole = {
   isSystem: boolean;
   position: number;
   pingable: boolean;
+  color: string;
 };
 
 export type RoleUser = {
@@ -45,6 +46,7 @@ export type CreateRoleInput = {
   displayName: string;
   description: string;
   pingable: boolean;
+  color: string;
 };
 
 export type UpdateRoleInput = {
@@ -52,6 +54,7 @@ export type UpdateRoleInput = {
   displayName: string;
   description: string;
   pingable?: boolean;
+  color?: string;
 };
 
 export function createRoleAPI(config: RoleAPIConfig) {
@@ -156,7 +159,8 @@ function serverRoleFromPublic(
     permissionDenials: [...permissionDenials],
     isSystem: role.isSystem,
     position: role.position,
-    pingable: role.pingable
+    pingable: role.pingable,
+    color: role.color
   };
 }
 
