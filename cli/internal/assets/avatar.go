@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"image"
 	"io"
+
+	_ "golang.org/x/image/webp" // Register WebP decoding for production avatar uploads.
 )
 
 const (
