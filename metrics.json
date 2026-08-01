@@ -3,12 +3,12 @@
   "repository": "Yo-DDV/Towk",
   "branch": "main",
   "sourceCommit": "a667fb11e622c58b20a798679e74d158d3a36003",
-  "generatedAt": "2026-07-31T19:53:43.327Z",
+  "generatedAt": "2026-08-01T03:51:41.218Z",
   "window": {
     "kind": "rolling-30-utc-days",
     "days": 30,
-    "start": "2026-07-02T00:00:00.000Z",
-    "end": "2026-07-31T19:53:43.327Z",
+    "start": "2026-07-03T00:00:00.000Z",
+    "end": "2026-08-01T03:51:41.218Z",
     "currentDayPartial": true
   },
   "baselineCommit": "205e91fe1ae5e5c23420974f7e04cf82456eeab3",
@@ -35,17 +35,6 @@
     "mergedPullRequests": 19
   },
   "daily": [
-    {
-      "date": "2026-07-02",
-      "label": "2",
-      "commits": 0,
-      "mergedPullRequests": 0,
-      "issuesClosed": 0,
-      "additions": 0,
-      "deletions": 0,
-      "filesChanged": 0,
-      "medianPrLeadTimeHours": null
-    },
     {
       "date": "2026-07-03",
       "label": "3",
@@ -364,6 +353,17 @@
       "deletions": 4444,
       "filesChanged": 229,
       "medianPrLeadTimeHours": 64.09638888888888
+    },
+    {
+      "date": "2026-08-01",
+      "label": "1",
+      "commits": 0,
+      "mergedPullRequests": 0,
+      "issuesClosed": 0,
+      "additions": 0,
+      "deletions": 0,
+      "filesChanged": 0,
+      "medianPrLeadTimeHours": null
     }
   ]
 }
