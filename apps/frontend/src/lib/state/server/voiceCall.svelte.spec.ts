@@ -4306,13 +4306,7 @@ describe('VoiceCallState', () => {
     const state = new VoiceCallState(createVoiceCallClient());
     await state.join('wss://livekit.example.test', 'R1');
 
-    state.handleParticipantLeftEvent(
-      'R1',
-      'call-1',
-      'remote-device',
-      'remote-user',
-      'local-user'
-    );
+    state.handleParticipantLeftEvent('R1', 'call-1', 'remote-device', 'remote-user', 'local-user');
     state.handleParticipantConnectionChangedEvent(
       'R1',
       'call-1',
@@ -4596,6 +4590,14 @@ describe('VoiceCallState', () => {
       inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 2_000, jitter: 0.008 })
     );
     await poll;
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({
+      networkHealth: 'unknown',
+      packetLossPercent: null,
+      jitterMs: null,
+      networkWarningMetric: null
+    });
     await state.leave();
   });
 

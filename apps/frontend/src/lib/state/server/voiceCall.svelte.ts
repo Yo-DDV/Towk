@@ -2442,8 +2442,10 @@ export class VoiceCallState {
     const room = this.room;
     if (!room || this.participantNetworkQualityPollRoom === room) return;
     this.participantNetworkQualityPollRoom = room;
+    let sampleExpired = false;
     const staleTimer = setTimeout(() => {
       if (this.room !== room || this.participantNetworkQualityPollRoom !== room) return;
+      sampleExpired = true;
       this.participantNetworkQuality = {};
       this.participantNetworkQualityFailures.clear();
       this.updateParticipants();
@@ -2473,7 +2475,7 @@ export class VoiceCallState {
           };
         })
       );
-      if (this.room !== room) return;
+      if (this.room !== room || sampleExpired) return;
 
       const currentParticipantTracks = Array.from(room.remoteParticipants.values()).map(
         (participant) => ({
@@ -2575,41 +2577,43 @@ export class VoiceCallState {
       const canControlAudio = this.isControllableSibling(p);
       const siblingAudioState = canControlAudio ? this.siblingAudioStates[p.identity] : undefined;
       const networkQuality = this.participantNetworkQuality[p.identity];
-      return [{
-        identity: p.identity,
-        participantId,
-        userId,
-        deviceIndex: md.deviceIndex && md.deviceIndex > 0 ? md.deviceIndex : 1,
-        name: p.name ?? p.identity,
-        login: md.login ?? userId,
-        avatarUrl: md.avatarUrl ?? null,
-        isMuted: isParticipantMuted(p),
-        isLocal,
-        connectionQuality: p.connectionQuality as CallParticipantInfo['connectionQuality'],
-        networkHealth: networkQuality?.health ?? 'unknown',
-        packetLossPercent: networkQuality?.packetLossPercent ?? null,
-        jitterMs: networkQuality?.jitterMs ?? null,
-        networkWarningMetric: networkQuality?.warningMetric ?? null,
-        connectionState: 'connected' as const,
-        interruptionDeadline: null,
-        isCameraEnabled: isParticipantCameraEnabled(p),
-        videoTrack: getParticipantCameraTrack(p),
-        isScreenShareEnabled: isParticipantScreenShareEnabled(p),
-        isScreenShareAudioEnabled: isParticipantScreenShareAudioEnabled(p),
-        screenShareTrack: getParticipantScreenShareTrack(p),
-        isLocallyMuted: !isLocal && this.isParticipantLocallyMuted(p.identity),
-        canControlAudio,
-        siblingMicrophoneMuted: siblingAudioState?.microphoneMuted ?? null,
-        siblingOutputMuted: siblingAudioState?.outputMuted ?? null,
-        isSiblingMicrophoneControlPending:
-          canControlAudio &&
-          Boolean(
-            this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'microphone')]
-          ),
-        isSiblingOutputControlPending:
-          canControlAudio &&
-          Boolean(this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'output')])
-      }];
+      return [
+        {
+          identity: p.identity,
+          participantId,
+          userId,
+          deviceIndex: md.deviceIndex && md.deviceIndex > 0 ? md.deviceIndex : 1,
+          name: p.name ?? p.identity,
+          login: md.login ?? userId,
+          avatarUrl: md.avatarUrl ?? null,
+          isMuted: isParticipantMuted(p),
+          isLocal,
+          connectionQuality: p.connectionQuality as CallParticipantInfo['connectionQuality'],
+          networkHealth: networkQuality?.health ?? 'unknown',
+          packetLossPercent: networkQuality?.packetLossPercent ?? null,
+          jitterMs: networkQuality?.jitterMs ?? null,
+          networkWarningMetric: networkQuality?.warningMetric ?? null,
+          connectionState: 'connected' as const,
+          interruptionDeadline: null,
+          isCameraEnabled: isParticipantCameraEnabled(p),
+          videoTrack: getParticipantCameraTrack(p),
+          isScreenShareEnabled: isParticipantScreenShareEnabled(p),
+          isScreenShareAudioEnabled: isParticipantScreenShareAudioEnabled(p),
+          screenShareTrack: getParticipantScreenShareTrack(p),
+          isLocallyMuted: !isLocal && this.isParticipantLocallyMuted(p.identity),
+          canControlAudio,
+          siblingMicrophoneMuted: siblingAudioState?.microphoneMuted ?? null,
+          siblingOutputMuted: siblingAudioState?.outputMuted ?? null,
+          isSiblingMicrophoneControlPending:
+            canControlAudio &&
+            Boolean(
+              this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'microphone')]
+            ),
+          isSiblingOutputControlPending:
+            canControlAudio &&
+            Boolean(this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'output')])
+        }
+      ];
     });
     const connectedIdentities = new SvelteSet(
       connectedParticipants.map((participant) => participant.identity)
