@@ -602,6 +602,7 @@
   <div class="flex min-h-0 min-w-0 flex-1">
     <div
       class="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
+      data-ui="room-view-region"
       data-testid="room-view-region"
     >
       <div

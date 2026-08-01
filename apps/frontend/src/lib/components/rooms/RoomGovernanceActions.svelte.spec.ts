@@ -3,6 +3,7 @@ import { render } from 'vitest-browser-svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RoomHistoryPurgeStatus, RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 import RoomGovernanceActions from './RoomGovernanceActions.svelte';
+import '../../../app.css';
 
 const mocks = vi.hoisted(() => ({
   lockRoom: vi.fn(),
@@ -79,18 +80,44 @@ describe('RoomGovernanceActions', () => {
 
     const trigger = container.querySelector('[data-testid="room-governance-menu-button"]');
     if (!(trigger instanceof HTMLButtonElement)) throw new Error('governance trigger not found');
+    const roomViewRegion = document.createElement('div');
+    const paneHeader = document.createElement('div');
+    vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({ x: 260, y: 12, width: 44, height: 44 })
+    );
+    vi.spyOn(roomViewRegion, 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({ x: 40, y: 0, width: 360, height: 640 })
+    );
+    vi.spyOn(paneHeader, 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({ x: 40, y: 0, width: 360, height: 60 })
+    );
+    vi.spyOn(trigger, 'closest').mockImplementation((selector) => {
+      if (selector === '[data-ui="room-view-region"]') return roomViewRegion;
+      if (selector === '[data-ui="pane-header"]') return paneHeader;
+      return null;
+    });
     expect(trigger.classList).toContain('!h-[44px]');
     expect(trigger.classList).toContain('!w-[44px]');
     trigger.click();
     await vi.waitFor(() =>
       expect(container.querySelector('[data-testid="room-policy-action"]')).not.toBeNull()
     );
+    expect(trigger.closest).toHaveBeenCalledWith('[data-ui="room-view-region"]');
+    expect(roomViewRegion.getBoundingClientRect).toHaveBeenCalled();
 
     const menu = container.querySelector('[role="menu"]');
     if (!(menu instanceof HTMLElement)) throw new Error('governance menu not found');
     const bounds = menu.getBoundingClientRect();
+    expect(bounds.right).toBeCloseTo(400, 0);
+    expect(bounds.top).toBeCloseTo(60, 0);
     expect(bounds.left).toBeGreaterThanOrEqual(0);
     expect(bounds.right).toBeLessThanOrEqual(window.innerWidth + 1);
+
+    vi.mocked(roomViewRegion.getBoundingClientRect).mockReturnValue(
+      DOMRect.fromRect({ x: 40, y: 0, width: 344, height: 640 })
+    );
+    window.dispatchEvent(new Event('resize'));
+    await vi.waitFor(() => expect(menu.getBoundingClientRect().right).toBeCloseTo(384, 0));
 
     buttonByText(container, 'Lock room').click();
     await vi.waitFor(() =>

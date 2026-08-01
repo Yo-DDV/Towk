@@ -50,6 +50,7 @@
   let confirmationName = $state('');
   let confirmationTouched = $state(false);
   let operationTimer: ReturnType<typeof setTimeout> | null = null;
+  let menuTrigger: HTMLElement | null = null;
 
   const confirmationMatches = $derived(confirmationName === room.name);
   const confirmationError = $derived(
@@ -58,13 +59,25 @@
       : undefined
   );
 
-  function openMenu(event: MouseEvent) {
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    menuPosition = {
-      x: rect.right,
-      y: rect.bottom + 4,
-      alignRight: true
+  function positionMenu(trigger: HTMLElement) {
+    const rect = trigger.getBoundingClientRect();
+    const roomViewRegion =
+      mode === 'header' ? trigger.closest('[data-ui="room-view-region"]') : null;
+    const paneHeader = mode === 'header' ? trigger.closest('[data-ui="pane-header"]') : null;
+    return {
+      x: roomViewRegion?.getBoundingClientRect().right ?? rect.right,
+      y: paneHeader?.getBoundingClientRect().bottom ?? rect.bottom + 4,
+      alignRight: true as const
     };
+  }
+
+  function openMenu(event: MouseEvent) {
+    menuTrigger = event.currentTarget as HTMLElement;
+    menuPosition = positionMenu(menuTrigger);
+  }
+
+  function repositionOpenMenu() {
+    if (menuPosition && menuTrigger?.isConnected) menuPosition = positionMenu(menuTrigger);
   }
 
   async function togglePolicy() {
@@ -156,6 +169,8 @@
     if (operationTimer) clearTimeout(operationTimer);
   });
 </script>
+
+<svelte:window onresize={repositionOpenMenu} />
 
 {#if mode === 'header'}
   <button
@@ -314,5 +329,4 @@
       if (confirmationName.length > 0) confirmationTouched = true;
     }}
   />
-
 </FormDialog>
