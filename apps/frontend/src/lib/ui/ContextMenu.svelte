@@ -75,7 +75,7 @@ ignored (the BottomSheet handles its own positioning).
 
 {#if useSheet}
   <BottomSheet bind:visible={sheetVisible} {ariaLabel} {dismissOnExternalInteraction} {onclose}>
-    <div {role} aria-label={ariaLabel} class="flex flex-col gap-1">
+    <div {role} aria-label={ariaLabel} class="min-w-0">
       {@render children()}
     </div>
   </BottomSheet>
