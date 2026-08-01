@@ -24,6 +24,10 @@
   let basicVisible = $state(false);
   let basicName = $state('');
   let basicDesc = $state('');
+  let longActionsVisible = $state(false);
+  let roomName = $state('Accueil');
+  let roomDescription = $state("C'est ici que tout commence !");
+  let universalRoom = $state(true);
 
   let loadingVisible = $state(false);
   let loadingName = $state('');
@@ -77,6 +81,44 @@
 
     <TextInput id="story-room-name" label="Room Name" bind:value={basicName} />
     <TextArea id="story-room-desc" label="Description (optional)" bind:value={basicDesc} rows={3} />
+  </FormDialog>
+</Story>
+
+<Story
+  name="Long localized actions"
+  asChild
+  parameters={{
+    docs: {
+      description: {
+        story:
+          'A narrow administration form with intentionally long action copy. The footer must stack without clipping or mid-label wrapping.'
+      }
+    }
+  }}
+>
+  <Button onclick={() => (longActionsVisible = true)}>Open responsive admin form</Button>
+
+  <FormDialog
+    bind:visible={longActionsVisible}
+    title="Edit room"
+    size="sm"
+    submitLabel="Save moderation settings"
+    onsubmit={() => (longActionsVisible = false)}
+    onclose={() => (longActionsVisible = false)}
+  >
+    <TextInput id="story-admin-room-name" label="Room name" bind:value={roomName} required />
+    <TextArea
+      id="story-admin-room-description"
+      label="Description"
+      bind:value={roomDescription}
+      rows={3}
+    />
+    <Checkbox
+      id="story-admin-room-universal"
+      label="Universal room"
+      description="Members with the required permission join this room automatically."
+      bind:checked={universalRoom}
+    />
   </FormDialog>
 </Story>
 

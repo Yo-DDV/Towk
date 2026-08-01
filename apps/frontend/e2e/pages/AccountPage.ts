@@ -92,14 +92,16 @@ export class AccountPage {
 
   /**
    * Complete the full account deletion flow.
-   * Opens modal, types DELETE, confirms, and waits for redirect.
+   * Opens modal, types DELETE, confirms, and waits for the final logged-out route.
    */
   async deleteAccount(): Promise<void> {
     await this.openDeleteModal();
     await this.typeConfirmation('DELETE');
     await this.confirmDelete();
-    // Wait for redirect to landing page after deletion
-    await this.page.waitForURL('/');
+    // Account deletion first navigates through `/`, which immediately redirects
+    // unauthenticated users. Poll the final URL instead of waiting on a transient
+    // navigation lifecycle that the redirect can legitimately abort.
+    await expect(this.page).toHaveURL(routes.login);
   }
 
   // --- Assertions ---

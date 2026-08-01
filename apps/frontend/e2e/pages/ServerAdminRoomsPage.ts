@@ -34,10 +34,10 @@ export class ServerAdminRoomsPage {
 
   /**
    * Get the room row locator for a given room name.
-   * Targets the draggable row div that contains the room name.
+   * Targets the stable row container rather than its draggable handle.
    */
   roomRow(name: string): Locator {
-    return this.page.locator('.cursor-grab', { hasText: name });
+    return this.page.locator('.room-row', { hasText: name });
   }
 
   /**
@@ -202,5 +202,4 @@ export class ServerAdminRoomsPage {
   async expectGroupNotVisible(name: string): Promise<void> {
     await expect(this.groupHeader(name)).not.toBeVisible();
   }
-
 }

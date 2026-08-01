@@ -11,7 +11,7 @@
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { createAccountAPI } from '$lib/api-client/account';
-  import { PaneHeader, ConfirmDialog, Dialog, FormSection, Hint } from '$lib/ui';
+  import { PaneHeader, ConfirmDialog, Dialog, FormDialog, FormSection, Hint } from '$lib/ui';
   import { TextInput, Button, FormError, z, validate } from '$lib/ui/form';
   import { toast } from '$lib/ui/toast/toastState.svelte';
   import { notifyLogout } from '$lib/auth/sessionChannel';
@@ -69,6 +69,8 @@
   let disconnectFreshAuthError = $state('');
   let blockedDisconnectProviderLabel = $state('');
   let showDisconnectBlockedModal = $state(false);
+  const disconnectFreshAuthProviderLabel = $derived(disconnectFreshAuthTarget?.providerLabel ?? '');
+  const linkFreshAuthProviderLabel = $derived(linkFreshAuthProvider?.label ?? '');
   let currentPassword = $state('');
   let password = $state('');
   let confirmPassword = $state('');
@@ -663,49 +665,35 @@
 {/if}
 
 {#if disconnectFreshAuthTarget}
-  <Dialog
+  <FormDialog
     visible
     title={m['settings.account.sso.disconnect_fresh_auth_modal.title']()}
     size="sm"
+    submitLabel={m['settings.account.sso.disconnect_fresh_auth_modal.action']()}
+    submitIcon="iconify uil--link-broken"
+    submitLoadingText={m['ui.dialog.submit_loading']({
+      label: m['settings.account.sso.disconnect_fresh_auth_modal.action']()
+    })}
+    loading={disconnectingSubjectHash === disconnectFreshAuthTarget.subjectHash}
+    disabled={!disconnectCurrentPassword || disconnectingSubjectHash !== ''}
+    error={disconnectFreshAuthError}
+    onsubmit={confirmDisconnectFreshAuth}
     onclose={closeDisconnectFreshAuthDialog}
   >
-    <form class="flex flex-col gap-4" onsubmit={confirmDisconnectFreshAuth}>
-      <p class="text-sm text-muted">
-        {m['settings.account.sso.disconnect_fresh_auth_modal.body']({
-          provider: disconnectFreshAuthTarget.providerLabel
-        })}
-      </p>
-      <TextInput
-        id="sso-disconnect-current-password"
-        label={m['settings.account.password.current_label']()}
-        type="password"
-        bind:value={disconnectCurrentPassword}
-        disabled={disconnectingSubjectHash !== ''}
-        autocomplete="current-password"
-      />
-      {#if disconnectFreshAuthError}
-        <FormError error={disconnectFreshAuthError} />
-      {/if}
-      <div class="flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onclick={closeDisconnectFreshAuthDialog}
-          disabled={disconnectingSubjectHash !== ''}
-        >
-          {m['common.cancel']()}
-        </Button>
-        <Button
-          type="submit"
-          loading={disconnectingSubjectHash === disconnectFreshAuthTarget.subjectHash}
-          disabled={!disconnectCurrentPassword || disconnectingSubjectHash !== ''}
-        >
-          <span class="iconify uil--link-broken"></span>
-          {m['settings.account.sso.disconnect_fresh_auth_modal.action']()}
-        </Button>
-      </div>
-    </form>
-  </Dialog>
+    {#snippet description()}
+      {m['settings.account.sso.disconnect_fresh_auth_modal.body']({
+        provider: disconnectFreshAuthProviderLabel
+      })}
+    {/snippet}
+    <TextInput
+      id="sso-disconnect-current-password"
+      label={m['settings.account.password.current_label']()}
+      type="password"
+      bind:value={disconnectCurrentPassword}
+      disabled={disconnectingSubjectHash !== ''}
+      autocomplete="current-password"
+    />
+  </FormDialog>
 {/if}
 
 <Dialog
@@ -714,98 +702,93 @@
   size="sm"
   onclose={closeDisconnectBlockedModal}
 >
-  <div class="flex flex-col gap-4">
-    <Hint tone="warning">
-      {m['settings.account.sso.disconnect_blocked_modal.body']({
-        provider: blockedDisconnectProviderLabel
-      })}
-    </Hint>
-    <div class="flex justify-end">
-      <Button variant="secondary" onclick={closeDisconnectBlockedModal}>
-        {m['ui.close']()}
-      </Button>
-    </div>
-  </div>
+  <Hint tone="warning">
+    {m['settings.account.sso.disconnect_blocked_modal.body']({
+      provider: blockedDisconnectProviderLabel
+    })}
+  </Hint>
+  {#snippet footer()}
+    <Button variant="secondary" onclick={closeDisconnectBlockedModal}>
+      {m['ui.close']()}
+    </Button>
+  {/snippet}
 </Dialog>
 
 {#if linkFreshAuthProvider}
-  <Dialog
+  <FormDialog
     visible
     title={m['settings.account.sso.fresh_auth_modal.title']()}
     size="sm"
+    submitLabel={m['settings.account.sso.fresh_auth_modal.action']()}
+    submitIcon="iconify uil--link"
+    submitLoadingText={m['ui.dialog.submit_loading']({
+      label: m['settings.account.sso.fresh_auth_modal.action']()
+    })}
+    loading={linkingProviderId === linkFreshAuthProvider.id}
+    disabled={!linkCurrentPassword || linkingProviderId !== ''}
+    error={linkFreshAuthError}
+    onsubmit={confirmLinkFreshAuth}
     onclose={closeLinkFreshAuthDialog}
   >
-    <form class="flex flex-col gap-4" onsubmit={confirmLinkFreshAuth}>
-      <p class="text-sm text-muted">
-        {m['settings.account.sso.fresh_auth_modal.body']({
-          provider: linkFreshAuthProvider.label
-        })}
-      </p>
-      <TextInput
-        id="sso-link-current-password"
-        label={m['settings.account.password.current_label']()}
-        type="password"
-        bind:value={linkCurrentPassword}
-        disabled={linkingProviderId !== ''}
-        autocomplete="current-password"
-      />
-      {#if linkFreshAuthError}
-        <FormError error={linkFreshAuthError} />
-      {/if}
-      <div class="flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onclick={closeLinkFreshAuthDialog}
-          disabled={linkingProviderId !== ''}
-        >
-          {m['common.cancel']()}
-        </Button>
-        <Button
-          type="submit"
-          loading={linkingProviderId === linkFreshAuthProvider.id}
-          disabled={!linkCurrentPassword || linkingProviderId !== ''}
-        >
-          <span class="iconify uil--link"></span>
-          {m['settings.account.sso.fresh_auth_modal.action']()}
-        </Button>
-      </div>
-    </form>
-  </Dialog>
+    {#snippet description()}
+      {m['settings.account.sso.fresh_auth_modal.body']({
+        provider: linkFreshAuthProviderLabel
+      })}
+    {/snippet}
+    <TextInput
+      id="sso-link-current-password"
+      label={m['settings.account.password.current_label']()}
+      type="password"
+      bind:value={linkCurrentPassword}
+      disabled={linkingProviderId !== ''}
+      autocomplete="current-password"
+    />
+  </FormDialog>
 {/if}
 
 <!-- Delete Account Confirmation Modal -->
-<Dialog
+<FormDialog
   visible={showDeleteModal}
   title={m['settings.account.delete_modal.title']()}
   size="sm"
+  tall
+  submitLabel={m['settings.account.delete_button']()}
+  submitTone="danger"
+  submitIcon="iconify uil--trash-alt"
+  submitLoadingText={m['settings.account.delete_modal.deleting']()}
+  loading={isDeleting}
+  disabled={!canDelete || isDeleting}
+  {error}
+  onsubmit={() => handleDeleteAccount()}
   onclose={closeDeleteModal}
 >
-  <div class="flex flex-col gap-4">
-    <Hint tone="danger">
-      <strong>{m['settings.account.delete_modal.warning_label']()}</strong>
-      {m['settings.account.delete_modal.warning_text']()}
-    </Hint>
+  <Hint tone="danger">
+    <strong>{m['settings.account.delete_modal.warning_label']()}</strong>
+    {m['settings.account.delete_modal.warning_text']()}
+  </Hint>
 
-    <p class="text-sm text-muted">{m['settings.account.delete_modal.intro']()}</p>
-    <ul class="list-inside list-disc text-sm text-muted">
+  <div class="space-y-2 text-sm text-muted">
+    <p>{m['settings.account.delete_modal.intro']()}</p>
+    <ul class="list-inside list-disc">
       <li>{m['settings.account.delete_modal.remove_from_rooms']()}</li>
       <li>{m['settings.account.delete_modal.delete_messages']()}</li>
       <li>{m['settings.account.delete_modal.delete_profile']()}</li>
     </ul>
+  </div>
 
-    <TextInput
-      id="delete-confirm"
-      label={m['settings.account.delete_modal.confirm_label']({
-        confirmation: deleteConfirmationText
-      })}
-      bind:value={confirmText}
-      placeholder={deleteConfirmationText}
-      disabled={isDeleting}
-      autocomplete="off"
-    />
+  <TextInput
+    id="delete-confirm"
+    label={m['settings.account.delete_modal.confirm_label']({
+      confirmation: deleteConfirmationText
+    })}
+    bind:value={confirmText}
+    placeholder={deleteConfirmationText}
+    disabled={isDeleting}
+    autocomplete="off"
+  />
 
-    {#if deleteNeedsFreshAuth}
+  {#if deleteNeedsFreshAuth}
+    <div class="space-y-3">
       <p class="text-sm text-muted">{m['settings.account.delete_modal.fresh_auth_intro']()}</p>
       <TextInput
         id="delete-current-password"
@@ -815,25 +798,6 @@
         disabled={isDeleting}
         autocomplete="current-password"
       />
-    {/if}
-
-    {#if error}
-      <FormError {error} />
-    {/if}
-
-    <div class="flex flex-wrap justify-end gap-2">
-      <Button variant="secondary" onclick={closeDeleteModal} disabled={isDeleting}>
-        {m['common.cancel']()}
-      </Button>
-      <Button
-        variant="danger"
-        onclick={handleDeleteAccount}
-        disabled={!canDelete || isDeleting}
-        loading={isDeleting}
-        loadingText={m['settings.account.delete_modal.deleting']()}
-      >
-        {m['settings.account.delete_button']()}
-      </Button>
     </div>
-  </div>
-</Dialog>
+  {/if}
+</FormDialog>

@@ -173,7 +173,7 @@ describe('RoomGovernanceActions', () => {
       if (!(content instanceof HTMLElement)) throw new Error('purge dialog content not found');
       return content;
     });
-    expect(dialogContent.classList).toContain('max-h-[calc(100dvh-2rem)]');
+    expect(dialogContent.classList).toContain('max-h-[calc(100dvh-1rem)]');
 
     const confirmation = await vi.waitFor(() => {
       const input = [...container.querySelectorAll('input')].find(

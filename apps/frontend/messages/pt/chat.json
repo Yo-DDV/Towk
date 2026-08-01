@@ -29,9 +29,9 @@
     },
     "sign_out": {
       "title": "Sair",
-      "current_server": "Servidor atual",
-      "all_servers": "Todos os servidores",
-      "description": "Saia apenas do servidor selecionado ou desconecte todos os servidores deste cliente."
+      "current_server": "Sair deste servidor",
+      "all_servers": "Sair de todos os servidores",
+      "description": "Escolha se deseja sair do servidor selecionado ou de todos os servidores conectados a este cliente."
     },
     "overview": {
       "title": "Visão geral"

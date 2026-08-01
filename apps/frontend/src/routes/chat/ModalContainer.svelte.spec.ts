@@ -304,10 +304,10 @@ describe('ModalContainer sign out modal', () => {
 
     await expect
       .element(q(container, 'dialog'))
-      .toHaveTextContent('Sign out of only the selected server');
+      .toHaveTextContent('Choose whether to sign out of the selected server');
     expect(
       [...container.querySelectorAll('button')].map((button) => button.textContent?.trim())
-    ).toEqual(['Cancel', 'Current Server', 'All Servers']);
+    ).toEqual(['Cancel', 'Sign Out of This Server', 'Sign Out of All Servers']);
   });
 
   it('signs out of only the active remote server', async () => {
@@ -323,7 +323,7 @@ describe('ModalContainer sign out modal', () => {
     mocks.authenticated = { origin: true, remote: true };
 
     const { container } = render(ModalContainer);
-    clickButton(container, 'Current Server');
+    clickButton(container, 'Sign Out of This Server');
 
     await vi.waitFor(() => {
       expect(mocks.signOutServer).toHaveBeenCalledWith(remote, false);
@@ -349,7 +349,7 @@ describe('ModalContainer sign out modal', () => {
     mocks.authenticated = { origin: true, remote: true };
 
     const { container } = render(ModalContainer);
-    clickButton(container, 'Current Server');
+    clickButton(container, 'Sign Out of This Server');
 
     await vi.waitFor(() => {
       expect(mocks.signOutServer).toHaveBeenCalledWith(mocks.originServer, true);
@@ -373,7 +373,7 @@ describe('ModalContainer sign out modal', () => {
     mocks.servers = [mocks.originServer!, remote];
 
     const { container } = render(ModalContainer);
-    clickButton(container, 'All Servers');
+    clickButton(container, 'Sign Out of All Servers');
 
     await vi.waitFor(() => {
       expect(mocks.beginExplicitSignOutRedirect).toHaveBeenCalledOnce();
@@ -396,10 +396,10 @@ describe('ModalContainer sign out modal', () => {
 
     const { container } = render(ModalContainer);
 
-    await expect.element(q(container, 'dialog')).toHaveTextContent('All Servers');
-    expect(findButton(container, 'Current Server')).toBeDisabled();
-    expect(findButton(container, 'All Servers')).not.toBeDisabled();
-    clickButton(container, 'All Servers');
+    await expect.element(q(container, 'dialog')).toHaveTextContent('Sign Out of All Servers');
+    expect(findButton(container, 'Sign Out of This Server')).toBeDisabled();
+    expect(findButton(container, 'Sign Out of All Servers')).not.toBeDisabled();
+    clickButton(container, 'Sign Out of All Servers');
 
     await vi.waitFor(() => {
       expect(mocks.beginExplicitSignOutRedirect).toHaveBeenCalledOnce();
@@ -417,12 +417,12 @@ describe('ModalContainer sign out modal', () => {
 
     const { container } = render(ModalContainer);
 
-    expect(findButton(container, 'Current Server')).toBeDisabled();
-    expect(findButton(container, 'All Servers')).not.toBeDisabled();
-    clickButton(container, 'Current Server');
+    expect(findButton(container, 'Sign Out of This Server')).toBeDisabled();
+    expect(findButton(container, 'Sign Out of All Servers')).not.toBeDisabled();
+    clickButton(container, 'Sign Out of This Server');
     expect(mocks.signOutServer).not.toHaveBeenCalled();
 
-    clickButton(container, 'All Servers');
+    clickButton(container, 'Sign Out of All Servers');
 
     await vi.waitFor(() => {
       expect(mocks.beginExplicitSignOutRedirect).toHaveBeenCalledOnce();
@@ -443,17 +443,21 @@ describe('ModalContainer sign out modal', () => {
     );
 
     const first = render(SignOutDialog, { props: { onclose: mocks.closeModal } });
-    clickButton(first.container, 'Current Server');
+    clickButton(first.container, 'Sign Out of This Server');
 
     await vi.waitFor(() => {
-      expect(findButton(first.container, 'Current Server').getAttribute('aria-busy')).toBe('true');
+      expect(findButton(first.container, 'Sign Out of This Server').getAttribute('aria-busy')).toBe(
+        'true'
+      );
     });
 
     const second = render(SignOutDialog, { props: { onclose: mocks.closeModal } });
 
-    expect(findButton(second.container, 'Current Server').hasAttribute('aria-busy')).toBe(false);
-    expect(findButton(second.container, 'Current Server')).not.toBeDisabled();
-    expect(findButton(second.container, 'All Servers')).not.toBeDisabled();
+    expect(findButton(second.container, 'Sign Out of This Server').hasAttribute('aria-busy')).toBe(
+      false
+    );
+    expect(findButton(second.container, 'Sign Out of This Server')).not.toBeDisabled();
+    expect(findButton(second.container, 'Sign Out of All Servers')).not.toBeDisabled();
 
     finishSignOut?.(new Response('{}', { status: 200 }));
   });

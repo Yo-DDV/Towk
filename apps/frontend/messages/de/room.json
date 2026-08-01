@@ -55,8 +55,7 @@
       "joined_group_many": "{count} Räumen in {group} beigetreten",
       "join_group_failed": "Gruppe konnte nicht beigetreten werden",
       "left": "#{room} verlassen",
-      "left_generic": "Raum verlassen",
-      "leave_confirm": "Möchtest du #{room} wirklich verlassen?"
+      "left_generic": "Raum verlassen"
     },
     "server": {
       "leave_title": "Server verlassen",

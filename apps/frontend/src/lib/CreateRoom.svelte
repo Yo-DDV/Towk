@@ -3,6 +3,7 @@
   import * as m from '$lib/i18n/messages';
   import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
+  import DialogActions from '$lib/ui/DialogActions.svelte';
   import {
     TextInput,
     TextArea,
@@ -110,14 +111,16 @@
 
   <FormError error={submitError} />
 
-  <Button
-    type="submit"
-    size="lg"
-    loading={isLoading}
-    disabled={!form.isValid}
-    loadingText={m['room.create.creating']()}
-  >
-    <span class="iconify uil--plus"></span>
-    {m['room.create.submit']()}
-  </Button>
+  <DialogActions>
+    <Button
+      type="submit"
+      size="lg"
+      loading={isLoading}
+      disabled={!form.isValid}
+      loadingText={m['room.create.creating']()}
+    >
+      <span class="iconify uil--plus"></span>
+      {m['room.create.submit']()}
+    </Button>
+  </DialogActions>
 </form>

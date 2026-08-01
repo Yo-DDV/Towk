@@ -55,8 +55,7 @@
       "joined_group_many": "{count} salons rejoints dans {group}",
       "join_group_failed": "Impossible de rejoindre les salons du groupe",
       "left": "Salon #{room} quitté",
-      "left_generic": "Salon quitté",
-      "leave_confirm": "Êtes-vous sûr de vouloir quitter #{room} ?"
+      "left_generic": "Salon quitté"
     },
     "server": {
       "leave_title": "Quitter le serveur",
