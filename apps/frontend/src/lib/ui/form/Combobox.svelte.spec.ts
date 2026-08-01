@@ -12,6 +12,10 @@ function input(container: Element): HTMLInputElement {
   return container.querySelector('input') as HTMLInputElement;
 }
 
+function option(container: Element, value: string): HTMLButtonElement {
+  return container.querySelector(`#event-type-listbox-option-${value}`) as HTMLButtonElement;
+}
+
 describe('Combobox', () => {
   it('keeps freeform text as the value and can clear it', async () => {
     const ontextchange = vi.fn();
@@ -42,7 +46,7 @@ describe('Combobox', () => {
     expect(ontextchange).toHaveBeenLastCalledWith('');
   });
 
-  it('exposes and updates the active option while input focus remains in the combobox', async () => {
+  it('exposes stable value-based option ids while input focus owns the combobox', async () => {
     const onselect = vi.fn();
     const { container } = render(Combobox<(typeof items)[number]>, {
       props: {
@@ -61,24 +65,101 @@ describe('Combobox', () => {
 
     expect(field.getAttribute('aria-controls')).toBe('event-type-listbox');
     expect(field.getAttribute('aria-haspopup')).toBe('listbox');
-    expect(field.getAttribute('aria-activedescendant')).toBe('event-type-listbox-option-0');
+    expect(field.getAttribute('aria-activedescendant')).toBe(
+      'event-type-listbox-option-login'
+    );
     expect(document.activeElement).toBe(field);
 
     field.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     flushSync();
 
-    expect(field.getAttribute('aria-activedescendant')).toBe('event-type-listbox-option-1');
-    expect(
-      container.querySelector('#event-type-listbox-option-1')?.getAttribute('aria-selected')
-    ).toBe('true');
+    expect(field.getAttribute('aria-activedescendant')).toBe('event-type-listbox-option-join');
+    expect(option(container, 'join').getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(field);
 
     field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     flushSync();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
 
     expect(onselect).toHaveBeenCalledWith(items[1]);
     expect(field.value).toBe('UserJoinedRoomEvent');
     expect(field.hasAttribute('aria-activedescendant')).toBe(false);
+    expect(document.activeElement).toBe(field);
+  });
+
+  it('supports last, first and terminal option navigation without intercepting IME input', async () => {
+    const { container } = render(Combobox<(typeof items)[number]>, {
+      props: {
+        id: 'event-type',
+        label: 'Event type',
+        items,
+        getValue: (item) => item.value,
+        getLabel: (item) => item.label
+      }
+    });
+
+    const field = input(container);
+    field.focus();
+    flushSync();
+
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    flushSync();
+    expect(field.getAttribute('aria-expanded')).toBe('false');
+
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    flushSync();
+    expect(field.getAttribute('aria-activedescendant')).toBe('event-type-listbox-option-join');
+
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    flushSync();
+    expect(field.getAttribute('aria-activedescendant')).toBe(
+      'event-type-listbox-option-login'
+    );
+
+    field.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, isComposing: true })
+    );
+    flushSync();
+    expect(field.getAttribute('aria-activedescendant')).toBe(
+      'event-type-listbox-option-login'
+    );
+
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    flushSync();
+    expect(field.getAttribute('aria-activedescendant')).toBe('event-type-listbox-option-join');
+
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    flushSync();
+    expect(field.getAttribute('aria-expanded')).toBe('false');
+    expect(field.hasAttribute('aria-activedescendant')).toBe(false);
+  });
+
+  it('keeps the input focused after pointer selection', async () => {
+    const onselect = vi.fn();
+    const { container } = render(Combobox<(typeof items)[number]>, {
+      props: {
+        id: 'event-type',
+        label: 'Event type',
+        items,
+        getValue: (item) => item.value,
+        getLabel: (item) => item.label,
+        onselect
+      }
+    });
+
+    const field = input(container);
+    field.focus();
+    flushSync();
+
+    const join = option(container, 'join');
+    join.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    join.click();
+    flushSync();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(onselect).toHaveBeenCalledWith(items[1]);
+    expect(field.value).toBe('UserJoinedRoomEvent');
+    expect(document.activeElement).toBe(field);
   });
 
   it('keeps listbox options out of the tab order', async () => {
@@ -99,7 +180,7 @@ describe('Combobox', () => {
     const options = Array.from(container.querySelectorAll<HTMLElement>('[role="option"]'));
 
     expect(options).toHaveLength(items.length);
-    expect(options.every((option) => option.tabIndex === -1)).toBe(true);
+    expect(options.every((item) => item.tabIndex === -1)).toBe(true);
     expect(document.activeElement).toBe(field);
   });
 
