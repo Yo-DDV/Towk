@@ -30,7 +30,7 @@ A user's profile carries the public identity they present to the rest of the ser
 ### 1. 30-day login change cooldown
 
 **Decision:** A user can change their login only once every 30 days.
-**Why:** Logins are the basis for `@mentions`, search results, and recognition across the server. Frequent changes are an impersonation/confusion risk — `@alice` today might be a different person tomorrow. A 30-day cooldown discourages rapid churn while still allowing occasional rename for legitimate needs. Case-only changes are exempt because they don't change identity.
+**Why:** Logins are the basis for `@mentions`, search results, and recognition across the server. Frequent changes are an impersonation/confusion risk — `@alice` today might be a different person tomorrow. A 30-day cooldown discourages rapid churn while still allowing occasional rename for legitimate reasons. Case-only changes are exempt because they don't change identity.
 **Tradeoff:** A user who legitimately needs to change twice in 30 days (e.g., picked a typo'd name) is stuck. The admin clear-cooldown affordance handles those cases.
 
 ### 2. Login uniqueness is enforced with projection catch-up and OCC
