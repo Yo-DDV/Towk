@@ -790,6 +790,7 @@
                 <div
                   animate:flip={{ duration: 200 }}
                   class="room-row group rounded-lg py-2 pr-2 pl-2 hover:bg-surface-100"
+                  data-testid="admin-room-row"
                 >
                   <span
                     use:dragHandle
