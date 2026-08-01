@@ -185,6 +185,10 @@ message RealtimeEventEnvelope {
     RealtimeRoomEvent user_left_room = 46;
     // A room's universal visibility flag changed.
     RealtimeRoomUniversalChangedEvent room_universal_changed = 47;
+    // A channel was locked or unlocked.
+    RealtimeRoomPostingPolicyChangedEvent room_posting_policy_changed = 48;
+    // A channel crossed a durable message-history purge barrier.
+    RealtimeRoomHistoryPurgedEvent room_history_purged = 49;
     // A notification was created for the current user.
     RealtimeNotificationCreatedEvent notification_created = 60;
     // A notification was dismissed for the current user.
@@ -342,6 +346,24 @@ message RealtimeRoomUniversalChangedEvent {
   string room_id = 1;
   // Latest universal setting.
   bool universal = 2;
+}
+
+// Channel posting-policy invalidation signal.
+//
+// The latest locked state is inline. Hydrate the room to refresh its revision
+// and the viewer's effective governance permissions.
+message RealtimeRoomPostingPolicyChangedEvent {
+  string room_id = 1;
+  bool locked = 2;
+}
+
+// Channel history-purge invalidation signal.
+//
+// Clients must immediately invalidate cached timeline state from every earlier
+// epoch and hydrate the room before accepting new writes.
+message RealtimeRoomHistoryPurgedEvent {
+  string room_id = 1;
+  uint64 history_epoch = 2;
 }
 
 // Notification-created signal for the connected user.

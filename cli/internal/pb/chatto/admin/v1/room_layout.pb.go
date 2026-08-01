@@ -83,9 +83,13 @@ type AdminRoomLayoutItem struct {
 	//
 	//	*AdminRoomLayoutItem_Room
 	//	*AdminRoomLayoutItem_SidebarLink
-	Item          isAdminRoomLayoutItem_Item `protobuf_oneof:"item"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Item isAdminRoomLayoutItem_Item `protobuf_oneof:"item"`
+	// Effective action capability for the current viewer.
+	CanLockRoom bool `protobuf:"varint,3,opt,name=can_lock_room,json=canLockRoom,proto3" json:"can_lock_room,omitempty"`
+	// Effective selective-history purge capability for the current viewer.
+	CanPurgeMessages bool `protobuf:"varint,4,opt,name=can_purge_messages,json=canPurgeMessages,proto3" json:"can_purge_messages,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *AdminRoomLayoutItem) Reset() {
@@ -141,6 +145,20 @@ func (x *AdminRoomLayoutItem) GetSidebarLink() *v1.SidebarLink {
 		}
 	}
 	return nil
+}
+
+func (x *AdminRoomLayoutItem) GetCanLockRoom() bool {
+	if x != nil {
+		return x.CanLockRoom
+	}
+	return false
+}
+
+func (x *AdminRoomLayoutItem) GetCanPurgeMessages() bool {
+	if x != nil {
+		return x.CanPurgeMessages
+	}
+	return false
 }
 
 type isAdminRoomLayoutItem_Item interface {
@@ -1397,10 +1415,12 @@ var File_chatto_admin_v1_room_layout_proto protoreflect.FileDescriptor
 
 const file_chatto_admin_v1_room_layout_proto_rawDesc = "" +
 	"\n" +
-	"!chatto/admin/v1/room_layout.proto\x12\x0fchatto.admin.v1\x1a\x1bbuf/validate/validate.proto\x1a\"chatto/api/v1/room_directory.proto\x1a\x19chatto/api/v1/rooms.proto\"\x89\x01\n" +
+	"!chatto/admin/v1/room_layout.proto\x12\x0fchatto.admin.v1\x1a\x1bbuf/validate/validate.proto\x1a\"chatto/api/v1/room_directory.proto\x1a\x19chatto/api/v1/rooms.proto\"\xdb\x01\n" +
 	"\x13AdminRoomLayoutItem\x12)\n" +
 	"\x04room\x18\x01 \x01(\v2\x13.chatto.api.v1.RoomH\x00R\x04room\x12?\n" +
-	"\fsidebar_link\x18\x02 \x01(\v2\x1a.chatto.api.v1.SidebarLinkH\x00R\vsidebarLinkB\x06\n" +
+	"\fsidebar_link\x18\x02 \x01(\v2\x1a.chatto.api.v1.SidebarLinkH\x00R\vsidebarLink\x12\"\n" +
+	"\rcan_lock_room\x18\x03 \x01(\bR\vcanLockRoom\x12,\n" +
+	"\x12can_purge_messages\x18\x04 \x01(\bR\x10canPurgeMessagesB\x06\n" +
 	"\x04item\"\xcd\x01\n" +
 	"\x14AdminRoomLayoutGroup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +

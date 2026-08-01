@@ -6,6 +6,7 @@
     "go_to_notifications": "Go to {count} notifications",
     "notifications": "{count} notifications",
     "unread_messages": "unread messages",
+    "locked": "Locked room",
     "go_to_dm_notifications": "Go to {count} direct message notifications",
     "new_direct_messages": "{count} new direct messages",
     "direct_messages": "Direct Messages",

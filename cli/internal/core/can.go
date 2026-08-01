@@ -105,6 +105,8 @@ var adminPermissions = []Permission{
 	PermRoleAssign,
 	PermRoomManage,
 	PermRoomMemberBan,
+	PermRoomLock,
+	PermRoomPurgeMessages,
 	PermUserDeleteAny,
 	PermUserManageAccounts,
 	PermUserManagePermissions,
@@ -145,6 +147,22 @@ func (c *ChattoCore) CanManageAnyRoom(ctx context.Context, userID string) (bool,
 // substitute for this group-scoped capability.
 func (c *ChattoCore) CanManageRoomGroup(ctx context.Context, userID, groupID string) (bool, error) {
 	return c.hasGroupPermission(ctx, KindChannel, groupID, userID, PermRoomManage)
+}
+
+// CanLockRoom checks the dedicated channel lock capability.
+func (c *ChattoCore) CanLockRoom(ctx context.Context, userID, roomID string) (bool, error) {
+	return c.hasRoomPermission(ctx, KindChannel, roomID, userID, PermRoomLock)
+}
+
+// CanPurgeRoomMessages checks the dedicated selective-history purge capability.
+func (c *ChattoCore) CanPurgeRoomMessages(ctx context.Context, userID, roomID string) (bool, error) {
+	return c.hasRoomPermission(ctx, KindChannel, roomID, userID, PermRoomPurgeMessages)
+}
+
+// CanBypassRoomLock checks whether an actor may add content while a channel is
+// locked.
+func (c *ChattoCore) CanBypassRoomLock(ctx context.Context, userID, roomID string) (bool, error) {
+	return c.hasRoomPermission(ctx, KindChannel, roomID, userID, PermRoomBypassLock)
 }
 
 // ============================================================================

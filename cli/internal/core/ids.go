@@ -58,6 +58,11 @@ func NewAssetID() string {
 	return newID("A")
 }
 
+// NewRoomHistoryPurgeOperationID generates a durable purge operation ID.
+func NewRoomHistoryPurgeOperationID() string {
+	return newID("HP")
+}
+
 // NewPasswordResetToken generates a new password reset token with "PR" prefix.
 func NewPasswordResetToken() string {
 	return newID("PR")

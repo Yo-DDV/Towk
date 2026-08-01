@@ -67,6 +67,7 @@ type ThreadProjection struct {
 	followState     map[string]ThreadFollowState
 	followers       map[string]map[string]struct{}
 	followedByUser  map[string]map[string]threadFollowRef
+	threadRoom      map[string]string
 	replayGuard     projectionReplayGuard
 	shreddedUsers   map[string]struct{}
 }
@@ -81,6 +82,7 @@ func NewThreadProjection() *ThreadProjection {
 		followState:     make(map[string]ThreadFollowState),
 		followers:       make(map[string]map[string]struct{}),
 		followedByUser:  make(map[string]map[string]threadFollowRef),
+		threadRoom:      make(map[string]string),
 		replayGuard:     newProjectionReplayGuard(),
 		shreddedUsers:   make(map[string]struct{}),
 	}
@@ -97,6 +99,7 @@ func (p *ThreadProjection) Subjects() []string {
 		events.RoomEventTypeFilter(events.EventMessagePosted),
 		events.RoomEventTypeFilter(events.EventMessageEdited),
 		events.RoomEventTypeFilter(events.EventMessageRetracted),
+		events.RoomEventTypeFilter(events.EventRoomHistoryPurged),
 		events.UserEventTypeFilter(events.EventUserKeyShredded),
 	}
 }
@@ -139,6 +142,10 @@ func (p *ThreadProjection) Apply(event *corev1.Event, seq uint64) error {
 	}
 
 	switch e := event.GetEvent().(type) {
+	case *corev1.Event_RoomHistoryPurged:
+		p.clearRoomLocked(e.RoomHistoryPurged.GetRoomId())
+		markApplied()
+
 	case *corev1.Event_UserKeyShredded:
 		if userID := e.UserKeyShredded.GetUserId(); userID != "" {
 			p.shreddedUsers[userID] = struct{}{}
@@ -159,6 +166,7 @@ func (p *ThreadProjection) Apply(event *corev1.Event, seq uint64) error {
 		if _, exists := p.summaryByThread[threadRoot]; !exists {
 			p.summaryByThread[threadRoot] = newThreadSummary()
 		}
+		p.threadRoom[threadRoot] = e.ThreadCreated.GetRoomId()
 		markApplied()
 
 	case *corev1.Event_ThreadFollowed:
@@ -182,6 +190,9 @@ func (p *ThreadProjection) Apply(event *corev1.Event, seq uint64) error {
 			return nil
 		}
 		p.byThread[threadRoot] = append(p.byThread[threadRoot], ThreadTimelineEntry{EventID: replyID, StreamSeq: seq})
+		if p.threadRoom[threadRoot] == "" {
+			p.threadRoom[threadRoot] = m.GetRoomId()
+		}
 		p.messageToThread[replyID] = threadRoot
 		p.replySummaries[replyID] = &threadReplySummary{
 			actorID:   messageAuthorID(event),
@@ -219,6 +230,55 @@ func (p *ThreadProjection) Apply(event *corev1.Event, seq uint64) error {
 		markApplied()
 	}
 	return nil
+}
+
+func (p *ThreadProjection) clearRoomLocked(roomID string) {
+	if roomID == "" {
+		return
+	}
+	removedRoots := make(map[string]struct{})
+	for rootID, ownerRoomID := range p.threadRoom {
+		if ownerRoomID != roomID {
+			continue
+		}
+		removedRoots[rootID] = struct{}{}
+		for _, reply := range p.byThread[rootID] {
+			delete(p.messageToThread, reply.EventID)
+			delete(p.replySummaries, reply.EventID)
+		}
+		delete(p.byThread, rootID)
+		delete(p.summaryByThread, rootID)
+		delete(p.threadRoom, rootID)
+	}
+	for stateKey, state := range p.followState {
+		if state == ThreadFollowStateNone {
+			continue
+		}
+		for rootID := range removedRoots {
+			if len(stateKey) >= len(rootID) && stateKey[len(stateKey)-len(rootID):] == rootID {
+				delete(p.followState, stateKey)
+				break
+			}
+		}
+	}
+	for key := range p.followers {
+		for rootID := range removedRoots {
+			if len(key) >= len(rootID) && key[len(key)-len(rootID):] == rootID {
+				delete(p.followers, key)
+				break
+			}
+		}
+	}
+	for userID, refs := range p.followedByUser {
+		for key, ref := range refs {
+			if ref.roomID == roomID {
+				delete(refs, key)
+			}
+		}
+		if len(refs) == 0 {
+			delete(p.followedByUser, userID)
+		}
+	}
 }
 
 func (p *ThreadProjection) CompleteStartupReplay() {

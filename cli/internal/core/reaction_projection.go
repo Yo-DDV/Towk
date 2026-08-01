@@ -61,6 +61,10 @@ func (p *ReactionProjection) Apply(event *corev1.Event, seq uint64) error {
 	p.noteRoomOwnershipLocked(event, roomID)
 
 	payload := event.GetEvent()
+	if _, purged := payload.(*corev1.Event_RoomHistoryPurged); purged {
+		p.clearRoomLocked(roomID)
+		return nil
+	}
 	switch payload.(type) {
 	case *corev1.Event_ReactionAdded, *corev1.Event_ReactionRemoved:
 	default:
@@ -78,6 +82,29 @@ func (p *ReactionProjection) Apply(event *corev1.Event, seq uint64) error {
 		p.applyRemoved(e.ReactionRemoved, event.GetActorId())
 	}
 	return nil
+}
+
+func (p *ReactionProjection) clearRoomLocked(roomID string) {
+	if roomID == "" {
+		return
+	}
+	removedMessages := make(map[string]struct{})
+	for messageID, ownerRoomID := range p.messageRoom {
+		if ownerRoomID != roomID {
+			continue
+		}
+		removedMessages[messageID] = struct{}{}
+		delete(p.byMessage, messageID)
+		delete(p.messageRoom, messageID)
+		delete(p.echoOriginal, messageID)
+	}
+	for echoID, originalID := range p.echoOriginal {
+		_, echoRemoved := removedMessages[echoID]
+		_, originalRemoved := removedMessages[originalID]
+		if echoRemoved || originalRemoved {
+			delete(p.echoOriginal, echoID)
+		}
+	}
 }
 
 func (p *ReactionProjection) CompleteStartupReplay() {

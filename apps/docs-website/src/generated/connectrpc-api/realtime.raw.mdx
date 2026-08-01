@@ -182,6 +182,8 @@ intended hydration path when a referenced resource may need refreshing.
 | `event.user_joined_room` | [`RealtimeRoomEvent`](#chatto-realtime-v1-RealtimeRoomEvent) | A user joined a room visible to the current user. |
 | `event.user_left_room` | [`RealtimeRoomEvent`](#chatto-realtime-v1-RealtimeRoomEvent) | A user left a room visible to the current user. |
 | `event.room_universal_changed` | [`RealtimeRoomUniversalChangedEvent`](#chatto-realtime-v1-RealtimeRoomUniversalChangedEvent) | A room's universal visibility flag changed. |
+| `event.room_posting_policy_changed` | [`RealtimeRoomPostingPolicyChangedEvent`](#chatto-realtime-v1-RealtimeRoomPostingPolicyChangedEvent) | A channel was locked or unlocked. |
+| `event.room_history_purged` | [`RealtimeRoomHistoryPurgedEvent`](#chatto-realtime-v1-RealtimeRoomHistoryPurgedEvent) | A channel crossed a durable message-history purge barrier. |
 | `event.notification_created` | [`RealtimeNotificationCreatedEvent`](#chatto-realtime-v1-RealtimeNotificationCreatedEvent) | A notification was created for the current user. |
 | `event.notification_dismissed` | [`RealtimeNotificationDismissedEvent`](#chatto-realtime-v1-RealtimeNotificationDismissedEvent) | A notification was dismissed for the current user. |
 | `event.notification_level_changed` | [`RealtimeNotificationLevelChangedEvent`](#chatto-realtime-v1-RealtimeNotificationLevelChangedEvent) | The current user's notification level changed. |
@@ -487,6 +489,22 @@ client already knows specific group IDs, it can use
 
 
 
+<a id="chatto-realtime-v1-RealtimeRoomHistoryPurgedEvent"></a>
+
+### RealtimeRoomHistoryPurgedEvent
+
+Channel history-purge invalidation signal.
+
+Clients must immediately invalidate cached timeline state from every earlier
+epoch and hydrate the room before accepting new writes.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `history_epoch` | `uint64` | No field description provided. |
+
+
+
 <a id="chatto-realtime-v1-RealtimeRoomMarkedAsReadEvent"></a>
 
 ### RealtimeRoomMarkedAsReadEvent
@@ -499,6 +517,22 @@ unread state for the room; no separate hydration is normally needed.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Room marked read. |
+
+
+
+<a id="chatto-realtime-v1-RealtimeRoomPostingPolicyChangedEvent"></a>
+
+### RealtimeRoomPostingPolicyChangedEvent
+
+Channel posting-policy invalidation signal.
+
+The latest locked state is inline. Hydrate the room to refresh its revision
+and the viewer's effective governance permissions.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `locked` | `bool` | No field description provided. |
 
 
 

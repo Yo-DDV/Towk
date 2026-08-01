@@ -6,7 +6,7 @@ import {
   type AdminRoomLayoutItem as APIAdminRoomLayoutItem
 } from '@towk/api-types/admin/v1/room_layout_pb';
 import type { DirectorySidebarLink } from './roomDirectory.js';
-import type { Room } from '@towk/api-types/api/v1/rooms_pb';
+import { RoomPostingPolicy, type Room } from '@towk/api-types/api/v1/rooms_pb';
 
 export type AdminRoomLayoutAPIConfig = {
   serverId?: string;
@@ -21,6 +21,12 @@ export type AdminRoomInfo = {
   description?: string | null;
   archived: boolean;
   isUniversal: boolean;
+  postingPolicy: RoomPostingPolicy;
+  historyEpoch: bigint;
+  revision: bigint;
+  isLocked: boolean;
+  canLockRoom: boolean;
+  canPurgeMessages: boolean;
 };
 
 export type AdminSidebarLinkInfo = {
@@ -219,7 +225,7 @@ function mapAdminRoomLayoutGroup(group: APIAdminRoomLayoutGroup): AdminRoomGroup
 
 function mapAdminRoomLayoutItem(item: APIAdminRoomLayoutItem): AdminSidebarItem | null {
   if (item.item.case === 'room') {
-    const room = mapAdminRoom(item.item.value);
+    const room = mapAdminRoom(item.item.value, item.canLockRoom, item.canPurgeMessages);
     return { id: `room:${room.id}`, kind: 'room', room };
   }
   if (item.item.case === 'sidebarLink') {
@@ -229,13 +235,19 @@ function mapAdminRoomLayoutItem(item: APIAdminRoomLayoutItem): AdminSidebarItem 
   return null;
 }
 
-function mapAdminRoom(room: Room): AdminRoomInfo {
+function mapAdminRoom(room: Room, canLockRoom = false, canPurgeMessages = false): AdminRoomInfo {
   return {
     id: room.id,
     name: room.name,
     description: room.description || null,
     archived: room.archived ?? false,
-    isUniversal: room.universal ?? false
+    isUniversal: room.universal ?? false,
+    postingPolicy: room.postingPolicy,
+    historyEpoch: room.historyEpoch,
+    revision: room.revision,
+    isLocked: room.postingPolicy === RoomPostingPolicy.LOCKED,
+    canLockRoom,
+    canPurgeMessages
   };
 }
 

@@ -222,6 +222,24 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
           universal: frame.event.value.universal
         }
       } as unknown as EventEnvelope;
+    case 'roomPostingPolicyChanged':
+      return {
+        ...base,
+        event: {
+          kind: RoomEventKind.RoomPostingPolicyChanged,
+          roomId: frame.event.value.roomId,
+          locked: frame.event.value.locked
+        }
+      } as unknown as EventEnvelope;
+    case 'roomHistoryPurged':
+      return {
+        ...base,
+        event: {
+          kind: RoomEventKind.RoomHistoryPurged,
+          roomId: frame.event.value.roomId,
+          historyEpoch: frame.event.value.historyEpoch
+        }
+      } as unknown as EventEnvelope;
     case 'notificationCreated': {
       const value = frame.event.value;
       return {

@@ -64,6 +64,16 @@ const (
 	// PermRoomMemberBan allows banning members from channel rooms.
 	PermRoomMemberBan Permission = "room.ban-member"
 
+	// PermRoomLock allows locking and unlocking channel posting.
+	PermRoomLock Permission = "room.lock"
+
+	// PermRoomPurgeMessages allows placing a channel history barrier and
+	// securely deleting message-owned content.
+	PermRoomPurgeMessages Permission = "room.purge-messages"
+
+	// PermRoomBypassLock allows additive content while a channel is locked.
+	PermRoomBypassLock Permission = "room.bypass-lock"
+
 	// ===== Message Permissions =====
 
 	// PermMessagePost allows posting new root messages in rooms. Server-scope
@@ -156,6 +166,12 @@ var allPermissions = []PermissionMetadata{
 	{PermRoomList, "Discover Rooms", "See rooms in the directory and group 'Join all' affordances", CategoryRoom, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
 	{PermRoomManage, "Manage Rooms", "Edit, configure permissions on, and delete rooms", CategoryRoom, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
 	{PermRoomMemberBan, "Ban Room Members", "Ban members from rooms", CategoryRoom, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
+
+	{PermRoomLock, "Lock Rooms", "Lock and unlock posting in channel rooms", CategoryRoom, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
+
+	{PermRoomPurgeMessages, "Purge Room Messages", "Permanently erase message-owned channel history while preserving the room", CategoryRoom, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
+
+	{PermRoomBypassLock, "Bypass Room Locks", "Add content to a locked channel room", CategoryRoom, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
 
 	// Message
 	{PermMessagePost, "Post Messages", "Post new messages in rooms and start DMs", CategoryMessage, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
@@ -298,6 +314,11 @@ func DefaultAdminPermissions() []Permission {
 			continue
 		}
 		if meta.Category == CategoryMessage && meta.Permission != PermMessageManage {
+			continue
+		}
+		if meta.Permission == PermRoomLock ||
+			meta.Permission == PermRoomPurgeMessages ||
+			meta.Permission == PermRoomBypassLock {
 			continue
 		}
 		seen[meta.Permission] = true

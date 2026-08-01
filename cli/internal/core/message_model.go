@@ -260,6 +260,9 @@ func (s *MessageModel) AuthorizePost(ctx context.Context, input MessagePostAutho
 	if room.Archived {
 		return nil, ErrRoomArchived
 	}
+	if err := s.core.requireRoomAcceptsAdditiveContent(ctx, input.ActorID, kind, room.Id); err != nil {
+		return nil, err
+	}
 
 	isMember, err := s.core.RoomMembershipExists(ctx, kind, input.ActorID, room.Id)
 	if err != nil {
@@ -495,6 +498,9 @@ func (s *MessageModel) DeleteLinkPreview(ctx context.Context, input MessageLinkP
 func (s *MessageModel) SendTypingIndicator(ctx context.Context, input TypingIndicatorInput) error {
 	room, kind, err := s.core.requireRoomMember(ctx, input.ActorID, input.RoomID)
 	if err != nil {
+		return err
+	}
+	if err := s.core.requireRoomAcceptsAdditiveContent(ctx, input.ActorID, kind, room.Id); err != nil {
 		return err
 	}
 	return s.core.PublishTypingIndicator(ctx, input.ActorID, kind, room.Id, input.ThreadRootEventID)

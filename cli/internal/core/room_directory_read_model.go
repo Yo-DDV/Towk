@@ -46,6 +46,9 @@ type DirectoryRoomViewerState struct {
 	CanManageOthersMessage bool
 	CanManageRoom          bool
 	CanBanRoomMembers      bool
+	CanLockRoom            bool
+	CanPurgeRoomMessages   bool
+	CanBypassRoomLock      bool
 }
 
 type DirectoryRoomGroup struct {
@@ -432,16 +435,37 @@ func (s *RoomDirectoryReadModel) roomViewerState(ctx context.Context, actorID st
 	if err != nil {
 		return DirectoryRoomViewerState{}, err
 	}
+	canLockRoom := false
+	canPurgeRoomMessages := false
+	canBypassRoomLock := false
+	if kind == KindChannel {
+		canLockRoom, err = s.core.CanLockRoom(ctx, actorID, room.Id)
+		if err != nil {
+			return DirectoryRoomViewerState{}, err
+		}
+		canPurgeRoomMessages, err = s.core.CanPurgeRoomMessages(ctx, actorID, room.Id)
+		if err != nil {
+			return DirectoryRoomViewerState{}, err
+		}
+		canBypassRoomLock, err = s.core.CanBypassRoomLock(ctx, actorID, room.Id)
+		if err != nil {
+			return DirectoryRoomViewerState{}, err
+		}
+	}
+	canAddContent, err := s.core.CanAddContentToRoom(ctx, actorID, kind, room.Id)
+	if err != nil {
+		return DirectoryRoomViewerState{}, err
+	}
 
 	messageActionsEnabled := isMember && !room.GetArchived()
 	memberActionsEnabled := isMember
 	canJoin = canJoin && !isMember && kind == KindChannel && !room.GetArchived()
-	canPostMessage = canPostMessage && messageActionsEnabled
-	canPostInThread = canPostInThread && messageActionsEnabled
-	canAttach = canAttach && messageActionsEnabled
-	canSendVoiceMessages = canSendVoiceMessages && messageActionsEnabled
-	canReact = canReact && messageActionsEnabled
-	canEcho = canEcho && messageActionsEnabled
+	canPostMessage = canPostMessage && messageActionsEnabled && canAddContent
+	canPostInThread = canPostInThread && messageActionsEnabled && canAddContent
+	canAttach = canAttach && messageActionsEnabled && canAddContent
+	canSendVoiceMessages = canSendVoiceMessages && messageActionsEnabled && canAddContent
+	canReact = canReact && messageActionsEnabled && canAddContent
+	canEcho = canEcho && messageActionsEnabled && canAddContent
 	canManageOthersMessage = canManageOthersMessage && memberActionsEnabled
 	if kind == KindDM {
 		canManageRoom = false
@@ -462,6 +486,9 @@ func (s *RoomDirectoryReadModel) roomViewerState(ctx context.Context, actorID st
 		CanManageOthersMessage: canManageOthersMessage,
 		CanManageRoom:          canManageRoom,
 		CanBanRoomMembers:      canBanRoomMembers,
+		CanLockRoom:            canLockRoom,
+		CanPurgeRoomMessages:   canPurgeRoomMessages,
+		CanBypassRoomLock:      canBypassRoomLock,
 	}, nil
 }
 

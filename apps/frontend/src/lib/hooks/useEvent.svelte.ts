@@ -181,6 +181,12 @@ export function useActiveRoomLayoutUpdated(handler: (info: RoomLayoutUpdatedInfo
     } else if (kind === RoomEventKind.RoomUniversalChanged) {
       const payload = event.event as { roomId?: string; universal?: boolean };
       handler({ roomId: payload.roomId, universal: payload.universal });
+    } else if (
+      kind === RoomEventKind.RoomPostingPolicyChanged ||
+      kind === RoomEventKind.RoomHistoryPurged
+    ) {
+      const payload = event.event as { roomId?: string };
+      handler({ roomId: payload.roomId });
     }
   };
   useActiveEvent(wrapper);

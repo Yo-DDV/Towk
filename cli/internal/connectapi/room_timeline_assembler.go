@@ -186,6 +186,20 @@ func (h *timelineHydrator) event(ctx context.Context, event *core.RoomEvent) (*a
 		apiEvent.Event = &apiv1.RoomTimelineEvent_RoomArchived{RoomArchived: roomEvent(payload.RoomArchived.GetRoomId())}
 	case *corev1.Event_RoomUnarchived:
 		apiEvent.Event = &apiv1.RoomTimelineEvent_RoomUnarchived{RoomUnarchived: roomEvent(payload.RoomUnarchived.GetRoomId())}
+	case *corev1.Event_RoomPostingPolicyChanged:
+		apiEvent.Event = &apiv1.RoomTimelineEvent_RoomPostingPolicyChanged{
+			RoomPostingPolicyChanged: &apiv1.RoomTimelinePostingPolicyEvent{
+				RoomId: payload.RoomPostingPolicyChanged.GetRoomId(),
+				Locked: payload.RoomPostingPolicyChanged.GetPostingPolicy() == corev1.RoomPostingPolicy_ROOM_POSTING_POLICY_LOCKED,
+			},
+		}
+	case *corev1.Event_RoomHistoryPurged:
+		apiEvent.Event = &apiv1.RoomTimelineEvent_RoomHistoryPurged{
+			RoomHistoryPurged: &apiv1.RoomTimelineHistoryPurgedEvent{
+				RoomId:       payload.RoomHistoryPurged.GetRoomId(),
+				HistoryEpoch: payload.RoomHistoryPurged.GetHistoryEpoch(),
+			},
+		}
 	case *corev1.Event_UserJoinedRoom:
 		apiEvent.Event = &apiv1.RoomTimelineEvent_UserJoinedRoom{UserJoinedRoom: roomEvent(payload.UserJoinedRoom.GetRoomId())}
 	case *corev1.Event_UserLeftRoom:
