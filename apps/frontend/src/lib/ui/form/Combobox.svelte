@@ -60,7 +60,11 @@
   let selectedIndex = $state(0);
   let anchor = $state<{ top: number; bottom: number; left: number } | null>(null);
 
+  const listboxId = $derived(`${id}-listbox`);
   const showPopover = $derived(open && !disabled && (loading || items.length > 0 || text !== ''));
+  const activeOptionId = $derived(
+    showPopover && items[selectedIndex] ? `${listboxId}-option-${selectedIndex}` : undefined
+  );
 
   function updateAnchor() {
     const rect = inputEl?.getBoundingClientRect();
@@ -115,6 +119,10 @@
       }
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
+      if (!open) {
+        openMenu();
+        return;
+      }
       if (items.length > 0) {
         selectedIndex = (selectedIndex - 1 + items.length) % items.length;
       }
@@ -130,6 +138,14 @@
       }
     }
   }
+
+  $effect(() => {
+    if (items.length === 0) {
+      selectedIndex = 0;
+    } else if (selectedIndex >= items.length) {
+      selectedIndex = items.length - 1;
+    }
+  });
 </script>
 
 <FormField {id} {label} {error} {description}>
@@ -145,7 +161,10 @@
       role="combobox"
       aria-expanded={showPopover}
       aria-autocomplete="list"
-      aria-controls={`${id}-listbox`}
+      aria-haspopup="listbox"
+      aria-controls={listboxId}
+      aria-activedescendant={activeOptionId}
+      aria-busy={loading || undefined}
       aria-invalid={error ? 'true' : undefined}
       aria-describedby={error ? `${id}-error` : description ? `${id}-description` : undefined}
       class={['input pr-16', loading && 'pr-20']}
@@ -178,7 +197,7 @@
   open={showPopover}
   {anchor}
   role="listbox"
-  id={`${id}-listbox`}
+  id={listboxId}
   class="max-h-72 w-80 overflow-y-auto menu"
   onclose={() => (open = false)}
 >
@@ -191,8 +210,10 @@
           onpointerenter={() => (selectedIndex = index)}
         >
           <button
+            id={`${listboxId}-option-${index}`}
             type="button"
             role="option"
+            tabindex="-1"
             aria-selected={index === selectedIndex}
             class={[
               'menu-item min-w-0 flex-1 text-left',
