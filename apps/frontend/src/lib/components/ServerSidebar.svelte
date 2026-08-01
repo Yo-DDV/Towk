@@ -13,7 +13,11 @@ See the "UI" section of `docs/GLOSSARY.md`.
   import { onMount, type Snippet } from 'svelte';
   import { SIDEBAR_PANEL_WIDTH_PX, sidebarSwipe } from '$lib/hooks/useSidebarSwipe.svelte';
   import { getServerSidebarMaxWidth } from '$lib/layout/serverSidebarSizing';
-  import { sidebarNav } from '$lib/state/globals.svelte';
+  import {
+    SERVER_GUTTER_WIDTH_PX,
+    SERVER_SIDEBAR_MOBILE_WIDTH_PX,
+    sidebarNav
+  } from '$lib/state/globals.svelte';
   import { serverSidebarWidth } from '$lib/state/serverSidebarWidth.svelte';
   import { SERVER_SIDEBAR_MIN_WIDTH } from '$lib/storage/serverSidebarWidth';
   import * as m from '$lib/i18n/messages';
@@ -23,7 +27,7 @@ See the "UI" section of `docs/GLOSSARY.md`.
   let {
     children,
     width,
-    mobileWidth = 'max-md:w-64'
+    mobileWidth
   }: {
     children: Snippet;
     /** Optional Tailwind class to lock the desktop width (e.g. "md:w-56"). When
@@ -94,7 +98,7 @@ See the "UI" section of `docs/GLOSSARY.md`.
     // Mobile: fixed overlay positioned after the Server Gutter (~68px); touch-pan-y so
     // vertical scroll inside the panel still works while horizontal pans go to
     // the sidebar swipe action.
-    'max-md:fixed max-md:top-11 max-md:bottom-0 max-md:left-17 max-md:touch-pan-y',
+    'max-md:fixed max-md:top-11 max-md:bottom-0 max-md:touch-pan-y',
     // Mobile: always rendered so the slide animation is visible.
     // Desktop: hide entirely when closed.
     sidebarNav.isMobile ? '' : sidebarNav.isOpen ? '' : 'hidden',
@@ -104,13 +108,15 @@ See the "UI" section of `docs/GLOSSARY.md`.
     // hidden, not just translated off-screen.
     mobileClosed && 'sidebar-mobile-closed',
     !dragging && 'sidebar-mobile-anim',
-    resizable && 'server-sidebar--resizable'
+    resizable && 'server-sidebar--resizable',
+    !mobileWidth && 'server-sidebar--default-mobile-width'
   ]}
+  style:--server-gutter-width={`${SERVER_GUTTER_WIDTH_PX}px`}
+  style:--server-sidebar-mobile-width={`${SERVER_SIDEBAR_MOBILE_WIDTH_PX}px`}
   style:--server-sidebar-width={resizable ? `${renderedWidth}px` : undefined}
   style:transform={sidebarNav.isMobile ? `translateX(${tx}px)` : undefined}
 >
   {@render children()}
-  <CurrentUserBar />
   {#if resizable && !sidebarNav.isMobile}
     <ResizeHandle
       width={renderedWidth}
@@ -123,7 +129,19 @@ See the "UI" section of `docs/GLOSSARY.md`.
   {/if}
 </div>
 
+<CurrentUserBar />
+
 <style>
+  @media (max-width: 767px) {
+    .server-sidebar {
+      left: var(--server-gutter-width);
+    }
+
+    .server-sidebar--default-mobile-width {
+      width: min(var(--server-sidebar-mobile-width), calc(100vw - var(--server-gutter-width)));
+    }
+  }
+
   @media (min-width: 768px) {
     .server-sidebar--resizable {
       width: var(--server-sidebar-width);
@@ -132,8 +150,7 @@ See the "UI" section of `docs/GLOSSARY.md`.
 
   /* Prevent a pre-hydration flash of the persisted 480 px desktop width on a
      Fold-like touch viewport. Runtime sizing uses the same geometry contract. */
-  @media (min-width: 768px) and (max-width: 1280px) and (min-aspect-ratio: 4/5) and
-    (max-aspect-ratio: 5/4) and (any-pointer: coarse) {
+  @media (min-width: 768px) and (max-width: 1280px) and (min-aspect-ratio: 4/5) and (max-aspect-ratio: 5/4) and (any-pointer: coarse) {
     .server-sidebar--resizable {
       max-width: clamp(16rem, 38vw, 22.5rem);
     }

@@ -18,6 +18,7 @@ to the user settings page for the active server.
   import { PresenceStatus } from '$lib/render/types';
   import { getPresenceCache } from '$lib/state/presenceCache.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
+  import { SIDEBAR_PANEL_WIDTH_PX, sidebarSwipe } from '$lib/hooks/useSidebarSwipe.svelte';
   import { prefersTouchActions, supportsHoverActions } from '$lib/utils/inputCapabilities';
   import BottomSheet from '$lib/ui/BottomSheet.svelte';
   import ContextMenu from '$lib/ui/ContextMenu.svelte';
@@ -55,6 +56,13 @@ to the user settings page for the active server.
     );
   });
   const presenceLabel = $derived.by(() => presenceStatusLabel(currentPresence));
+  const dragging = $derived(sidebarNav.dragOffset !== null);
+  const mobileClosed = $derived(sidebarNav.isMobile && sidebarNav.progress === 0 && !dragging);
+  const mobileTransform = $derived(
+    sidebarNav.isMobile
+      ? `translate3d(${(sidebarNav.progress - 1) * SIDEBAR_PANEL_WIDTH_PX}px, 0, 0)`
+      : undefined
+  );
   let statusMenuAnchor = $state<{ top: number; bottom: number; left: number } | null>(null);
   let customStatusDialogVisible = $state(false);
   let ownProfileOpen = $state(false);
@@ -130,6 +138,30 @@ to the user settings page for the active server.
       customStatus: status
     };
   }
+
+  function reserveNavigationFooter(node: HTMLElement) {
+    const region = node.closest<HTMLElement>('[data-testid="mobile-navigation-swipe-region"]');
+    if (!region || typeof ResizeObserver === 'undefined') return;
+
+    const update = () => {
+      region.dataset.navigationFooter = 'true';
+      region.style.setProperty(
+        '--navigation-footer-height',
+        `${Math.ceil(node.getBoundingClientRect().height)}px`
+      );
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    update();
+
+    return {
+      destroy() {
+        observer.disconnect();
+        delete region.dataset.navigationFooter;
+        region.style.removeProperty('--navigation-footer-height');
+      }
+    };
+  }
 </script>
 
 {#snippet customStatusEditor(sheet = false)}
@@ -145,7 +177,20 @@ to the user settings page for the active server.
 {/snippet}
 
 {#if activeServerUser}
-  <div class="flex shrink-0 flex-col gap-1 p-2">
+  <div
+    use:sidebarSwipe
+    use:reserveNavigationFooter
+    data-testid="current-user-bar"
+    class={[
+      'current-user-bar z-50 flex shrink-0 flex-col gap-1 border-t border-border bg-background p-2',
+      'max-md:fixed max-md:bottom-0 max-md:left-0 max-md:touch-pan-y',
+      sidebarNav.isMobile ? '' : sidebarNav.isOpen ? '' : 'hidden',
+      mobileClosed && 'sidebar-mobile-closed',
+      !dragging && 'sidebar-mobile-anim'
+    ]}
+    style:--navigation-panel-width={`${SIDEBAR_PANEL_WIDTH_PX}px`}
+    style:transform={mobileTransform}
+  >
     {#if sidebarNav.isOpen}
       <GlobalCallDock variant="sidebar" />
     {/if}
@@ -287,3 +332,12 @@ to the user settings page for the active server.
     </Dialog>
   {/if}
 {/if}
+
+<style>
+  @media (max-width: 767px) {
+    .current-user-bar {
+      width: min(100vw, var(--navigation-panel-width));
+      padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+</style>

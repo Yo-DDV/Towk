@@ -4,7 +4,7 @@
   import { mobileNavigationSwipe } from '$lib/hooks/useMobileNavigationSwipe.svelte';
   import { SIDEBAR_PANEL_WIDTH_PX, sidebarSwipe } from '$lib/hooks/useSidebarSwipe.svelte';
   import * as m from '$lib/i18n/messages';
-  import { sidebarNav } from '$lib/state/globals.svelte';
+  import { SERVER_GUTTER_WIDTH_PX, sidebarNav } from '$lib/state/globals.svelte';
 
   let { children }: { children?: Snippet } = $props();
 
@@ -45,8 +45,8 @@
     data-app-sidebar="true"
     data-testid="mobile-sidebar-panel"
     class={[
-      'z-50 min-h-0 flex-col self-stretch bg-background',
-      'max-md:fixed max-md:top-11 max-md:bottom-0 max-md:left-0 max-md:w-17 max-md:touch-pan-y',
+      'mobile-server-gutter-panel z-50 min-h-0 flex-col self-stretch bg-background',
+      'max-md:fixed max-md:top-11 max-md:bottom-0 max-md:left-0 max-md:touch-pan-y',
       // Mobile: always rendered so we can animate transform.
       // Desktop: hide entirely when closed (no overlay; layout reflows).
       sidebarNav.isMobile ? 'flex' : sidebarNav.isOpen ? 'flex' : 'hidden',
@@ -56,6 +56,7 @@
       mobileClosed && 'sidebar-mobile-closed',
       !dragging && 'sidebar-mobile-anim'
     ]}
+    style:--server-gutter-width={`${SERVER_GUTTER_WIDTH_PX}px`}
     style:transform={mobileTransform}
   >
     <ServerGutter />
@@ -76,6 +77,37 @@
     padding-bottom: var(--global-call-dock-reserved-height);
   }
 
+  @media (min-width: 768px) {
+    :global(.mobile-navigation-swipe-region:has(> .current-user-bar)) {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+
+    :global(
+      .mobile-navigation-swipe-region:has(> .current-user-bar)
+        > [data-testid='mobile-sidebar-panel']
+    ) {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    :global(.mobile-navigation-swipe-region:has(> .current-user-bar) > .server-sidebar) {
+      grid-column: 2;
+      grid-row: 1;
+    }
+
+    :global(.mobile-navigation-swipe-region:has(> .current-user-bar) > .current-user-bar) {
+      grid-column: 1 / 3;
+      grid-row: 2;
+    }
+
+    :global(.mobile-navigation-swipe-region:has(> .current-user-bar) > .app-main-content) {
+      grid-column: 3;
+      grid-row: 1 / 3;
+    }
+  }
+
   /*
 		Mobile sidebar animation — slide via transform, plus a delayed visibility
 		swap so the off-screen panel is reported as `visibility: hidden` (not just
@@ -86,6 +118,18 @@
 		Close → transform animates 360ms, visibility flips to `hidden` AFTER 360ms.
 	*/
   @media (max-width: 767px) {
+    :global(.mobile-server-gutter-panel) {
+      width: var(--server-gutter-width);
+    }
+
+    :global(
+      .mobile-navigation-swipe-region[data-navigation-footer='true']
+        > [data-testid='mobile-sidebar-panel']
+    ),
+    :global(.mobile-navigation-swipe-region[data-navigation-footer='true'] > .server-sidebar) {
+      bottom: var(--navigation-footer-height, 4.75rem);
+    }
+
     :global(.sidebar-mobile-backdrop-anim) {
       transition: opacity 320ms ease-out;
     }

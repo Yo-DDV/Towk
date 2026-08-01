@@ -2,7 +2,7 @@
 @component
 
 The **Server Gutter** — narrow leftmost column listing every server the user
-is connected to, plus the add-server button pinned to the bottom. See the
+is connected to, followed by the add-server button. See the
 "UI" section of `docs/GLOSSARY.md`.
 -->
 <script lang="ts">
@@ -50,23 +50,22 @@ is connected to, plus the add-server button pinned to the bottom. See the
           {/key}
         {/if}
       {/each}
+
+      <button
+        type="button"
+        onclick={() => (addServerDialogVisible = true)}
+        title={m['chat.server_gutter.add_server']()}
+        aria-label={m['chat.server_gutter.add_server']()}
+        data-testid="add-server"
+        class={[
+          'server-gutter-item cursor-pointer',
+          addServerDialogVisible && 'server-gutter-item-active'
+        ]}
+      >
+        <span class="iconify uil--plus"></span>
+      </button>
     </div>
   </ScrollFader>
-
-  <!-- Add Server - pinned to the bottom -->
-  <div class="flex shrink-0 justify-center p-2 max-md:pl-3">
-    <button
-      type="button"
-      onclick={() => (addServerDialogVisible = true)}
-      title={m['chat.server_gutter.add_server']()}
-      class={[
-        'server-gutter-item cursor-pointer',
-        addServerDialogVisible && 'server-gutter-item-active'
-      ]}
-    >
-      <span class="iconify uil--plus"></span>
-    </button>
-  </div>
 </div>
 
 {#if addServerDialogVisible}
