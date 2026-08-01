@@ -146,12 +146,7 @@
         dismissOnExternalInteraction={false}
         onclose={() => (persistentSheetOpen = false)}
       >
-        <div class="space-y-3">
-          <p class="px-3 text-sm text-muted">
-            Choose an action or use the explicit sheet handle to dismiss.
-          </p>
-          {@render actionItems(() => (persistentSheetOpen = false))}
-        </div>
+        {@render actionItems(() => (persistentSheetOpen = false))}
       </ContextMenu>
     {/if}
   </div>
