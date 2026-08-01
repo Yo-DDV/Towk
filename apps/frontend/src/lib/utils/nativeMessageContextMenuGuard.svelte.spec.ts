@@ -90,6 +90,7 @@ afterEach(() => {
   fixture?.remove();
   fixture = null;
   now = 1_000;
+  vi.useRealTimers();
 });
 
 describe('installNativeMessageContextMenuGuard', () => {
@@ -129,6 +130,17 @@ describe('installNativeMessageContextMenuGuard', () => {
     expect(contextMenu.defaultPrevented).toBe(true);
   });
 
+  it('cancels a compatibility mouse PointerEvent that follows a message touch', () => {
+    installGuard();
+    const { link } = createMessageFixture();
+
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch'));
+    const contextMenu = pointerEvent('contextmenu', 'mouse');
+    link.dispatchEvent(contextMenu);
+
+    expect(contextMenu.defaultPrevented).toBe(true);
+  });
+
   it('cancels a retargeted legacy menu only when it matches the touch point', () => {
     installGuard();
     const { link } = createMessageFixture();
@@ -151,6 +163,47 @@ describe('installNativeMessageContextMenuGuard', () => {
     expect(unrelatedMenu.defaultPrevented).toBe(false);
   });
 
+  it('does not reuse a touch from one message for another message', () => {
+    installGuard();
+    const { link } = createMessageFixture();
+    const otherRow = document.createElement('article');
+    otherRow.className = 'message-row';
+    const otherLink = document.createElement('a');
+    otherLink.href = '/other';
+    otherRow.append(otherLink);
+    fixture?.append(otherRow);
+
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch'));
+    const contextMenu = legacyContextMenu();
+    otherLink.dispatchEvent(contextMenu);
+
+    expect(contextMenu.defaultPrevented).toBe(false);
+  });
+
+  it('clears the remembered message touch when the next touch starts outside messages', () => {
+    installGuard();
+    const { link, outside } = createMessageFixture();
+
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch'));
+    outside.dispatchEvent(pointerEvent('pointerdown', 'touch'));
+    const contextMenu = legacyContextMenu();
+    link.dispatchEvent(contextMenu);
+
+    expect(contextMenu.defaultPrevented).toBe(false);
+  });
+
+  it('keeps small touch jitter inside the long-press fallback', () => {
+    installGuard();
+    const { link } = createMessageFixture();
+
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch', 40, 50));
+    link.dispatchEvent(pointerEvent('pointermove', 'touch', 44, 54));
+    const contextMenu = legacyContextMenu(44, 54);
+    link.dispatchEvent(contextMenu);
+
+    expect(contextMenu.defaultPrevented).toBe(true);
+  });
+
   it('drops the legacy fallback after the finger moves into a scroll gesture', () => {
     installGuard();
     const { link } = createMessageFixture();
@@ -165,12 +218,63 @@ describe('installNativeMessageContextMenuGuard', () => {
     expect(contextMenu.defaultPrevented).toBe(false);
   });
 
+  it('drops the legacy fallback after a legacy touchmove becomes a scroll gesture', () => {
+    installGuard();
+    const { link } = createMessageFixture();
+
+    link.dispatchEvent(legacyTouchEvent('touchstart', 40, 50));
+    link.dispatchEvent(
+      legacyTouchEvent('touchmove', 40 + TOUCH_CONTEXT_MENU_MAX_DRIFT_PX + 1, 50)
+    );
+    const contextMenu = legacyContextMenu(40, 50);
+    link.dispatchEvent(contextMenu);
+
+    expect(contextMenu.defaultPrevented).toBe(false);
+  });
+
+  it('tracks a second sequential touch after the first pointer is released', () => {
+    installGuard();
+    const { link } = createMessageFixture();
+
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch', 24, 32, 1));
+    link.dispatchEvent(pointerEvent('pointerup', 'touch', 24, 32, 1));
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch', 48, 64, 2));
+    const contextMenu = legacyContextMenu(48, 64);
+    link.dispatchEvent(contextMenu);
+
+    expect(contextMenu.defaultPrevented).toBe(true);
+  });
+
+  it('does not treat a simultaneous second touch pointer as a long press', () => {
+    installGuard();
+    const { link } = createMessageFixture();
+
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch', 24, 32, 1));
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch', 48, 64, 2));
+    const contextMenu = legacyContextMenu(24, 32);
+    link.dispatchEvent(contextMenu);
+
+    expect(contextMenu.defaultPrevented).toBe(false);
+  });
+
   it('drops the legacy fallback when the browser cancels the touch pointer', () => {
     installGuard();
     const { link } = createMessageFixture();
 
     link.dispatchEvent(pointerEvent('pointerdown', 'touch'));
     link.dispatchEvent(pointerEvent('pointercancel', 'touch'));
+    const contextMenu = legacyContextMenu();
+    link.dispatchEvent(contextMenu);
+
+    expect(contextMenu.defaultPrevented).toBe(false);
+  });
+
+  it('drops the legacy fallback when a legacy touch sequence is cancelled', () => {
+    installGuard();
+    const { link } = createMessageFixture();
+
+    link.dispatchEvent(legacyTouchEvent('touchstart'));
+    link.dispatchEvent(legacyTouchEvent('touchcancel'));
     const contextMenu = legacyContextMenu();
     link.dispatchEvent(contextMenu);
 
@@ -221,7 +325,7 @@ describe('installNativeMessageContextMenuGuard', () => {
     expect(contextMenu.defaultPrevented).toBe(false);
   });
 
-  it('expires the synthetic-mouse fallback window', () => {
+  it('expires the synthetic-mouse fallback window against the event clock', () => {
     installGuard();
     const { link } = createMessageFixture();
 
@@ -233,14 +337,29 @@ describe('installNativeMessageContextMenuGuard', () => {
     expect(contextMenu.defaultPrevented).toBe(false);
   });
 
-  it('uses touchstart as a fallback when no PointerEvent precedes the menu', () => {
+  it('releases remembered message state when the fallback timer expires', () => {
+    vi.useFakeTimers();
     installGuard();
     const { link } = createMessageFixture();
 
-    link.dispatchEvent(legacyTouchEvent('touchstart'));
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch'));
+    vi.advanceTimersByTime(TOUCH_CONTEXT_MENU_FALLBACK_MS);
     const contextMenu = legacyContextMenu();
     link.dispatchEvent(contextMenu);
 
+    expect(contextMenu.defaultPrevented).toBe(false);
+  });
+
+  it('uses a passive touchstart fallback when no PointerEvent precedes the menu', () => {
+    installGuard();
+    const { link } = createMessageFixture();
+    const touchStart = legacyTouchEvent('touchstart');
+
+    link.dispatchEvent(touchStart);
+    const contextMenu = legacyContextMenu();
+    link.dispatchEvent(contextMenu);
+
+    expect(touchStart.defaultPrevented).toBe(false);
     expect(contextMenu.defaultPrevented).toBe(true);
   });
 
@@ -255,13 +374,15 @@ describe('installNativeMessageContextMenuGuard', () => {
     expect(contextMenu.defaultPrevented).toBe(false);
   });
 
-  it('removes every listener during teardown', () => {
+  it('removes every listener and pending fallback during teardown', () => {
+    vi.useFakeTimers();
     installGuard();
     const { link } = createMessageFixture();
+    link.dispatchEvent(pointerEvent('pointerdown', 'touch'));
+
     cleanup?.();
     cleanup = null;
-
-    link.dispatchEvent(pointerEvent('pointerdown', 'touch'));
+    vi.runAllTimers();
     const contextMenu = pointerEvent('contextmenu', 'touch');
     link.dispatchEvent(contextMenu);
 
