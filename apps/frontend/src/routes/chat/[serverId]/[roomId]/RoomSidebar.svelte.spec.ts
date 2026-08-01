@@ -568,13 +568,14 @@ describe('RoomSidebar', () => {
     );
   });
 
-  it('separates online members by highest role with Unicode labels and safe accents', async () => {
+  it('separates online members by highest role and keeps role colors while offline', async () => {
     mockRoomMembers([
       member(1, ['everyone', 'moderator', 'owner']),
       member(2, ['moderator']),
       member(3, ['helpers']),
       member(4, ['everyone']),
-      { ...member(5, ['owner']), presenceStatus: PresenceStatus.Offline }
+      { ...member(5, ['owner']), presenceStatus: PresenceStatus.Offline },
+      { ...member(6, ['everyone']), presenceStatus: PresenceStatus.Offline }
     ]);
     const roles = [
       serverRole('everyone', 'Everyone', 0, ''),
@@ -592,15 +593,25 @@ describe('RoomSidebar', () => {
       expect(buttonByText(container, 'Moderator — 1')).toBeTruthy();
       expect(buttonByText(container, '🛟 Équipe d’aide — 1')).toBeTruthy();
       expect(buttonByText(container, 'Online (1)')).toBeTruthy();
-      expect(buttonByText(container, 'Offline (1)')).toBeTruthy();
+      expect(buttonByText(container, 'Offline (2)')).toBeTruthy();
     });
 
     const userOne = container.querySelector('[title="View profile of User 1"] .role-member-name');
     expect(userOne).toBeTruthy();
     expect((userOne as HTMLElement).style.getPropertyValue('--member-role-color')).toBe('#F97316');
     expect(container.querySelectorAll('[title="View profile of User 1"]')).toHaveLength(1);
+    buttonByText(container, 'Offline (2)')?.click();
+    await tick();
+    expect(container.querySelector('[title="View profile of User 5"]')).toBeTruthy();
+    const offlineOwner = container.querySelector(
+      '[title="View profile of User 5"] .role-member-name'
+    );
+    expect(offlineOwner).toBeTruthy();
+    expect((offlineOwner as HTMLElement).style.getPropertyValue('--member-role-color')).toBe(
+      '#F97316'
+    );
     expect(
-      container.querySelector('[title="View profile of User 5"] .role-member-name')
+      container.querySelector('[title="View profile of User 6"] .role-member-name')
     ).toBeNull();
   });
 

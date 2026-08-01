@@ -159,7 +159,6 @@ and similar room-specific panels can plug into the same shell. See the
   const rolesByName = $derived(new Map(roles.map((role) => [role.name, role])));
 
   function memberRoleColor(member: RoomMember): string | null {
-    if (!isOnlineStatus(getPresence(member))) return null;
     return safeRoleColor(displayRoleForMember(member, rolesByName)?.color);
   }
 
