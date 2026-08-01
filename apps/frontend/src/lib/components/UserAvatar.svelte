@@ -141,7 +141,7 @@
         loading="lazy"
         src={avatarUrl}
         alt={user.login}
-        class="{avatarClass} object-cover"
+        class="{avatarClass} object-cover motion-reduce:[image-animation:stopped]"
       />
     {:else}
       <div class={placeholderClass} aria-label={user.login}>
