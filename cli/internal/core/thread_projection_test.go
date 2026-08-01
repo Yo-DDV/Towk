@@ -406,13 +406,14 @@ func TestThreadProjection_SeedLegacyThreadFollowState(t *testing.T) {
 func TestThreadProjection_SubjectFilter(t *testing.T) {
 	subjects := NewThreadProjection().Subjects()
 	want := map[string]bool{
-		events.RoomEventTypeFilter(events.EventThreadCreated):    true,
-		events.RoomEventTypeFilter(events.EventThreadFollowed):   true,
-		events.RoomEventTypeFilter(events.EventThreadUnfollowed): true,
-		events.RoomEventTypeFilter(events.EventMessagePosted):    true,
-		events.RoomEventTypeFilter(events.EventMessageEdited):    true,
-		events.RoomEventTypeFilter(events.EventMessageRetracted): true,
-		events.UserEventTypeFilter(events.EventUserKeyShredded):  true,
+		events.RoomEventTypeFilter(events.EventThreadCreated):     true,
+		events.RoomEventTypeFilter(events.EventThreadFollowed):    true,
+		events.RoomEventTypeFilter(events.EventThreadUnfollowed):  true,
+		events.RoomEventTypeFilter(events.EventMessagePosted):     true,
+		events.RoomEventTypeFilter(events.EventMessageEdited):     true,
+		events.RoomEventTypeFilter(events.EventMessageRetracted):  true,
+		events.RoomEventTypeFilter(events.EventRoomHistoryPurged): true,
+		events.UserEventTypeFilter(events.EventUserKeyShredded):   true,
 	}
 	if len(subjects) != len(want) {
 		t.Fatalf("expected %d subject filters, got %d", len(want), len(subjects))

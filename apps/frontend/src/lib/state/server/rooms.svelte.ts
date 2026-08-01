@@ -25,6 +25,7 @@ export type RoomsListItem = {
   name: string;
   type: RoomType;
   isUniversal: boolean;
+  isLocked: boolean;
   viewerIsMember: boolean;
   viewerCanJoinRoom: boolean;
   viewerNotificationCount: number;
@@ -126,6 +127,7 @@ function sameRoomListItem(a: RoomsListItem, b: RoomsListItem): boolean {
     a.name === b.name &&
     a.type === b.type &&
     a.isUniversal === b.isUniversal &&
+    a.isLocked === b.isLocked &&
     a.viewerIsMember === b.viewerIsMember &&
     a.viewerCanJoinRoom === b.viewerCanJoinRoom &&
     a.viewerNotificationCount === b.viewerNotificationCount &&
@@ -183,6 +185,8 @@ const roomStateRefreshEvents = new Set<RoomEventKind>([
   RoomEventKind.RoomArchived,
   RoomEventKind.RoomUnarchived,
   RoomEventKind.RoomUniversalChanged,
+  RoomEventKind.RoomPostingPolicyChanged,
+  RoomEventKind.RoomHistoryPurged,
   RoomEventKind.UserJoinedRoom,
   RoomEventKind.UserLeftRoom
 ]);
@@ -308,6 +312,7 @@ export class RoomsStore {
       name: room.name,
       type: roomType(room.kind),
       isUniversal: room.isUniversal,
+      isLocked: room.isLocked,
       viewerIsMember: room.isMember,
       viewerCanJoinRoom: room.canJoinRoom,
       viewerNotificationCount: 0,

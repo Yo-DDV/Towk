@@ -84,6 +84,26 @@ func (s *AssetModel) RecordUploadedPendingAttachmentAsset(ctx context.Context, a
 	})
 }
 
+func (s *AssetModel) RecordUploadedPendingAttachmentAssetAtRoomRevision(
+	ctx context.Context,
+	actorID,
+	roomID string,
+	attachment *corev1.Attachment,
+	sha256 string,
+	pendingExpiresAt time.Time,
+	needsVideoProcessing bool,
+	expectedRoomRevision uint64,
+) error {
+	if actorID == "" {
+		return fmt.Errorf("asset creation missing actor id")
+	}
+	return s.recordAssetCreatedAtRoomRevision(ctx, actorID, roomID, attachment, assetCreatedMetadata{
+		sha256:               sha256,
+		pendingExpiresAt:     pendingExpiresAt,
+		needsVideoProcessing: needsVideoProcessing,
+	}, expectedRoomRevision)
+}
+
 // RecordDerivativeAsset writes the AssetCreatedEvent for a worker-generated
 // derivative such as a thumbnail or transcoded variant.
 func (s *AssetModel) RecordDerivativeAsset(ctx context.Context, parentAssetID string, derivativeRole corev1.AssetDerivativeRole, roomID string, attachment *corev1.Attachment) error {
@@ -101,6 +121,37 @@ type assetCreatedMetadata struct {
 }
 
 func (s *AssetModel) recordAssetCreated(ctx context.Context, actorID, roomID string, attachment *corev1.Attachment, deriv *derivativeContext, metadata assetCreatedMetadata) error {
+	event := assetCreatedEvent(actorID, roomID, attachment, deriv, metadata)
+	if err := s.appendAssetEventEventually(ctx, attachment.GetId(), event); err != nil {
+		return fmt.Errorf("publish asset creation event: %w", err)
+	}
+	return nil
+}
+
+func (s *AssetModel) recordAssetCreatedAtRoomRevision(
+	ctx context.Context,
+	actorID,
+	roomID string,
+	attachment *corev1.Attachment,
+	metadata assetCreatedMetadata,
+	expectedRoomRevision uint64,
+) error {
+	event := assetCreatedEvent(actorID, roomID, attachment, nil, metadata)
+	subject := events.AssetAggregate(attachment.GetId()).SubjectFor(event)
+	seq, err := s.EventPublisher.AppendAtFilter(
+		ctx,
+		subject,
+		event,
+		events.RoomAggregate(roomID).AllEventsFilter(),
+		expectedRoomRevision,
+	)
+	if err != nil {
+		return fmt.Errorf("publish room-fenced asset creation event: %w", err)
+	}
+	return s.waitForAssets(ctx, events.SubjectPosition(subject, seq))
+}
+
+func assetCreatedEvent(actorID, roomID string, attachment *corev1.Attachment, deriv *derivativeContext, metadata assetCreatedMetadata) *corev1.Event {
 	created := &corev1.AssetCreatedEvent{
 		Asset:                   assetFromAttachment(attachment),
 		OriginalBinaryAvailable: true,
@@ -119,13 +170,9 @@ func (s *AssetModel) recordAssetCreated(ctx context.Context, actorID, roomID str
 		created.PendingExpiresAt = timestamppb.New(metadata.pendingExpiresAt)
 	}
 	created.NeedsVideoProcessing = metadata.needsVideoProcessing
-	event := newEvent(actorID, &corev1.Event{
+	return newEvent(actorID, &corev1.Event{
 		Event: &corev1.Event_AssetCreated{AssetCreated: created},
 	})
-	if err := s.appendAssetEventEventually(ctx, attachment.GetId(), event); err != nil {
-		return fmt.Errorf("publish asset creation event: %w", err)
-	}
-	return nil
 }
 
 // DeleteVideoDerivativesForAttachment deletes generated thumbnail/variant

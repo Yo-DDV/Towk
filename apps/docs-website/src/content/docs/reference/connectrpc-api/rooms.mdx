@@ -164,6 +164,142 @@ Result of unarchiving a room.
 | `room` | [`Room`](/reference/connectrpc-api/types/#chatto-api-v1-Room) | Unarchived room. |
 
 
+<a id="chatto-api-v1-RoomService-LockRoom"></a>
+
+### LockRoom
+
+Locks a channel against additive content. Requires room.lock.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/LockRoom
+```
+
+<a id="chatto-api-v1-LockRoomRequest"></a>
+
+#### Input: LockRoomRequest
+
+Request to prevent ordinary members from adding channel content.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `expected_revision` | `uint64` | No field description provided. |
+
+
+<a id="chatto-api-v1-LockRoomResponse"></a>
+
+#### Result: LockRoomResponse
+
+Result of locking a channel.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room` | [`Room`](/reference/connectrpc-api/types/#chatto-api-v1-Room) | No field description provided. |
+
+
+<a id="chatto-api-v1-RoomService-UnlockRoom"></a>
+
+### UnlockRoom
+
+Unlocks a channel. Requires room.lock.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/UnlockRoom
+```
+
+<a id="chatto-api-v1-UnlockRoomRequest"></a>
+
+#### Input: UnlockRoomRequest
+
+Request to restore ordinary channel posting.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `expected_revision` | `uint64` | No field description provided. |
+
+
+<a id="chatto-api-v1-UnlockRoomResponse"></a>
+
+#### Result: UnlockRoomResponse
+
+Result of unlocking a channel.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room` | [`Room`](/reference/connectrpc-api/types/#chatto-api-v1-Room) | No field description provided. |
+
+
+<a id="chatto-api-v1-RoomService-PurgeRoomHistory"></a>
+
+### PurgeRoomHistory
+
+Places an immediate logical history barrier and starts selective cleanup.
+Requires an authenticated caller with room.purge-messages, plus the exact
+room name and revision.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/PurgeRoomHistory
+```
+
+<a id="chatto-api-v1-PurgeRoomHistoryRequest"></a>
+
+#### Input: PurgeRoomHistoryRequest
+
+Request to erase message-owned history while preserving the channel itself.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `expected_revision` | `uint64` | No field description provided. |
+| `confirmation_name` | `string` | No field description provided. |
+
+
+<a id="chatto-api-v1-PurgeRoomHistoryResponse"></a>
+
+#### Result: PurgeRoomHistoryResponse
+
+Result of placing the logical purge barrier and starting physical cleanup.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room` | [`Room`](/reference/connectrpc-api/types/#chatto-api-v1-Room) | No field description provided. |
+| `operation` | [`RoomHistoryPurgeOperation`](/reference/connectrpc-api/types/#chatto-api-v1-RoomHistoryPurgeOperation) | No field description provided. |
+
+
+<a id="chatto-api-v1-RoomService-GetRoomHistoryPurgeOperation"></a>
+
+### GetRoomHistoryPurgeOperation
+
+Reads a purge operation started by the current user or a current room
+purge administrator.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/GetRoomHistoryPurgeOperation
+```
+
+<a id="chatto-api-v1-GetRoomHistoryPurgeOperationRequest"></a>
+
+#### Input: GetRoomHistoryPurgeOperationRequest
+
+Request to read a history-purge operation.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `operation_id` | `string` | No field description provided. |
+
+
+<a id="chatto-api-v1-GetRoomHistoryPurgeOperationResponse"></a>
+
+#### Result: GetRoomHistoryPurgeOperationResponse
+
+Current history-purge operation state.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `operation` | [`RoomHistoryPurgeOperation`](/reference/connectrpc-api/types/#chatto-api-v1-RoomHistoryPurgeOperation) | No field description provided. |
+
+
 <a id="chatto-api-v1-RoomService-JoinRoom"></a>
 
 ### JoinRoom

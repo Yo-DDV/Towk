@@ -2,6 +2,7 @@ import { flushSync } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PresenceStatus } from '$lib/render/types';
 import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
+import { RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 import { __resetRoomDataMemorySnapshotsForTests, useRoomData } from './useRoomData.svelte';
 import { createMemberDirectoryAPI } from '$lib/api-client/memberDirectory';
 import { createRoomDirectoryAPI } from '$lib/api-client/roomDirectory';
@@ -82,14 +83,22 @@ function roomDetails(roomId: string) {
     isMember: true,
     hasUnread: false,
     canJoinRoom: false,
+    postingPolicy: RoomPostingPolicy.OPEN,
+    historyEpoch: 0n,
+    revision: 1n,
+    isLocked: false,
     canPostMessage: true,
     canPostInThread: true,
     canAttach: true,
+    canVoice: true,
     canReact: true,
     canEchoMessage: false,
     canManageOthersMessage: false,
     canManageRoom: false,
-    canBanRoomMembers: false
+    canBanRoomMembers: false,
+    canLockRoom: false,
+    canPurgeMessages: false,
+    canBypassLock: false
   };
 }
 

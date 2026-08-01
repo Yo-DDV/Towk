@@ -2,6 +2,7 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { AdminRoomLayoutItemKind } from '@towk/api-types/admin/v1/room_layout_pb';
+import { RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 import { createAdminRoomLayoutAPI } from '$lib/api-client/adminRoomLayout';
 
 const mocks = vi.hoisted(() => ({
@@ -62,12 +63,17 @@ describe('createAdminRoomLayoutAPI', () => {
           canCreateRoom: true,
           items: [
             {
+              canLockRoom: true,
+              canPurgeMessages: false,
               item: {
                 case: 'room',
                 value: {
                   id: 'r1',
                   name: 'general',
-                  archived: true
+                  archived: true,
+                  postingPolicy: RoomPostingPolicy.LOCKED,
+                  historyEpoch: 2n,
+                  revision: 8n
                 }
               }
             }
@@ -106,7 +112,13 @@ describe('createAdminRoomLayoutAPI', () => {
             name: 'general',
             description: null,
             archived: true,
-            isUniversal: false
+            isUniversal: false,
+            postingPolicy: RoomPostingPolicy.LOCKED,
+            historyEpoch: 2n,
+            revision: 8n,
+            isLocked: true,
+            canLockRoom: true,
+            canPurgeMessages: false
           }
         ],
         items: [
@@ -118,7 +130,13 @@ describe('createAdminRoomLayoutAPI', () => {
               name: 'general',
               description: null,
               archived: true,
-              isUniversal: false
+              isUniversal: false,
+              postingPolicy: RoomPostingPolicy.LOCKED,
+              historyEpoch: 2n,
+              revision: 8n,
+              isLocked: true,
+              canLockRoom: true,
+              canPurgeMessages: false
             }
           }
         ]

@@ -34,11 +34,14 @@ type RoomNameClaimSnapshot struct {
 // directly — callers go through Get() which clones into a *corev1.Room
 // for type symmetry with the rest of the codebase.
 type roomCatalogEntry struct {
-	name        string
-	description string
-	kind        corev1.RoomKind
-	archived    bool
-	universal   bool
+	name          string
+	description   string
+	kind          corev1.RoomKind
+	archived      bool
+	universal     bool
+	postingPolicy corev1.RoomPostingPolicy
+	historyEpoch  uint64
+	revision      uint64
 }
 
 // NewRoomCatalogProjection returns an empty projection.
@@ -74,10 +77,12 @@ func (p *RoomCatalogProjection) Apply(event *corev1.Event, seq uint64) error {
 	case *corev1.Event_RoomCreated:
 		c := e.RoomCreated
 		p.rooms[c.GetRoomId()] = &roomCatalogEntry{
-			name:        c.GetName(),
-			description: c.GetDescription(),
-			kind:        c.GetKind(),
-			universal:   c.GetUniversal(),
+			name:          c.GetName(),
+			description:   c.GetDescription(),
+			kind:          c.GetKind(),
+			universal:     c.GetUniversal(),
+			postingPolicy: corev1.RoomPostingPolicy_ROOM_POSTING_POLICY_OPEN,
+			revision:      seq,
 		}
 	case *corev1.Event_RoomUpdated:
 		u := e.RoomUpdated
@@ -97,8 +102,21 @@ func (p *RoomCatalogProjection) Apply(event *corev1.Event, seq uint64) error {
 		if entry := p.rooms[e.RoomUniversalChanged.GetRoomId()]; entry != nil {
 			entry.universal = e.RoomUniversalChanged.GetUniversal()
 		}
+	case *corev1.Event_RoomPostingPolicyChanged:
+		if entry := p.rooms[e.RoomPostingPolicyChanged.GetRoomId()]; entry != nil {
+			entry.postingPolicy = normalizeRoomPostingPolicy(e.RoomPostingPolicyChanged.GetPostingPolicy())
+		}
+	case *corev1.Event_RoomHistoryPurged:
+		if entry := p.rooms[e.RoomHistoryPurged.GetRoomId()]; entry != nil {
+			entry.historyEpoch = e.RoomHistoryPurged.GetHistoryEpoch()
+		}
 	case *corev1.Event_RoomDeleted:
 		delete(p.rooms, e.RoomDeleted.GetRoomId())
+	}
+	if roomID := roomIDOfEvent(event); roomID != "" {
+		if entry := p.rooms[roomID]; entry != nil && seq > entry.revision {
+			entry.revision = seq
+		}
 	}
 	return nil
 }
@@ -185,15 +203,25 @@ func (p *RoomCatalogProjection) NameClaimSnapshot(name string) RoomNameClaimSnap
 // assignment lives in RoomGroupProjection.
 func entryToRoom(id string, entry *roomCatalogEntry) *corev1.Room {
 	r := &corev1.Room{
-		Id:          id,
-		Name:        entry.name,
-		Description: entry.description,
-		Archived:    entry.archived,
-		Kind:        entry.kind,
-		Universal:   entry.universal,
+		Id:            id,
+		Name:          entry.name,
+		Description:   entry.description,
+		Archived:      entry.archived,
+		Kind:          entry.kind,
+		Universal:     entry.universal,
+		PostingPolicy: normalizeRoomPostingPolicy(entry.postingPolicy),
+		HistoryEpoch:  entry.historyEpoch,
+		Revision:      entry.revision,
 	}
 	// Defensive clone — the proto contains a Mutex internally that
 	// vet would flag if we ever returned the same pointer twice and
 	// it got passed by value. Cheap insurance.
 	return proto.Clone(r).(*corev1.Room)
+}
+
+func normalizeRoomPostingPolicy(policy corev1.RoomPostingPolicy) corev1.RoomPostingPolicy {
+	if policy == corev1.RoomPostingPolicy_ROOM_POSTING_POLICY_LOCKED {
+		return policy
+	}
+	return corev1.RoomPostingPolicy_ROOM_POSTING_POLICY_OPEN
 }

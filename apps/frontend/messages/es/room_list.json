@@ -6,6 +6,7 @@
     "go_to_notifications": "Ir a notificaciones {count}",
     "notifications": "{count} notificaciones",
     "unread_messages": "mensajes no leídos",
+    "locked": "Sala bloqueada",
     "go_to_dm_notifications": "Ir a {count} notificaciones de mensajes directos",
     "new_direct_messages": "{count} nuevos mensajes directos",
     "direct_messages": "Mensajes directos",

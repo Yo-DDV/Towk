@@ -60,6 +60,19 @@ export const PermRoomManage: Permission = "room.manage";
  */
 export const PermRoomMemberBan: Permission = "room.ban-member";
 /**
+ * PermRoomLock allows locking and unlocking channel posting.
+ */
+export const PermRoomLock: Permission = "room.lock";
+/**
+ * PermRoomPurgeMessages allows placing a channel history barrier and
+ * securely deleting message-owned content.
+ */
+export const PermRoomPurgeMessages: Permission = "room.purge-messages";
+/**
+ * PermRoomBypassLock allows additive content while a channel is locked.
+ */
+export const PermRoomBypassLock: Permission = "room.bypass-lock";
+/**
  * PermMessagePost allows posting new root messages in rooms. Server-scope
  * decisions act as global defaults/overrides; room or group denies can narrow
  * that default where a room should be more restrictive.

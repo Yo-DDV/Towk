@@ -16,6 +16,9 @@ export type RoomData = {
     type: RoomKind;
     description?: string | null;
     isUniversal: boolean;
+    isLocked: boolean;
+    historyEpoch: bigint;
+    revision: bigint;
   };
   spaceName: string | null;
   canPostMessage: boolean;
@@ -27,6 +30,9 @@ export type RoomData = {
   canEchoMessage: boolean;
   canManageRoom: boolean;
   canBanRoomMembers: boolean;
+  canLockRoom: boolean;
+  canPurgeMessages: boolean;
+  canBypassLock: boolean;
 };
 
 export type DMData = {
@@ -62,10 +68,7 @@ function roomDataSnapshotKey(
   return `${serverId ?? ''}\u0000${canonicalRoomDataServerOrigin(serverUrl)}\u0000${userId ?? ''}\u0000${roomId}`;
 }
 
-function rememberRoomDataSnapshot(
-  key: string,
-  roomData: RoomData
-): void {
+function rememberRoomDataSnapshot(key: string, roomData: RoomData): void {
   if (roomDataMemorySnapshots.has(key)) roomDataMemorySnapshots.delete(key);
   roomDataMemorySnapshots.set(key, roomData);
   while (roomDataMemorySnapshots.size > ROOM_DATA_MEMORY_SNAPSHOT_MAX_ROOMS) {
@@ -100,6 +103,7 @@ export function useRoomData(getProps: () => { roomId: string }) {
   // permissions can change any viewerCan* permission for this room.
   // Bump a counter and let the loading effect react.
   let layoutTrigger = $state(0);
+  let manualTrigger = $state(0);
   useActiveRoomLayoutUpdated((info) => {
     const { roomId } = getProps();
     if (info.roomId && info.roomId !== roomId) return;
@@ -119,6 +123,7 @@ export function useRoomData(getProps: () => { roomId: string }) {
   $effect(() => {
     void reconnect.count;
     void layoutTrigger;
+    void manualTrigger;
 
     const { roomId } = getProps();
     const thisLoadId = ++roomLoadId.current;
@@ -166,7 +171,10 @@ export function useRoomData(getProps: () => { roomId: string }) {
             name: loadedRoom.name,
             description: loadedRoom.description,
             type: loadedRoom.kind,
-            isUniversal: loadedRoom.isUniversal
+            isUniversal: loadedRoom.isUniversal,
+            isLocked: loadedRoom.isLocked,
+            historyEpoch: loadedRoom.historyEpoch,
+            revision: loadedRoom.revision
           },
           spaceName: serverName(currentConnection.serverId),
           canPostMessage: loadedRoom.canPostMessage,
@@ -177,7 +185,10 @@ export function useRoomData(getProps: () => { roomId: string }) {
           canManageOthersMessage: loadedRoom.canManageOthersMessage,
           canEchoMessage: loadedRoom.canEchoMessage,
           canManageRoom: loadedRoom.canManageRoom,
-          canBanRoomMembers: loadedRoom.canBanRoomMembers
+          canBanRoomMembers: loadedRoom.canBanRoomMembers,
+          canLockRoom: loadedRoom.canLockRoom,
+          canPurgeMessages: loadedRoom.canPurgeMessages,
+          canBypassLock: loadedRoom.canBypassLock
         };
         roomData = nextRoomData;
         rememberRoomDataSnapshot(snapshotKey, nextRoomData);
@@ -252,6 +263,9 @@ export function useRoomData(getProps: () => { roomId: string }) {
     },
     get isRoomLoading() {
       return isRoomLoading;
+    },
+    refresh() {
+      manualTrigger++;
     }
   };
 }

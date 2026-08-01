@@ -8,7 +8,11 @@ import {
 } from './connect.js';
 import * as m from '$lib/i18n/messages';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
-import { RoomService } from '@towk/api-types/api/v1/rooms_pb';
+import {
+  RoomHistoryPurgeStatus,
+  RoomPostingPolicy,
+  RoomService
+} from '@towk/api-types/api/v1/rooms_pb';
 import type { Room, RoomBan as APIRoomBan } from '@towk/api-types/api/v1/rooms_pb';
 import { mapDirectoryMember, type DirectoryMember } from './memberDirectory.js';
 import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
@@ -22,6 +26,17 @@ export type PublicRoom = {
   archived: boolean;
   groupId: string;
   universal: boolean;
+  postingPolicy: RoomPostingPolicy;
+  historyEpoch: bigint;
+  revision: bigint;
+};
+
+export type RoomHistoryPurgeOperationView = {
+  id: string;
+  roomId: string;
+  historyEpoch: bigint;
+  status: RoomHistoryPurgeStatus;
+  failureCode: string;
 };
 
 export type RoomBanSummary = {
@@ -56,7 +71,31 @@ function publicRoom(room: Room | undefined): PublicRoom | null {
     description: room.description,
     archived: room.archived,
     groupId: room.groupId,
-    universal: room.universal
+    universal: room.universal,
+    postingPolicy: room.postingPolicy,
+    historyEpoch: room.historyEpoch,
+    revision: room.revision
+  };
+}
+
+function roomHistoryPurgeOperation(
+  operation:
+    | {
+        id: string;
+        roomId: string;
+        historyEpoch: bigint;
+        status: RoomHistoryPurgeStatus;
+        failureCode: string;
+      }
+    | undefined
+): RoomHistoryPurgeOperationView | null {
+  if (!operation) return null;
+  return {
+    id: operation.id,
+    roomId: operation.roomId,
+    historyEpoch: operation.historyEpoch,
+    status: operation.status,
+    failureCode: operation.failureCode
   };
 }
 
@@ -150,6 +189,70 @@ export function createRoomCommandAPI(config: ConnectAPIConfig) {
       try {
         const response = await rooms.unarchiveRoom({ roomId }, { headers: headers() });
         return publicRoom(response.room);
+      } catch (err) {
+        return handleAuthError(config, err);
+      }
+    },
+
+    async lockRoom(input: {
+      roomId: string;
+      expectedRevision: bigint;
+    }): Promise<PublicRoom | null> {
+      try {
+        const response = await rooms.lockRoom(input, { headers: headers() });
+        return publicRoom(response.room);
+      } catch (err) {
+        return handleAuthError(config, err);
+      }
+    },
+
+    async unlockRoom(input: {
+      roomId: string;
+      expectedRevision: bigint;
+    }): Promise<PublicRoom | null> {
+      try {
+        const response = await rooms.unlockRoom(input, { headers: headers() });
+        return publicRoom(response.room);
+      } catch (err) {
+        return handleAuthError(config, err);
+      }
+    },
+
+    async purgeRoomHistory(input: {
+      roomId: string;
+      expectedRevision: bigint;
+      confirmationName: string;
+    }): Promise<{
+      room: PublicRoom | null;
+      operation: RoomHistoryPurgeOperationView | null;
+    }> {
+      try {
+        const response = await rooms.purgeRoomHistory(
+          {
+            roomId: input.roomId,
+            expectedRevision: input.expectedRevision,
+            confirmationName: input.confirmationName
+          },
+          { headers: headers() }
+        );
+        return {
+          room: publicRoom(response.room),
+          operation: roomHistoryPurgeOperation(response.operation)
+        };
+      } catch (err) {
+        return handleAuthError(config, err);
+      }
+    },
+
+    async getRoomHistoryPurgeOperation(
+      operationId: string
+    ): Promise<RoomHistoryPurgeOperationView | null> {
+      try {
+        const response = await rooms.getRoomHistoryPurgeOperation(
+          { operationId },
+          { headers: headers() }
+        );
+        return roomHistoryPurgeOperation(response.operation);
       } catch (err) {
         return handleAuthError(config, err);
       }

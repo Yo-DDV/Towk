@@ -23,6 +23,7 @@ const listedRoom = (id: string, overrides: Partial<RoomsListItem> = {}): RoomsLi
   name: overrides.name ?? id,
   type: overrides.type ?? RoomType.Channel,
   isUniversal: overrides.isUniversal ?? false,
+  isLocked: overrides.isLocked ?? false,
   viewerIsMember: overrides.viewerIsMember ?? true,
   viewerCanJoinRoom: overrides.viewerCanJoinRoom ?? true,
   viewerNotificationCount: overrides.viewerNotificationCount ?? 0,
