@@ -70,15 +70,30 @@ export function installNativeMessageContextMenuGuard(
   now: Clock = Date.now
 ): () => void {
   let recentTouch: RecentMessageTouch | null = null;
+  let recentTouchExpiry: ReturnType<typeof setTimeout> | null = null;
 
   function clearRecentTouch() {
     recentTouch = null;
+    if (recentTouchExpiry !== null) {
+      clearTimeout(recentTouchExpiry);
+      recentTouchExpiry = null;
+    }
   }
 
   function rememberTouch(event: Event, pointerId: number | null) {
+    clearRecentTouch();
+
     const row = messageRowFromEvent(event);
     const point = pointFromEvent(event);
-    recentTouch = row && point ? { row, pointerId, startedAt: now(), ...point } : null;
+    if (!row || !point) return;
+
+    const touch = { row, pointerId, startedAt: now(), ...point };
+    recentTouch = touch;
+    const expiry = setTimeout(() => {
+      if (recentTouch === touch) recentTouch = null;
+      if (recentTouchExpiry === expiry) recentTouchExpiry = null;
+    }, TOUCH_CONTEXT_MENU_FALLBACK_MS);
+    recentTouchExpiry = expiry;
   }
 
   function handlePointerDown(event: PointerEvent) {
@@ -127,6 +142,11 @@ export function installNativeMessageContextMenuGuard(
     if (point && !isNear(point, recentTouch)) clearRecentTouch();
   }
 
+  function handlePointerUp(event: PointerEvent) {
+    if (!recentTouch || event.pointerType !== 'touch') return;
+    if (recentTouch.pointerId === event.pointerId) recentTouch.pointerId = null;
+  }
+
   function handlePointerCancel(event: PointerEvent) {
     if (!recentTouch) return;
     if (recentTouch.pointerId === null || recentTouch.pointerId === event.pointerId) {
@@ -140,7 +160,7 @@ export function installNativeMessageContextMenuGuard(
     const directTouchOnMessage = pointerType === 'touch' && eventRow !== null;
 
     let legacyTouchOnMessage = false;
-    if (pointerType === '' && recentTouch !== null) {
+    if ((pointerType === '' || pointerType === 'mouse') && recentTouch !== null) {
       const age = now() - recentTouch.startedAt;
       if (age < 0 || age > TOUCH_CONTEXT_MENU_FALLBACK_MS) {
         clearRecentTouch();
@@ -160,6 +180,7 @@ export function installNativeMessageContextMenuGuard(
 
   root.addEventListener('pointerdown', handlePointerDown, { capture: true, passive: true });
   root.addEventListener('pointermove', handlePointerMove, { capture: true, passive: true });
+  root.addEventListener('pointerup', handlePointerUp, { capture: true, passive: true });
   root.addEventListener('pointercancel', handlePointerCancel, { capture: true, passive: true });
   root.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true });
   root.addEventListener('touchmove', handleTouchMove, { capture: true, passive: true });
@@ -169,8 +190,10 @@ export function installNativeMessageContextMenuGuard(
   root.addEventListener('contextmenu', handleContextMenu, true);
 
   return () => {
+    clearRecentTouch();
     root.removeEventListener('pointerdown', handlePointerDown, true);
     root.removeEventListener('pointermove', handlePointerMove, true);
+    root.removeEventListener('pointerup', handlePointerUp, true);
     root.removeEventListener('pointercancel', handlePointerCancel, true);
     root.removeEventListener('touchstart', handleTouchStart, true);
     root.removeEventListener('touchmove', handleTouchMove, true);
