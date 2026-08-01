@@ -1,11 +1,37 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import * as ts from 'typescript';
 import { DESIGN_SYSTEM_FAMILIES, DESIGN_SYSTEM_PRIMITIVES } from './designSystem';
 
 function exportedComponents(relativePath: string): string[] {
-  const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8');
-  return [...source.matchAll(/export \{ default as (\w+) \} from/g)].map((match) => match[1]);
+  const fileUrl = new URL(relativePath, import.meta.url);
+  const source = readFileSync(fileUrl, 'utf8');
+  const sourceFile = ts.createSourceFile(
+    fileURLToPath(fileUrl),
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const exports: string[] = [];
+
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isExportDeclaration(statement) ||
+      !statement.exportClause ||
+      !ts.isNamedExports(statement.exportClause)
+    ) {
+      continue;
+    }
+
+    for (const element of statement.exportClause.elements) {
+      const importedName = element.propertyName?.text ?? element.name.text;
+      if (importedName === 'default') exports.push(element.name.text);
+    }
+  }
+
+  return exports;
 }
 
 function registeredComponents(module: '$lib/ui' | '$lib/ui/form'): string[] {
@@ -14,13 +40,22 @@ function registeredComponents(module: '$lib/ui' | '$lib/ui/form'): string[] {
   );
 }
 
+function duplicates(values: string[]): string[] {
+  return [...new Set(values.filter((value, index) => values.indexOf(value) !== index))].sort();
+}
+
+function setDifference(left: string[], right: string[]): string[] {
+  const rightSet = new Set(right);
+  return left.filter((value) => !rightSet.has(value)).sort();
+}
+
 describe('frontend design-system registry', () => {
   it('registers every exported UI and form primitive exactly once', () => {
     const registrations = DESIGN_SYSTEM_PRIMITIVES.map(
       (primitive) => `${primitive.module}:${primitive.name}`
     );
 
-    expect(new Set(registrations).size).toBe(registrations.length);
+    expect(duplicates(registrations)).toEqual([]);
 
     for (const [module, barrel] of [
       ['$lib/ui', './index.ts'],
@@ -30,7 +65,17 @@ describe('frontend design-system registry', () => {
       const registered = registeredComponents(module);
 
       expect(exported.length).toBeGreaterThan(0);
-      expect(registered).toEqual(exported);
+      expect({
+        duplicateExports: duplicates(exported),
+        duplicateRegistrations: duplicates(registered),
+        missingRegistrations: setDifference(exported, registered),
+        staleRegistrations: setDifference(registered, exported)
+      }).toEqual({
+        duplicateExports: [],
+        duplicateRegistrations: [],
+        missingRegistrations: [],
+        staleRegistrations: []
+      });
     }
   });
 
@@ -61,7 +106,7 @@ describe('frontend design-system registry', () => {
       'ConfirmDialog',
       'ContextMenu',
       'Dialog',
-      'EmptyState',
+     'EmptyState',
       'FormDialog',
       'Combobox',
       'Button'

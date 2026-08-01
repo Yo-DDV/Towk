@@ -25,11 +25,14 @@ Every default component export from `$lib/ui` and `$lib/ui/form` must appear exa
 - its accessibility ownership;
 - a Storybook entry when interactive or high-risk behavior needs live coverage.
 
-`designSystem.spec.ts` compares the registry with both export barrels and verifies every declared
-story path. Adding a public primitive without adding its contract must fail the frontend test suite.
+`designSystem.spec.ts` parses both TypeScript export barrels, compares their exact export sets with
+the registry, reports missing, stale, or duplicate entries, and verifies every declared story path.
+Adding a public primitive without adding its contract must fail the frontend test suite.
 
 Storybook is the executable catalog. A story is not a screenshot substitute: it must expose the
-states and geometry that a maintainer needs to inspect, reuse, and test.
+states and geometry that a maintainer needs to inspect, reuse, and test. The searchable catalog makes
+component choice reviewable, while deterministic qualification stories keep the high-risk open states
+of sheets, menus, comboboxes, and empty states available to automated browser and accessibility tests.
 
 ## Component decision tree
 
@@ -112,6 +115,10 @@ At minimum:
 - provide a visible title or an explicit accessible name for every modal surface;
 - keep labels, descriptions, errors, and busy state associated with form controls;
 - keep keyboard focus visible, trapped only when modal, and restored after dismissal;
+- give menus a complete keyboard model, including initial focus, arrow navigation, Home, End,
+  typeahead, disabled-item skipping, Escape, and focus restoration;
+- keep combobox focus on the input, expose a stable active descendant, and keep the active option in
+  view while results change;
 - support Escape, browser/system Back, backdrop, and gestures without accidental dismissal races;
 - preserve at least 44 by 44 CSS-pixel touch targets for compact actions;
 - never communicate status or permission through color alone;
@@ -174,28 +181,36 @@ The following are not accepted as frontend foundations:
 6. Add browser tests for behavior that a static story cannot prove.
 7. Check every listener, timer, observer, animation, focus path, and cleanup.
 8. Verify localization when visible product copy changes.
-9. Run the focused tests, frontend checks, production build, Storybook build, and applicable E2E.
+9. Run the focused tests, frontend checks, production build, Storybook tests and build, and applicable
+   E2E.
 10. Review the complete diff for temporary files, private data, provenance, and rollback.
 
 ## Typical validation
 
 ```sh
-mise exec -- pnpm --filter towk-frontend exec vitest --run src/lib/ui/designSystem.spec.ts
-mise exec -- pnpm --filter towk-frontend exec vitest --run \
+mise exec -- pnpm --filter towk-frontend exec vitest --run --project server \
+  src/lib/ui/designSystem.spec.ts
+mise exec -- pnpm --filter towk-frontend exec vitest --run --project client \
   src/lib/ui/BottomSheet.svelte.spec.ts \
+  src/lib/ui/ContextMenu.svelte.spec.ts \
   src/lib/ui/ContextMenu.a11y.svelte.spec.ts \
   src/lib/ui/form/Combobox.svelte.spec.ts
 mise run lint-frontend
 mise run build-frontend
 mise run test-frontend
+pnpm --filter towk-frontend test-storybook
 pnpm --filter towk-frontend build-storybook
 ```
+
+The Storybook Vitest configuration exercises deterministic design-system fixtures in light and dark
+themes. Accessibility violations on those fixtures are test failures. Generated `storybook-static`
+output is local build output and must not be committed.
 
 Run the complete repository gate and the relevant browser/PWA campaign before describing a change as
 qualified.
 
 ## Rollback
 
-The registry, stories, and documentation can be reverted without changing persisted data or public
-API compatibility. A future headless-primitive pilot must remain behind a Towk wrapper so its
-implementation can be replaced or reverted without changing feature call sites.
+The registry, stories, Storybook test wiring, and documentation can be reverted without changing
+persisted data or public API compatibility. A future headless-primitive pilot must remain behind a
+Towk wrapper so its implementation can be replaced or reverted without changing feature call sites.

@@ -4,7 +4,7 @@ import { testSnippet } from '$lib/test-utils';
 import ContextMenu from './ContextMenu.svelte';
 
 describe('ContextMenu accessibility', () => {
-  it('keeps the menu role and accessible name in sheet presentation', async () => {
+  it('keeps a named menu inside the named sheet dialog', async () => {
     const { container } = render(ContextMenu, {
       props: {
         presentation: 'sheet',
@@ -16,10 +16,13 @@ describe('ContextMenu accessibility', () => {
 
     const dialog = container.querySelector('dialog');
     const menu = container.querySelector('[role="menu"]');
+    const item = container.querySelector('[role="menuitem"]');
 
     expect(dialog).not.toBeNull();
     expect(menu).not.toBeNull();
+    expect(item).not.toBeNull();
     await expect.element(dialog!).toHaveAttribute('aria-label', 'Message actions');
     await expect.element(menu!).toHaveAttribute('aria-label', 'Message actions');
+    await expect.element(item!).toHaveAttribute('tabindex', '0');
   });
 });
