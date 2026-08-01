@@ -31,6 +31,7 @@
     dockVariant = 'sidebar',
     viewportWidth = null,
     viewportHeight = null,
+    speakingParticipantIds = [],
     onStoreSeeded = null
   }: {
     layout?: 'sidebar' | 'stage';
@@ -53,6 +54,7 @@
     dockVariant?: 'sidebar' | 'floating';
     viewportWidth?: string | null;
     viewportHeight?: string | null;
+    speakingParticipantIds?: string[];
     onStoreSeeded?: ((store: ServerStateStore) => void) | null;
   } = $props();
 
@@ -402,6 +404,10 @@
     };
     store.voiceCall.isCameraEnabled = scenario !== 'voice';
     store.voiceCall.isScreenShareEnabled = scenario === 'screen' || scenario === 'dual-screen';
+    store.voiceCall.getAudioLevel = (identity: string) =>
+      speakingParticipantIds.includes(identity)
+        ? { isSpeaking: true, audioLevel: 0.68 }
+        : { isSpeaking: false, audioLevel: 0 };
     if (scenario === 'mobile-camera') {
       store.voiceCall.videoDevices = [
         mediaDevice('front', 'videoinput', 'camera2 1, facing front'),

@@ -82,6 +82,18 @@
   </div>
 </Story>
 
+<Story name="Simultaneous speaking participants" asChild>
+  <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
+    <VoiceCallPanelStoryHarness
+      layout="stage"
+      scenario="voice"
+      participantCount={4}
+      speakingParticipantIds={['gallery-1', 'gallery-2', 'gallery-3', 'gallery-4']}
+      dockVariant="floating"
+    />
+  </div>
+</Story>
+
 <Story name="Adaptive single voice participant" asChild>
   <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
     <VoiceCallPanelStoryHarness

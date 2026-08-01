@@ -350,6 +350,7 @@ vi.mock('livekit-client', () => {
       MediaDevicesChanged: 'MediaDevicesChanged',
       ActiveDeviceChanged: 'ActiveDeviceChanged',
       MediaDevicesError: 'MediaDevicesError',
+      ActiveSpeakersChanged: 'ActiveSpeakersChanged',
       ConnectionQualityChanged: 'ConnectionQualityChanged',
       TrackSubscribed: 'TrackSubscribed',
       TrackUnsubscribed: 'TrackUnsubscribed',
@@ -3036,8 +3037,20 @@ describe('VoiceCallState', () => {
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
-  it('uses LiveKit local speaking levels without an auxiliary microphone graph', async () => {
-    vi.useFakeTimers();
+  it('publishes simultaneous LiveKit speaking levels immediately without polling', async () => {
+    const remoteParticipant = {
+      identity: 'device-2',
+      name: 'Remote User',
+      metadata:
+        '{"userId":"remote-user","participantId":"device-2","deviceIndex":1,"login":"remote-user"}',
+      connectionQuality: 'good',
+      audioLevel: 0,
+      isSpeaking: false,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    };
+    mockRemoteParticipants.set(remoteParticipant.identity, remoteParticipant);
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
@@ -3048,13 +3061,26 @@ describe('VoiceCallState', () => {
     };
     localParticipant.audioLevel = 0.42;
     localParticipant.isSpeaking = true;
+    remoteParticipant.audioLevel = 0.73;
+    remoteParticipant.isSpeaking = true;
+    const onAudioLevelsChanged = vi.fn();
+    const unsubscribe = state.subscribeAudioLevels(onAudioLevelsChanged);
 
-    vi.advanceTimersByTime(60);
+    roomEventHandlers.get('ActiveSpeakersChanged')?.();
 
+    expect(onAudioLevelsChanged).toHaveBeenCalledOnce();
     expect(state.getAudioLevel(localParticipant.identity)).toEqual({
       audioLevel: 0.42,
       isSpeaking: true
     });
+    expect(state.getAudioLevel(remoteParticipant.identity)).toEqual({
+      audioLevel: 0.73,
+      isSpeaking: true
+    });
+
+    unsubscribe();
+    roomEventHandlers.get('ActiveSpeakersChanged')?.();
+    expect(onAudioLevelsChanged).toHaveBeenCalledOnce();
   });
 
   it('keeps camera pending until LiveKit applies the toggle', async () => {

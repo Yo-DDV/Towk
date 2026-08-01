@@ -497,7 +497,6 @@ retained only for non-joined projections that still consume this component.
   }
 
   const speakingCards: Array<{ identity: string; node: HTMLElement }> = [];
-  let speakingIndicatorInterval: ReturnType<typeof setInterval> | null = null;
 
   function updateSpeakingIndicators() {
     for (const { identity, node } of speakingCards) {
@@ -514,30 +513,17 @@ retained only for non-joined projections that still consume this component.
     }
   }
 
-  function startSpeakingIndicatorLoop() {
-    if (speakingIndicatorInterval) return;
-
-    speakingIndicatorInterval = setInterval(updateSpeakingIndicators, 60);
-  }
-
-  function stopSpeakingIndicatorLoopIfIdle() {
-    if (speakingCards.length > 0 || !speakingIndicatorInterval) return;
-
-    clearInterval(speakingIndicatorInterval);
-    speakingIndicatorInterval = null;
-  }
+  $effect(() => voiceCallState.subscribeAudioLevels(updateSpeakingIndicators));
 
   function speakingCard(identity: string): Attachment<HTMLElement> {
     return (node) => {
       const entry = { identity, node };
       speakingCards.push(entry);
       updateSpeakingIndicators();
-      startSpeakingIndicatorLoop();
 
       return () => {
         const index = speakingCards.indexOf(entry);
         if (index !== -1) speakingCards.splice(index, 1);
-        stopSpeakingIndicatorLoopIfIdle();
       };
     };
   }
@@ -1618,15 +1604,24 @@ retained only for non-joined projections that still consume this component.
 
   :global(.call-speaking-card)::after {
     position: absolute;
-    inset: 0;
+    z-index: 20;
+    inset: 1px;
     border: 2px solid var(--color-accent);
     border-radius: inherit;
-    box-shadow: 0 0 0.75rem color-mix(in srgb, var(--color-accent) 30%, transparent);
+    box-shadow:
+      inset 0 0 0.65rem color-mix(in srgb, var(--color-accent) 24%, transparent),
+      0 0 0.8rem color-mix(in srgb, var(--color-accent) 34%, transparent);
     content: '';
     opacity: var(--call-speaking-ring-opacity);
     pointer-events: none;
-    transition: opacity 80ms linear;
-    animation: call-speaking-ring-pulse 1.25s ease-in-out infinite;
+    transition: opacity 160ms ease-in;
+  }
+
+  :global(.call-speaking-card[data-call-speaking='true'])::after {
+    animation: call-speaking-ring-pulse 1.15s ease-in-out infinite;
+    transition-duration: 45ms;
+    transition-timing-function: ease-out;
+    will-change: transform, opacity;
   }
 
   @keyframes call-speaking-ring-pulse {
@@ -1636,7 +1631,13 @@ retained only for non-joined projections that still consume this component.
     }
 
     50% {
-      transform: scale(1.012);
+      transform: scale(0.994);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(.call-speaking-card[data-call-speaking='true'])::after {
+      animation: none;
     }
   }
 </style>

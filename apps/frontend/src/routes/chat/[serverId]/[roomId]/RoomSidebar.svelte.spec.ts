@@ -70,6 +70,7 @@ const callStore = vi.hoisted(() => ({
     toggleParticipantLocalMute: vi.fn(),
     refreshDevices: vi.fn().mockResolvedValue(undefined),
     getAudioLevel: vi.fn((_identity?: string) => ({ isSpeaking: false, audioLevel: 0 })),
+    subscribeAudioLevels: vi.fn(() => () => undefined),
     handleParticipantLeftEvent: vi.fn(),
     handleCallEndedEvent: vi.fn()
   },
@@ -470,6 +471,7 @@ describe('RoomSidebar', () => {
     callStore.voiceCall.toggleParticipantLocalMute.mockClear();
     callStore.voiceCall.refreshDevices.mockClear();
     callStore.voiceCall.getAudioLevel.mockClear();
+    callStore.voiceCall.subscribeAudioLevels.mockClear();
     callStore.voiceCall.getAudioLevel.mockImplementation(() => ({
       isSpeaking: false,
       audioLevel: 0
