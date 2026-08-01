@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { flushSync } from 'svelte';
 import type { RoomEventView } from '$lib/render/types';
 import { RoomEventKind } from '$lib/render/eventKinds';
+import { RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 import {
   RoomDirectoryScope,
   RoomKind,
@@ -21,7 +22,11 @@ function makeRoom(id: string, overrides: Partial<DirectoryRoomSummary> = {}): Di
     isUniversal: overrides.isUniversal ?? false,
     isMember: overrides.isMember ?? false,
     hasUnread: overrides.hasUnread ?? false,
-    canJoinRoom: overrides.canJoinRoom ?? true
+    canJoinRoom: overrides.canJoinRoom ?? true,
+    postingPolicy: overrides.postingPolicy ?? RoomPostingPolicy.OPEN,
+    historyEpoch: overrides.historyEpoch ?? 0n,
+    revision: overrides.revision ?? 1n,
+    isLocked: overrides.isLocked ?? false
   };
 }
 

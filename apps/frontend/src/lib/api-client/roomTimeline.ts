@@ -313,6 +313,18 @@ function timelinePayload(
         kind: RoomEventKind.RoomUnarchived,
         roomId: event.event.value.roomId
       } as never;
+    case 'roomPostingPolicyChanged':
+      return {
+        kind: RoomEventKind.RoomPostingPolicyChanged,
+        roomId: event.event.value.roomId,
+        locked: event.event.value.locked
+      } as never;
+    case 'roomHistoryPurged':
+      return {
+        kind: RoomEventKind.RoomHistoryPurged,
+        roomId: event.event.value.roomId,
+        historyEpoch: event.event.value.historyEpoch
+      } as never;
     case 'userJoinedRoom':
       return {
         kind: RoomEventKind.UserJoinedRoom,

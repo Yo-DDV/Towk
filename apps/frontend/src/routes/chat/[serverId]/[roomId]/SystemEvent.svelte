@@ -42,6 +42,12 @@
         return m['room.system_event.archived_room']();
       case RoomEventKind.RoomUnarchived:
         return m['room.system_event.unarchived_room']();
+      case RoomEventKind.RoomPostingPolicyChanged:
+        return 'locked' in event.event && event.event.locked
+          ? m['room.system_event.locked_room']()
+          : m['room.system_event.unlocked_room']();
+      case RoomEventKind.RoomHistoryPurged:
+        return m['room.system_event.purged_history']();
       default:
         return null;
     }

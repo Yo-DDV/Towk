@@ -457,6 +457,22 @@ func (s *HTTPServer) mapRealtimeEVT(envelope *realtimev1.RealtimeEventEnvelope, 
 		envelope.Event = &realtimev1.RealtimeEventEnvelope_RoomUniversalChanged{RoomUniversalChanged: &realtimev1.RealtimeRoomUniversalChangedEvent{
 			RoomId: room.GetRoomId(), Universal: room.GetUniversal(),
 		}}
+	case *corev1.Event_RoomPostingPolicyChanged:
+		room := payload.RoomPostingPolicyChanged
+		envelope.Event = &realtimev1.RealtimeEventEnvelope_RoomPostingPolicyChanged{
+			RoomPostingPolicyChanged: &realtimev1.RealtimeRoomPostingPolicyChangedEvent{
+				RoomId: room.GetRoomId(),
+				Locked: room.GetPostingPolicy() == corev1.RoomPostingPolicy_ROOM_POSTING_POLICY_LOCKED,
+			},
+		}
+	case *corev1.Event_RoomHistoryPurged:
+		room := payload.RoomHistoryPurged
+		envelope.Event = &realtimev1.RealtimeEventEnvelope_RoomHistoryPurged{
+			RoomHistoryPurged: &realtimev1.RealtimeRoomHistoryPurgedEvent{
+				RoomId:       room.GetRoomId(),
+				HistoryEpoch: room.GetHistoryEpoch(),
+			},
+		}
 	case *corev1.Event_ServerMemberDeleted:
 		envelope.Event = &realtimev1.RealtimeEventEnvelope_ServerMemberDeleted{ServerMemberDeleted: &realtimev1.RealtimeServerMemberDeletedEvent{
 			UserId: payload.ServerMemberDeleted.GetUserId(),

@@ -96,7 +96,9 @@ function canonicalSnapshotServerOrigin(serverUrl: string): string {
   }
 }
 
-function privateTimelineSnapshotOwnerKey(scope: PrivateDataScope | null | undefined): string | null {
+function privateTimelineSnapshotOwnerKey(
+  scope: PrivateDataScope | null | undefined
+): string | null {
   if (!scope) return null;
   return `${scope.serverId}\u0000${canonicalSnapshotServerOrigin(scope.serverUrl)}\u0000${scope.userId}`;
 }
@@ -158,7 +160,9 @@ function mediaPreviewUrlForAttachment(
 
   if (attachment.contentType.startsWith('video/')) {
     return (
-      attachment.videoProcessing?.thumbnailAssetUrl?.url ?? attachment.thumbnailAssetUrl?.url ?? null
+      attachment.videoProcessing?.thumbnailAssetUrl?.url ??
+      attachment.thumbnailAssetUrl?.url ??
+      null
     );
   }
 
@@ -202,7 +206,11 @@ function prewarmImagePreview(url: string): Promise<void> {
     };
     image.onload = () => {
       const decode = image.decode?.();
-      if (decode) void decode.then(() => finish(true), () => finish(true));
+      if (decode)
+        void decode.then(
+          () => finish(true),
+          () => finish(true)
+        );
       else finish(true);
     };
     image.onerror = () => finish(false);
@@ -210,7 +218,11 @@ function prewarmImagePreview(url: string): Promise<void> {
 
     if (image.complete && image.naturalWidth > 0) {
       const decode = image.decode?.();
-      if (decode) void decode.then(() => finish(true), () => finish(true));
+      if (decode)
+        void decode.then(
+          () => finish(true),
+          () => finish(true)
+        );
       else finish(true);
     }
   });
@@ -222,9 +234,7 @@ function prewarmInitialMediaPreviewUrls(rawEvents: readonly RawEvent[]): Promise
 
   return Promise.race([
     Promise.allSettled(urls.map((url) => prewarmImagePreview(url))).then(() => undefined),
-    new Promise<void>((resolve) =>
-      setTimeout(resolve, INITIAL_MEDIA_PREVIEW_PREWARM_TIMEOUT_MS)
-    )
+    new Promise<void>((resolve) => setTimeout(resolve, INITIAL_MEDIA_PREVIEW_PREWARM_TIMEOUT_MS))
   ]);
 }
 
@@ -631,6 +641,31 @@ export class MessagesStore {
       return Promise.resolve(true);
     }
     return this.resetAndFetchLatest({ preserveCurrentEvents: this.events.length > 0 });
+  }
+
+  /**
+   * Drop every in-memory snapshot for a channel whose durable history epoch
+   * advanced, then fetch the authoritative post-barrier window. This never
+   * carries the previous room buffer across the purge boundary.
+   */
+  invalidatePurgedHistory(roomId: string): Promise<boolean> {
+    const roomSnapshotMarker = `\u0000room\u0000${roomId}\u0000`;
+    const threadSnapshotMarker = `\u0000thread\u0000${roomId}\u0000`;
+    for (const key of timelineMemorySnapshots.keys()) {
+      if (key.includes(roomSnapshotMarker) || key.includes(threadSnapshotMarker)) {
+        timelineMemorySnapshots.delete(key);
+      }
+    }
+    for (const key of timelineWarmupInFlight.keys()) {
+      if (key.includes(roomSnapshotMarker) || key.includes(threadSnapshotMarker)) {
+        timelineWarmupInFlight.delete(key);
+      }
+    }
+    if (this.roomId !== roomId) return Promise.resolve(false);
+    this.#jumpId++;
+    this.#windowId++;
+    this.#pendingJumpId = null;
+    return this.resetAndFetchLatest({ preserveCurrentEvents: false });
   }
 
   setThread(roomId: string, threadRootEventId: string): void {
@@ -1495,8 +1530,9 @@ export class MessagesStore {
       privateTimelineSnapshotOwnerKey(this.getPrivateDataScope?.()) ??
       this.#transientTimelineSnapshotOwnerKey;
     const snapshot =
-      timelineMemorySnapshots.get(timelineSnapshotKey(ownerKey, scope, roomId, threadRootEventId)) ??
-      null;
+      timelineMemorySnapshots.get(
+        timelineSnapshotKey(ownerKey, scope, roomId, threadRootEventId)
+      ) ?? null;
     return snapshot && snapshot.events.length > 0 ? snapshot : null;
   }
 

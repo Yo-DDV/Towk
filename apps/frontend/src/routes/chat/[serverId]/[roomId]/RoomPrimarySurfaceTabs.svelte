@@ -40,7 +40,7 @@
 </script>
 
 <div
-  class="inline-flex min-h-[52px] items-center gap-1 rounded-xl border border-border bg-surface p-1 @max-[359px]:min-h-[48px] @max-[359px]:gap-0.5 @max-[359px]:p-0.5"
+  class="inline-flex min-h-[48px] shrink-0 items-center gap-px rounded-xl border border-border bg-surface p-px"
   role="tablist"
   aria-label={m['room.workspace.switcher']()}
   data-testid="room-primary-surface-tabs"
@@ -48,10 +48,12 @@
   <button
     type="button"
     role="tab"
+    aria-label={m['room.workspace.messages']()}
+    title={m['room.workspace.messages']()}
     aria-selected={surface === 'messages'}
     aria-controls="room-messages-surface"
     class={[
-      'min-h-[44px] cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors @max-[359px]:w-[44px] @max-[359px]:px-0',
+      'grid size-[44px] shrink-0 cursor-pointer place-items-center rounded-lg text-sm font-medium transition-colors @min-[720px]:w-auto @min-[720px]:grid-flow-col @min-[720px]:gap-1.5 @min-[720px]:px-2.5',
       surface === 'messages'
         ? 'bg-surface-200 text-text shadow-sm'
         : 'text-muted hover:bg-surface-100 hover:text-text'
@@ -59,18 +61,22 @@
     data-testid="room-messages-tab"
     onclick={showMessages}
   >
-    <span class="iconify uil--comment-alt-lines @min-[360px]:hidden" aria-hidden="true"></span>
-    <span class="@max-[359px]:sr-only">{m['room.workspace.messages']()}</span>
+    <span class="iconify uil--comment-alt-lines" aria-hidden="true"></span>
+    <span class="sr-only @min-[720px]:not-sr-only" data-testid="room-messages-tab-label">
+      {m['room.workspace.messages']()}
+    </span>
   </button>
   <button
     type="button"
     role="tab"
+    aria-label={m['room.workspace.call']()}
+    title={m['room.workspace.call']()}
     aria-selected={surface === 'call'}
     aria-controls="room-call-surface"
     aria-busy={isJoining || undefined}
     disabled={isJoining}
     class={[
-      'relative min-h-[44px] cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors disabled:cursor-wait @max-[359px]:w-[44px] @max-[359px]:px-0',
+      'relative grid size-[44px] shrink-0 cursor-pointer place-items-center rounded-lg text-sm font-medium transition-colors disabled:cursor-wait @min-[720px]:w-auto @min-[720px]:grid-flow-col @min-[720px]:gap-1.5 @min-[720px]:px-2.5',
       surface === 'call'
         ? 'bg-accent/15 text-accent shadow-sm'
         : 'text-muted hover:bg-surface-100 hover:text-text'
@@ -78,24 +84,25 @@
     data-testid="room-call-tab"
     onclick={showOrJoinCall}
   >
-    <span class="inline-flex items-center gap-2">
-      {#if isJoining}
-        <span
-          class="iconify animate-spin uil--spinner motion-reduce:animate-none"
-          aria-hidden="true"
-        ></span>
-      {:else}
-        <span class="iconify uil--phone" aria-hidden="true"></span>
-      {/if}
-      <span class="@max-[359px]:sr-only">{m['room.workspace.call']()}</span>
-      {#if hasActiveCall && !isJoining}
-        <span class="relative inline-flex h-2 w-2" aria-hidden="true">
-          <span
-            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-50"
-          ></span>
-          <span class="relative inline-flex h-2 w-2 rounded-full bg-accent"></span>
-        </span>
-      {/if}
+    {#if isJoining}
+      <span class="iconify animate-spin uil--spinner motion-reduce:animate-none" aria-hidden="true"
+      ></span>
+    {:else}
+      <span class="iconify uil--phone" aria-hidden="true"></span>
+    {/if}
+    <span class="sr-only @min-[720px]:not-sr-only" data-testid="room-call-tab-label">
+      {m['room.workspace.call']()}
     </span>
+    {#if hasActiveCall && !isJoining}
+      <span
+        class="absolute top-1.5 right-1.5 inline-flex h-2 w-2 @min-[720px]:relative @min-[720px]:top-auto @min-[720px]:right-auto"
+        aria-hidden="true"
+      >
+        <span
+          class="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-50"
+        ></span>
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-accent"></span>
+      </span>
+    {/if}
   </button>
 </div>

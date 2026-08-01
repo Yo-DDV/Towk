@@ -25,7 +25,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file chatto/api/v1/rooms.proto.
  */
 export const file_chatto_api_v1_rooms: GenFile = /*@__PURE__*/
-  fileDesc("ChljaGF0dG8vYXBpL3YxL3Jvb21zLnByb3RvEg1jaGF0dG8uYXBpLnYxIpMBCgRSb29tEgoKAmlkGAEgASgJEiUKBGtpbmQYAiABKA4yFy5jaGF0dG8uYXBpLnYxLlJvb21LaW5kEgwKBG5hbWUYAyABKAkSEwoLZGVzY3JpcHRpb24YBCABKAkSEAoIYXJjaGl2ZWQYBSABKAgSEAoIZ3JvdXBfaWQYBiABKAkSEQoJdW5pdmVyc2FsGAcgASgIIk4KC1Jvb21TdW1tYXJ5EgoKAmlkGAEgASgJEiUKBGtpbmQYAiABKA4yFy5jaGF0dG8uYXBpLnYxLlJvb21LaW5kEgwKBG5hbWUYAyABKAkieQoRQ3JlYXRlUm9vbVJlcXVlc3QSFwoEbmFtZRgBIAEoCUIJukgGcgQQARgeEh0KC2Rlc2NyaXB0aW9uGAIgASgJQgi6SAVyAxj0AxIZCghncm91cF9pZBgDIAEoCUIHukgEcgIQARIRCgl1bml2ZXJzYWwYBCABKAgiNwoSQ3JlYXRlUm9vbVJlc3BvbnNlEiEKBHJvb20YASABKAsyEy5jaGF0dG8uYXBpLnYxLlJvb20irgEKEVVwZGF0ZVJvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESHAoEbmFtZRgCIAEoCUIJukgGcgQQARgeSACIAQESIgoLZGVzY3JpcHRpb24YAyABKAlCCLpIBXIDGPQDSAGIAQESFgoJdW5pdmVyc2FsGAQgASgISAKIAQFCBwoFX25hbWVCDgoMX2Rlc2NyaXB0aW9uQgwKCl91bml2ZXJzYWwiNwoSVXBkYXRlUm9vbVJlc3BvbnNlEiEKBHJvb20YASABKAsyEy5jaGF0dG8uYXBpLnYxLlJvb20iLgoSQXJjaGl2ZVJvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAEiOAoTQXJjaGl2ZVJvb21SZXNwb25zZRIhCgRyb29tGAEgASgLMhMuY2hhdHRvLmFwaS52MS5Sb29tIjAKFFVuYXJjaGl2ZVJvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAEiOgoVVW5hcmNoaXZlUm9vbVJlc3BvbnNlEiEKBHJvb20YASABKAsyEy5jaGF0dG8uYXBpLnYxLlJvb20iKwoPSm9pblJvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAEiNQoQSm9pblJvb21SZXNwb25zZRIhCgRyb29tGAEgASgLMhMuY2hhdHRvLmFwaS52MS5Sb29tIjEKFEpvaW5Sb29tR3JvdXBSZXF1ZXN0EhkKCGdyb3VwX2lkGAEgASgJQge6SARyAhABIjAKFUpvaW5Sb29tR3JvdXBSZXNwb25zZRIXCg9qb2luZWRfcm9vbV9pZHMYASADKAkiOQoOU3RhcnRETVJlcXVlc3QSJwoPcGFydGljaXBhbnRfaWRzGAEgAygJQg66SAuSAQgQCSIEcgIQASI0Cg9TdGFydERNUmVzcG9uc2USIQoEcm9vbRgBIAEoCzITLmNoYXR0by5hcGkudjEuUm9vbSIsChBMZWF2ZVJvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAEiIQoRTGVhdmVSb29tUmVzcG9uc2USDAoEbGVmdBgBIAEoCCJGChBBZGRNZW1iZXJSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESGAoHdXNlcl9pZBgCIAEoCUIHukgEcgIQASJDChFBZGRNZW1iZXJSZXNwb25zZRIuCgZtZW1iZXIYASABKAsyHi5jaGF0dG8uYXBpLnYxLkRpcmVjdG9yeU1lbWJlciJJChNSZW1vdmVNZW1iZXJSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESGAoHdXNlcl9pZBgCIAEoCUIHukgEcgIQASInChRSZW1vdmVNZW1iZXJSZXNwb25zZRIPCgdyZW1vdmVkGAEgASgIIpIBChBCYW5NZW1iZXJSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESGAoHdXNlcl9pZBgCIAEoCUIHukgEcgIQARIaCgZyZWFzb24YAyABKAlCCrpIB3IFEAEY6AcSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiIwoRQmFuTWVtYmVyUmVzcG9uc2USDgoGYmFubmVkGAEgASgIImQKElVuYmFuTWVtYmVyUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEhgKB3VzZXJfaWQYAiABKAlCB7pIBHICEAESGgoGcmVhc29uGAMgASgJQgq6SAdyBRABGOgHIicKE1VuYmFuTWVtYmVyUmVzcG9uc2USEAoIdW5iYW5uZWQYASABKAgiwQIKB1Jvb21CYW4SCgoCaWQYASABKAkSDwoHcm9vbV9pZBgCIAEoCRIhCgRyb29tGAMgASgLMhMuY2hhdHRvLmFwaS52MS5Sb29tEg8KB3VzZXJfaWQYBCABKAkSLAoEdXNlchgFIAEoCzIeLmNoYXR0by5hcGkudjEuRGlyZWN0b3J5TWVtYmVyEhQKDG1vZGVyYXRvcl9pZBgGIAEoCRIxCgltb2RlcmF0b3IYByABKAsyHi5jaGF0dG8uYXBpLnYxLkRpcmVjdG9yeU1lbWJlchIOCgZyZWFzb24YCCABKAkSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiTAoPTGlzdEJhbnNSZXF1ZXN0Eg8KB3Jvb21faWQYASABKAkSKAoEcGFnZRgCIAEoCzIaLmNoYXR0by5hcGkudjEuUGFnZVJlcXVlc3QiXwoQTGlzdEJhbnNSZXNwb25zZRIkCgRiYW5zGAEgAygLMhYuY2hhdHRvLmFwaS52MS5Sb29tQmFuEiUKBHBhZ2UYAiABKAsyFy5jaGF0dG8uYXBpLnYxLlBhZ2VJbmZvIrQBChpMaXN0Um9vbUF0dGFjaG1lbnRzUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEjcKCXRodW1ibmFpbBgEIAEoCzIkLmNoYXR0by5hcGkudjEuSW1hZ2VUcmFuc2Zvcm1PcHRpb25zEigKBHBhZ2UYBSABKAsyGi5jaGF0dG8uYXBpLnYxLlBhZ2VSZXF1ZXN0SgQIAhADSgQIAxAEUgVsaW1pdFIGb2Zmc2V0IqMBChtMaXN0Um9vbUF0dGFjaG1lbnRzUmVzcG9uc2USOgoLYXR0YWNobWVudHMYASADKAsyJS5jaGF0dG8uYXBpLnYxLlJvb21BdHRhY2htZW50TGlzdEl0ZW0SJQoEcGFnZRgEIAEoCzIXLmNoYXR0by5hcGkudjEuUGFnZUluZm9KBAgCEANKBAgDEARSC3RvdGFsX2NvdW50UghoYXNfbW9yZSJWChxVcGRhdGVUeXBpbmdJbmRpY2F0b3JSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESHAoUdGhyZWFkX3Jvb3RfZXZlbnRfaWQYAiABKAkiMAodVXBkYXRlVHlwaW5nSW5kaWNhdG9yUmVzcG9uc2USDwoHdXBkYXRlZBgBIAEoCCpOCghSb29tS2luZBIZChVST09NX0tJTkRfVU5TUEVDSUZJRUQQABIVChFST09NX0tJTkRfQ0hBTk5FTBABEhAKDFJPT01fS0lORF9ETRACMssRCgtSb29tU2VydmljZRJRCgpDcmVhdGVSb29tEiAuY2hhdHRvLmFwaS52MS5DcmVhdGVSb29tUmVxdWVzdBohLmNoYXR0by5hcGkudjEuQ3JlYXRlUm9vbVJlc3BvbnNlElEKClVwZGF0ZVJvb20SIC5jaGF0dG8uYXBpLnYxLlVwZGF0ZVJvb21SZXF1ZXN0GiEuY2hhdHRvLmFwaS52MS5VcGRhdGVSb29tUmVzcG9uc2USVAoLQXJjaGl2ZVJvb20SIS5jaGF0dG8uYXBpLnYxLkFyY2hpdmVSb29tUmVxdWVzdBoiLmNoYXR0by5hcGkudjEuQXJjaGl2ZVJvb21SZXNwb25zZRJaCg1VbmFyY2hpdmVSb29tEiMuY2hhdHRvLmFwaS52MS5VbmFyY2hpdmVSb29tUmVxdWVzdBokLmNoYXR0by5hcGkudjEuVW5hcmNoaXZlUm9vbVJlc3BvbnNlEksKCEpvaW5Sb29tEh4uY2hhdHRvLmFwaS52MS5Kb2luUm9vbVJlcXVlc3QaHy5jaGF0dG8uYXBpLnYxLkpvaW5Sb29tUmVzcG9uc2USWgoNSm9pblJvb21Hcm91cBIjLmNoYXR0by5hcGkudjEuSm9pblJvb21Hcm91cFJlcXVlc3QaJC5jaGF0dG8uYXBpLnYxLkpvaW5Sb29tR3JvdXBSZXNwb25zZRJICgdTdGFydERNEh0uY2hhdHRvLmFwaS52MS5TdGFydERNUmVxdWVzdBoeLmNoYXR0by5hcGkudjEuU3RhcnRETVJlc3BvbnNlEk4KCUxlYXZlUm9vbRIfLmNoYXR0by5hcGkudjEuTGVhdmVSb29tUmVxdWVzdBogLmNoYXR0by5hcGkudjEuTGVhdmVSb29tUmVzcG9uc2USXAoLTGlzdE1lbWJlcnMSJS5jaGF0dG8uYXBpLnYxLkxpc3RSb29tTWVtYmVyc1JlcXVlc3QaJi5jaGF0dG8uYXBpLnYxLkxpc3RSb29tTWVtYmVyc1Jlc3BvbnNlElYKCUdldE1lbWJlchIjLmNoYXR0by5hcGkudjEuR2V0Um9vbU1lbWJlclJlcXVlc3QaJC5jaGF0dG8uYXBpLnYxLkdldFJvb21NZW1iZXJSZXNwb25zZRJoCg9CYXRjaEdldE1lbWJlcnMSKS5jaGF0dG8uYXBpLnYxLkJhdGNoR2V0Um9vbU1lbWJlcnNSZXF1ZXN0GiouY2hhdHRvLmFwaS52MS5CYXRjaEdldFJvb21NZW1iZXJzUmVzcG9uc2USTgoJQWRkTWVtYmVyEh8uY2hhdHRvLmFwaS52MS5BZGRNZW1iZXJSZXF1ZXN0GiAuY2hhdHRvLmFwaS52MS5BZGRNZW1iZXJSZXNwb25zZRJXCgxSZW1vdmVNZW1iZXISIi5jaGF0dG8uYXBpLnYxLlJlbW92ZU1lbWJlclJlcXVlc3QaIy5jaGF0dG8uYXBpLnYxLlJlbW92ZU1lbWJlclJlc3BvbnNlEksKCExpc3RCYW5zEh4uY2hhdHRvLmFwaS52MS5MaXN0QmFuc1JlcXVlc3QaHy5jaGF0dG8uYXBpLnYxLkxpc3RCYW5zUmVzcG9uc2USbAoTTGlzdFJvb21BdHRhY2htZW50cxIpLmNoYXR0by5hcGkudjEuTGlzdFJvb21BdHRhY2htZW50c1JlcXVlc3QaKi5jaGF0dG8uYXBpLnYxLkxpc3RSb29tQXR0YWNobWVudHNSZXNwb25zZRJyChVVcGRhdGVUeXBpbmdJbmRpY2F0b3ISKy5jaGF0dG8uYXBpLnYxLlVwZGF0ZVR5cGluZ0luZGljYXRvclJlcXVlc3QaLC5jaGF0dG8uYXBpLnYxLlVwZGF0ZVR5cGluZ0luZGljYXRvclJlc3BvbnNlEloKDUdldFJvb21FdmVudHMSIy5jaGF0dG8uYXBpLnYxLkdldFJvb21FdmVudHNSZXF1ZXN0GiQuY2hhdHRvLmFwaS52MS5HZXRSb29tRXZlbnRzUmVzcG9uc2USbAoTR2V0Um9vbUV2ZW50c0Fyb3VuZBIpLmNoYXR0by5hcGkudjEuR2V0Um9vbUV2ZW50c0Fyb3VuZFJlcXVlc3QaKi5jaGF0dG8uYXBpLnYxLkdldFJvb21FdmVudHNBcm91bmRSZXNwb25zZRJdCg5NYXJrUm9vbUFzUmVhZBIkLmNoYXR0by5hcGkudjEuTWFya1Jvb21Bc1JlYWRSZXF1ZXN0GiUuY2hhdHRvLmFwaS52MS5NYXJrUm9vbUFzUmVhZFJlc3BvbnNlEmkKEkFkdmFuY2VSZWFkUmVjZWlwdBIoLmNoYXR0by5hcGkudjEuQWR2YW5jZVJlYWRSZWNlaXB0UmVxdWVzdBopLmNoYXR0by5hcGkudjEuQWR2YW5jZVJlYWRSZWNlaXB0UmVzcG9uc2USeAoXR2V0UmVhZFJlY2VpcHRTdW1tYXJpZXMSLS5jaGF0dG8uYXBpLnYxLkdldFJlYWRSZWNlaXB0U3VtbWFyaWVzUmVxdWVzdBouLmNoYXR0by5hcGkudjEuR2V0UmVhZFJlY2VpcHRTdW1tYXJpZXNSZXNwb25zZRJ1ChZMaXN0UmVhZFJlY2VpcHRSZWFkZXJzEiwuY2hhdHRvLmFwaS52MS5MaXN0UmVhZFJlY2VpcHRSZWFkZXJzUmVxdWVzdBotLmNoYXR0by5hcGkudjEuTGlzdFJlYWRSZWNlaXB0UmVhZGVyc1Jlc3BvbnNlEk4KCUJhbk1lbWJlchIfLmNoYXR0by5hcGkudjEuQmFuTWVtYmVyUmVxdWVzdBogLmNoYXR0by5hcGkudjEuQmFuTWVtYmVyUmVzcG9uc2USVAoLVW5iYW5NZW1iZXISIS5jaGF0dG8uYXBpLnYxLlVuYmFuTWVtYmVyUmVxdWVzdBoiLmNoYXR0by5hcGkudjEuVW5iYW5NZW1iZXJSZXNwb25zZUKmAQoRY29tLmNoYXR0by5hcGkudjFCClJvb21zUHJvdG9QAVovaG1hbnMuZGUvY2hhdHRvL2ludGVybmFsL3BiL2NoYXR0by9hcGkvdjE7YXBpdjGiAgNDQViqAg1DaGF0dG8uQXBpLlYxygINQ2hhdHRvXEFwaVxWMeICGUNoYXR0b1xBcGlcVjFcR1BCTWV0YWRhdGHqAg9DaGF0dG86OkFwaTo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_chatto_api_v1_attachments, file_chatto_api_v1_common, file_chatto_api_v1_member_directory, file_chatto_api_v1_pagination, file_chatto_api_v1_read_state, file_chatto_api_v1_room_timeline, file_google_protobuf_timestamp]);
+  fileDesc("ChljaGF0dG8vYXBpL3YxL3Jvb21zLnByb3RvEg1jaGF0dG8uYXBpLnYxIvYBCgRSb29tEgoKAmlkGAEgASgJEiUKBGtpbmQYAiABKA4yFy5jaGF0dG8uYXBpLnYxLlJvb21LaW5kEgwKBG5hbWUYAyABKAkSEwoLZGVzY3JpcHRpb24YBCABKAkSEAoIYXJjaGl2ZWQYBSABKAgSEAoIZ3JvdXBfaWQYBiABKAkSEQoJdW5pdmVyc2FsGAcgASgIEjgKDnBvc3RpbmdfcG9saWN5GAggASgOMiAuY2hhdHRvLmFwaS52MS5Sb29tUG9zdGluZ1BvbGljeRIVCg1oaXN0b3J5X2Vwb2NoGAkgASgEEhAKCHJldmlzaW9uGAogASgEIk4KC1Jvb21TdW1tYXJ5EgoKAmlkGAEgASgJEiUKBGtpbmQYAiABKA4yFy5jaGF0dG8uYXBpLnYxLlJvb21LaW5kEgwKBG5hbWUYAyABKAkieQoRQ3JlYXRlUm9vbVJlcXVlc3QSFwoEbmFtZRgBIAEoCUIJukgGcgQQARgeEh0KC2Rlc2NyaXB0aW9uGAIgASgJQgi6SAVyAxj0AxIZCghncm91cF9pZBgDIAEoCUIHukgEcgIQARIRCgl1bml2ZXJzYWwYBCABKAgiNwoSQ3JlYXRlUm9vbVJlc3BvbnNlEiEKBHJvb20YASABKAsyEy5jaGF0dG8uYXBpLnYxLlJvb20irgEKEVVwZGF0ZVJvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESHAoEbmFtZRgCIAEoCUIJukgGcgQQARgeSACIAQESIgoLZGVzY3JpcHRpb24YAyABKAlCCLpIBXIDGPQDSAGIAQESFgoJdW5pdmVyc2FsGAQgASgISAKIAQFCBwoFX25hbWVCDgoMX2Rlc2NyaXB0aW9uQgwKCl91bml2ZXJzYWwiNwoSVXBkYXRlUm9vbVJlc3BvbnNlEiEKBHJvb20YASABKAsyEy5jaGF0dG8uYXBpLnYxLlJvb20iLgoSQXJjaGl2ZVJvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAEiOAoTQXJjaGl2ZVJvb21SZXNwb25zZRIhCgRyb29tGAEgASgLMhMuY2hhdHRvLmFwaS52MS5Sb29tIjAKFFVuYXJjaGl2ZVJvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAEiOgoVVW5hcmNoaXZlUm9vbVJlc3BvbnNlEiEKBHJvb20YASABKAsyEy5jaGF0dG8uYXBpLnYxLlJvb20iTwoPTG9ja1Jvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESIgoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKARCB7pIBDICIAAiNQoQTG9ja1Jvb21SZXNwb25zZRIhCgRyb29tGAEgASgLMhMuY2hhdHRvLmFwaS52MS5Sb29tIlEKEVVubG9ja1Jvb21SZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESIgoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKARCB7pIBDICIAAiNwoSVW5sb2NrUm9vbVJlc3BvbnNlEiEKBHJvb20YASABKAsyEy5jaGF0dG8uYXBpLnYxLlJvb20inAEKGVJvb21IaXN0b3J5UHVyZ2VPcGVyYXRpb24SCgoCaWQYASABKAkSDwoHcm9vbV9pZBgCIAEoCRIVCg1oaXN0b3J5X2Vwb2NoGAMgASgEEjUKBnN0YXR1cxgEIAEoDjIlLmNoYXR0by5hcGkudjEuUm9vbUhpc3RvcnlQdXJnZVN0YXR1cxIUCgxmYWlsdXJlX2NvZGUYBSABKAkikwEKF1B1cmdlUm9vbUhpc3RvcnlSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESIgoRZXhwZWN0ZWRfcmV2aXNpb24YAiABKARCB7pIBDICIAASIgoRY29uZmlybWF0aW9uX25hbWUYAyABKAlCB7pIBHICEAFKBAgEEAVSEGN1cnJlbnRfcGFzc3dvcmQiegoYUHVyZ2VSb29tSGlzdG9yeVJlc3BvbnNlEiEKBHJvb20YASABKAsyEy5jaGF0dG8uYXBpLnYxLlJvb20SOwoJb3BlcmF0aW9uGAIgASgLMiguY2hhdHRvLmFwaS52MS5Sb29tSGlzdG9yeVB1cmdlT3BlcmF0aW9uIkQKI0dldFJvb21IaXN0b3J5UHVyZ2VPcGVyYXRpb25SZXF1ZXN0Eh0KDG9wZXJhdGlvbl9pZBgBIAEoCUIHukgEcgIQASJjCiRHZXRSb29tSGlzdG9yeVB1cmdlT3BlcmF0aW9uUmVzcG9uc2USOwoJb3BlcmF0aW9uGAEgASgLMiguY2hhdHRvLmFwaS52MS5Sb29tSGlzdG9yeVB1cmdlT3BlcmF0aW9uIisKD0pvaW5Sb29tUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABIjUKEEpvaW5Sb29tUmVzcG9uc2USIQoEcm9vbRgBIAEoCzITLmNoYXR0by5hcGkudjEuUm9vbSIxChRKb2luUm9vbUdyb3VwUmVxdWVzdBIZCghncm91cF9pZBgBIAEoCUIHukgEcgIQASIwChVKb2luUm9vbUdyb3VwUmVzcG9uc2USFwoPam9pbmVkX3Jvb21faWRzGAEgAygJIjkKDlN0YXJ0RE1SZXF1ZXN0EicKD3BhcnRpY2lwYW50X2lkcxgBIAMoCUIOukgLkgEIEAkiBHICEAEiNAoPU3RhcnRETVJlc3BvbnNlEiEKBHJvb20YASABKAsyEy5jaGF0dG8uYXBpLnYxLlJvb20iLAoQTGVhdmVSb29tUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABIiEKEUxlYXZlUm9vbVJlc3BvbnNlEgwKBGxlZnQYASABKAgiRgoQQWRkTWVtYmVyUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEhgKB3VzZXJfaWQYAiABKAlCB7pIBHICEAEiQwoRQWRkTWVtYmVyUmVzcG9uc2USLgoGbWVtYmVyGAEgASgLMh4uY2hhdHRvLmFwaS52MS5EaXJlY3RvcnlNZW1iZXIiSQoTUmVtb3ZlTWVtYmVyUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEhgKB3VzZXJfaWQYAiABKAlCB7pIBHICEAEiJwoUUmVtb3ZlTWVtYmVyUmVzcG9uc2USDwoHcmVtb3ZlZBgBIAEoCCKSAQoQQmFuTWVtYmVyUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEhgKB3VzZXJfaWQYAiABKAlCB7pIBHICEAESGgoGcmVhc29uGAMgASgJQgq6SAdyBRABGOgHEi4KCmV4cGlyZXNfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIiMKEUJhbk1lbWJlclJlc3BvbnNlEg4KBmJhbm5lZBgBIAEoCCJkChJVbmJhbk1lbWJlclJlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARIYCgd1c2VyX2lkGAIgASgJQge6SARyAhABEhoKBnJlYXNvbhgDIAEoCUIKukgHcgUQARjoByInChNVbmJhbk1lbWJlclJlc3BvbnNlEhAKCHVuYmFubmVkGAEgASgIIsECCgdSb29tQmFuEgoKAmlkGAEgASgJEg8KB3Jvb21faWQYAiABKAkSIQoEcm9vbRgDIAEoCzITLmNoYXR0by5hcGkudjEuUm9vbRIPCgd1c2VyX2lkGAQgASgJEiwKBHVzZXIYBSABKAsyHi5jaGF0dG8uYXBpLnYxLkRpcmVjdG9yeU1lbWJlchIUCgxtb2RlcmF0b3JfaWQYBiABKAkSMQoJbW9kZXJhdG9yGAcgASgLMh4uY2hhdHRvLmFwaS52MS5EaXJlY3RvcnlNZW1iZXISDgoGcmVhc29uGAggASgJEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCmV4cGlyZXNfYXQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkwKD0xpc3RCYW5zUmVxdWVzdBIPCgdyb29tX2lkGAEgASgJEigKBHBhZ2UYAiABKAsyGi5jaGF0dG8uYXBpLnYxLlBhZ2VSZXF1ZXN0Il8KEExpc3RCYW5zUmVzcG9uc2USJAoEYmFucxgBIAMoCzIWLmNoYXR0by5hcGkudjEuUm9vbUJhbhIlCgRwYWdlGAIgASgLMhcuY2hhdHRvLmFwaS52MS5QYWdlSW5mbyK0AQoaTGlzdFJvb21BdHRhY2htZW50c1JlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARI3Cgl0aHVtYm5haWwYBCABKAsyJC5jaGF0dG8uYXBpLnYxLkltYWdlVHJhbnNmb3JtT3B0aW9ucxIoCgRwYWdlGAUgASgLMhouY2hhdHRvLmFwaS52MS5QYWdlUmVxdWVzdEoECAIQA0oECAMQBFIFbGltaXRSBm9mZnNldCKjAQobTGlzdFJvb21BdHRhY2htZW50c1Jlc3BvbnNlEjoKC2F0dGFjaG1lbnRzGAEgAygLMiUuY2hhdHRvLmFwaS52MS5Sb29tQXR0YWNobWVudExpc3RJdGVtEiUKBHBhZ2UYBCABKAsyFy5jaGF0dG8uYXBpLnYxLlBhZ2VJbmZvSgQIAhADSgQIAxAEUgt0b3RhbF9jb3VudFIIaGFzX21vcmUiVgocVXBkYXRlVHlwaW5nSW5kaWNhdG9yUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEhwKFHRocmVhZF9yb290X2V2ZW50X2lkGAIgASgJIjAKHVVwZGF0ZVR5cGluZ0luZGljYXRvclJlc3BvbnNlEg8KB3VwZGF0ZWQYASABKAgqTgoIUm9vbUtpbmQSGQoVUk9PTV9LSU5EX1VOU1BFQ0lGSUVEEAASFQoRUk9PTV9LSU5EX0NIQU5ORUwQARIQCgxST09NX0tJTkRfRE0QAip2ChFSb29tUG9zdGluZ1BvbGljeRIjCh9ST09NX1BPU1RJTkdfUE9MSUNZX1VOU1BFQ0lGSUVEEAASHAoYUk9PTV9QT1NUSU5HX1BPTElDWV9PUEVOEAESHgoaUk9PTV9QT1NUSU5HX1BPTElDWV9MT0NLRUQQAiq5AQoWUm9vbUhpc3RvcnlQdXJnZVN0YXR1cxIpCiVST09NX0hJU1RPUllfUFVSR0VfU1RBVFVTX1VOU1BFQ0lGSUVEEAASJQohUk9PTV9ISVNUT1JZX1BVUkdFX1NUQVRVU19SVU5OSU5HEAESJwojUk9PTV9ISVNUT1JZX1BVUkdFX1NUQVRVU19DT01QTEVURUQQAhIkCiBST09NX0hJU1RPUllfUFVSR0VfU1RBVFVTX0ZBSUxFRBADMtoUCgtSb29tU2VydmljZRJRCgpDcmVhdGVSb29tEiAuY2hhdHRvLmFwaS52MS5DcmVhdGVSb29tUmVxdWVzdBohLmNoYXR0by5hcGkudjEuQ3JlYXRlUm9vbVJlc3BvbnNlElEKClVwZGF0ZVJvb20SIC5jaGF0dG8uYXBpLnYxLlVwZGF0ZVJvb21SZXF1ZXN0GiEuY2hhdHRvLmFwaS52MS5VcGRhdGVSb29tUmVzcG9uc2USVAoLQXJjaGl2ZVJvb20SIS5jaGF0dG8uYXBpLnYxLkFyY2hpdmVSb29tUmVxdWVzdBoiLmNoYXR0by5hcGkudjEuQXJjaGl2ZVJvb21SZXNwb25zZRJaCg1VbmFyY2hpdmVSb29tEiMuY2hhdHRvLmFwaS52MS5VbmFyY2hpdmVSb29tUmVxdWVzdBokLmNoYXR0by5hcGkudjEuVW5hcmNoaXZlUm9vbVJlc3BvbnNlEksKCExvY2tSb29tEh4uY2hhdHRvLmFwaS52MS5Mb2NrUm9vbVJlcXVlc3QaHy5jaGF0dG8uYXBpLnYxLkxvY2tSb29tUmVzcG9uc2USUQoKVW5sb2NrUm9vbRIgLmNoYXR0by5hcGkudjEuVW5sb2NrUm9vbVJlcXVlc3QaIS5jaGF0dG8uYXBpLnYxLlVubG9ja1Jvb21SZXNwb25zZRJjChBQdXJnZVJvb21IaXN0b3J5EiYuY2hhdHRvLmFwaS52MS5QdXJnZVJvb21IaXN0b3J5UmVxdWVzdBonLmNoYXR0by5hcGkudjEuUHVyZ2VSb29tSGlzdG9yeVJlc3BvbnNlEocBChxHZXRSb29tSGlzdG9yeVB1cmdlT3BlcmF0aW9uEjIuY2hhdHRvLmFwaS52MS5HZXRSb29tSGlzdG9yeVB1cmdlT3BlcmF0aW9uUmVxdWVzdBozLmNoYXR0by5hcGkudjEuR2V0Um9vbUhpc3RvcnlQdXJnZU9wZXJhdGlvblJlc3BvbnNlEksKCEpvaW5Sb29tEh4uY2hhdHRvLmFwaS52MS5Kb2luUm9vbVJlcXVlc3QaHy5jaGF0dG8uYXBpLnYxLkpvaW5Sb29tUmVzcG9uc2USWgoNSm9pblJvb21Hcm91cBIjLmNoYXR0by5hcGkudjEuSm9pblJvb21Hcm91cFJlcXVlc3QaJC5jaGF0dG8uYXBpLnYxLkpvaW5Sb29tR3JvdXBSZXNwb25zZRJICgdTdGFydERNEh0uY2hhdHRvLmFwaS52MS5TdGFydERNUmVxdWVzdBoeLmNoYXR0by5hcGkudjEuU3RhcnRETVJlc3BvbnNlEk4KCUxlYXZlUm9vbRIfLmNoYXR0by5hcGkudjEuTGVhdmVSb29tUmVxdWVzdBogLmNoYXR0by5hcGkudjEuTGVhdmVSb29tUmVzcG9uc2USXAoLTGlzdE1lbWJlcnMSJS5jaGF0dG8uYXBpLnYxLkxpc3RSb29tTWVtYmVyc1JlcXVlc3QaJi5jaGF0dG8uYXBpLnYxLkxpc3RSb29tTWVtYmVyc1Jlc3BvbnNlElYKCUdldE1lbWJlchIjLmNoYXR0by5hcGkudjEuR2V0Um9vbU1lbWJlclJlcXVlc3QaJC5jaGF0dG8uYXBpLnYxLkdldFJvb21NZW1iZXJSZXNwb25zZRJoCg9CYXRjaEdldE1lbWJlcnMSKS5jaGF0dG8uYXBpLnYxLkJhdGNoR2V0Um9vbU1lbWJlcnNSZXF1ZXN0GiouY2hhdHRvLmFwaS52MS5CYXRjaEdldFJvb21NZW1iZXJzUmVzcG9uc2USTgoJQWRkTWVtYmVyEh8uY2hhdHRvLmFwaS52MS5BZGRNZW1iZXJSZXF1ZXN0GiAuY2hhdHRvLmFwaS52MS5BZGRNZW1iZXJSZXNwb25zZRJXCgxSZW1vdmVNZW1iZXISIi5jaGF0dG8uYXBpLnYxLlJlbW92ZU1lbWJlclJlcXVlc3QaIy5jaGF0dG8uYXBpLnYxLlJlbW92ZU1lbWJlclJlc3BvbnNlEksKCExpc3RCYW5zEh4uY2hhdHRvLmFwaS52MS5MaXN0QmFuc1JlcXVlc3QaHy5jaGF0dG8uYXBpLnYxLkxpc3RCYW5zUmVzcG9uc2USbAoTTGlzdFJvb21BdHRhY2htZW50cxIpLmNoYXR0by5hcGkudjEuTGlzdFJvb21BdHRhY2htZW50c1JlcXVlc3QaKi5jaGF0dG8uYXBpLnYxLkxpc3RSb29tQXR0YWNobWVudHNSZXNwb25zZRJyChVVcGRhdGVUeXBpbmdJbmRpY2F0b3ISKy5jaGF0dG8uYXBpLnYxLlVwZGF0ZVR5cGluZ0luZGljYXRvclJlcXVlc3QaLC5jaGF0dG8uYXBpLnYxLlVwZGF0ZVR5cGluZ0luZGljYXRvclJlc3BvbnNlEloKDUdldFJvb21FdmVudHMSIy5jaGF0dG8uYXBpLnYxLkdldFJvb21FdmVudHNSZXF1ZXN0GiQuY2hhdHRvLmFwaS52MS5HZXRSb29tRXZlbnRzUmVzcG9uc2USbAoTR2V0Um9vbUV2ZW50c0Fyb3VuZBIpLmNoYXR0by5hcGkudjEuR2V0Um9vbUV2ZW50c0Fyb3VuZFJlcXVlc3QaKi5jaGF0dG8uYXBpLnYxLkdldFJvb21FdmVudHNBcm91bmRSZXNwb25zZRJdCg5NYXJrUm9vbUFzUmVhZBIkLmNoYXR0by5hcGkudjEuTWFya1Jvb21Bc1JlYWRSZXF1ZXN0GiUuY2hhdHRvLmFwaS52MS5NYXJrUm9vbUFzUmVhZFJlc3BvbnNlEmkKEkFkdmFuY2VSZWFkUmVjZWlwdBIoLmNoYXR0by5hcGkudjEuQWR2YW5jZVJlYWRSZWNlaXB0UmVxdWVzdBopLmNoYXR0by5hcGkudjEuQWR2YW5jZVJlYWRSZWNlaXB0UmVzcG9uc2USeAoXR2V0UmVhZFJlY2VpcHRTdW1tYXJpZXMSLS5jaGF0dG8uYXBpLnYxLkdldFJlYWRSZWNlaXB0U3VtbWFyaWVzUmVxdWVzdBouLmNoYXR0by5hcGkudjEuR2V0UmVhZFJlY2VpcHRTdW1tYXJpZXNSZXNwb25zZRJ1ChZMaXN0UmVhZFJlY2VpcHRSZWFkZXJzEiwuY2hhdHRvLmFwaS52MS5MaXN0UmVhZFJlY2VpcHRSZWFkZXJzUmVxdWVzdBotLmNoYXR0by5hcGkudjEuTGlzdFJlYWRSZWNlaXB0UmVhZGVyc1Jlc3BvbnNlEk4KCUJhbk1lbWJlchIfLmNoYXR0by5hcGkudjEuQmFuTWVtYmVyUmVxdWVzdBogLmNoYXR0by5hcGkudjEuQmFuTWVtYmVyUmVzcG9uc2USVAoLVW5iYW5NZW1iZXISIS5jaGF0dG8uYXBpLnYxLlVuYmFuTWVtYmVyUmVxdWVzdBoiLmNoYXR0by5hcGkudjEuVW5iYW5NZW1iZXJSZXNwb25zZUKmAQoRY29tLmNoYXR0by5hcGkudjFCClJvb21zUHJvdG9QAVovaG1hbnMuZGUvY2hhdHRvL2ludGVybmFsL3BiL2NoYXR0by9hcGkvdjE7YXBpdjGiAgNDQViqAg1DaGF0dG8uQXBpLlYxygINQ2hhdHRvXEFwaVxWMeICGUNoYXR0b1xBcGlcVjFcR1BCTWV0YWRhdGHqAg9DaGF0dG86OkFwaTo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_chatto_api_v1_attachments, file_chatto_api_v1_common, file_chatto_api_v1_member_directory, file_chatto_api_v1_pagination, file_chatto_api_v1_read_state, file_chatto_api_v1_room_timeline, file_google_protobuf_timestamp]);
 
 /**
  * Public room metadata returned by room commands.
@@ -82,6 +82,27 @@ export type Room = Message<"chatto.api.v1.Room"> & {
    * @generated from field: bool universal = 7;
    */
   universal: boolean;
+
+  /**
+   * Durable posting state. Direct-message rooms always return OPEN.
+   *
+   * @generated from field: chatto.api.v1.RoomPostingPolicy posting_policy = 8;
+   */
+  postingPolicy: RoomPostingPolicy;
+
+  /**
+   * Monotonic generation advanced after each history purge.
+   *
+   * @generated from field: uint64 history_epoch = 9;
+   */
+  historyEpoch: bigint;
+
+  /**
+   * Optimistic-concurrency token for room-scoped governance commands.
+   *
+   * @generated from field: uint64 revision = 10;
+   */
+  revision: bigint;
 };
 
 /**
@@ -340,6 +361,222 @@ export const UnarchiveRoomResponseSchema: GenMessage<UnarchiveRoomResponse> = /*
   messageDesc(file_chatto_api_v1_rooms, 9);
 
 /**
+ * Request to prevent ordinary members from adding channel content.
+ *
+ * @generated from message chatto.api.v1.LockRoomRequest
+ */
+export type LockRoomRequest = Message<"chatto.api.v1.LockRoomRequest"> & {
+  /**
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+
+  /**
+   * @generated from field: uint64 expected_revision = 2;
+   */
+  expectedRevision: bigint;
+};
+
+/**
+ * Describes the message chatto.api.v1.LockRoomRequest.
+ * Use `create(LockRoomRequestSchema)` to create a new message.
+ */
+export const LockRoomRequestSchema: GenMessage<LockRoomRequest> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_rooms, 10);
+
+/**
+ * Result of locking a channel.
+ *
+ * @generated from message chatto.api.v1.LockRoomResponse
+ */
+export type LockRoomResponse = Message<"chatto.api.v1.LockRoomResponse"> & {
+  /**
+   * @generated from field: chatto.api.v1.Room room = 1;
+   */
+  room?: Room | undefined;
+};
+
+/**
+ * Describes the message chatto.api.v1.LockRoomResponse.
+ * Use `create(LockRoomResponseSchema)` to create a new message.
+ */
+export const LockRoomResponseSchema: GenMessage<LockRoomResponse> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_rooms, 11);
+
+/**
+ * Request to restore ordinary channel posting.
+ *
+ * @generated from message chatto.api.v1.UnlockRoomRequest
+ */
+export type UnlockRoomRequest = Message<"chatto.api.v1.UnlockRoomRequest"> & {
+  /**
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+
+  /**
+   * @generated from field: uint64 expected_revision = 2;
+   */
+  expectedRevision: bigint;
+};
+
+/**
+ * Describes the message chatto.api.v1.UnlockRoomRequest.
+ * Use `create(UnlockRoomRequestSchema)` to create a new message.
+ */
+export const UnlockRoomRequestSchema: GenMessage<UnlockRoomRequest> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_rooms, 12);
+
+/**
+ * Result of unlocking a channel.
+ *
+ * @generated from message chatto.api.v1.UnlockRoomResponse
+ */
+export type UnlockRoomResponse = Message<"chatto.api.v1.UnlockRoomResponse"> & {
+  /**
+   * @generated from field: chatto.api.v1.Room room = 1;
+   */
+  room?: Room | undefined;
+};
+
+/**
+ * Describes the message chatto.api.v1.UnlockRoomResponse.
+ * Use `create(UnlockRoomResponseSchema)` to create a new message.
+ */
+export const UnlockRoomResponseSchema: GenMessage<UnlockRoomResponse> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_rooms, 13);
+
+/**
+ * Public, non-secret progress for one channel history purge.
+ *
+ * @generated from message chatto.api.v1.RoomHistoryPurgeOperation
+ */
+export type RoomHistoryPurgeOperation = Message<"chatto.api.v1.RoomHistoryPurgeOperation"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string room_id = 2;
+   */
+  roomId: string;
+
+  /**
+   * @generated from field: uint64 history_epoch = 3;
+   */
+  historyEpoch: bigint;
+
+  /**
+   * @generated from field: chatto.api.v1.RoomHistoryPurgeStatus status = 4;
+   */
+  status: RoomHistoryPurgeStatus;
+
+  /**
+   * @generated from field: string failure_code = 5;
+   */
+  failureCode: string;
+};
+
+/**
+ * Describes the message chatto.api.v1.RoomHistoryPurgeOperation.
+ * Use `create(RoomHistoryPurgeOperationSchema)` to create a new message.
+ */
+export const RoomHistoryPurgeOperationSchema: GenMessage<RoomHistoryPurgeOperation> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_rooms, 14);
+
+/**
+ * Request to erase message-owned history while preserving the channel itself.
+ *
+ * @generated from message chatto.api.v1.PurgeRoomHistoryRequest
+ */
+export type PurgeRoomHistoryRequest = Message<"chatto.api.v1.PurgeRoomHistoryRequest"> & {
+  /**
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+
+  /**
+   * @generated from field: uint64 expected_revision = 2;
+   */
+  expectedRevision: bigint;
+
+  /**
+   * @generated from field: string confirmation_name = 3;
+   */
+  confirmationName: string;
+};
+
+/**
+ * Describes the message chatto.api.v1.PurgeRoomHistoryRequest.
+ * Use `create(PurgeRoomHistoryRequestSchema)` to create a new message.
+ */
+export const PurgeRoomHistoryRequestSchema: GenMessage<PurgeRoomHistoryRequest> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_rooms, 15);
+
+/**
+ * Result of placing the logical purge barrier and starting physical cleanup.
+ *
+ * @generated from message chatto.api.v1.PurgeRoomHistoryResponse
+ */
+export type PurgeRoomHistoryResponse = Message<"chatto.api.v1.PurgeRoomHistoryResponse"> & {
+  /**
+   * @generated from field: chatto.api.v1.Room room = 1;
+   */
+  room?: Room | undefined;
+
+  /**
+   * @generated from field: chatto.api.v1.RoomHistoryPurgeOperation operation = 2;
+   */
+  operation?: RoomHistoryPurgeOperation | undefined;
+};
+
+/**
+ * Describes the message chatto.api.v1.PurgeRoomHistoryResponse.
+ * Use `create(PurgeRoomHistoryResponseSchema)` to create a new message.
+ */
+export const PurgeRoomHistoryResponseSchema: GenMessage<PurgeRoomHistoryResponse> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_rooms, 16);
+
+/**
+ * Request to read a history-purge operation.
+ *
+ * @generated from message chatto.api.v1.GetRoomHistoryPurgeOperationRequest
+ */
+export type GetRoomHistoryPurgeOperationRequest = Message<"chatto.api.v1.GetRoomHistoryPurgeOperationRequest"> & {
+  /**
+   * @generated from field: string operation_id = 1;
+   */
+  operationId: string;
+};
+
+/**
+ * Describes the message chatto.api.v1.GetRoomHistoryPurgeOperationRequest.
+ * Use `create(GetRoomHistoryPurgeOperationRequestSchema)` to create a new message.
+ */
+export const GetRoomHistoryPurgeOperationRequestSchema: GenMessage<GetRoomHistoryPurgeOperationRequest> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_rooms, 17);
+
+/**
+ * Current history-purge operation state.
+ *
+ * @generated from message chatto.api.v1.GetRoomHistoryPurgeOperationResponse
+ */
+export type GetRoomHistoryPurgeOperationResponse = Message<"chatto.api.v1.GetRoomHistoryPurgeOperationResponse"> & {
+  /**
+   * @generated from field: chatto.api.v1.RoomHistoryPurgeOperation operation = 1;
+   */
+  operation?: RoomHistoryPurgeOperation | undefined;
+};
+
+/**
+ * Describes the message chatto.api.v1.GetRoomHistoryPurgeOperationResponse.
+ * Use `create(GetRoomHistoryPurgeOperationResponseSchema)` to create a new message.
+ */
+export const GetRoomHistoryPurgeOperationResponseSchema: GenMessage<GetRoomHistoryPurgeOperationResponse> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_rooms, 18);
+
+/**
  * Request to join a room as the current user.
  *
  * @generated from message chatto.api.v1.JoinRoomRequest
@@ -358,7 +595,7 @@ export type JoinRoomRequest = Message<"chatto.api.v1.JoinRoomRequest"> & {
  * Use `create(JoinRoomRequestSchema)` to create a new message.
  */
 export const JoinRoomRequestSchema: GenMessage<JoinRoomRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 10);
+  messageDesc(file_chatto_api_v1_rooms, 19);
 
 /**
  * Result of joining a room.
@@ -379,7 +616,7 @@ export type JoinRoomResponse = Message<"chatto.api.v1.JoinRoomResponse"> & {
  * Use `create(JoinRoomResponseSchema)` to create a new message.
  */
 export const JoinRoomResponseSchema: GenMessage<JoinRoomResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 11);
+  messageDesc(file_chatto_api_v1_rooms, 20);
 
 /**
  * Request to join all joinable rooms in one room group.
@@ -400,7 +637,7 @@ export type JoinRoomGroupRequest = Message<"chatto.api.v1.JoinRoomGroupRequest">
  * Use `create(JoinRoomGroupRequestSchema)` to create a new message.
  */
 export const JoinRoomGroupRequestSchema: GenMessage<JoinRoomGroupRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 12);
+  messageDesc(file_chatto_api_v1_rooms, 21);
 
 /**
  * Result of joining all joinable rooms in one room group.
@@ -421,7 +658,7 @@ export type JoinRoomGroupResponse = Message<"chatto.api.v1.JoinRoomGroupResponse
  * Use `create(JoinRoomGroupResponseSchema)` to create a new message.
  */
 export const JoinRoomGroupResponseSchema: GenMessage<JoinRoomGroupResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 13);
+  messageDesc(file_chatto_api_v1_rooms, 22);
 
 /**
  * Request to start or fetch a direct-message room.
@@ -444,7 +681,7 @@ export type StartDMRequest = Message<"chatto.api.v1.StartDMRequest"> & {
  * Use `create(StartDMRequestSchema)` to create a new message.
  */
 export const StartDMRequestSchema: GenMessage<StartDMRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 14);
+  messageDesc(file_chatto_api_v1_rooms, 23);
 
 /**
  * Result of starting or fetching a direct-message room.
@@ -465,7 +702,7 @@ export type StartDMResponse = Message<"chatto.api.v1.StartDMResponse"> & {
  * Use `create(StartDMResponseSchema)` to create a new message.
  */
 export const StartDMResponseSchema: GenMessage<StartDMResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 15);
+  messageDesc(file_chatto_api_v1_rooms, 24);
 
 /**
  * Request to leave a room as the current user.
@@ -486,7 +723,7 @@ export type LeaveRoomRequest = Message<"chatto.api.v1.LeaveRoomRequest"> & {
  * Use `create(LeaveRoomRequestSchema)` to create a new message.
  */
 export const LeaveRoomRequestSchema: GenMessage<LeaveRoomRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 16);
+  messageDesc(file_chatto_api_v1_rooms, 25);
 
 /**
  * Result of leaving a room.
@@ -507,7 +744,7 @@ export type LeaveRoomResponse = Message<"chatto.api.v1.LeaveRoomResponse"> & {
  * Use `create(LeaveRoomResponseSchema)` to create a new message.
  */
 export const LeaveRoomResponseSchema: GenMessage<LeaveRoomResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 17);
+  messageDesc(file_chatto_api_v1_rooms, 26);
 
 /**
  * Request to add a user to a channel room.
@@ -535,7 +772,7 @@ export type AddMemberRequest = Message<"chatto.api.v1.AddMemberRequest"> & {
  * Use `create(AddMemberRequestSchema)` to create a new message.
  */
 export const AddMemberRequestSchema: GenMessage<AddMemberRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 18);
+  messageDesc(file_chatto_api_v1_rooms, 27);
 
 /**
  * Result of adding a user to a room.
@@ -556,7 +793,7 @@ export type AddMemberResponse = Message<"chatto.api.v1.AddMemberResponse"> & {
  * Use `create(AddMemberResponseSchema)` to create a new message.
  */
 export const AddMemberResponseSchema: GenMessage<AddMemberResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 19);
+  messageDesc(file_chatto_api_v1_rooms, 28);
 
 /**
  * Request to remove a user from a channel room.
@@ -584,7 +821,7 @@ export type RemoveMemberRequest = Message<"chatto.api.v1.RemoveMemberRequest"> &
  * Use `create(RemoveMemberRequestSchema)` to create a new message.
  */
 export const RemoveMemberRequestSchema: GenMessage<RemoveMemberRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 20);
+  messageDesc(file_chatto_api_v1_rooms, 29);
 
 /**
  * Result of removing a user from a room.
@@ -605,7 +842,7 @@ export type RemoveMemberResponse = Message<"chatto.api.v1.RemoveMemberResponse">
  * Use `create(RemoveMemberResponseSchema)` to create a new message.
  */
 export const RemoveMemberResponseSchema: GenMessage<RemoveMemberResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 21);
+  messageDesc(file_chatto_api_v1_rooms, 30);
 
 /**
  * Request to ban a member from a channel room.
@@ -647,7 +884,7 @@ export type BanMemberRequest = Message<"chatto.api.v1.BanMemberRequest"> & {
  * Use `create(BanMemberRequestSchema)` to create a new message.
  */
 export const BanMemberRequestSchema: GenMessage<BanMemberRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 22);
+  messageDesc(file_chatto_api_v1_rooms, 31);
 
 /**
  * Result of banning a room member.
@@ -668,7 +905,7 @@ export type BanMemberResponse = Message<"chatto.api.v1.BanMemberResponse"> & {
  * Use `create(BanMemberResponseSchema)` to create a new message.
  */
 export const BanMemberResponseSchema: GenMessage<BanMemberResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 23);
+  messageDesc(file_chatto_api_v1_rooms, 32);
 
 /**
  * Request to remove a channel room ban.
@@ -703,7 +940,7 @@ export type UnbanMemberRequest = Message<"chatto.api.v1.UnbanMemberRequest"> & {
  * Use `create(UnbanMemberRequestSchema)` to create a new message.
  */
 export const UnbanMemberRequestSchema: GenMessage<UnbanMemberRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 24);
+  messageDesc(file_chatto_api_v1_rooms, 33);
 
 /**
  * Result of removing a room ban.
@@ -724,7 +961,7 @@ export type UnbanMemberResponse = Message<"chatto.api.v1.UnbanMemberResponse"> &
  * Use `create(UnbanMemberResponseSchema)` to create a new message.
  */
 export const UnbanMemberResponseSchema: GenMessage<UnbanMemberResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 25);
+  messageDesc(file_chatto_api_v1_rooms, 34);
 
 /**
  * Active channel room ban with optional hydrated room and user references.
@@ -808,7 +1045,7 @@ export type RoomBan = Message<"chatto.api.v1.RoomBan"> & {
  * Use `create(RoomBanSchema)` to create a new message.
  */
 export const RoomBanSchema: GenMessage<RoomBan> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 26);
+  messageDesc(file_chatto_api_v1_rooms, 35);
 
 /**
  * Request to list active room bans.
@@ -836,7 +1073,7 @@ export type ListBansRequest = Message<"chatto.api.v1.ListBansRequest"> & {
  * Use `create(ListBansRequestSchema)` to create a new message.
  */
 export const ListBansRequestSchema: GenMessage<ListBansRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 27);
+  messageDesc(file_chatto_api_v1_rooms, 36);
 
 /**
  * Active room bans visible to the current moderator.
@@ -864,7 +1101,7 @@ export type ListBansResponse = Message<"chatto.api.v1.ListBansResponse"> & {
  * Use `create(ListBansResponseSchema)` to create a new message.
  */
 export const ListBansResponseSchema: GenMessage<ListBansResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 28);
+  messageDesc(file_chatto_api_v1_rooms, 37);
 
 /**
  * Request for room-scoped attachment list pages.
@@ -899,7 +1136,7 @@ export type ListRoomAttachmentsRequest = Message<"chatto.api.v1.ListRoomAttachme
  * Use `create(ListRoomAttachmentsRequestSchema)` to create a new message.
  */
 export const ListRoomAttachmentsRequestSchema: GenMessage<ListRoomAttachmentsRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 29);
+  messageDesc(file_chatto_api_v1_rooms, 38);
 
 /**
  * Room-scoped attachment list response.
@@ -927,7 +1164,7 @@ export type ListRoomAttachmentsResponse = Message<"chatto.api.v1.ListRoomAttachm
  * Use `create(ListRoomAttachmentsResponseSchema)` to create a new message.
  */
 export const ListRoomAttachmentsResponseSchema: GenMessage<ListRoomAttachmentsResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 30);
+  messageDesc(file_chatto_api_v1_rooms, 39);
 
 /**
  * Request to refresh the current user's live-only typing indicator.
@@ -955,7 +1192,7 @@ export type UpdateTypingIndicatorRequest = Message<"chatto.api.v1.UpdateTypingIn
  * Use `create(UpdateTypingIndicatorRequestSchema)` to create a new message.
  */
 export const UpdateTypingIndicatorRequestSchema: GenMessage<UpdateTypingIndicatorRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 31);
+  messageDesc(file_chatto_api_v1_rooms, 40);
 
 /**
  * Result of refreshing a typing indicator.
@@ -976,7 +1213,7 @@ export type UpdateTypingIndicatorResponse = Message<"chatto.api.v1.UpdateTypingI
  * Use `create(UpdateTypingIndicatorResponseSchema)` to create a new message.
  */
 export const UpdateTypingIndicatorResponseSchema: GenMessage<UpdateTypingIndicatorResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_rooms, 32);
+  messageDesc(file_chatto_api_v1_rooms, 41);
 
 /**
  * Kind of room represented by the public API.
@@ -1011,6 +1248,71 @@ export enum RoomKind {
  */
 export const RoomKindSchema: GenEnum<RoomKind> = /*@__PURE__*/
   enumDesc(file_chatto_api_v1_rooms, 0);
+
+/**
+ * Posting state for a channel room.
+ *
+ * @generated from enum chatto.api.v1.RoomPostingPolicy
+ */
+export enum RoomPostingPolicy {
+  /**
+   * @generated from enum value: ROOM_POSTING_POLICY_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Members may add content according to their ordinary permissions.
+   *
+   * @generated from enum value: ROOM_POSTING_POLICY_OPEN = 1;
+   */
+  OPEN = 1,
+
+  /**
+   * New content is blocked unless the viewer has room.bypass-lock.
+   *
+   * @generated from enum value: ROOM_POSTING_POLICY_LOCKED = 2;
+   */
+  LOCKED = 2,
+}
+
+/**
+ * Describes the enum chatto.api.v1.RoomPostingPolicy.
+ */
+export const RoomPostingPolicySchema: GenEnum<RoomPostingPolicy> = /*@__PURE__*/
+  enumDesc(file_chatto_api_v1_rooms, 1);
+
+/**
+ * Lifecycle state for one history-purge operation.
+ *
+ * @generated from enum chatto.api.v1.RoomHistoryPurgeStatus
+ */
+export enum RoomHistoryPurgeStatus {
+  /**
+   * @generated from enum value: ROOM_HISTORY_PURGE_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ROOM_HISTORY_PURGE_STATUS_RUNNING = 1;
+   */
+  RUNNING = 1,
+
+  /**
+   * @generated from enum value: ROOM_HISTORY_PURGE_STATUS_COMPLETED = 2;
+   */
+  COMPLETED = 2,
+
+  /**
+   * @generated from enum value: ROOM_HISTORY_PURGE_STATUS_FAILED = 3;
+   */
+  FAILED = 3,
+}
+
+/**
+ * Describes the enum chatto.api.v1.RoomHistoryPurgeStatus.
+ */
+export const RoomHistoryPurgeStatusSchema: GenEnum<RoomHistoryPurgeStatus> = /*@__PURE__*/
+  enumDesc(file_chatto_api_v1_rooms, 2);
 
 /**
  * Manages room-scoped operations for the current user.
@@ -1067,6 +1369,49 @@ export const RoomService: GenService<{
     methodKind: "unary";
     input: typeof UnarchiveRoomRequestSchema;
     output: typeof UnarchiveRoomResponseSchema;
+  },
+  /**
+   * Locks a channel against additive content. Requires room.lock.
+   *
+   * @generated from rpc chatto.api.v1.RoomService.LockRoom
+   */
+  lockRoom: {
+    methodKind: "unary";
+    input: typeof LockRoomRequestSchema;
+    output: typeof LockRoomResponseSchema;
+  },
+  /**
+   * Unlocks a channel. Requires room.lock.
+   *
+   * @generated from rpc chatto.api.v1.RoomService.UnlockRoom
+   */
+  unlockRoom: {
+    methodKind: "unary";
+    input: typeof UnlockRoomRequestSchema;
+    output: typeof UnlockRoomResponseSchema;
+  },
+  /**
+   * Places an immediate logical history barrier and starts selective cleanup.
+   * Requires an authenticated caller with room.purge-messages, plus the exact
+   * room name and revision.
+   *
+   * @generated from rpc chatto.api.v1.RoomService.PurgeRoomHistory
+   */
+  purgeRoomHistory: {
+    methodKind: "unary";
+    input: typeof PurgeRoomHistoryRequestSchema;
+    output: typeof PurgeRoomHistoryResponseSchema;
+  },
+  /**
+   * Reads a purge operation started by the current user or a current room
+   * purge administrator.
+   *
+   * @generated from rpc chatto.api.v1.RoomService.GetRoomHistoryPurgeOperation
+   */
+  getRoomHistoryPurgeOperation: {
+    methodKind: "unary";
+    input: typeof GetRoomHistoryPurgeOperationRequestSchema;
+    output: typeof GetRoomHistoryPurgeOperationResponseSchema;
   },
   /**
    * Joins the room as the current user when room permissions allow it.

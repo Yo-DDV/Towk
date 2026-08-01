@@ -21,6 +21,78 @@ test.describe('Add Server (sidebar entry point)', () => {
     });
     await expect(page.getByLabel('Server URL')).toBeVisible();
   });
+
+  test('keeps the server rail above a full-width user panel across layouts', async ({
+    page,
+    chatPage
+  }) => {
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+
+    for (const viewport of [
+      { width: 320, height: 568 },
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+      { width: 1440, height: 900 },
+      { width: 2560, height: 1080 }
+    ]) {
+      await page.setViewportSize(viewport);
+
+      const sidebarToggle = page.getByRole('button', { name: 'Toggle sidebar' });
+      if ((await sidebarToggle.getAttribute('aria-expanded')) !== 'true') {
+        await sidebarToggle.click();
+      }
+
+      const gutter = page.locator('.server-gutter');
+      const sidebar = page.getByTestId('server-sidebar');
+      const userBar = page.getByTestId('current-user-bar');
+      const profile = page.getByTestId('current-user-identity-card');
+      const addServer = page.getByTestId('add-server');
+      const firstServer = page.getByTestId('server-icon').first();
+
+      await expect(gutter).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(sidebar).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(userBar).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(profile).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(addServer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+
+      await expect
+        .poll(
+          async () => {
+            const box = await userBar.boundingBox();
+            return box ? box.x >= -0.5 : false;
+          },
+          { timeout: TIMEOUTS.UI_STANDARD }
+        )
+        .toBe(true);
+
+      const [gutterBox, sidebarBox, userBarBox, profileBox, addBox, serverBox] = await Promise.all([
+        gutter.boundingBox(),
+        sidebar.boundingBox(),
+        userBar.boundingBox(),
+        profile.boundingBox(),
+        addServer.boundingBox(),
+        firstServer.boundingBox()
+      ]);
+
+      for (const box of [gutterBox, sidebarBox, userBarBox, profileBox, addBox, serverBox]) {
+        expect(box).not.toBeNull();
+      }
+
+      expect(userBarBox!.x).toBeCloseTo(gutterBox!.x, 0);
+      expect(userBarBox!.x + userBarBox!.width).toBeCloseTo(sidebarBox!.x + sidebarBox!.width, 0);
+      expect(gutterBox!.y + gutterBox!.height).toBeLessThanOrEqual(userBarBox!.y + 0.5);
+      expect(sidebarBox!.y + sidebarBox!.height).toBeLessThanOrEqual(userBarBox!.y + 0.5);
+      expect(profileBox!.x).toBeGreaterThanOrEqual(userBarBox!.x);
+      expect(profileBox!.x + profileBox!.width).toBeLessThanOrEqual(
+        userBarBox!.x + userBarBox!.width + 0.5
+      );
+      expect(addBox!.y).toBeGreaterThanOrEqual(serverBox!.y + serverBox!.height);
+      expect(userBarBox!.x).toBeGreaterThanOrEqual(-0.5);
+      expect(userBarBox!.x + userBarBox!.width).toBeLessThanOrEqual(viewport.width + 0.5);
+    }
+  });
 });
 
 test.describe('Leave Server', () => {

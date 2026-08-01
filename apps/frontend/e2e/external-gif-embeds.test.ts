@@ -12,6 +12,10 @@ const tenorMediaUrl = 'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-conte
 const klipyMediaUrl =
   'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif';
 const onePixelGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+const readableSquareGif = Buffer.from(
+  'R0lGODlhQAFAAYAAAAAAAP///ywAAAAAQAFAAQACAUwAOw==',
+  'base64'
+);
 
 async function sendExternalGifOnlyMessage(
   roomPage: {
@@ -127,7 +131,7 @@ test.describe('External GIF embeds', () => {
       await route.fulfill({
         status: 200,
         contentType: 'image/gif',
-        body: onePixelGif,
+        body: readableSquareGif,
         headers: { 'Cache-Control': 'public, max-age=60' }
       });
     });

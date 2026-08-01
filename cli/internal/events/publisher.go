@@ -518,8 +518,9 @@ func (p *Publisher) SubjectEventsAfter(ctx context.Context, subject string, afte
 
 // SubjectEvent preserves the durable subject alongside a decoded event.
 type SubjectEvent struct {
-	Subject string
-	Event   *corev1.Event
+	Subject   string
+	StreamSeq uint64
+	Event     *corev1.Event
 }
 
 // SubjectEventsWithSubjectsAfter is SubjectEventsAfter for consumers whose
@@ -578,7 +579,7 @@ func (p *Publisher) SubjectEventsWithSubjectsAfter(ctx context.Context, subject 
 			if err := proto.Unmarshal(msg.Data(), &event); err != nil {
 				return nil, 0, fmt.Errorf("unmarshal event at seq %d: %w", lastSeq, err)
 			}
-			events = append(events, &SubjectEvent{Subject: msg.Subject(), Event: &event})
+			events = append(events, &SubjectEvent{Subject: msg.Subject(), StreamSeq: lastSeq, Event: &event})
 		}
 		if fetched == 0 {
 			break

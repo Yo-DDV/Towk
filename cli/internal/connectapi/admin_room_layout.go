@@ -13,6 +13,12 @@ type adminRoomLayoutService struct {
 	api *API
 }
 
+type adminRoomLayoutRoom struct {
+	room             *corev1.Room
+	canLockRoom      bool
+	canPurgeMessages bool
+}
+
 func (s *adminRoomLayoutService) ListRoomGroups(ctx context.Context, req *connect.Request[adminv1.ListRoomGroupsRequest]) (*connect.Response[adminv1.ListRoomGroupsResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
@@ -200,19 +206,32 @@ func (s *adminRoomLayoutService) getAdminRoomLayoutGroups(ctx context.Context, u
 	return apiGroups, nil
 }
 
-func (s *adminRoomLayoutService) visibleChannelRoomsByID(ctx context.Context, userID string) (map[string]*corev1.Room, error) {
+func (s *adminRoomLayoutService) visibleChannelRoomsByID(ctx context.Context, userID string) (map[string]*adminRoomLayoutRoom, error) {
 	rooms, err := s.api.core.ListRooms(ctx, core.KindChannel)
 	if err != nil {
 		return nil, err
 	}
-	roomsByID := make(map[string]*corev1.Room, len(rooms))
+	roomsByID := make(map[string]*adminRoomLayoutRoom, len(rooms))
 	for _, room := range rooms {
 		visible, err := s.api.core.CanSeeRoom(ctx, userID, core.KindChannel, room.GetId())
 		if err != nil {
 			return nil, err
 		}
-		if visible {
-			roomsByID[room.GetId()] = room
+		if !visible {
+			continue
+		}
+		canLockRoom, err := s.api.core.CanLockRoom(ctx, userID, room.GetId())
+		if err != nil {
+			return nil, err
+		}
+		canPurgeMessages, err := s.api.core.CanPurgeRoomMessages(ctx, userID, room.GetId())
+		if err != nil {
+			return nil, err
+		}
+		roomsByID[room.GetId()] = &adminRoomLayoutRoom{
+			room:             room,
+			canLockRoom:      canLockRoom,
+			canPurgeMessages: canPurgeMessages,
 		}
 	}
 	return roomsByID, nil
@@ -231,7 +250,7 @@ func (s *adminRoomLayoutService) roomGroup(ctx context.Context, groupID string) 
 	return nil, core.ErrRoomGroupNotFound
 }
 
-func apiAdminRoomLayoutGroup(group *corev1.RoomGroup, roomsByID map[string]*corev1.Room) *adminv1.AdminRoomLayoutGroup {
+func apiAdminRoomLayoutGroup(group *corev1.RoomGroup, roomsByID map[string]*adminRoomLayoutRoom) *adminv1.AdminRoomLayoutGroup {
 	if group == nil {
 		return nil
 	}
@@ -247,12 +266,14 @@ func apiAdminRoomLayoutGroup(group *corev1.RoomGroup, roomsByID map[string]*core
 	for _, entry := range group.GetEntries() {
 		switch entry.GetKind() {
 		case corev1.SidebarGroupEntry_ROOM:
-			room := roomsByID[entry.GetId()]
-			if room == nil {
+			roomState := roomsByID[entry.GetId()]
+			if roomState == nil {
 				continue
 			}
 			apiGroup.Items = append(apiGroup.Items, &adminv1.AdminRoomLayoutItem{
-				Item: &adminv1.AdminRoomLayoutItem_Room{Room: apiRoom(room)},
+				Item:             &adminv1.AdminRoomLayoutItem_Room{Room: apiRoom(roomState.room)},
+				CanLockRoom:      roomState.canLockRoom,
+				CanPurgeMessages: roomState.canPurgeMessages,
 			})
 		case corev1.SidebarGroupEntry_SIDEBAR_LINK:
 			link := sidebarLinksByID[entry.GetId()]

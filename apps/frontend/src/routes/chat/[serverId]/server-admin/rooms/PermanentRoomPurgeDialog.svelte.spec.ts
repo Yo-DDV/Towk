@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { flushSync } from 'svelte';
 import { render } from 'vitest-browser-svelte';
 import type { AdminRoomInfo } from '$lib/state/server/adminRoomLayout.svelte';
+import { RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 import PermanentRoomPurgeDialog from './PermanentRoomPurgeDialog.svelte';
 
 const archivedRoom: AdminRoomInfo = {
@@ -9,7 +10,13 @@ const archivedRoom: AdminRoomInfo = {
   name: 'retired-room',
   description: 'Disposable QA room',
   archived: true,
-  isUniversal: false
+  isUniversal: false,
+  postingPolicy: RoomPostingPolicy.OPEN,
+  historyEpoch: 0n,
+  revision: 1n,
+  isLocked: false,
+  canLockRoom: false,
+  canPurgeMessages: false
 };
 
 function fill(input: HTMLInputElement, value: string) {

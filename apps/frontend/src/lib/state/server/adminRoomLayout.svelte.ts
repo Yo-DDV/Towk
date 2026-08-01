@@ -514,7 +514,9 @@ export class AdminRoomLayoutStore {
       kind === RoomEventKind.RoomUpdated ||
       kind === RoomEventKind.RoomArchived ||
       kind === RoomEventKind.RoomUnarchived ||
-      kind === RoomEventKind.RoomUniversalChanged
+      kind === RoomEventKind.RoomUniversalChanged ||
+      kind === RoomEventKind.RoomPostingPolicyChanged ||
+      kind === RoomEventKind.RoomHistoryPurged
     ) {
       return this.ingestRoomMetadataUpdated();
     }

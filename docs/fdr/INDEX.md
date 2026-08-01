@@ -41,3 +41,4 @@ New FDRs should follow the structure and tone of the existing records in this di
 | [FDR-029](FDR-029-voice-messages.md)                    | Voice Messages                      | Active | 2026-07-16    |
 | [FDR-030](FDR-030-external-gif-embeds.md)               | External GIF Embeds                 | Active | 2026-07-24    |
 | [FDR-031](FDR-031-read-receipts.md)                     | Read Receipts                       | Active | 2026-07-26    |
+| [FDR-032](FDR-032-channel-governance.md)                 | Channel Lock & Message-History Purge | Active | 2026-07-31    |

@@ -174,6 +174,7 @@
       "empty_groups_body": "Crie um conjunto para começar a organizar salas.",
       "drag_hint": "Arraste salas entre grupos para organizá-las. Arraste os cabeçalhos dos grupos para reordená-los. Salas arquivadas permanecem no conjunto, mas ficam ocultas para membros.",
       "drag_group": "Arraste para reordenar o grupo",
+      "drag_room": "Arraste para mover ou reordenar a sala",
       "new_room": "Nova sala",
       "new_link": "Novo link",
       "new_group": "Novo grupo",

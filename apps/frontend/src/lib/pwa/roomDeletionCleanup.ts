@@ -1,5 +1,5 @@
 import type { RegisteredServer } from '$lib/state/server/registry.svelte';
-import { purgeOfflineRoom } from './offlineData';
+import { purgeOfflineRoom, purgeOfflineRoomHistory } from './offlineData';
 import { privateDataScopeForServer } from './scope';
 import type { PrivateDataScope } from './privateData';
 
@@ -9,6 +9,17 @@ export async function purgeDeletedRoomForServer(
   server: RegisteredServer | null | undefined,
   roomId: string,
   purge: PurgeOfflineRoom = purgeOfflineRoom
+): Promise<void> {
+  if (!roomId) return;
+  const scope = privateDataScopeForServer(server);
+  if (!scope) return;
+  await purge(scope, roomId);
+}
+
+export async function purgeRoomHistoryForServer(
+  server: RegisteredServer | null | undefined,
+  roomId: string,
+  purge: PurgeOfflineRoom = purgeOfflineRoomHistory
 ): Promise<void> {
   if (!roomId) return;
   const scope = privateDataScopeForServer(server);

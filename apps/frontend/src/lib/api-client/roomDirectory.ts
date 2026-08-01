@@ -15,7 +15,7 @@ import type {
   RoomWithViewerState
 } from '@towk/api-types/api/v1/room_directory_pb';
 import { RoomDirectoryScope } from '@towk/api-types/api/v1/room_directory_pb';
-import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
+import { RoomKind, RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 
 export type RoomDirectoryAPIConfig = ConnectAPIConfig;
 
@@ -29,6 +29,10 @@ export type DirectoryRoomSummary = {
   isMember: boolean;
   hasUnread: boolean;
   canJoinRoom: boolean;
+  postingPolicy: RoomPostingPolicy;
+  historyEpoch: bigint;
+  revision: bigint;
+  isLocked: boolean;
 };
 
 export type DirectoryRoomDetails = DirectoryRoomSummary & {
@@ -41,6 +45,9 @@ export type DirectoryRoomDetails = DirectoryRoomSummary & {
   canManageOthersMessage: boolean;
   canManageRoom: boolean;
   canBanRoomMembers: boolean;
+  canLockRoom: boolean;
+  canPurgeMessages: boolean;
+  canBypassLock: boolean;
 };
 
 export type DirectorySidebarLink = {
@@ -84,7 +91,10 @@ const RoomPermission = {
   ManageRoom: 'room.manage',
   PostInThread: 'message.post-in-thread',
   PostMessage: 'message.post',
-  React: 'message.react'
+  React: 'message.react',
+  LockRoom: 'room.lock',
+  PurgeMessages: 'room.purge-messages',
+  BypassLock: 'room.bypass-lock'
 } as const;
 
 export function createRoomDirectoryAPI(config: RoomDirectoryAPIConfig) {
@@ -177,7 +187,10 @@ function mapDirectoryRoomDetails(
     canEchoMessage: hasRoomPermission(entry.viewerState, RoomPermission.EchoMessage),
     canManageOthersMessage: hasRoomPermission(entry.viewerState, RoomPermission.ManageMessage),
     canManageRoom: hasRoomPermission(entry.viewerState, RoomPermission.ManageRoom),
-    canBanRoomMembers: hasRoomPermission(entry.viewerState, RoomPermission.BanMember)
+    canBanRoomMembers: hasRoomPermission(entry.viewerState, RoomPermission.BanMember),
+    canLockRoom: hasRoomPermission(entry.viewerState, RoomPermission.LockRoom),
+    canPurgeMessages: hasRoomPermission(entry.viewerState, RoomPermission.PurgeMessages),
+    canBypassLock: hasRoomPermission(entry.viewerState, RoomPermission.BypassLock)
   };
 }
 
@@ -192,7 +205,11 @@ function mapDirectoryRoom(entry: RoomWithViewerState): DirectoryRoomSummary | nu
     isUniversal: entry.room.universal,
     isMember: entry.viewerState?.isMember ?? false,
     hasUnread: entry.viewerState?.hasUnread ?? false,
-    canJoinRoom: hasRoomPermission(entry.viewerState, RoomPermission.JoinRoom)
+    canJoinRoom: hasRoomPermission(entry.viewerState, RoomPermission.JoinRoom),
+    postingPolicy: entry.room.postingPolicy,
+    historyEpoch: entry.room.historyEpoch,
+    revision: entry.room.revision,
+    isLocked: entry.room.postingPolicy === RoomPostingPolicy.LOCKED
   };
 }
 

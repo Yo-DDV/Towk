@@ -67,6 +67,7 @@ func TestProjectionSubjectPolicy(t *testing.T) {
 				events.RoomEventTypeFilter(events.EventMessagePosted),
 				events.RoomEventTypeFilter(events.EventMessageEdited),
 				events.RoomEventTypeFilter(events.EventMessageRetracted),
+				events.RoomEventTypeFilter(events.EventRoomHistoryPurged),
 				events.UserEventTypeFilter(events.EventUserKeyShredded),
 			},
 		},

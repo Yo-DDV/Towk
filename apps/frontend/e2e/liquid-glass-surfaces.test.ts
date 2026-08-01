@@ -32,12 +32,31 @@ async function readSurfaceStyle(locator: Locator): Promise<SurfaceStyle> {
 }
 
 function rgbChannels(value: string): [number, number, number] {
-  const match = value.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
-  if (!match) throw new Error(`Expected computed rgb() value, received ${value}`);
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
+  const legacyMatch = value.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
+  if (legacyMatch) {
+    return [Number(legacyMatch[1]), Number(legacyMatch[2]), Number(legacyMatch[3])];
+  }
+
+  const srgbMatch = value.match(
+    /color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*[\d.]+)?\)/i
+  );
+  if (srgbMatch) {
+    return [Number(srgbMatch[1]) * 255, Number(srgbMatch[2]) * 255, Number(srgbMatch[3]) * 255];
+  }
+
+  throw new Error(`Expected computed rgb() or color(srgb) value, received ${value}`);
 }
 
 function expectAchromatic(value: string) {
+  const oklabMatch = value.match(
+    /oklab\([\d.]+\s+([-\d.]+)\s+([-\d.]+)(?:\s*\/\s*[\d.]+)?\)/i
+  );
+  if (oklabMatch) {
+    expect(Math.abs(Number(oklabMatch[1]))).toBeLessThan(0.001);
+    expect(Math.abs(Number(oklabMatch[2]))).toBeLessThan(0.001);
+    return;
+  }
+
   const [red, green, blue] = rgbChannels(value);
   expect(red).toBe(green);
   expect(green).toBe(blue);
@@ -88,7 +107,9 @@ test.describe('Achromatic dark application surfaces', () => {
     const profile = page.getByTestId('current-user-identity-card');
     const composer = page.getByTestId('message-composer-shell');
     const sendButton = page.getByTestId('message-send-button');
-    const activeSidebarItem = page.locator('.sidebar-item[aria-current="page"]').first();
+    const activeSidebarItem = page
+      .locator('.sidebar-item', { has: page.locator('[aria-current="page"]') })
+      .first();
     const activeServer = page.locator('.server-gutter-item-active').first();
 
     await expect(root).toHaveAttribute('data-theme', 'dark');
@@ -330,6 +351,7 @@ test.describe('Achromatic dark application surfaces', () => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 
     const surfaces = [
       page.getByTestId('app-envelope'),

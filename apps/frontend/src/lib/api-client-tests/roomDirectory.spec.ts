@@ -2,7 +2,7 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { RoomDirectoryScope } from '@towk/api-types/api/v1/room_directory_pb';
-import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
+import { RoomKind, RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 import { createRoomDirectoryAPI } from '$lib/api-client/roomDirectory';
 
 const Permission = {
@@ -77,7 +77,10 @@ describe('createRoomDirectoryAPI', () => {
             description: 'Lobby channel',
             kind: RoomKind.CHANNEL,
             archived: false,
-            universal: true
+            universal: true,
+            postingPolicy: RoomPostingPolicy.LOCKED,
+            historyEpoch: 2n,
+            revision: 8n
           },
           viewerState: roomViewerState({
             isMember: true,
@@ -91,7 +94,10 @@ describe('createRoomDirectoryAPI', () => {
             name: 'random',
             kind: RoomKind.DM,
             archived: true,
-            universal: false
+            universal: false,
+            postingPolicy: RoomPostingPolicy.OPEN,
+            historyEpoch: 0n,
+            revision: 3n
           },
           viewerState: roomViewerState({
             isMember: true,
@@ -126,6 +132,10 @@ describe('createRoomDirectoryAPI', () => {
         kind: RoomKind.CHANNEL,
         archived: false,
         isUniversal: true,
+        postingPolicy: RoomPostingPolicy.LOCKED,
+        historyEpoch: 2n,
+        revision: 8n,
+        isLocked: true,
         isMember: true,
         hasUnread: true,
         canJoinRoom: false
@@ -137,6 +147,10 @@ describe('createRoomDirectoryAPI', () => {
         kind: RoomKind.DM,
         archived: true,
         isUniversal: false,
+        postingPolicy: RoomPostingPolicy.OPEN,
+        historyEpoch: 0n,
+        revision: 3n,
+        isLocked: false,
         isMember: true,
         hasUnread: false,
         canJoinRoom: true
@@ -153,7 +167,10 @@ describe('createRoomDirectoryAPI', () => {
           description: 'Lobby channel',
           kind: RoomKind.CHANNEL,
           archived: false,
-          universal: true
+          universal: true,
+          postingPolicy: RoomPostingPolicy.LOCKED,
+          historyEpoch: 2n,
+          revision: 8n
         },
         viewerState: roomViewerState({
           isMember: true,
@@ -190,6 +207,10 @@ describe('createRoomDirectoryAPI', () => {
       kind: RoomKind.CHANNEL,
       archived: false,
       isUniversal: true,
+      postingPolicy: RoomPostingPolicy.LOCKED,
+      historyEpoch: 2n,
+      revision: 8n,
+      isLocked: true,
       isMember: true,
       hasUnread: true,
       canJoinRoom: false,
@@ -201,7 +222,10 @@ describe('createRoomDirectoryAPI', () => {
       canEchoMessage: true,
       canManageOthersMessage: false,
       canManageRoom: true,
-      canBanRoomMembers: false
+      canBanRoomMembers: false,
+      canLockRoom: false,
+      canPurgeMessages: false,
+      canBypassLock: false
     });
   });
 

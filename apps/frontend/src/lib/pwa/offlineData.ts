@@ -174,6 +174,53 @@ async function purgeOfflineRoomRecords(scope: PrivateDataScope, roomId: string):
   await Promise.all(deletions);
 }
 
+async function purgeOfflineRoomHistoryRecords(
+  scope: PrivateDataScope,
+  roomId: string
+): Promise<void> {
+  if (!roomId || !(await waitForActiveAccount(scope))) return;
+
+  const [drafts, timelines, outbox] = await Promise.all([
+    encryptedPrivateData.list<PersistedDraft>(scope, 'draft'),
+    encryptedPrivateData.list<CachedTimeline>(scope, 'timeline'),
+    encryptedPrivateData.list<QueuedMessage>(scope, 'outbox')
+  ]);
+  if (!accountIsActive(scope)) return;
+
+  const historyKeys = new Set<string>();
+  for (const record of timelines) {
+    if (logicalKeyBelongsToRoom(record.logicalKey, roomId)) historyKeys.add(record.logicalKey);
+  }
+
+  const draftKeys = new Set<string>();
+  for (const record of drafts) {
+    if (logicalKeyBelongsToRoom(record.logicalKey, roomId)) draftKeys.add(record.logicalKey);
+  }
+
+  const deletions: Promise<unknown>[] = [];
+  for (const logicalKey of historyKeys) {
+    deletions.push(
+      trackWrite(scope, () => encryptedPrivateData.delete(scope, 'timeline', logicalKey))
+    );
+  }
+  for (const logicalKey of draftKeys) {
+    // PersistedDraft predates history epochs and provenance. Fail closed for
+    // these legacy records instead of restoring text or files that may have
+    // originated from a purged edit, quote, or thread reply.
+    deletions.push(
+      trackWrite(scope, () => encryptedPrivateData.delete(scope, 'draft', logicalKey)),
+      trackWrite(scope, () => encryptedDraftFiles.delete(scope, logicalKey))
+    );
+  }
+  for (const record of outbox) {
+    if (record.value.roomId !== roomId) continue;
+    deletions.push(
+      trackWrite(scope, () => encryptedPrivateData.delete(scope, 'outbox', record.logicalKey))
+    );
+  }
+  await Promise.all(deletions);
+}
+
 if (lifecycleChannel) {
   lifecycleChannel.addEventListener('message', (event: MessageEvent<unknown>) => {
     if (!event.data || typeof event.data !== 'object') return;
@@ -192,6 +239,18 @@ if (lifecycleChannel) {
         typeof scope.userId === 'string'
       ) {
         void purgeOfflineRoomRecords(scope as PrivateDataScope, message.roomId);
+      }
+      return;
+    }
+    if (message.type === 'purge-room-history') {
+      const scope = message.scope;
+      if (
+        typeof message.roomId === 'string' &&
+        typeof scope?.serverId === 'string' &&
+        typeof scope.serverUrl === 'string' &&
+        typeof scope.userId === 'string'
+      ) {
+        void purgeOfflineRoomHistoryRecords(scope as PrivateDataScope, message.roomId);
       }
       return;
     }
@@ -300,6 +359,14 @@ export function purgeOfflineAccount(scope: PrivateDataScope): Promise<void> {
 export async function purgeOfflineRoom(scope: PrivateDataScope, roomId: string): Promise<void> {
   await purgeOfflineRoomRecords(scope, roomId);
   lifecycleChannel?.postMessage({ type: 'purge-room', scope, roomId });
+}
+
+export async function purgeOfflineRoomHistory(
+  scope: PrivateDataScope,
+  roomId: string
+): Promise<void> {
+  await purgeOfflineRoomHistoryRecords(scope, roomId);
+  lifecycleChannel?.postMessage({ type: 'purge-room-history', scope, roomId });
 }
 
 export async function loadCachedTimeline(

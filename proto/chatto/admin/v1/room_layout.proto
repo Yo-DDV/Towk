@@ -14,6 +14,10 @@ message AdminRoomLayoutItem {
     // Sidebar link entry.
     chatto.api.v1.SidebarLink sidebar_link = 2;
   }
+  // Effective action capability for the current viewer.
+  bool can_lock_room = 3;
+  // Effective selective-history purge capability for the current viewer.
+  bool can_purge_messages = 4;
 }
 
 // Ordered room group returned after admin layout mutations.

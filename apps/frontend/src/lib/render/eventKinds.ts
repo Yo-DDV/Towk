@@ -31,6 +31,8 @@ export const RoomEventKind = {
   RoomMarkedAsRead: 'roomMarkedAsRead',
   RoomMemberBanned: 'roomMemberBanned',
   RoomMemberUnbanned: 'roomMemberUnbanned',
+  RoomPostingPolicyChanged: 'roomPostingPolicyChanged',
+  RoomHistoryPurged: 'roomHistoryPurged',
   RoomUniversalChanged: 'roomUniversalChanged',
   RoomUnarchived: 'roomUnarchived',
   RoomUpdated: 'roomUpdated',

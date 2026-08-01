@@ -216,6 +216,21 @@ func roomCreatedTimelineEvent(envID, roomID, name string, at int) *corev1.Event 
 	}
 }
 
+func roomHistoryPurgedTimelineEvent(envID, roomID string, historyEpoch uint64, at int) *corev1.Event {
+	return &corev1.Event{
+		Id:        envID,
+		ActorId:   "U-OWNER",
+		CreatedAt: timestamppb.New(fixedTime(at)),
+		Event: &corev1.Event_RoomHistoryPurged{
+			RoomHistoryPurged: &corev1.RoomHistoryPurgedEvent{
+				RoomId:       roomID,
+				HistoryEpoch: historyEpoch,
+				OperationId:  "PURGE-1",
+			},
+		},
+	}
+}
+
 func attachmentDeclaredEvent(roomID, attachmentID, contentType string) *corev1.Event {
 	return &corev1.Event{
 		Id: "ENV-DECLARED-" + attachmentID,
@@ -296,6 +311,39 @@ func TestRoomTimeline_RoomIsolation(t *testing.T) {
 	r1 := p.RoomEvents("R1", 10, 0)
 	if len(r1) != 2 || r1[0].Event.GetId() != "ENV-C" || r1[1].Event.GetId() != "ENV-A" {
 		t.Errorf("R1 timeline = %+v, want [ENV-C, ENV-A]", timelineEventIDs(r1))
+	}
+}
+
+func TestRoomTimeline_HistoryPurgeLeavesAnEmptyTimeline(t *testing.T) {
+	p := NewRoomTimelineProjection()
+	purge := roomHistoryPurgedTimelineEvent("ENV-PURGE", "R1", 1, 7)
+	applyAll(t, p, []*corev1.Event{
+		roomCreatedTimelineEvent("ENV-CREATE", "R1", "general", 1),
+		joinedEvent("ENV-JOIN-U1", "R1", "U1", 2),
+		postedEvent(postedOpts{envelopeID: "ENV-M1", eventID: "M1", roomID: "R1", actorID: "U1", body: "hello", at: 3}),
+		callParticipantJoinedTimelineEvent("ENV-CALL-JOINED", "R1", "U1", "CALL1", 4),
+		callParticipantLeftTimelineEvent("ENV-CALL-LEFT", "R1", "U1", "CALL1", 5),
+		leftEvent("ENV-LEFT-U1", "R1", "U1", 6),
+		purge,
+	})
+
+	if IsVisibleRoomTimelineEntry(purge) {
+		t.Fatal("history purge barrier is visible, want control event only")
+	}
+	if got := p.RoomEvents("R1", 50, 0); len(got) != 0 {
+		t.Fatalf("RoomEvents after purge = %v, want an empty timeline", timelineEventIDs(got))
+	}
+	for _, eventID := range []string{"ENV-CREATE", "ENV-JOIN-U1", "ENV-M1", "ENV-CALL-JOINED", "ENV-CALL-LEFT", "ENV-LEFT-U1", "ENV-PURGE"} {
+		if _, ok := p.Get(eventID); ok {
+			t.Fatalf("Get(%s) ok=true after purge, want false", eventID)
+		}
+	}
+
+	if err := p.Apply(postedEvent(postedOpts{envelopeID: "ENV-M2", eventID: "M2", roomID: "R1", actorID: "U1", body: "after purge", at: 8}), 8); err != nil {
+		t.Fatalf("Apply post-purge message: %v", err)
+	}
+	if got := timelineEventIDs(p.RoomEvents("R1", 50, 0)); !slices.Equal(got, []string{"ENV-M2"}) {
+		t.Fatalf("RoomEvents after new message = %v, want [ENV-M2]", got)
 	}
 }
 

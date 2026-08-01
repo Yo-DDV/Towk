@@ -60,4 +60,21 @@ describe('ServerGutter', () => {
 
     expect(container.querySelector('[data-testid="server-entry"]')).toBeNull();
   });
+
+  it('places the add-server action directly after the server entries', () => {
+    mocks.servers = [{ id: 'origin', reauthRequiredAt: null }];
+    mocks.stores.set('origin', {
+      isAuthenticated: true,
+      currentUser: { user: { id: 'user-1' } }
+    });
+
+    const { container } = render(ServerGutter);
+    const entry = container.querySelector('[data-testid="server-entry"]');
+    const addServer = container.querySelector<HTMLButtonElement>('[data-testid="add-server"]');
+
+    expect(entry).not.toBeNull();
+    expect(addServer).not.toBeNull();
+    expect(entry?.parentElement).toContainElement(addServer);
+    expect(entry?.compareDocumentPosition(addServer!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 });
