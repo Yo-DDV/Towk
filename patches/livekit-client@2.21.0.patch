@@ -116,7 +116,8 @@ index be78f4aa0ee73a9eb43f6fb3158d168f1e21012b..0efd7782f49f8dabfadca11fd46ad25d
 @@ -417,14 +452,45 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
                this.ensureVideoDDExtensionForSVC(media, sdpParsed);
              }
- 
+-
++
 -            // mung sdp for bitrate setting that can't apply by sendEncoding
 -            // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE from starting too aggressively
 -            // Screen share is not capped since text/UI clarity requires high bitrate from the start
@@ -163,6 +164,7 @@ index be78f4aa0ee73a9eb43f6fb3158d168f1e21012b..0efd7782f49f8dabfadca11fd46ad25d
 +
 +            // Keep the startup hint conservative for every source, including
 +            // screen share. Sender encodings still expose the full target to BWE.
- 
+-
++
              let fmtpFound = false;
              for (const fmtp of media.fmtp) {

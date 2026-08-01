@@ -14,7 +14,7 @@ overrides:
 
 patchedDependencies:
   livekit-client@2.21.0:
-    hash: 8546fa3e5485f1c69d7789f358698f9f5cd402f7012a534e0d43018f39c88702
+    hash: cef33262ccc5c46eef2cb909a6705936f2e5c4942711e913b0050c03fdfd339c
     path: patches/livekit-client@2.21.0.patch
 
 importers:
@@ -80,7 +80,7 @@ importers:
         version: 6.1.0
       livekit-client:
         specifier: ^2.21.0
-        version: 2.21.0(patch_hash=8546fa3e5485f1c69d7789f358698f9f5cd402f7012a534e0d43018f39c88702)(@types/dom-mediacapture-record@1.0.22)
+        version: 2.21.0(patch_hash=cef33262ccc5c46eef2cb909a6705936f2e5c4942711e913b0050c03fdfd339c)(@types/dom-mediacapture-record@1.0.22)
       tlds:
         specifier: ^1.261.0
         version: 1.261.0
@@ -8018,7 +8018,7 @@ snapshots:
     dependencies:
       '@types/trusted-types': 2.0.7
 
-  livekit-client@2.21.0(patch_hash=8546fa3e5485f1c69d7789f358698f9f5cd402f7012a534e0d43018f39c88702)(@types/dom-mediacapture-record@1.0.22):
+  livekit-client@2.21.0(patch_hash=cef33262ccc5c46eef2cb909a6705936f2e5c4942711e913b0050c03fdfd339c)(@types/dom-mediacapture-record@1.0.22):
     dependencies:
       '@livekit/mutex': 1.1.1
       '@livekit/protocol': 1.50.4
