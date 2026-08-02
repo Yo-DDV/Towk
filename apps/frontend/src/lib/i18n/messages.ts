@@ -755,9 +755,6 @@ const msg_room_directory_left = (
   inputs: Parameters<LocaleMessages['room_directory_left']>[0]
 ): LocalizedString => messages().room_directory_left(inputs);
 const msg_room_directory_left_generic = (): LocalizedString => messages().room_directory_left_generic(empty());
-const msg_room_directory_leave_confirm = (
-  inputs: Parameters<LocaleMessages['room_directory_leave_confirm']>[0]
-): LocalizedString => messages().room_directory_leave_confirm(inputs);
 const msg_room_server_leave_title = (): LocalizedString => messages().room_server_leave_title(empty());
 const msg_room_server_leave_action = (): LocalizedString => messages().room_server_leave_action(empty());
 const msg_room_server_leave_prompt = (
@@ -2899,7 +2896,6 @@ export { msg_room_directory_joined_group_many as 'room.directory.joined_group_ma
 export { msg_room_directory_join_group_failed as 'room.directory.join_group_failed' };
 export { msg_room_directory_left as 'room.directory.left' };
 export { msg_room_directory_left_generic as 'room.directory.left_generic' };
-export { msg_room_directory_leave_confirm as 'room.directory.leave_confirm' };
 export { msg_room_server_leave_title as 'room.server.leave_title' };
 export { msg_room_server_leave_action as 'room.server.leave_action' };
 export { msg_room_server_leave_prompt as 'room.server.leave_prompt' };

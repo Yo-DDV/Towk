@@ -34,13 +34,11 @@
   <p class="text-sm font-medium text-error">{m['rbac.delete_role.irreversible']()}</p>
 
   {#snippet footer()}
-    <div class="flex justify-end gap-3">
-      <Button variant="secondary" onclick={handleClose} disabled={deleting}
-        >{m['common.cancel']()}</Button
-      >
-      <Button variant="danger" onclick={onConfirm} disabled={deleting}>
-        {deleting ? m['rbac.delete_role.deleting']() : m['rbac.delete_role.action']()}
-      </Button>
-    </div>
+    <Button variant="secondary" onclick={handleClose} disabled={deleting}
+      >{m['common.cancel']()}</Button
+    >
+    <Button variant="danger" onclick={onConfirm} disabled={deleting}>
+      {deleting ? m['rbac.delete_role.deleting']() : m['rbac.delete_role.action']()}
+    </Button>
   {/snippet}
 </Dialog>

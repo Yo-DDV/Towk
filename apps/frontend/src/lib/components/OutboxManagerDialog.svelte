@@ -9,6 +9,7 @@
   import { supportsMessageCreateIdempotency } from '$lib/pwa/outboxPolicy';
   import type { PrivateDataRecord } from '$lib/pwa/privateData';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
+  import DialogActions from '$lib/ui/DialogActions.svelte';
   import Dialog from '$lib/ui/Dialog.svelte';
   import { Button } from '$lib/ui/form';
 
@@ -129,23 +130,25 @@
               {/if}
             </div>
           </div>
-          <div class="mt-3 flex justify-end gap-2">
-            <Button
-              variant="secondary"
-              disabled={busyRequestId !== null}
-              onclick={() => discard(item)}
-            >
-              {m['ui.outbox.discard']()}
-            </Button>
-            <Button
-              variant="accent"
-              loading={busyRequestId === item.record.value.clientRequestId}
-              disabled={!canRetry(item.scope) ||
-                (busyRequestId !== null && busyRequestId !== item.record.value.clientRequestId)}
-              onclick={() => retry(item)}
-            >
-              {m['ui.outbox.retry']()}
-            </Button>
+          <div class="mt-3">
+            <DialogActions>
+              <Button
+                variant="secondary"
+                disabled={busyRequestId !== null}
+                onclick={() => discard(item)}
+              >
+                {m['ui.outbox.discard']()}
+              </Button>
+              <Button
+                variant="accent"
+                loading={busyRequestId === item.record.value.clientRequestId}
+                disabled={!canRetry(item.scope) ||
+                  (busyRequestId !== null && busyRequestId !== item.record.value.clientRequestId)}
+                onclick={() => retry(item)}
+              >
+                {m['ui.outbox.retry']()}
+              </Button>
+            </DialogActions>
           </div>
         </article>
       {/each}

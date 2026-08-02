@@ -295,7 +295,7 @@ registry.
              header action lines up vertically with Join / Joined. -->
         <button
           type="button"
-          class="btn btn-accent w-28 shrink-0 justify-center border border-transparent btn-sm transition-none"
+          class="btn-accent btn w-28 shrink-0 justify-center border border-transparent btn-sm transition-none"
           onclick={() => handleJoinGroup(set)}
           disabled={joining}
         >
@@ -363,13 +363,13 @@ registry.
 
 <Dialog bind:visible={leaveConfirmVisible} title={m['room.leave.title']()} size="sm">
   <p class="mb-4">
-    {m['room.directory.leave_confirm']({ room: leaveConfirmRoom?.name ?? '' })}
+    {m['room.leave.prompt']({ room: leaveConfirmRoom?.name ?? '' })}
   </p>
 
-  <div class="flex items-center gap-3">
-    <Button variant="danger" onclick={confirmLeaveRoom}>{m['room.leave.action']()}</Button>
-    <Button variant="ghost" onclick={() => (leaveConfirmVisible = false)}>
+  {#snippet footer()}
+    <Button variant="secondary" onclick={() => (leaveConfirmVisible = false)}>
       {m['common.cancel']()}
     </Button>
-  </div>
+    <Button variant="danger" onclick={confirmLeaveRoom}>{m['room.leave.action']()}</Button>
+  {/snippet}
 </Dialog>

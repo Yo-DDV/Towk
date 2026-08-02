@@ -57,8 +57,7 @@
       "joined_group_many": "Te uniste a {count} salas en {group}",
       "join_group_failed": "No se pudo unir al grupo",
       "left": "Saliste de #{room}",
-      "left_generic": "Saliste de la sala",
-      "leave_confirm": "¿Seguro que quieres salir de #{room}?"
+      "left_generic": "Saliste de la sala"
     },
     "server": {
       "leave_title": "Salir del servidor",

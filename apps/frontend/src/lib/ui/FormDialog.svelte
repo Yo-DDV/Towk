@@ -103,50 +103,44 @@ The submit button's color follows `submitTone` (`primary` by default; use
   const descriptionId = `${formDialogId}-description`;
 </script>
 
-<Dialog
-  bind:visible
-  {title}
-  {size}
-  {tall}
-  describedBy={description ? descriptionId : undefined}
-  {onclose}
->
-  <form onsubmit={handleSubmit} class="flex flex-col gap-5">
-    {#if description}
-      <div id={descriptionId} class="text-muted">
-        {@render description()}
-      </div>
-    {/if}
+<form onsubmit={handleSubmit} class="contents">
+  <Dialog
+    bind:visible
+    {title}
+    {size}
+    {tall}
+    describedBy={description ? descriptionId : undefined}
+    {onclose}
+  >
+    <div class="flex flex-col gap-5">
+      {#if description}
+        <div id={descriptionId} class="text-sm leading-relaxed text-muted">
+          {@render description()}
+        </div>
+      {/if}
 
-    {@render children()}
+      {@render children()}
 
-    {#if error}
-      <FormError {error} />
-    {/if}
-
-    <!--
-      Footer "section": divider hugs the buttons, with pt-3 above the buttons
-      to mirror the well's pb-3 below. -mx-3 cancels the well's px-3 so the
-      divider extends to the well edges.
-    -->
-    <div class="-mx-3">
-      <div class="h-px bg-text/10" aria-hidden="true"></div>
-      <footer class="flex justify-end gap-2 px-3 pt-3">
-        <Button type="button" variant="secondary" onclick={onclose} disabled={loading}>
-          {#if cancelIcon}<span class={cancelIcon}></span>{/if}
-          {cancelLabel}
-        </Button>
-        <Button
-          type="submit"
-          variant={submitVariant}
-          {loading}
-          loadingText={submitLoadingText}
-          {disabled}
-        >
-          {#if submitIcon}<span class={submitIcon}></span>{/if}
-          {submitLabel}
-        </Button>
-      </footer>
+      {#if error}
+        <FormError {error} />
+      {/if}
     </div>
-  </form>
-</Dialog>
+
+    {#snippet footer()}
+      <Button type="button" variant="secondary" onclick={onclose} disabled={loading}>
+        {#if cancelIcon}<span class={cancelIcon}></span>{/if}
+        {cancelLabel}
+      </Button>
+      <Button
+        type="submit"
+        variant={submitVariant}
+        {loading}
+        loadingText={submitLoadingText}
+        {disabled}
+      >
+        {#if submitIcon}<span class={submitIcon}></span>{/if}
+        {submitLabel}
+      </Button>
+    {/snippet}
+  </Dialog>
+</form>
