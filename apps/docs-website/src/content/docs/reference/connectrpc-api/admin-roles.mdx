@@ -112,6 +112,7 @@ Request to create a role.
 | `display_name` | `string` | Display name shown in admin and mention UIs. |
 | `description` | `string` | Optional role description. |
 | `pingable` | `bool` | Whether messages may notify users assigned to this role. |
+| `color` | `optional string` | Optional display accent. Omission lets the server choose a stable default. |
 
 
 <a id="chatto-admin-v1-CreateRoleResponse"></a>
@@ -147,6 +148,7 @@ Request to update role metadata.
 | `display_name` | `optional string` | Display name shown in admin and mention UIs, when changing it. |
 | `description` | `optional string` | Role description, when changing it. Empty clears the description. |
 | `pingable` | `optional bool` | Whether messages may notify users assigned to this role, when changing it. |
+| `color` | `optional string` | Display accent to apply, in #RRGGBB form. |
 
 
 <a id="chatto-admin-v1-UpdateRoleResponse"></a>

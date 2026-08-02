@@ -10,7 +10,27 @@ import CallFullscreenMediaOverlayHarness from './CallFullscreenMediaOverlayHarne
 function openScreenShare(onClose?: () => void) {
   const track = {
     attach: vi.fn((element: HTMLVideoElement) => element),
-    detach: vi.fn((element: HTMLVideoElement) => element)
+    detach: vi.fn((element: HTMLVideoElement) => element),
+    getRTCStatsReport: vi.fn(
+      async () =>
+        new Map([
+          [
+            'video',
+            {
+              id: 'video',
+              type: 'inbound-rtp',
+              kind: 'video',
+              timestamp: 1_000,
+              packetsReceived: 1_000,
+              packetsLost: 0,
+              frameWidth: 1920,
+              frameHeight: 1080,
+              framesPerSecond: 30,
+              jitter: 0.008
+            }
+          ]
+        ]) as unknown as RTCStatsReport
+    )
   } as unknown as Track;
 
   callFullscreenMedia.open({
@@ -119,6 +139,7 @@ describe('CallFullscreenMediaOverlay', () => {
     await vi.waitFor(() =>
       expect(document.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull()
     );
+    await vi.waitFor(() => expect(document.activeElement).toBe(statsButton));
   });
 
   it('closes with Escape and keeps Tab focus inside the dialog', async () => {
@@ -132,13 +153,58 @@ describe('CallFullscreenMediaOverlay', () => {
     const closeButton = container.querySelector(
       '[data-testid="call-fullscreen-media-close"]'
     ) as HTMLButtonElement;
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
-    expect(document.activeElement).toBe(closeButton);
+    const statsButton = container.querySelector(
+      '[data-testid="call-fullscreen-screen-share-stats-button"]'
+    ) as HTMLButtonElement;
+    closeButton.focus();
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    );
+    expect(document.activeElement).toBe(statsButton);
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await tick();
 
     expect(callFullscreenMedia.isOpen).toBe(false);
+  });
+
+  it('includes the diagnostics controls in the fullscreen keyboard focus loop', async () => {
+    openScreenShare();
+    render(CallFullscreenMediaOverlayHarness);
+
+    const statsButton = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLButtonElement>(
+        '[data-testid="call-fullscreen-screen-share-stats-button"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    statsButton.click();
+
+    const summary = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLElement>(
+        '[data-testid="screen-share-diagnostics-panel"] summary'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+
+    statsButton.focus();
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true
+      })
+    );
+    expect(document.activeElement).toBe(summary);
+
+    summary.focus();
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    );
+    expect(document.activeElement).toBe(statsButton);
   });
 
   it('restores adaptive media quality when the fallback overlay closes', async () => {

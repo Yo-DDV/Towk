@@ -111,7 +111,7 @@
     docs: {
       description: {
         story:
-          'Footer actions follow the shared modal pattern: horizontal, right-aligned, secondary cancel, primary action.'
+          'Footer actions stack at compact container widths, then wrap into a right-aligned row when each label has enough room.'
       }
     }
   }}
@@ -122,12 +122,8 @@
     <p>Are you sure you want to perform this action?</p>
 
     {#snippet footer()}
-      <div class="flex flex-wrap justify-end gap-2">
-        <Button variant="secondary" onclick={() => (dialogWithFooterVisible = false)}>
-          Cancel
-        </Button>
-        <Button onclick={() => (dialogWithFooterVisible = false)}>Confirm</Button>
-      </div>
+      <Button variant="secondary" onclick={() => (dialogWithFooterVisible = false)}>Cancel</Button>
+      <Button onclick={() => (dialogWithFooterVisible = false)}>Confirm</Button>
     {/snippet}
   </Dialog>
 </Story>

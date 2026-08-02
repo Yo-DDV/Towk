@@ -3,6 +3,7 @@ export { default as BottomSheet } from './BottomSheet.svelte';
 export { default as ConfirmDialog } from './ConfirmDialog.svelte';
 export { default as ContextMenu } from './ContextMenu.svelte';
 export { default as Dialog } from './Dialog.svelte';
+export { default as DialogActions } from './DialogActions.svelte';
 export { default as Divider } from './Divider.svelte';
 export { default as EmptyState } from './EmptyState.svelte';
 export { default as FormDialog } from './FormDialog.svelte';

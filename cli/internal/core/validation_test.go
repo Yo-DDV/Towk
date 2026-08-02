@@ -299,3 +299,14 @@ func assertStringLengthError(t *testing.T, err error, field string, max int) {
 		t.Fatalf("StringLengthError = {Field:%q Max:%d}, want {Field:%q Max:%d}", lengthErr.Field, lengthErr.Max, field, max)
 	}
 }
+
+func assertStringCharacterLengthError(t *testing.T, err error, field string, max int) {
+	t.Helper()
+	var lengthErr *StringCharacterLengthError
+	if !errors.As(err, &lengthErr) {
+		t.Fatalf("error = %v, want *StringCharacterLengthError", err)
+	}
+	if lengthErr.Field != field || lengthErr.Max != max {
+		t.Fatalf("StringCharacterLengthError = {Field:%q Max:%d}, want {Field:%q Max:%d}", lengthErr.Field, lengthErr.Max, field, max)
+	}
+}

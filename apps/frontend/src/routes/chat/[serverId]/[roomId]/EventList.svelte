@@ -153,6 +153,7 @@
   );
   let bottomScrollOperation = 0;
   let userScrollIntentAt = 0;
+  let userScrollPointerActive = false;
   const USER_SCROLL_INTENT_MS = 250;
   let settledRoomId = $state<string | null>(null);
   let hasSeenRoomSwitch = $state(false);
@@ -905,6 +906,27 @@
   // causing handleVirtuaScroll to see distanceFromBottom < 50 and re-enable.
   let scrollUpLock = false;
   let scrollUpLockTimer: ReturnType<typeof setTimeout> | null = null;
+  let stickyScrollRepairQueued = false;
+
+  function hasRecentUserScrollIntent(): boolean {
+    return userScrollPointerActive || Date.now() - userScrollIntentAt < USER_SCROLL_INTENT_MS;
+  }
+
+  function scheduleStickyScrollRepair() {
+    if (stickyScrollRepairQueued) return;
+    stickyScrollRepairQueued = true;
+
+    queueMicrotask(() => {
+      stickyScrollRepairQueued = false;
+      if (!isCurrentRoomWindowRendered || isJumpedMode || pendingHighlightId) return;
+      if (!alwaysScrollToBottom && (!shouldScrollToBottom || hasRecentUserScrollIntent())) return;
+
+      const bottomDistance = distanceFromBottom();
+      if (bottomDistance !== null && bottomDistance > 20) {
+        void requestBottomScroll();
+      }
+    });
+  }
 
   function prepareExplicitBottomScroll() {
     // A reply-link click or drag inside the timeline arms scroll intent. Once the
@@ -950,6 +972,15 @@
   function markUserScrollIntent() {
     userScrollIntentAt = Date.now();
     cancelBottomScroll();
+  }
+
+  function markPointerScrollIntent() {
+    userScrollPointerActive = true;
+    markUserScrollIntent();
+  }
+
+  function clearPointerScrollIntent() {
+    userScrollPointerActive = false;
   }
 
   function markKeyboardScrollIntent(event: KeyboardEvent) {
@@ -1267,6 +1298,19 @@
     const scrollSize = virtualizerHandle.getScrollSize();
     const viewportSize = virtualizerHandle.getViewportSize();
     const distanceFromBottom = scrollSize - offset - viewportSize;
+    const hasUserIntent = hasRecentUserScrollIntent();
+
+    // Virtua may move the scroll offset while correcting measurements for late
+    // content layout. When the timeline is still logically sticky, treat that
+    // non-user movement as a request to restore the bottom anchor. Defer the
+    // check to a microtask so scrollTop writes from an active bottom convergence
+    // can finish before deciding whether another pass is necessary.
+    if (
+      distanceFromBottom > 20 &&
+      (alwaysScrollToBottom || (shouldScrollToBottom && !hasUserIntent))
+    ) {
+      scheduleStickyScrollRepair();
+    }
 
     // Smart scroll: detect user scroll direction
     if (!alwaysScrollToBottom) {
@@ -1286,7 +1330,7 @@
       // kept as a second line of defense for the brief window where intent is
       // still armed from a fling that already settled near the bottom.
       else if (
-        Date.now() - userScrollIntentAt < USER_SCROLL_INTENT_MS &&
+        hasUserIntent &&
         previousOffset !== null &&
         offset < previousOffset - 10 &&
         distanceFromBottom > 20
@@ -1486,7 +1530,11 @@
   }
 </script>
 
-<svelte:window onkeydown={markKeyboardScrollIntent} />
+<svelte:window
+  onkeydown={markKeyboardScrollIntent}
+  onpointerup={clearPointerScrollIntent}
+  onpointercancel={clearPointerScrollIntent}
+/>
 
 <div class="relative flex min-h-0 min-w-0 flex-1 flex-col pb-2">
   <!-- Gradient fade overlay at top -->
@@ -1505,7 +1553,7 @@
     data-testid="messages-container"
     onwheel={markUserScrollIntent}
     ontouchmove={markUserScrollIntent}
-    onpointerdown={markUserScrollIntent}
+    onpointerdown={markPointerScrollIntent}
   >
     <div
       class={roomRevealActive

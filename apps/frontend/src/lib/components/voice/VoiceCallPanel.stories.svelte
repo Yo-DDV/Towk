@@ -133,6 +133,12 @@
   </div>
 </Story>
 
+<Story name="Adaptive screen share with companion devices" asChild>
+  <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
+    <VoiceCallPanelStoryHarness layout="stage" scenario="screen-devices" dockVariant="floating" />
+  </div>
+</Story>
+
 <Story name="Adaptive dual screen share stage" asChild>
   <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
     <VoiceCallPanelStoryHarness layout="stage" scenario="dual-screen" dockVariant="floating" />

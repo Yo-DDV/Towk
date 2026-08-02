@@ -7,11 +7,14 @@
   let {
     children,
     visible = $bindable(false),
+    ariaLabel,
     dismissOnExternalInteraction = true,
     onclose
   }: {
     visible?: boolean;
     children: Snippet;
+    /** Accessible name for the native dialog surface. */
+    ariaLabel?: string;
     dismissOnExternalInteraction?: boolean;
     onclose?: () => void;
   } = $props();
@@ -172,6 +175,7 @@
   }}
   class="bottom-sheet m-0 mt-auto w-full max-w-full bg-transparent p-0 backdrop:bg-black/50"
   class:closing
+  aria-label={ariaLabel}
 >
   <div
     {@attach registerContent}

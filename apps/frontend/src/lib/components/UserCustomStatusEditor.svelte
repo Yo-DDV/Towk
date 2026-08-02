@@ -1,6 +1,7 @@
 <script lang="ts">
   import EmojiPicker from '$lib/components/EmojiPicker.svelte';
   import ContextMenu from '$lib/ui/ContextMenu.svelte';
+  import DialogActions from '$lib/ui/DialogActions.svelte';
   import { Button, FormField } from '$lib/ui/form';
   import { Hint } from '$lib/ui';
   import { toast } from '$lib/ui/toast';
@@ -569,32 +570,34 @@
       <Hint tone="danger">{error}</Hint>
     {/if}
 
-    <div class={['flex flex-wrap items-center justify-end gap-2', sheet && 'menu-section p-2']}>
-      {#if hasActiveStatus}
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          loading={isClearing}
-          disabled={isSaving}
-          onclick={clearCustomStatus}
-        >
-          <span class="iconify uil--times"></span>
-          {m['settings.profile.status.clear_button']()}
+    <div class={sheet ? 'menu-section p-2' : undefined}>
+      <DialogActions>
+        {#if hasActiveStatus}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={isClearing}
+            disabled={isSaving}
+            onclick={clearCustomStatus}
+          >
+            <span class="iconify uil--times"></span>
+            {m['settings.profile.status.clear_button']()}
+          </Button>
+        {/if}
+        <Button type="button" variant="secondary" size="sm" onclick={() => onClose?.()}>
+          {m['common.cancel']()}
         </Button>
-      {/if}
-      <Button type="button" variant="secondary" size="sm" onclick={() => onClose?.()}>
-        {m['common.cancel']()}
-      </Button>
-      <Button
-        type="submit"
-        size="sm"
-        disabled={!canSave || isSaving}
-        loading={isSaving || isClearing}
-      >
-        <span class="iconify uil--check"></span>
-        {m['settings.profile.status.save_button']()}
-      </Button>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={!canSave || isSaving}
+          loading={isSaving || isClearing}
+        >
+          <span class="iconify uil--check"></span>
+          {m['settings.profile.status.save_button']()}
+        </Button>
+      </DialogActions>
     </div>
   </form>
 {/if}

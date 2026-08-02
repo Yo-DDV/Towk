@@ -29,9 +29,9 @@
     },
     "sign_out": {
       "title": "Se déconnecter",
-      "current_server": "Serveur actuel",
-      "all_servers": "Tous les serveurs",
-      "description": "Déconnectez-vous uniquement du serveur sélectionné ou déconnectez chaque serveur de ce client."
+      "current_server": "Se déconnecter de ce serveur",
+      "all_servers": "Se déconnecter de tous les serveurs",
+      "description": "Choisissez de vous déconnecter du serveur sélectionné ou de tous les serveurs associés à ce client."
     },
     "overview": {
       "title": "Aperçu"

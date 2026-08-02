@@ -201,7 +201,7 @@ func (s *voiceCallService) GetCallToken(ctx context.Context, req *connect.Reques
 		return nil, connectError(err)
 	}
 	avatarSize := 96
-	avatarURL, _ := s.api.core.GetUserAvatarURL(ctx, caller.UserID, &avatarSize, &avatarSize, "cover")
+	avatarURL, _ := s.api.core.GetUserAvatarDisplayURL(ctx, caller.UserID, &avatarSize, &avatarSize, "cover")
 	participantID := core.VoiceCallParticipantID(caller.UserID, req.Msg.GetClientInstanceId())
 	var callParticipant core.CallParticipant
 	participantFound := false

@@ -12,6 +12,8 @@
       "universal_description": "Alle Servermitglieder (mit entsprechender Berechtigung) sind automatisch Mitglieder dieses Raums.",
       "name_required": "Raumname ist erforderlich",
       "name_too_long": "Der Raumname darf höchstens {max} Zeichen lang sein.",
+      "name_invalid": "Raumnamen dürfen keine Steuerzeichen oder unsichtbaren Formatierungszeichen enthalten.",
+      "name_help": "Leerzeichen, Satzzeichen, Akzente und Emojis sind erlaubt — bis zu {max} Zeichen.",
       "description_too_long": "Die Raumbeschreibung darf höchstens {max} Zeichen lang sein.",
       "missing_group": "Wähle eine Raumgruppe aus, bevor du einen Raum erstellst.",
       "failed": "Raum konnte nicht erstellt werden",
@@ -55,8 +57,7 @@
       "joined_group_many": "{count} Räumen in {group} beigetreten",
       "join_group_failed": "Gruppe konnte nicht beigetreten werden",
       "left": "#{room} verlassen",
-      "left_generic": "Raum verlassen",
-      "leave_confirm": "Möchtest du #{room} wirklich verlassen?"
+      "left_generic": "Raum verlassen"
     },
     "server": {
       "leave_title": "Server verlassen",
@@ -162,6 +163,7 @@
       "clear_member_search": "Mitgliedersuche leeren",
       "no_members": "Keine Mitglieder gefunden.",
       "online": "Online ({count})",
+      "role_members": "{role} — {count}",
       "offline": "Offline ({count})",
       "no_files": "Noch keine Dateien in diesem Raum.",
       "files": "Dateien",

@@ -32,6 +32,7 @@ export type RoomMember = {
   avatarUrl?: string | null;
   customStatus?: CustomUserStatus | null;
   presenceStatus: PresenceStatus;
+  roles?: string[];
 };
 
 export type RoomMembersPage = {
@@ -412,6 +413,7 @@ function memberFromDirectory(member: DirectoryMember): RoomMember {
     deleted: member.deleted,
     avatarUrl: member.avatarUrl,
     customStatus: member.customStatus,
-    presenceStatus: member.presenceStatus
+    presenceStatus: member.presenceStatus,
+    roles: [...member.roles]
   };
 }

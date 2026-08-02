@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { flushSync } from 'svelte';
+import '../../app.css';
 import Dialog from './Dialog.svelte';
 import { q, testSnippet } from '$lib/test-utils';
 
@@ -9,12 +10,19 @@ function renderDialog(props: {
   title?: string;
   size?: 'sm' | 'md' | 'lg';
   children: ReturnType<typeof testSnippet>;
+  footer?: ReturnType<typeof testSnippet>;
 }) {
   return render(Dialog, { props });
 }
 
 const FRAME = 'dialog > div';
 const WELL = 'dialog > div > div';
+
+function requiredElement(container: Element, selector: string): HTMLElement {
+  const element = q(container, selector);
+  if (!element) throw new Error(`Missing test element: ${selector}`);
+  return element;
+}
 
 describe('Dialog', () => {
   describe('dialog element', () => {
@@ -68,8 +76,9 @@ describe('Dialog', () => {
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, 'dialog')).toHaveClass('w-[calc(100vw-1.5rem)]');
-      await expect.element(q(container, 'dialog')).toHaveClass('sm:w-150');
+      const dialog = requiredElement(container, 'dialog');
+      expect(dialog.classList.contains('w-[calc(100vw-1rem)]')).toBe(true);
+      expect(dialog.classList.contains('max-w-2xl')).toBe(true);
     });
 
     it('applies small size class when size is sm', async () => {
@@ -79,8 +88,9 @@ describe('Dialog', () => {
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, 'dialog')).toHaveClass('w-[calc(100vw-1.5rem)]');
-      await expect.element(q(container, 'dialog')).toHaveClass('sm:w-100');
+      const dialog = requiredElement(container, 'dialog');
+      expect(dialog.classList.contains('w-[calc(100vw-1rem)]')).toBe(true);
+      expect(dialog.classList.contains('max-w-[30rem]')).toBe(true);
     });
 
     it('applies large size class when size is lg', async () => {
@@ -90,8 +100,9 @@ describe('Dialog', () => {
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, 'dialog')).toHaveClass('w-[calc(100vw-1rem)]');
-      await expect.element(q(container, 'dialog')).toHaveClass('lg:w-200');
+      const dialog = requiredElement(container, 'dialog');
+      expect(dialog.classList.contains('w-[calc(100vw-1rem)]')).toBe(true);
+      expect(dialog.classList.contains('max-w-4xl')).toBe(true);
     });
   });
 
@@ -113,11 +124,11 @@ describe('Dialog', () => {
         children: testSnippet('<span>Content</span>')
       });
 
-      const frame = q(container, FRAME);
+      const frame = requiredElement(container, FRAME);
       await expect.element(frame).toHaveClass('bg-surface-100');
       await expect.element(frame).toHaveClass('border');
-      await expect.element(frame).toHaveClass('rounded-lg');
-      await expect.element(frame).toHaveClass('shadow-xl');
+      expect(frame.classList.contains('rounded-xl')).toBe(true);
+      expect(frame.classList.contains('shadow-2xl')).toBe(true);
     });
   });
 
@@ -128,29 +139,47 @@ describe('Dialog', () => {
         children: testSnippet('<span>Content</span>')
       });
 
-      const well = q(container, WELL);
+      const well = requiredElement(container, WELL);
       await expect.element(well).toHaveClass('bg-background');
-      await expect.element(well).toHaveClass('rounded-md');
+      expect(well.classList.contains('rounded-lg')).toBe(true);
     });
 
-    it('well has padding', async () => {
+    it('uses consistent section padding without shrinking the scroll container', async () => {
       const { container } = renderDialog({
         visible: true,
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, WELL)).toHaveClass('p-3');
+      const header = requiredElement(container, '.dialog-header');
+      const body = requiredElement(container, '.dialog-body');
+      expect(header.classList.contains('px-4')).toBe(true);
+      expect(header.classList.contains('pt-4')).toBe(true);
+      expect(body.classList.contains('px-4')).toBe(true);
+      expect(body.classList.contains('pb-4')).toBe(true);
     });
   });
 
   describe('overflow handling', () => {
-    it('well has vertical overflow auto', async () => {
+    it('keeps the body scrollable while the header and footer stay outside the scroll region', async () => {
       const { container } = renderDialog({
         visible: true,
-        children: testSnippet('<span>Content</span>')
+        children: testSnippet('<div style="height: 70rem">Long content</div>'),
+        footer: testSnippet(
+          '<div><button type="button">Cancel</button><button type="button">Save changes</button></div>'
+        )
       });
 
-      await expect.element(q(container, WELL)).toHaveClass('overflow-y-auto');
+      const well = q(container, WELL);
+      const body = q(container, '.dialog-body');
+      const footer = q(container, '.dialog-footer');
+      if (!(well instanceof HTMLElement)) throw new Error('dialog well missing');
+      if (!(body instanceof HTMLElement)) throw new Error('dialog body missing');
+      if (!(footer instanceof HTMLElement)) throw new Error('dialog footer missing');
+
+      expect(well.classList.contains('overflow-hidden')).toBe(true);
+      expect(body.classList.contains('overflow-y-auto')).toBe(true);
+      expect(body.contains(footer)).toBe(false);
+      expect(footer.previousElementSibling).toBe(body);
     });
   });
 

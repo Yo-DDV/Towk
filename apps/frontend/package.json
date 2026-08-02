@@ -20,6 +20,7 @@
     "test": "npm run test:unit -- --run && npm run test:e2e",
     "test:e2e": "playwright test",
     "test:e2e:native-clipboard": "playwright test --config playwright.native-clipboard.config.ts",
+    "test-storybook": "vitest --run --config vitest.storybook.config.ts --project=storybook-light --project=storybook-dark",
     "storybook": "storybook dev -p 6006 --no-open",
     "build-storybook": "pnpm --filter @towk/api-types build && storybook build"
   },

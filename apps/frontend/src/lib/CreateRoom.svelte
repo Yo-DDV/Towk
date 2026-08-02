@@ -3,6 +3,12 @@
   import * as m from '$lib/i18n/messages';
   import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
+  import DialogActions from '$lib/ui/DialogActions.svelte';
+  import {
+    ROOM_NAME_MAX_LENGTH,
+    validateRoomName,
+    type RoomNameValidationError
+  } from '$lib/validation/roomName';
   import {
     TextInput,
     TextArea,
@@ -24,8 +30,21 @@
 
   const connection = useConnection();
 
+  function roomNameErrorMessage(errorCode: RoomNameValidationError): string {
+    if (errorCode === 'required') return m['room.create.name_required']();
+    if (errorCode === 'too_long') {
+      return m['room.create.name_too_long']({ max: ROOM_NAME_MAX_LENGTH });
+    }
+    return m['room.create.name_invalid']();
+  }
+
   const schema = z.object({
-    name: z.string().trim().min(1, m['room.create.name_required']()),
+    name: z.string().superRefine((value, ctx) => {
+      const validation = validateRoomName(value);
+      if (!validation.valid) {
+        ctx.addIssue({ code: 'custom', message: roomNameErrorMessage(validation.errorCode) });
+      }
+    }),
     description: z.string(),
     isUniversal: z.boolean()
   });
@@ -57,8 +76,10 @@
         baseUrl: conn.connectBaseUrl,
         bearerToken: conn.bearerToken
       });
+      const nameValidation = validateRoomName(values.name);
+      if (!nameValidation.valid) return;
       const created = await api.createRoom({
-        name: values.name.trim(),
+        name: nameValidation.normalized,
         description: values.description.trim() || null,
         groupId: targetGroupId,
         universal: values.isUniversal
@@ -84,8 +105,12 @@
     bind:value={form.values.name}
     error={form.fieldError('name')}
     onkeydown={() => form.touch('name')}
-    oninput={clearSubmitError}
+    oninput={() => {
+      form.touch('name');
+      clearSubmitError();
+    }}
     placeholder={m['room.create.name_placeholder']()}
+    description={m['room.create.name_help']({ max: ROOM_NAME_MAX_LENGTH })}
     disabled={isLoading}
   />
 
@@ -110,14 +135,16 @@
 
   <FormError error={submitError} />
 
-  <Button
-    type="submit"
-    size="lg"
-    loading={isLoading}
-    disabled={!form.isValid}
-    loadingText={m['room.create.creating']()}
-  >
-    <span class="iconify uil--plus"></span>
-    {m['room.create.submit']()}
-  </Button>
+  <DialogActions>
+    <Button
+      type="submit"
+      size="lg"
+      loading={isLoading}
+      disabled={!form.isValid}
+      loadingText={m['room.create.creating']()}
+    >
+      <span class="iconify uil--plus"></span>
+      {m['room.create.submit']()}
+    </Button>
+  </DialogActions>
 </form>

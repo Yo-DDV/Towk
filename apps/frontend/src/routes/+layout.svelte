@@ -10,6 +10,7 @@
   import GlobalKeyboardShortcuts from '$lib/components/GlobalKeyboardShortcuts.svelte';
   import IdleTracker from '$lib/components/IdleTracker.svelte';
   import MobileSidebarChrome from '$lib/components/MobileSidebarChrome.svelte';
+  import NativeMessageContextMenuGuard from '$lib/components/NativeMessageContextMenuGuard.svelte';
   import NetworkStatusNotifier from '$lib/components/NetworkStatusNotifier.svelte';
   import PwaLaunchHandler from '$lib/components/PwaLaunchHandler.svelte';
   import ServiceWorkerRegistrar from '$lib/components/ServiceWorkerRegistrar.svelte';
@@ -85,6 +86,7 @@
 
 <GlobalKeyboardShortcuts />
 <IdleTracker />
+<NativeMessageContextMenuGuard />
 <NetworkStatusNotifier />
 <ServiceWorkerRegistrar />
 <UpdateNotifier />

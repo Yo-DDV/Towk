@@ -1,8 +1,6 @@
 package core
 
 import (
-	"strings"
-
 	"google.golang.org/protobuf/proto"
 
 	"hmans.de/chatto/internal/events"
@@ -166,9 +164,8 @@ func (p *RoomCatalogProjection) Count() int {
 }
 
 // FindByName returns the ID of the channel room currently holding
-// the given name (case-insensitive, ignoring leading/trailing
-// whitespace), or "" if no such room exists. Used by CreateRoom /
-// UpdateRoom for the pre-publish uniqueness check.
+// the given canonical Unicode name, or "" if no such room exists. Used by
+// CreateRoom / UpdateRoom for the pre-publish uniqueness check.
 //
 // Channel-room only: DM rooms have empty names by convention.
 // Includes archived rooms — operators must rename them before
@@ -178,7 +175,7 @@ func (p *RoomCatalogProjection) FindByName(name string) string {
 }
 
 func (p *RoomCatalogProjection) NameClaimSnapshot(name string) RoomNameClaimSnapshot {
-	target := strings.ToLower(strings.TrimSpace(name))
+	target := roomNameKey(name)
 	if target == "" {
 		return RoomNameClaimSnapshot{}
 	}
@@ -189,7 +186,7 @@ func (p *RoomCatalogProjection) NameClaimSnapshot(name string) RoomNameClaimSnap
 		if entry.kind != corev1.RoomKind_ROOM_KIND_CHANNEL {
 			continue
 		}
-		if strings.ToLower(entry.name) == target {
+		if roomNameKey(entry.name) == target {
 			snapshot.OwnerRoomID = id
 			return snapshot
 		}

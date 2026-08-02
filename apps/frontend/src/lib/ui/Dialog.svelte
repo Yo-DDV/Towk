@@ -4,6 +4,7 @@
   import * as m from '$lib/i18n/messages';
   import { shouldAutoFocus } from '$lib/utils/shouldAutoFocus';
   import { MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
+  import DialogActions from './DialogActions.svelte';
 
   let {
     children,
@@ -59,9 +60,9 @@
   const useMobileFullScreen = $derived(mobileFullScreen && mobileFullScreenViewport);
 
   const sizeClasses = {
-    sm: 'w-[calc(100vw-1.5rem)] max-w-md sm:w-100',
-    md: 'w-[calc(100vw-1.5rem)] max-w-2xl sm:w-150',
-    lg: 'w-[calc(100vw-1rem)] max-w-4xl sm:w-[calc(100vw-3rem)] lg:w-200'
+    sm: 'w-[calc(100vw-1rem)] max-w-[30rem] min-[34rem]:w-[30rem]',
+    md: 'w-[calc(100vw-1rem)] max-w-2xl sm:w-[calc(100vw-2rem)]',
+    lg: 'w-[calc(100vw-1rem)] max-w-4xl sm:w-[calc(100vw-2rem)]'
   };
 
   function resetSwipe() {
@@ -204,7 +205,9 @@
       close();
     }
   }}
-  class="m-auto bg-transparent backdrop:bg-black/50 {sizeClasses[size]}"
+  class="m-auto max-h-[calc(100dvh-1rem)] overflow-hidden bg-transparent backdrop:bg-black/55 {sizeClasses[
+    size
+  ]}"
   class:closing
   class:mobile-full-screen={useMobileFullScreen}
   style:position={useMobileFullScreen ? 'fixed' : undefined}
@@ -224,7 +227,7 @@
 >
   {#if visible || closing}
     <div
-      class="dialog-tray rounded-lg border border-text/10 bg-surface-100 p-2 shadow-xl"
+      class="dialog-tray flex max-h-[calc(100dvh-1rem)] rounded-xl border border-text/10 bg-surface-100 p-1.5 shadow-2xl"
       class:swiping
       style:min-height={useMobileFullScreen ? '100dvh' : undefined}
       style:border={useMobileFullScreen ? '0' : undefined}
@@ -234,22 +237,16 @@
     >
       <div
         class={[
-          'dialog-content overflow-y-auto rounded-md bg-background p-3',
-          tall ? 'max-h-[calc(100dvh-2rem)]' : 'max-h-[78vh]'
+          'dialog-content flex min-h-0 w-full flex-col overflow-hidden rounded-lg bg-background',
+          tall ? 'max-h-[calc(100dvh-1rem)]' : 'max-h-[min(46rem,calc(100dvh-2rem))]'
         ]}
         style:min-height={useMobileFullScreen ? '100dvh' : undefined}
         style:max-height={useMobileFullScreen ? '100dvh' : undefined}
         style:border-radius={useMobileFullScreen ? '0' : undefined}
-        style:padding-top={useMobileFullScreen
-          ? 'max(0.75rem, env(safe-area-inset-top))'
-          : undefined}
-        style:padding-bottom={useMobileFullScreen
-          ? 'max(0.75rem, env(safe-area-inset-bottom))'
-          : undefined}
       >
         {#if swipeToClose}
           <div
-            class="dialog-swipe-handle -mx-1 -mt-2 mb-1 grid min-h-11 cursor-grab touch-none place-items-center active:cursor-grabbing"
+            class="dialog-swipe-handle mb-1 grid min-h-[44px] shrink-0 cursor-grab touch-none place-items-center active:cursor-grabbing"
             role="presentation"
             aria-hidden="true"
             onpointerdown={beginSwipe}
@@ -261,29 +258,36 @@
           </div>
         {/if}
 
-        <header class={['flex items-start justify-between gap-3', title ? 'mb-4' : 'mb-2']}>
+        <header
+          class="dialog-header flex shrink-0 items-start justify-between gap-4 px-4 pt-4 pb-3"
+        >
           {#if title}
-            <h2 id={titleId} class="text-xl font-semibold text-text">{title}</h2>
+            <h2
+              id={titleId}
+              class="min-w-0 text-lg leading-tight font-semibold text-balance text-text"
+            >
+              {title}
+            </h2>
           {:else}
             <span></span>
           {/if}
           <button
             type="button"
             onclick={close}
-            class="-m-1 grid min-h-11 min-w-11 shrink-0 cursor-pointer place-items-center rounded-md text-text/50 transition-colors hover:bg-surface-200 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            class="-m-1 grid min-h-[44px] min-w-[44px] shrink-0 cursor-pointer place-items-center rounded-md text-text/50 transition-colors hover:bg-surface-200 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             aria-label={m['ui.close']()}
           >
             <span class="iconify text-xl uil--times" aria-hidden="true"></span>
           </button>
         </header>
 
-        <div class="text-text">
+        <div class="dialog-body min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 text-text">
           {@render children()}
         </div>
 
         {#if footer}
-          <footer class="mt-6">
-            {@render footer()}
+          <footer class="dialog-footer shrink-0 border-t border-text/10 px-4 py-3">
+            <DialogActions>{@render footer()}</DialogActions>
           </footer>
         {/if}
       </div>
@@ -321,6 +325,11 @@
     will-change: transform;
   }
 
+  .dialog-content {
+    container-name: dialog-surface;
+    container-type: inline-size;
+  }
+
   .dialog-tray.swiping {
     transition: none;
   }
@@ -346,8 +355,23 @@
       min-height: 100dvh;
       max-height: 100dvh;
       border-radius: 0;
-      padding-top: max(0.75rem, env(safe-area-inset-top));
+    }
+
+    dialog[open].mobile-full-screen .dialog-header {
+      padding-top: max(1rem, env(safe-area-inset-top));
+      padding-right: max(1rem, env(safe-area-inset-right));
+      padding-left: max(1rem, env(safe-area-inset-left));
+    }
+
+    dialog[open].mobile-full-screen .dialog-body {
+      padding-right: max(1rem, env(safe-area-inset-right));
+      padding-left: max(1rem, env(safe-area-inset-left));
+    }
+
+    dialog[open].mobile-full-screen .dialog-footer {
+      padding-right: max(1rem, env(safe-area-inset-right));
       padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+      padding-left: max(1rem, env(safe-area-inset-left));
     }
   }
 

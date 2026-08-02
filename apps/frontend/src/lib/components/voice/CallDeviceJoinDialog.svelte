@@ -64,14 +64,11 @@
       <span class="font-semibold text-text">{m['voice.transfer_call']()}</span>
       <span class="text-sm text-muted">{m['voice.transfer_description']()}</span>
     </button>
+  </div>
 
-    <button
-      type="button"
-      class="btn-secondary min-h-11 w-full"
-      disabled={busy}
-      onclick={() => (visible = false)}
-    >
+  {#snippet footer()}
+    <button type="button" class="btn-secondary" disabled={busy} onclick={() => (visible = false)}>
       {m['common.cancel']()}
     </button>
-  </div>
+  {/snippet}
 </Dialog>
