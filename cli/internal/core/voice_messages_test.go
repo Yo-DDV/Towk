@@ -653,7 +653,7 @@ func TestPrepareCompletedNativeVoicePayloadBoundsProbeConcurrency(t *testing.T) 
 
 func TestVoiceNormalizationSharesMediaTranscodeAdmission(t *testing.T) {
 	chattoCore, _ := setupTestCore(t)
-	chattoCore.performance = newPerformanceManager(config.PerformanceConfig{DefaultProfile: config.PerformanceProfileEconomy}, chattoCore.ServerConfig, func() runtimecap.Capacity {
+	chattoCore.performance = newPerformanceManager(config.PerformanceConfig{MaxVideoWorkers: 1}, chattoCore.ServerConfig, func() runtimecap.Capacity {
 		return runtimecap.Capacity{CPUs: 16, MemoryBytes: 16 << 30, CPUSource: "test", MemorySource: "test"}
 	})
 	if err := chattoCore.AcquireMediaTranscode(context.Background()); err != nil {
@@ -663,7 +663,7 @@ func TestVoiceNormalizationSharesMediaTranscodeAdmission(t *testing.T) {
 
 	previousTranscoder := voiceMessageTranscodeToMP4
 	voiceMessageTranscodeToMP4 = func(context.Context, string, string, string) error {
-		t.Fatal("voice transcoder started while the shared economy slot was occupied")
+		t.Fatal("voice transcoder started while the shared adaptive slot was occupied")
 		return nil
 	}
 	t.Cleanup(func() { voiceMessageTranscodeToMP4 = previousTranscoder })

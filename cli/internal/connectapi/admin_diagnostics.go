@@ -26,26 +26,12 @@ func (s *adminDiagnosticsService) GetPerformanceSettings(ctx context.Context, _ 
 	return connect.NewResponse(&adminv1.GetPerformanceSettingsResponse{Settings: adminPerformanceSettings(status)}), nil
 }
 
-func (s *adminDiagnosticsService) UpdatePerformanceSettings(ctx context.Context, req *connect.Request[adminv1.UpdatePerformanceSettingsRequest]) (*connect.Response[adminv1.UpdatePerformanceSettingsResponse], error) {
+func (s *adminDiagnosticsService) UpdatePerformanceSettings(ctx context.Context, _ *connect.Request[adminv1.UpdatePerformanceSettingsRequest]) (*connect.Response[adminv1.UpdatePerformanceSettingsResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	profile, err := adminPerformanceProfileToCore(req.Msg.GetProfile())
-	if err != nil {
-		return nil, err
-	}
-	if profile == config.PerformanceProfileCustom && req.Msg.GetCustomLimits() == nil {
-		return nil, invalidArgument("custom_limits are required for the custom profile")
-	}
-	if profile != config.PerformanceProfileCustom && req.Msg.GetCustomLimits() != nil {
-		return nil, invalidArgument("custom_limits require the custom profile")
-	}
-	expectedRevision, err := strconv.ParseUint(req.Msg.GetExpectedRevision(), 10, 64)
-	if err != nil {
-		return nil, invalidArgument("expected_revision must be an unsigned decimal integer")
-	}
-	status, err := s.api.core.UpdatePerformanceSettings(ctx, caller.UserID, expectedRevision, profile, corePerformanceLimits(req.Msg.GetCustomLimits()))
+	status, err := s.api.core.UpdatePerformanceSettings(ctx, caller.UserID, 0, "", core.PerformanceLimits{})
 	if err != nil {
 		return nil, connectError(err)
 	}
@@ -105,21 +91,10 @@ func adminPerformanceLimits(limits core.PerformanceLimits) *adminv1.AdminPerform
 	}
 }
 
-func corePerformanceLimits(limits *adminv1.AdminPerformanceLimits) core.PerformanceLimits {
-	if limits == nil {
-		return core.PerformanceLimits{}
-	}
-	return core.PerformanceLimits{
-		ImageTransformWorkers:    int(limits.GetImageTransformWorkers()),
-		ImageTransformAdmissions: int(limits.GetImageTransformAdmissions()),
-		AssetUploadWorkers:       int(limits.GetAssetUploadWorkers()),
-		LinkPreviewWorkers:       int(limits.GetLinkPreviewWorkers()),
-		VideoWorkers:             int(limits.GetVideoWorkers()),
-	}
-}
-
 func adminPerformanceProfile(profile string) adminv1.AdminPerformanceProfile {
 	switch profile {
+	case config.PerformanceProfileAdaptive:
+		return adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ADAPTIVE
 	case config.PerformanceProfileEconomy:
 		return adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ECONOMY
 	case config.PerformanceProfileBalanced:
@@ -135,23 +110,10 @@ func adminPerformanceProfile(profile string) adminv1.AdminPerformanceProfile {
 	}
 }
 
-func adminPerformanceProfileToCore(profile adminv1.AdminPerformanceProfile) (string, error) {
-	switch profile {
-	case adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ECONOMY:
-		return config.PerformanceProfileEconomy, nil
-	case adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_BALANCED:
-		return config.PerformanceProfileBalanced, nil
-	case adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_PERFORMANCE:
-		return config.PerformanceProfilePerformance, nil
-	case adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_CUSTOM:
-		return config.PerformanceProfileCustom, nil
-	default:
-		return "", invalidArgument("profile must be economy, balanced, performance, or custom")
-	}
-}
-
 func adminPerformancePolicySource(source string) adminv1.AdminPerformancePolicySource {
 	switch source {
+	case "adaptive":
+		return adminv1.AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_ADAPTIVE
 	case "historical":
 		return adminv1.AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL
 	case "operator_default":

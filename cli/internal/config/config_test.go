@@ -58,10 +58,10 @@ func TestReadConfig_LinkPreviewAssetControlsFromEnv(t *testing.T) {
 }
 
 func TestPerformanceConfigDefaultsAndValidation(t *testing.T) {
-	if got := (PerformanceConfig{}).DefaultProfileOrLegacy(); got != PerformanceProfileLegacy {
-		t.Fatalf("omitted default profile = %q, want %q", got, PerformanceProfileLegacy)
+	if got := (PerformanceConfig{}).DefaultProfileOrAdaptive(); got != PerformanceProfileAdaptive {
+		t.Fatalf("omitted default profile = %q, want %q", got, PerformanceProfileAdaptive)
 	}
-	if got := (PerformanceConfig{DefaultProfile: " BALANCED "}).DefaultProfileOrLegacy(); got != PerformanceProfileBalanced {
+	if got := (PerformanceConfig{DefaultProfile: " BALANCED "}).DefaultProfileOrAdaptive(); got != PerformanceProfileBalanced {
 		t.Fatalf("normalized default profile = %q, want %q", got, PerformanceProfileBalanced)
 	}
 
@@ -137,7 +137,7 @@ func TestReadConfig_PerformanceControlsFromEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadConfig: %v", err)
 	}
-	if cfg.Performance.DefaultProfileOrLegacy() != PerformanceProfilePerformance ||
+	if cfg.Performance.DefaultProfileOrAdaptive() != PerformanceProfilePerformance ||
 		cfg.Performance.MaxImageTransformWorkers != 4 ||
 		cfg.Performance.MaxImageTransformAdmissions != 12 ||
 		cfg.Performance.MaxAssetUploadWorkers != 6 ||

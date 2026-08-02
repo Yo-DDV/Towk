@@ -3,7 +3,13 @@ title: Horizontal Scaling
 description: How to run multiple Towk replicas for high availability and load distribution.
 ---
 
-import { Aside, Tabs, TabItem, LinkCard, CardGrid } from "@astrojs/starlight/components";
+import {
+  Aside,
+  Tabs,
+  TabItem,
+  LinkCard,
+  CardGrid,
+} from "@astrojs/starlight/components";
 import ArchDiagram from "../../../../components/diagrams/HorizontalScalingDiagram.astro";
 
 By default, Towk runs as a single process with an embedded NATS server — no external dependencies needed. This is the simplest way to run Towk and works well for small to medium teams.
@@ -12,10 +18,10 @@ When you outgrow a single process, Towk scales horizontally. Every server proces
 
 There are two scaling layers:
 
-| Layer | What you scale | Why |
-| ----- | -------------- | --- |
-| Towk replicas | `towk run` server processes | More web/API/realtime capacity, zero-downtime deploys, process-level redundancy. |
-| NATS cluster | NATS servers with JetStream enabled | Shared storage capacity, message-broker capacity, and NATS-side high availability. |
+| Layer         | What you scale                      | Why                                                                                |
+| ------------- | ----------------------------------- | ---------------------------------------------------------------------------------- |
+| Towk replicas | `towk run` server processes         | More web/API/realtime capacity, zero-downtime deploys, process-level redundancy.   |
+| NATS cluster  | NATS servers with JetStream enabled | Shared storage capacity, message-broker capacity, and NATS-side high availability. |
 
 <ArchDiagram />
 
@@ -61,16 +67,19 @@ Disable the embedded NATS server and point all server processes at your external
 CHATTO_NATS_EMBEDDED_ENABLED=false
 
 # Connect to external NATS cluster
+
 CHATTO_NATS_CLIENT_URL=tls://nats.example.com:4222
 CHATTO_NATS_CLIENT_AUTH_METHOD=token
 CHATTO_NATS_CLIENT_TOKEN=your-shared-token
 
 # These MUST be identical across all server processes
+
 CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET=your-cookie-secret
 CHATTO_WEBSERVER_COOKIE_ENCRYPTION_SECRET=your-cookie-encryption-secret
 CHATTO_CORE_SECRET_KEY=your-core-secret
 CHATTO_CORE_ASSETS_SIGNING_SECRET=your-assets-secret
-```
+
+````
 </TabItem>
 <TabItem label="TOML">
 ```toml
@@ -81,7 +90,8 @@ enabled = false
 url = "tls://nats.example.com:4222"
 auth_method = "token"
 token = "your-shared-token"
-```
+````
+
 </TabItem>
 </Tabs>
 
@@ -90,17 +100,21 @@ for a private CA. Plaintext non-loopback NATS is rejected by default because
 it exposes credentials and application data in transit.
 
 <Aside type="caution">
-  All server processes **must** share the same `cookie_signing_secret`, `cookie_encryption_secret` when configured, `core.secret_key`, and `core.assets.signing_secret`. If they differ, signed cookies, runtime credential records, OAuth codes, account-flow credentials, or asset URLs created by one server process won't validate on another.
+  All server processes **must** share the same `cookie_signing_secret`,
+  `cookie_encryption_secret` when configured, `core.secret_key`, and
+  `core.assets.signing_secret`. If they differ, signed cookies, runtime
+  credential records, OAuth codes, account-flow credentials, or asset URLs
+  created by one server process won't validate on another.
 </Aside>
 
 ## Health Checks
 
 Towk exposes two health endpoints for orchestrator integration:
 
-| Endpoint | Purpose | Returns 200 when |
-|----------|---------|-------------------|
-| `GET /healthz` | Liveness probe | Process is alive |
-| `GET /readyz` | Readiness probe | NATS is connected and JetStream is ready |
+| Endpoint       | Purpose         | Returns 200 when                         |
+| -------------- | --------------- | ---------------------------------------- |
+| `GET /healthz` | Liveness probe  | Process is alive                         |
+| `GET /readyz`  | Readiness probe | NATS is connected and JetStream is ready |
 
 Use `/readyz` for startup and readiness probes to ensure traffic isn't routed to a server process that hasn't finished connecting to NATS.
 
@@ -165,14 +179,12 @@ Towk is fully stateless, so load balancing is straightforward:
 
 The [Docker Compose deployment guide](/guides/deployment/docker-compose/) includes a Caddy configuration that handles this automatically.
 
-## Runtime performance profiles across replicas
+## Adaptive performance across replicas
 
-The owner-selected performance profile is shared through Towk's event stream,
-so all replicas receive the same requested policy. The effective worker counts
-are still computed per process from that request, the replica's detected
-CPU/memory envelope, and any `performance.max_*` operator caps. Replicas with
-different pod or container limits can therefore show different effective media
-concurrency values.
+Each replica computes its worker counts from its own detected CPU/memory
+envelope and any `performance.max_*` operator caps. Replicas with different pod
+or container limits can therefore show different effective media concurrency
+values; no owner-selected profile needs to be replicated.
 
 Keep the resource envelope and `CHATTO_PERFORMANCE_MAX_*` caps consistent across
 replicas unless you deliberately run mixed-size workers. After changing pod,
@@ -181,19 +193,31 @@ updated deployment before drawing capacity conclusions.
 
 ## What You Need to Keep Consistent
 
-| Setting | Must match across server processes? | Notes |
-|---------|-------------------------------------|-------|
-| NATS client URL & credentials | Yes | All connect to the same external NATS deployment |
-| `cookie_signing_secret` | Yes | Cookie validation |
-| `cookie_encryption_secret` | Yes, when configured | Cookie confidentiality |
-| `core.secret_key` | Yes | Runtime credential, OAuth-code, and account-flow verifier keys |
-| `core.assets.signing_secret` | Yes | Asset URL signing |
-| `webserver.url` | Yes | Public URL for absolute links |
-| `livekit.server_id` | Yes, within one Towk server | Use a different value only across Towk servers sharing one LiveKit cluster |
-| `performance.max_*` operator caps | Recommended | Keep caps aligned unless you intentionally run heterogeneous worker envelopes |
+| Setting                           | Must match across server processes? | Notes                                                                         |
+| --------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
+| NATS client URL & credentials     | Yes                                 | All connect to the same external NATS deployment                              |
+| `cookie_signing_secret`           | Yes                                 | Cookie validation                                                             |
+| `cookie_encryption_secret`        | Yes, when configured                | Cookie confidentiality                                                        |
+| `core.secret_key`                 | Yes                                 | Runtime credential, OAuth-code, and account-flow verifier keys                |
+| `core.assets.signing_secret`      | Yes                                 | Asset URL signing                                                             |
+| `webserver.url`                   | Yes                                 | Public URL for absolute links                                                 |
+| `livekit.server_id`               | Yes, within one Towk server         | Use a different value only across Towk servers sharing one LiveKit cluster    |
+| `performance.max_*` operator caps | Recommended                         | Keep caps aligned unless you intentionally run heterogeneous worker envelopes |
 
 <CardGrid>
-  <LinkCard title="High Availability" href="/guides/infrastructure/high-availability/" description="NATS clustering and JetStream replication for fault tolerance." />
-  <LinkCard title="Docker Compose" href="/guides/deployment/docker-compose/" description="Full deployment walkthrough including load balancing with Caddy." />
-  <LinkCard title="S3 Storage" href="/guides/infrastructure/s3-storage/" description="Offload file storage to avoid replication costs." />
+  <LinkCard
+    title="High Availability"
+    href="/guides/infrastructure/high-availability/"
+    description="NATS clustering and JetStream replication for fault tolerance."
+  />
+  <LinkCard
+    title="Docker Compose"
+    href="/guides/deployment/docker-compose/"
+    description="Full deployment walkthrough including load balancing with Caddy."
+  />
+  <LinkCard
+    title="S3 Storage"
+    href="/guides/infrastructure/s3-storage/"
+    description="Offload file storage to avoid replication costs."
+  />
 </CardGrid>

@@ -70,7 +70,7 @@ type ChattoCore struct {
 	linkPreviewCache   *linkpreview.Cache   // Cache for link preview metadata
 	linkPreviewFetcher *linkpreview.Fetcher // Fetcher for link preview metadata
 	// mediaTranscodeLimiter bounds every CPU-heavy ffmpeg path with one shared
-	// live capacity selected by the performance policy.
+	// live capacity derived from the process resource envelope.
 	mediaTranscodeLimiter *runtimecap.Limiter
 
 	// VideoMaxUploadSize is the maximum size for video uploads in bytes.
