@@ -1,0 +1,170 @@
+diff --git a/dist/livekit-client.esm.mjs b/dist/livekit-client.esm.mjs
+index 8d95612db995744ff284fbd1b3b0fb981f2b2ce8..fb04924129fda6d8c3a774bb38518846a3bec029 100644
+--- a/dist/livekit-client.esm.mjs
++++ b/dist/livekit-client.esm.mjs
+@@ -18600,6 +18600,30 @@ class PCTransport extends eventsExports.EventEmitter {
+             });
+           }
+         });
++        // x-google-start-bitrate is a local sender hint. Remove an SFU echo
++        // consistently before applying a bundled remote answer.
++        for (const media of sdpParsed.media) {
++          if (media.type !== 'video') continue;
++          media.fmtp = media.fmtp.flatMap(fmtp => {
++            const config = fmtp.config.split(';').filter(parameter => !parameter.startsWith('x-google-start-bitrate=')).join(';');
++            return config ? [{
++              ...fmtp,
++              config
++            }] : [];
++          });
++        }
++        // Use a published Opus fmtp as the canonical value for remote audio
++        // sections so an SFU stereo echo cannot invalidate the BUNDLE answer.
++        const publishedAudioMids = new Set(this.trackBitrates.flatMap(trackbr => {
++          var _trackbr$transceiver;
++          const mid = (_trackbr$transceiver = trackbr.transceiver) === null || _trackbr$transceiver === void 0 ? void 0 : _trackbr$transceiver.mid;
++          if (!mid) return [];
++          const media = sdpParsed.media.find(candidate => candidate.type === 'audio' && getMidString(candidate.mid) === mid);
++          return media ? [mid] : [];
++        }));
++        if (publishedAudioMids.size > 0) {
++          conformBundledCodecFmtp(sdpParsed.media, media => media.type === 'audio' && !publishedAudioMids.has(getMidString(media.mid)));
++        }
+         // The server's answer sets per-track codec params (e.g. opus `usedtx`) on
+         // the sections mapped to a published track, but leaves the pre-populated
+         // recvonly placeholder sections with defaults. Conform the placeholders so
+@@ -18738,12 +18762,28 @@ class PCTransport extends eventsExports.EventEmitter {
+               if (isSVCCodec(trackbr.codec) && !isSafari()) {
+                 this.ensureVideoDDExtensionForSVC(media, sdpParsed);
+               }
+-              // mung sdp for bitrate setting that can't apply by sendEncoding
+-              // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE from starting too aggressively
+-              // Screen share is not capped since text/UI clarity requires high bitrate from the start
+-              // TODO: dynamically adjust start bitrate based on network conditions (e.g., use previous BWE estimate)
++              // A payload type must carry identical fmtp parameters across every
++              // m-line in a BUNDLE group. Apply one conservative hint everywhere.
++              const payloadIsShared = sdpParsed.media.some(otherMedia => otherMedia !== media && otherMedia.rtp.some(rtp => rtp.payload === codecPayload));
+               const calculatedStartBitrate = Math.round(trackbr.maxbr * startBitrateMultiplier);
+-              const startBitrate = trackbr.isScreenShare ? calculatedStartBitrate : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
++              const startBitrate = Math.min(calculatedStartBitrate, maxStartBitrateKbps);
++              if (payloadIsShared) {
++                for (const bundledMedia of sdpParsed.media) {
++                  if (!bundledMedia.rtp.some(rtp => rtp.payload === codecPayload)) continue;
++                  const bundledFmtp = bundledMedia.fmtp.find(fmtp => fmtp.payload === codecPayload);
++                  if (bundledFmtp) {
++                    const retainedParameters = bundledFmtp.config.split(';').filter(parameter => !parameter.startsWith('x-google-start-bitrate='));
++                    bundledFmtp.config = [...retainedParameters, `x-google-start-bitrate=${startBitrate}`].filter(Boolean).join(';');
++                  } else {
++                    bundledMedia.fmtp.push({
++                      payload: codecPayload,
++                      config: `x-google-start-bitrate=${startBitrate}`
++                    });
++                  }
++                }
++                return true;
++              }
++              // Keep the startup hint conservative for every source, including screen share.
+               let fmtpFound = false;
+               for (const fmtp of media.fmtp) {
+                 if (fmtp.payload === codecPayload) {
+diff --git a/src/room/PCTransport.ts b/src/room/PCTransport.ts
+index be78f4aa0ee73a9eb43f6fb3158d168f1e21012b..0efd7782f49f8dabfadca11fd46ad25db6146db5 100644
+--- a/src/room/PCTransport.ts
++++ b/src/room/PCTransport.ts
+@@ -260,6 +260,41 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
+           });
+         }
+       });
++      // x-google-start-bitrate is a local sender hint. Some SFU answers echo it
++      // only on published sections, which makes the answer internally invalid
++      // for a BUNDLE group. The local offer has already configured the sender,
++      // so remove the hint consistently before applying the remote answer.
++      for (const media of sdpParsed.media) {
++        if (media.type !== 'video') continue;
++        media.fmtp = media.fmtp.flatMap((fmtp) => {
++          const config = fmtp.config
++            .split(';')
++            .filter((parameter) => !parameter.startsWith('x-google-start-bitrate='))
++            .join(';');
++          return config ? [{ ...fmtp, config }] : [];
++        });
++      }
++      // Published microphone and screen-audio tracks use one Opus profile in
++      // Towk. Use that published fmtp as the bundle canonical value for remote
++      // audio sections too; SFU answers can otherwise reintroduce `stereo=1`
++      // on recv sections and make Chromium reject the whole answer.
++      const publishedAudioMids = new Set(
++        this.trackBitrates.flatMap((trackbr) => {
++          const mid = trackbr.transceiver?.mid;
++          if (!mid) return [];
++          const media = sdpParsed.media.find(
++            (candidate) => candidate.type === 'audio' && getMidString(candidate.mid!) === mid,
++          );
++          return media ? [mid] : [];
++        }),
++      );
++      if (publishedAudioMids.size > 0) {
++        conformBundledCodecFmtp(
++          sdpParsed.media,
++          (media) =>
++            media.type === 'audio' && !publishedAudioMids.has(getMidString(media.mid!)),
++        );
++      }
+       // The server's answer sets per-track codec params (e.g. opus `usedtx`) on
+       // the sections mapped to a published track, but leaves the pre-populated
+       // recvonly placeholder sections with defaults. Conform the placeholders so
+@@ -417,14 +452,45 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
+               this.ensureVideoDDExtensionForSVC(media, sdpParsed);
+             }
+-
++
+-            // mung sdp for bitrate setting that can't apply by sendEncoding
+-            // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE from starting too aggressively
+-            // Screen share is not capped since text/UI clarity requires high bitrate from the start
+-            // TODO: dynamically adjust start bitrate based on network conditions (e.g., use previous BWE estimate)
++            // A payload type must carry identical fmtp parameters across every
++            // m-line in a BUNDLE group. Apply one conservative hint to every
++            // section advertising the selected payload; a per-track hint makes
++            // Chromium reject the SDP before the fallback can be applied.
++            const payloadIsShared = sdpParsed.media.some(
++              (otherMedia) =>
++                otherMedia !== media &&
++                otherMedia.rtp.some((rtp) => rtp.payload === codecPayload),
++            );
+             const calculatedStartBitrate = Math.round(trackbr.maxbr * startBitrateMultiplier);
+-            const startBitrate = trackbr.isScreenShare
+-              ? calculatedStartBitrate
+-              : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
++            const startBitrate = Math.min(calculatedStartBitrate, maxStartBitrateKbps);
++            if (payloadIsShared) {
++              for (const bundledMedia of sdpParsed.media) {
++                if (!bundledMedia.rtp.some((rtp) => rtp.payload === codecPayload)) continue;
++                const bundledFmtp = bundledMedia.fmtp.find(
++                  (fmtp) => fmtp.payload === codecPayload,
++                );
++                if (bundledFmtp) {
++                  const retainedParameters = bundledFmtp.config
++                    .split(';')
++                    .filter((parameter) => !parameter.startsWith('x-google-start-bitrate='));
++                  bundledFmtp.config = [
++                    ...retainedParameters,
++                    `x-google-start-bitrate=${startBitrate}`,
++                  ]
++                    .filter(Boolean)
++                    .join(';');
++                } else {
++                  bundledMedia.fmtp.push({
++                    payload: codecPayload,
++                    config: `x-google-start-bitrate=${startBitrate}`,
++                  });
++                }
++              }
++              return true;
++            }
++
++            // Keep the startup hint conservative for every source, including
++            // screen share. Sender encodings still expose the full target to BWE.
+-
++
+             let fmtpFound = false;
+             for (const fmtp of media.fmtp) {

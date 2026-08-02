@@ -1675,6 +1675,9 @@ export class VoiceCallState {
       if (this.room !== room) return;
 
       this.isCameraEnabled = newEnabled;
+      if (newEnabled && this.isScreenShareEnabled) {
+        setLocalCameraPublishingQuality(room, VideoQuality.LOW);
+      }
       if (newEnabled) {
         await this.refreshDevices({ requestVideoPermissions: true });
       }
@@ -1723,6 +1726,11 @@ export class VoiceCallState {
 
   private async performToggleScreenShare(room: Room): Promise<void> {
     const newEnabled = !this.isScreenShareEnabled;
+    if (newEnabled) {
+      // Reserve uplink capacity before the screen sender starts. The camera
+      // remains live on its 360p layer and returns to full quality afterward.
+      setLocalCameraPublishingQuality(room, VideoQuality.LOW);
+    }
     try {
       await this.runExplicitMediaDeviceOperation(() => {
         if (!newEnabled) return room.localParticipant.setScreenShareEnabled(false);
@@ -1735,9 +1743,13 @@ export class VoiceCallState {
       if (this.room !== room) return;
 
       this.isScreenShareEnabled = newEnabled;
+      if (!newEnabled) {
+        setLocalCameraPublishingQuality(room, VideoQuality.HIGH);
+      }
     } catch (err) {
       if (this.room !== room) return;
       if (newEnabled) {
+        setLocalCameraPublishingQuality(room, VideoQuality.HIGH);
         this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('screen', err, 'enable'));
       }
       this.isScreenShareEnabled = newEnabled ? false : this.isScreenShareEnabled;
@@ -2316,7 +2328,11 @@ export class VoiceCallState {
     });
 
     room.on(RoomEvent.LocalTrackUnpublished, () => {
+      const screenShareWasEnabled = this.isScreenShareEnabled;
       this.updateParticipants();
+      if (screenShareWasEnabled && !this.isScreenShareEnabled) {
+        setLocalCameraPublishingQuality(room, VideoQuality.HIGH);
+      }
     });
 
     // LiveKit updates every participant's isSpeaking/audioLevel fields before
@@ -3080,6 +3096,7 @@ export class VoiceCallState {
         );
         if (!shouldContinue()) return;
         this.isScreenShareEnabled = true;
+        setLocalCameraPublishingQuality(room, VideoQuality.LOW);
       } catch (error) {
         if (!shouldContinue()) return;
         this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('screen', error, 'enable'));
@@ -3508,16 +3525,19 @@ const CAMERA_ENCODING = {
 
 const CAMERA_LOW_LAYER = new VideoPreset(480, 360, 500_000, 30, 'medium');
 const CAMERA_MID_LAYER = new VideoPreset(960, 720, 1_800_000, 30, 'medium');
-const SCREEN_SHARE_STANDARD_LAYER = new VideoPreset(1280, 720, 2_000_000, 30, 'high');
+// Keep a legible downgrade path below typical constrained mobile uplinks. The
+// full-resolution layer remains available, while the SFU can select this layer
+// without making screen share and camera compete for the whole uplink.
+const SCREEN_SHARE_STANDARD_LAYER = new VideoPreset(1280, 720, 1_500_000, 30, 'high');
 
 const SCREEN_SHARE_ENCODING = {
-  maxBitrate: 8_000_000,
+  maxBitrate: 5_000_000,
   maxFramerate: 30,
   priority: 'high' as const
 };
 
 const HIGH_FRAME_RATE_SCREEN_SHARE_ENCODING = {
-  maxBitrate: 12_000_000,
+  maxBitrate: 8_000_000,
   maxFramerate: 60,
   priority: 'high' as const
 };
@@ -3608,11 +3628,16 @@ function createScreenShareCaptureOptions(highFrameRate = false): ScreenShareCapt
 
 function createScreenSharePublishOptions(highFrameRate = false): TrackPublishOptions {
   return {
-    audioPreset: AudioPresets.musicHighQualityStereo,
+    // A microphone and browser-tab audio share the same bundled Opus payload
+    // type. Keep their fmtp identical so adding a screen share cannot trigger
+    // a failed SDP application and fallback renegotiation in Chromium.
+    audioPreset: AudioPresets.speech,
     backupCodec: false,
-    degradationPreference: 'maintain-resolution',
+    // Preserve motion under congestion while allowing WebRTC to trade some
+    // resolution instead of freezing a full-resolution frame for seconds.
+    degradationPreference: 'balanced',
     dtx: true,
-    forceStereo: true,
+    forceStereo: false,
     red: true,
     screenShareEncoding: highFrameRate
       ? HIGH_FRAME_RATE_SCREEN_SHARE_ENCODING
@@ -3621,6 +3646,14 @@ function createScreenSharePublishOptions(highFrameRate = false): TrackPublishOpt
     simulcast: !isWebKitBasedClient(),
     videoCodec: preferredScreenShareVideoCodec()
   };
+}
+
+function setLocalCameraPublishingQuality(room: Room, quality: VideoQuality): void {
+  const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+  if (!track || !("setPublishingQuality" in track)) return;
+  const setPublishingQuality = track.setPublishingQuality;
+  if (typeof setPublishingQuality !== 'function') return;
+  setPublishingQuality.call(track, quality);
 }
 
 type BrowserVideoCaptureOptions = Omit<VideoCaptureOptions, 'resolution'> & {
