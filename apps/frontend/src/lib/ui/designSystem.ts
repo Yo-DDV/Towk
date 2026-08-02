@@ -92,6 +92,16 @@ export const DESIGN_SYSTEM_PRIMITIVES: readonly DesignSystemPrimitive[] = [
     story: './Dialog.stories.svelte'
   },
   {
+    name: 'DialogActions',
+    module: '$lib/ui',
+    family: 'layout',
+    presentation: 'static',
+    useWhen: 'Arranging the primary and secondary actions at the end of a dialog surface.',
+    avoidWhen: 'The actions belong to a page toolbar or a non-dialog form section.',
+    responsive: 'Stack or wrap actions within the dialog width without shrinking touch targets.',
+    accessibility: 'Keep action order, disabled state, busy state, and keyboard focus visibly clear.'
+  },
+  {
     name: 'Divider',
     module: '$lib/ui',
     family: 'layout',
