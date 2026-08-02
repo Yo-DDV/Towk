@@ -1838,6 +1838,7 @@
   }
 
   .timeline-room-empty-state {
+    padding-bottom: 1rem;
     animation: timeline-room-empty-state 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
     will-change: opacity, transform;
   }
