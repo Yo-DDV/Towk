@@ -24,6 +24,47 @@ async function scrollContainerToTop(page: Page, container: Locator) {
 }
 
 test.describe('Message pane auto-scroll', () => {
+  test('repairs a non-user scroll correction while the timeline remains sticky', async ({
+    page,
+    chatPage
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    await chatPage.enterRoom('general');
+
+    const roomId = page.url().match(/\/chat\/-\/([^/]+)/)?.[1];
+    if (!roomId) throw new Error(`Could not extract roomId from ${page.url()}`);
+
+    const timestamp = Date.now();
+    const messages = Array.from(
+      { length: 20 },
+      (_, index) =>
+        `Sticky correction ${index + 1} ${timestamp} Lorem ipsum dolor sit amet, consectetur adipiscing elit.`
+    );
+    await postMessagesViaConnect(page, roomId, messages);
+    await expect(page.getByText(messages.at(-1)!)).toBeVisible({
+      timeout: TIMEOUTS.UI_STANDARD
+    });
+
+    const messagesContainer = page.getByTestId('messages-container');
+    const distanceFromBottom = () =>
+      messagesContainer.evaluate(
+        (element) => element.scrollHeight - element.scrollTop - element.clientHeight
+      );
+
+    await expect.poll(distanceFromBottom).toBeLessThan(50);
+
+    const displacedDistance = await messagesContainer.evaluate((element) => {
+      element.scrollTop = Math.max(0, element.scrollTop - 300);
+      return element.scrollHeight - element.scrollTop - element.clientHeight;
+    });
+    expect(displacedDistance).toBeGreaterThan(100);
+
+    await expect.poll(distanceFromBottom).toBeLessThan(50);
+    await expect(page.getByRole('button', { name: /new messages/i })).not.toBeVisible();
+  });
+
   test('preserves the visible scroll anchor when a tombstone expires above it', async ({
     page,
     chatPage,
