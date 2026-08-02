@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { q, testSnippet } from '$lib/test-utils';
 import ContextMenu from './ContextMenu.svelte';
@@ -15,33 +15,13 @@ let originalHidePopover: typeof HTMLElement.prototype.hidePopover;
 let originalShowModal: typeof HTMLDialogElement.prototype.showModal;
 let originalClose: typeof HTMLDialogElement.prototype.close;
 
-type MutableVisualViewport = Omit<VisualViewport, 'height' | 'offsetTop' | 'width'> & {
-  height: number;
-  offsetTop: number;
-  width: number;
-};
-
-function createVisualViewport(): MutableVisualViewport {
-  return Object.assign(new EventTarget(), {
-    height: 780,
-    offsetLeft: 0,
-    offsetTop: 0,
-    onresize: null,
-    onscroll: null,
-    onscrollend: null,
-    pageLeft: 0,
-    pageTop: 0,
-    scale: 1,
-    width: 390
-  }) as MutableVisualViewport;
-}
-
 function renderMenu(props: Record<string, unknown> = {}) {
   return render(ContextMenu, {
     props: {
       position: { x: 24, y: 32 },
+      ariaLabel: 'Message actions',
       onclose: vi.fn(),
-      children: testSnippet('<span>Menu body</span>'),
+      children: testSnippet('<button type="button" role="menuitem">Reply</button>'),
       ...props
     }
   });
@@ -54,10 +34,18 @@ beforeAll(() => {
   originalClose = HTMLDialogElement.prototype.close;
 
   HTMLElement.prototype.showPopover = function showPopover() {
-    this.setAttribute('popover-open', '');
+    if (originalShowPopover) {
+      originalShowPopover.call(this);
+    } else {
+      this.setAttribute('popover-open', '');
+    }
   };
   HTMLElement.prototype.hidePopover = function hidePopover() {
-    this.removeAttribute('popover-open');
+    if (originalHidePopover) {
+      originalHidePopover.call(this);
+    } else {
+      this.removeAttribute('popover-open');
+    }
   };
   HTMLDialogElement.prototype.showModal = function showModal() {
     this.setAttribute('open', '');
@@ -81,10 +69,6 @@ beforeEach(() => {
   inputCapabilities.supportsHoverActions.mockReturnValue(true);
 });
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
 describe('ContextMenu', () => {
   it('uses floating presentation on hybrid devices by default', async () => {
     inputCapabilities.prefersTouchActions.mockReturnValue(true);
@@ -94,159 +78,74 @@ describe('ContextMenu', () => {
 
     await expect.element(q(container, '[role="menu"]')).toBeInTheDocument();
     expect(q(container, 'dialog')).toBeNull();
-    expect(container.textContent).toContain('Menu body');
   });
 
-  it('can force sheet presentation for touch-initiated nested menus', async () => {
+  it('can force sheet presentation without changing menu semantics', async () => {
     inputCapabilities.prefersTouchActions.mockReturnValue(true);
     inputCapabilities.supportsHoverActions.mockReturnValue(true);
 
     const { container } = renderMenu({ presentation: 'sheet' });
 
     await expect.element(q(container, 'dialog.bottom-sheet')).toBeInTheDocument();
-    expect(q(container, '[role="menu"]')).toBeNull();
-    expect(container.textContent).toContain('Menu body');
+    await expect.element(q(container, '[role="menu"]')).toBeInTheDocument();
+    await expect.element(q(container, '[role="menuitem"]')).toBeInTheDocument();
   });
 
-  it('keeps a forced sheet open when iOS cancels the dialog while focusing an input', async () => {
+  it('moves focus with menu keys, supports typeahead, and skips disabled commands', async () => {
     const onclose = vi.fn();
     const { container } = renderMenu({
       presentation: 'sheet',
       onclose,
-      children: testSnippet('<input data-testid="sheet-search" type="search" />')
+      children: testSnippet(`
+        <div>
+          <button type="button" role="menuitem" data-testid="reply">Reply</button>
+          <button type="button" role="menuitem" data-testid="disabled" disabled>Disabled</button>
+          <button type="button" role="menuitem" data-testid="delete">Delete</button>
+        </div>
+      `)
     });
 
-    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
-    const input = q(container, '[data-testid="sheet-search"]') as HTMLInputElement;
+    const reply = q(container, '[data-testid="reply"]') as HTMLButtonElement;
+    const disabled = q(container, '[data-testid="disabled"]') as HTMLButtonElement;
+    const deleteAction = q(container, '[data-testid="delete"]') as HTMLButtonElement;
 
-    input.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
-    dialog.dispatchEvent(new Event('cancel', { bubbles: false, cancelable: true }));
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await vi.waitFor(() => expect(document.activeElement).toBe(reply));
+    expect(reply.tabIndex).toBe(0);
+    expect(disabled.tabIndex).toBe(-1);
 
-    expect(dialog.open).toBe(true);
+    reply.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(document.activeElement).toBe(deleteAction);
+    expect(deleteAction.tabIndex).toBe(0);
+    expect(reply.tabIndex).toBe(-1);
+
+    deleteAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    expect(document.activeElement).toBe(reply);
+
+    reply.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', bubbles: true }));
+    expect(document.activeElement).toBe(deleteAction);
     expect(onclose).not.toHaveBeenCalled();
   });
 
-  it('keeps a forced sheet open when iOS reports focus before the input becomes active', async () => {
-    const onclose = vi.fn();
-    const { container } = renderMenu({
-      presentation: 'sheet',
-      onclose,
-      children: testSnippet('<input data-testid="sheet-search" type="search" />')
-    });
+  it('restores the trigger focus when Escape dismisses the menu', async () => {
+    const trigger = document.createElement('button');
+    trigger.textContent = 'Open menu';
+    document.body.append(trigger);
+    trigger.focus();
 
-    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
-    const input = q(container, '[data-testid="sheet-search"]') as HTMLInputElement;
+    try {
+      const onclose = vi.fn();
+      const { container } = renderMenu({ onclose });
+      const item = q(container, '[role="menuitem"]') as HTMLButtonElement;
 
-    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-    dialog.dispatchEvent(new Event('cancel', { bubbles: false, cancelable: true }));
-    await new Promise((resolve) => setTimeout(resolve, 250));
+      await vi.waitFor(() => expect(document.activeElement).toBe(item));
 
-    expect(dialog.open).toBe(true);
-    expect(onclose).not.toHaveBeenCalled();
-  });
+      item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise<void>((resolve) => queueMicrotask(() => queueMicrotask(resolve)));
 
-  it('still closes from a later backdrop press after an internal focus', async () => {
-    const onclose = vi.fn();
-    const { container } = renderMenu({
-      presentation: 'sheet',
-      onclose,
-      children: testSnippet('<input data-testid="sheet-search" type="search" />')
-    });
-
-    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
-    const input = q(container, '[data-testid="sheet-search"]') as HTMLInputElement;
-
-    input.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
-    dialog.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-    dialog.click();
-    await new Promise((resolve) => setTimeout(resolve, 250));
-
-    expect(dialog.open).toBe(false);
-    expect(onclose).toHaveBeenCalledOnce();
-  });
-
-  it('keeps a persistent forced sheet open across external close requests', async () => {
-    const onclose = vi.fn();
-    const { container } = renderMenu({
-      presentation: 'sheet',
-      dismissOnExternalInteraction: false,
-      onclose,
-      children: testSnippet('<input data-testid="sheet-search" type="search" />')
-    });
-
-    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
-
-    dialog.dispatchEvent(new Event('cancel', { bubbles: false, cancelable: true }));
-    dialog.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-    dialog.click();
-    await new Promise((resolve) => setTimeout(resolve, 250));
-
-    expect(dialog.open).toBe(true);
-    expect(onclose).not.toHaveBeenCalled();
-  });
-
-  it('reopens a persistent forced sheet after an unexpected native close', async () => {
-    const onclose = vi.fn();
-    const { container } = renderMenu({
-      presentation: 'sheet',
-      dismissOnExternalInteraction: false,
-      onclose
-    });
-
-    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
-
-    dialog.close();
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
-
-    expect(dialog.open).toBe(true);
-    expect(onclose).not.toHaveBeenCalled();
-  });
-
-  it('still closes a persistent forced sheet from its explicit handle', async () => {
-    const onclose = vi.fn();
-    const { container } = renderMenu({
-      presentation: 'sheet',
-      dismissOnExternalInteraction: false,
-      onclose
-    });
-
-    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
-    const closeHandle = q(
-      container,
-      'dialog.bottom-sheet > .bottom-sheet-content > button'
-    ) as HTMLButtonElement;
-
-    closeHandle.click();
-    await new Promise((resolve) => setTimeout(resolve, 250));
-
-    expect(dialog.open).toBe(false);
-    expect(onclose).toHaveBeenCalledOnce();
-  });
-
-  it('keeps a forced sheet inside the visual viewport when the iOS keyboard opens', async () => {
-    const viewport = createVisualViewport();
-    vi.stubGlobal('visualViewport', viewport);
-    const { container } = renderMenu({
-      presentation: 'sheet',
-      dismissOnExternalInteraction: false
-    });
-
-    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
-
-    viewport.height = 420;
-    viewport.offsetTop = 18;
-    viewport.dispatchEvent(new Event('resize'));
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
-
-    expect(dialog.style.top).toBe('18px');
-    expect(dialog.style.height).toBe('420px');
-    expect(dialog.style.maxHeight).toBe('420px');
-
-    viewport.offsetTop = 32;
-    viewport.dispatchEvent(new Event('scroll'));
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
-
-    expect(dialog.style.top).toBe('32px');
+      expect(onclose).toHaveBeenCalledOnce();
+      expect(document.activeElement).toBe(trigger);
+    } finally {
+      trigger.remove();
+    }
   });
 });

@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -67,33 +65,9 @@ const (
 var ErrRoomNameExists = errors.New("a room with this name already exists in this space")
 
 // ValidateRoomName validates a room name and returns an error if invalid.
-// Room names must be URL-safe: only alphanumeric characters, hyphens, and underscores.
 func ValidateRoomName(name string) error {
-	trimmed := strings.TrimSpace(name)
-	if len(trimmed) < RoomNameMinLength {
-		return fmt.Errorf("room name is required")
-	}
-	if len(trimmed) > RoomNameMaxLength {
-		return fmt.Errorf("room name must be %d characters or less", RoomNameMaxLength)
-	}
-
-	// Check for URL-safe characters only (alphanumeric, hyphens, underscores)
-	for _, ch := range trimmed {
-		if !isURLSafeChar(ch) {
-			return fmt.Errorf("room name must contain only alphanumeric characters, hyphens, and underscores (no spaces or special characters)")
-		}
-	}
-
-	return nil
-}
-
-// urlSafeCharRegex matches URL-safe characters for room names.
-// Allows: a-z, A-Z, 0-9, hyphen (-), and underscore (_)
-var urlSafeCharRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]$`)
-
-// isURLSafeChar returns true if the character is URL-safe for room names.
-func isURLSafeChar(ch rune) bool {
-	return urlSafeCharRegex.MatchString(string(ch))
+	_, err := NormalizeRoomName(name)
+	return err
 }
 
 // ValidateRoomDescription validates a room description and returns an error if invalid.
@@ -153,7 +127,9 @@ func collectCreateRoomOptions(opts []CreateRoomOption) createRoomOptions {
 // filter's seq and cause our publish to fail; we re-check uniqueness
 // from the (now-caught-up) projection and retry.
 func (c *ChattoCore) CreateRoom(ctx context.Context, actorID string, kind RoomKind, groupID, name, description string, opts ...CreateRoomOption) (*corev1.Room, error) {
-	if err := ValidateRoomName(name); err != nil {
+	var err error
+	name, err = NormalizeRoomName(name)
+	if err != nil {
 		return nil, err
 	}
 	if err := ValidateRoomDescription(description); err != nil {
@@ -178,7 +154,6 @@ func (c *ChattoCore) CreateRoom(ctx context.Context, actorID string, kind RoomKi
 		}
 	}
 
-	name = strings.TrimSpace(name)
 	room_id := NewRoomID()
 
 	room := &corev1.Room{
@@ -342,14 +317,14 @@ func (c *ChattoCore) publishRoomEventWithNameOCC(ctx context.Context, name strin
 // publishRoomEventWithNameOCC); description-only edits skip the
 // uniqueness check and use a plain per-subject OCC.
 func (c *ChattoCore) UpdateRoom(ctx context.Context, actorID string, kind RoomKind, room_id, name, description string) (*corev1.Room, error) {
-	if err := ValidateRoomName(name); err != nil {
+	var err error
+	name, err = NormalizeRoomName(name)
+	if err != nil {
 		return nil, err
 	}
 	if err := ValidateRoomDescription(description); err != nil {
 		return nil, err
 	}
-
-	name = strings.TrimSpace(name)
 
 	room, err := c.GetRoom(ctx, kind, room_id)
 	if err != nil {
@@ -359,7 +334,7 @@ func (c *ChattoCore) UpdateRoom(ctx context.Context, actorID string, kind RoomKi
 	// "Rename" here means the case-folded name changed. Case-only
 	// edits (e.g. "general" → "General") don't change the uniqueness
 	// slot and can skip the wildcard OCC dance.
-	renamed := !strings.EqualFold(room.Name, name)
+	renamed := roomNameKey(room.Name) != roomNameKey(name)
 
 	room.Name = name
 	room.Description = description

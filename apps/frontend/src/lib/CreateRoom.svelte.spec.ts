@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import { userEvent } from 'vitest/browser';
+import { flushSync } from 'svelte';
 import { q } from '$lib/test-utils';
 
 const { mocks } = vi.hoisted(() => ({
@@ -27,7 +27,10 @@ vi.mock('$lib/api-client/rooms', () => ({
 }));
 
 async function fillNameAndSubmit(container: HTMLElement, name = 'general'): Promise<void> {
-  await userEvent.type(q(container, '#room-name') as HTMLInputElement, name);
+  const input = q(container, '#room-name') as HTMLInputElement;
+  input.value = name;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  flushSync();
   (q(container, 'button[type="submit"]') as HTMLButtonElement).click();
 }
 
@@ -77,6 +80,24 @@ describe('CreateRoom', () => {
       description: null,
       groupId: 'group-1',
       universal: true
+    });
+  });
+
+  it('accepts emoji and submits a normalized multi-word room name', async () => {
+    const { container } = render(CreateRoom, {
+      groupId: 'group-1',
+      onroomcreated: mocks.onroomcreated
+    });
+
+    await fillNameAndSubmit(container, '  📣   Cafe\u0301 Updates  ');
+
+    await vi.waitFor(() => {
+      expect(mocks.createRoom).toHaveBeenCalledWith({
+        name: '📣 Café Updates',
+        description: null,
+        groupId: 'group-1',
+        universal: false
+      });
     });
   });
 });

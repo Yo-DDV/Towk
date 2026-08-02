@@ -289,6 +289,10 @@ retained only for non-joined projections that still consume this component.
       participant
     }))
   );
+  const denseParticipantTileMinimum = 220;
+  let hasDenseGalleryActions = $derived(
+    participantTiles.some((tile) => tile.participant.canControlAudio)
+  );
   let featuredStageKey = $derived(
     resolveFeaturedShareKey(
       screenShareTiles.map((tile) => tile.key),
@@ -306,7 +310,12 @@ retained only for non-joined projections that still consume this component.
       : []
   );
   let galleryGrid = $derived(
-    computeSceneGrid(galleryWidth, galleryHeight, participantTiles.length)
+    computeSceneGrid(
+      galleryWidth,
+      galleryHeight,
+      participantTiles.length,
+      hasDenseGalleryActions ? denseParticipantTileMinimum : undefined
+    )
   );
   let galleryPage = $derived(scenePage(participantTiles, galleryGrid.capacity, galleryPageIndex));
   let galleryPageWidth = $derived(
@@ -319,12 +328,19 @@ retained only for non-joined projections that still consume this component.
   let hasSecondaryScreenShare = $derived(
     secondaryStageTiles.some((tile) => tile.kind === 'screen')
   );
+  let hasDenseFilmstripActions = $derived(
+    secondaryStageTiles.some((tile) => tile.participant.canControlAudio)
+  );
   let filmstripCapacity = $derived(
     useHorizontalStage
       ? hasSecondaryScreenShare
         ? 1
         : Math.max(1, Math.min(2, Math.floor((sceneHeight - 44) / (144 + 12))))
-      : computeFilmstripCapacity(sceneWidth, sceneHeight)
+      : computeFilmstripCapacity(
+          sceneWidth,
+          sceneHeight,
+          hasDenseFilmstripActions ? denseParticipantTileMinimum : undefined
+        )
   );
   let filmstripMaxHeight = $derived(computeFilmstripMaxHeight(sceneWidth, sceneHeight));
   let filmstripPage = $derived(
@@ -886,9 +902,11 @@ retained only for non-joined projections that still consume this component.
         >
           <span class="iconify shrink-0 uil--exclamation-triangle" aria-hidden="true"></span>
           {#if participant.networkWarningMetric === 'packetLoss' && participant.packetLossPercent !== null}
-            <span class="truncate">{formatNetworkMetric(participant.packetLossPercent)}%</span>
+            <span class="call-network-metric-value truncate"
+              >{formatNetworkMetric(participant.packetLossPercent)}%</span
+            >
           {:else if participant.networkWarningMetric === 'jitter' && participant.jitterMs !== null}
-            <span class="truncate"
+            <span class="call-network-metric-value truncate"
               >{m['voice.jitter_value']({
                 milliseconds: formatNetworkMetric(participant.jitterMs)
               })}</span
@@ -920,6 +938,7 @@ retained only for non-joined projections that still consume this component.
   <div
     class={[
       callTileHeaderClass,
+      gallery && 'call-participant-header px-1.5',
       isScreenShare && 'w-full @max-[239px]:flex-col @max-[239px]:items-stretch @max-[239px]:gap-1'
     ]}
   >
@@ -927,23 +946,32 @@ retained only for non-joined projections that still consume this component.
       type="button"
       class={callTileIdentityButtonClass}
       onclick={(e) => showUserMenu(participant, e)}
+      data-testid="call-participant-identity"
     >
       {#if !gallery}
         <UserAvatar user={participant.avatarUser} size="sm" />
       {/if}
-      <span class="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+      <span
+        class={[
+          'flex min-w-0 flex-1 items-start',
+          gallery ? 'flex-row items-center gap-1.5' : 'flex-col gap-0.5'
+        ]}
+      >
         <span
           class={[
-            'w-full font-medium',
+            'min-w-0 font-medium',
             gallery
-              ? 'block max-w-full truncate text-[clamp(0.875rem,2.2cqi,1.5rem)] leading-tight whitespace-nowrap'
-              : 'block truncate text-sm'
+              ? 'block max-w-full flex-1 truncate text-[clamp(1rem,2.6cqi,1.375rem)] leading-tight font-semibold whitespace-nowrap'
+              : 'block w-full truncate text-sm'
           ]}
           data-testid="call-participant-name">{label}</span
         >
         {#if (participantAccountCounts[participant.userId] ?? 0) > 1}
           <span
-            class="max-w-full truncate rounded-full bg-surface-300 px-1.5 py-px text-[10px] leading-4 font-medium text-muted"
+            class={[
+              'truncate rounded-full bg-surface-300 px-2 py-px text-[0.6875rem] leading-4 font-medium text-muted',
+              gallery ? 'max-w-[42%] shrink-0' : 'max-w-full'
+            ]}
             data-testid="call-device-badge"
           >
             {m['voice.device_badge']({ index: participant.deviceIndex })}
@@ -991,7 +1019,7 @@ retained only for non-joined projections that still consume this component.
       class={[
         callTileCardClass,
         mode === 'gallery'
-          ? 'participant-card-gallery h-full min-h-0'
+          ? 'participant-card-gallery h-full min-h-0 !gap-1'
           : mode === 'video'
             ? ['participant-card-video', fillContainer && 'h-full min-h-0']
             : mode === 'filmstrip-video'
@@ -1059,10 +1087,10 @@ retained only for non-joined projections that still consume this component.
       {/if}
       {#if hasReservedFooter}
         <div
-          class="flex min-h-[50px] w-full min-w-0 shrink-0 items-center justify-between gap-1 overflow-hidden rounded-md bg-surface-200/55 pl-1"
+          class="call-participant-footer grid min-h-[48px] w-full min-w-0 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-md bg-surface-200/55 px-1.5"
           data-testid="call-gallery-voice-footer"
         >
-          <span class="flex min-w-0 flex-1 overflow-hidden">
+          <span class="call-participant-status-slot flex min-w-0 items-center overflow-hidden">
             {@render participantIndicators(participant)}
           </span>
           {#if showVoiceActions}
@@ -1078,7 +1106,7 @@ retained only for non-joined projections that still consume this component.
       class={[
         callTileCardClass,
         mode === 'gallery'
-          ? 'participant-card-gallery h-full min-h-0'
+          ? 'participant-card-gallery h-full min-h-0 !gap-1'
           : mode === 'video'
             ? ['participant-card-video', fillContainer && 'h-full min-h-0']
             : mode === 'filmstrip-video'
@@ -1143,7 +1171,7 @@ retained only for non-joined projections that still consume this component.
       {/if}
       {#if hasReservedFooter && hasParticipantIndicator(participant)}
         <div
-          class="flex min-h-[50px] w-full min-w-0 shrink-0 items-center overflow-hidden rounded-md bg-surface-200/55 px-1"
+          class="call-participant-footer flex min-h-[48px] w-full min-w-0 shrink-0 items-center rounded-md bg-surface-200/55 px-1.5"
           data-testid="call-gallery-voice-footer"
         >
           {@render participantIndicators(participant)}
@@ -1614,6 +1642,20 @@ retained only for non-joined projections that still consume this component.
   :global(.participant-card-filmstrip) {
     gap: 0.25rem;
     padding: 0.25rem;
+  }
+
+  :global(.call-participant-footer .call-tile-action-toolbar) {
+    flex-wrap: nowrap;
+  }
+
+  :global(.call-participant-footer [data-testid='call-participant-indicators']) {
+    justify-content: flex-start;
+  }
+
+  @container (max-width: 239px) {
+    :global(.call-participant-footer .call-network-metric-value) {
+      display: none;
+    }
   }
 
   :global(.call-speaking-card)::after {

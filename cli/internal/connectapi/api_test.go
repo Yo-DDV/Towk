@@ -3184,7 +3184,7 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 	}
 
 	if _, err := env.rooms.CreateRoom(ctx, connect.NewRequest(&apiv1.CreateRoomRequest{
-		Name:    "connect room",
+		Name:    "connect\u200broom",
 		GroupId: groupID,
 	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("invalid CreateRoom name code = %v, want invalid argument", connect.CodeOf(err))
@@ -3205,7 +3205,7 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 	}
 
 	createResp, err := env.rooms.CreateRoom(ctx, connect.NewRequest(&apiv1.CreateRoomRequest{
-		Name:        "connect-room",
+		Name:        "  📣   Team Updates  ",
 		Description: "created through ConnectRPC",
 		GroupId:     groupID,
 		Universal:   true,
@@ -3217,17 +3217,33 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 	if room.GetId() == "" || room.GetKind() != apiv1.RoomKind_ROOM_KIND_CHANNEL || room.GetGroupId() != groupID || !room.GetUniversal() {
 		t.Fatalf("created room = %+v", room)
 	}
+	if room.GetName() != "📣 Team Updates" {
+		t.Fatalf("created room name = %q, want normalized expressive name", room.GetName())
+	}
+
+	if _, err := env.rooms.CreateRoom(ctx, connect.NewRequest(&apiv1.CreateRoomRequest{
+		Name:    strings.Repeat("💬", 30),
+		GroupId: groupID,
+	})); err != nil {
+		t.Fatalf("CreateRoom with 30 emoji: %v", err)
+	}
+	if _, err := env.rooms.CreateRoom(ctx, connect.NewRequest(&apiv1.CreateRoomRequest{
+		Name:    strings.Repeat("💬", 31),
+		GroupId: groupID,
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("CreateRoom with 31 emoji code = %v, want invalid argument", connect.CodeOf(err))
+	}
 
 	updateResp, err := env.rooms.UpdateRoom(ctx, connect.NewRequest(&apiv1.UpdateRoomRequest{
 		RoomId:      room.GetId(),
-		Name:        stringPtr("connect-renamed"),
+		Name:        stringPtr("💬 General chat"),
 		Description: stringPtr("updated through ConnectRPC"),
 	}))
 	if err != nil {
 		t.Fatalf("UpdateRoom: %v", err)
 	}
-	if updateResp.Msg.GetRoom().GetName() != "connect-renamed" {
-		t.Fatalf("UpdateRoom name = %q, want connect-renamed", updateResp.Msg.GetRoom().GetName())
+	if updateResp.Msg.GetRoom().GetName() != "💬 General chat" {
+		t.Fatalf("UpdateRoom name = %q, want expressive name", updateResp.Msg.GetRoom().GetName())
 	}
 	partialUpdateResp, err := env.rooms.UpdateRoom(ctx, connect.NewRequest(&apiv1.UpdateRoomRequest{
 		RoomId:      room.GetId(),
@@ -3236,7 +3252,7 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 	if err != nil {
 		t.Fatalf("partial UpdateRoom: %v", err)
 	}
-	if got := partialUpdateResp.Msg.GetRoom(); got.GetName() != "connect-renamed" || got.GetDescription() != "description-only patch" {
+	if got := partialUpdateResp.Msg.GetRoom(); got.GetName() != "💬 General chat" || got.GetDescription() != "description-only patch" {
 		t.Fatalf("partial room update = %+v, want preserved name and updated description", got)
 	}
 	if _, err := env.rooms.UpdateRoom(ctx, connect.NewRequest(&apiv1.UpdateRoomRequest{

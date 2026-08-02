@@ -58,6 +58,8 @@ describe('screen-share diagnostics collection', () => {
         jitterBufferEmittedCount: 1_000,
         freezeCount: 1,
         totalFreezesDuration: 0.5,
+        pauseCount: 0,
+        totalPausesDuration: 0,
         nackCount: 3,
         pliCount: 1,
         firCount: 0,
@@ -108,6 +110,8 @@ describe('screen-share diagnostics collection', () => {
         jitterBufferEmittedCount: 2_000,
         freezeCount: 2,
         totalFreezesDuration: 1.5,
+        pauseCount: 1,
+        totalPausesDuration: 5.5,
         nackCount: 7,
         pliCount: 2,
         firCount: 1,
@@ -165,6 +169,13 @@ describe('screen-share diagnostics collection', () => {
       framesDropped: 20,
       freezeCount: 2,
       totalFreezeDurationMs: 1500,
+      freezeCountDelta: 1,
+      freezeDurationDeltaMs: 1000,
+      pauseCountDelta: 1,
+      pauseDurationDeltaMs: 5500,
+      nackCountDelta: 4,
+      pliCountDelta: 1,
+      firCountDelta: 1,
       jitterBufferDelayMs: 2.4,
       availableBitrateBps: 7_500_000,
       networkType: 'wifi',
@@ -173,6 +184,7 @@ describe('screen-share diagnostics collection', () => {
       remoteCandidateType: 'relay',
       powerEfficientCodec: true
     });
+    expect(update.sample.health).toBe('poor');
     expect(update.sample.frameDropPercent).toBeCloseTo(1.67, 2);
   });
 
@@ -442,6 +454,55 @@ describe('screen-share diagnostics collection', () => {
 
     expect(initial.sample.framesPerSecond).toBeNull();
     expect(update.sample.framesPerSecond).toBe(30);
+  });
+
+  it('requires a fresh transport signal before treating a freeze delta as degraded', async () => {
+    const report = (
+      timestamp: number,
+      packetsReceived: number,
+      freezeCount: number,
+      totalFreezesDuration: number,
+      nackCount: number
+    ) =>
+      statsReport({
+        id: 'inbound',
+        type: 'inbound-rtp',
+        kind: 'video',
+        timestamp,
+        packetsReceived,
+        packetsLost: 0,
+        frameWidth: 1920,
+        frameHeight: 1080,
+        framesPerSecond: 30,
+        freezeCount,
+        totalFreezesDuration,
+        nackCount,
+        pliCount: 0,
+        firCount: 0
+      });
+    const track = remoteTrack([
+      report(1_000, 1_000, 10, 10, 0),
+      report(3_000, 2_000, 11, 11.5, 0),
+      report(5_000, 3_000, 12, 12.7, 1)
+    ]);
+
+    const initial = await collectScreenShareDiagnostics({ track, direction: 'inbound' });
+    const uncorroborated = await collectScreenShareDiagnostics({
+      track,
+      direction: 'inbound',
+      previous: initial.counters
+    });
+    const corroborated = await collectScreenShareDiagnostics({
+      track,
+      direction: 'inbound',
+      previous: uncorroborated.counters
+    });
+
+    expect(uncorroborated.sample.freezeDurationDeltaMs).toBe(1_500);
+    expect(uncorroborated.sample.health).toBe('excellent');
+    expect(corroborated.sample.freezeDurationDeltaMs).toBe(1_200);
+    expect(corroborated.sample.nackCountDelta).toBe(1);
+    expect(corroborated.sample.health).toBe('degraded');
   });
 
   it('keeps only the bounded diagnostics history', () => {

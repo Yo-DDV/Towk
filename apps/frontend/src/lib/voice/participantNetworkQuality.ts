@@ -66,6 +66,36 @@ export async function collectParticipantNetworkQuality(
   };
 }
 
+export function aggregateParticipantNetworkQuality(
+  qualities: ParticipantNetworkQuality[]
+): ParticipantNetworkQuality | null {
+  if (!qualities.length) return null;
+
+  const packetLossValues = qualities
+    .map((quality) => quality.packetLossPercent)
+    .filter((value): value is number => value !== null);
+  const jitterValues = qualities
+    .map((quality) => quality.jitterMs)
+    .filter((value): value is number => value !== null);
+  const packetLossPercent = packetLossValues.length ? Math.max(...packetLossValues) : null;
+  const jitterMs = jitterValues.length ? Math.max(...jitterValues) : null;
+
+  const aggregate = {
+    health: classifyNetworkHealth(packetLossPercent, jitterMs),
+    jitterMs,
+    packetLossPercent,
+    warningMetric: selectParticipantNetworkWarningMetric(packetLossPercent, jitterMs)
+  };
+  const hasUnknownTrack = qualities.some((quality) => quality.health === 'unknown');
+  if (
+    hasUnknownTrack &&
+    networkHealthSeverity(aggregate.health) < networkHealthSeverity('degraded')
+  ) {
+    return null;
+  }
+  return aggregate;
+}
+
 /**
  * Selects the metric that actually triggered the strongest visible warning.
  * Packet-loss counters are normally present even at 0%, so presence alone
