@@ -36,9 +36,10 @@ New FDRs should follow the structure and tone of the existing records in this di
 | [FDR-024](FDR-024-permission-inspection-tool.md)        | Permission Inspection Tool          | Active | 2026-06-15    |
 | [FDR-025](FDR-025-user-search-and-member-directory.md)  | User Search & Member Directory      | Active | 2026-05-19    |
 | [FDR-026](FDR-026-last-room-memory.md)                  | Last-Room Memory                    | Active | 2026-05-19    |
-| [FDR-027](FDR-027-pwa-shell-and-service-worker.md)      | PWA Shell & Service Worker          | Active | 2026-07-22    |
+| [FDR-027](FDR-027-pwa-shell-and-service-worker.md)      | PWA Shell & Service Worker           | Active | 2026-07-22    |
 | [FDR-028](FDR-028-operator-api-and-cli.md)              | Operator API & CLI                  | Active | 2026-06-29    |
 | [FDR-029](FDR-029-voice-messages.md)                    | Voice Messages                      | Active | 2026-07-16    |
 | [FDR-030](FDR-030-external-gif-embeds.md)               | External GIF Embeds                 | Active | 2026-07-24    |
 | [FDR-031](FDR-031-read-receipts.md)                     | Read Receipts                       | Active | 2026-07-26    |
 | [FDR-032](FDR-032-channel-governance.md)                 | Channel Lock & Message-History Purge | Active | 2026-07-31    |
+| [FDR-033](FDR-033-composer-upload-progress.md)          | Composer Upload Progress            | Active | 2026-08-02    |
