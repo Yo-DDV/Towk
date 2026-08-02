@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
 import EventListTestHarness from './EventListTestHarness.svelte';
-import { setVirtualizerScrollOffset } from './EventListVirtualizerMock.svelte';
+import {
+  emitVirtualizerScroll,
+  setVirtualizerScrollOffset
+} from './EventListVirtualizerMock.svelte';
 
 const resumeCallbacks = vi.hoisted(() => [] as Array<() => void>);
 const readReceiptMocks = vi.hoisted(() => ({
@@ -938,6 +941,91 @@ describe('EventList jump completion', () => {
       await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThan(callsBeforeResize));
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+
+  it('re-converges after a non-user virtualizer correction moves a sticky viewport', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        eventIds: ['msg-latest'],
+        scrollToEventId: null
+      }
+    });
+
+    try {
+      const scrollCalls = () =>
+        Number(page.getByTestId('virtualizer-scroll-calls').element().textContent);
+
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThanOrEqual(7));
+      const callsBeforeCorrection = scrollCalls();
+
+      emitVirtualizerScroll(400);
+
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThan(callsBeforeCorrection));
+      await expect.element(page.getByTestId('jump-to-present')).not.toBeInTheDocument();
+    } finally {
+      setVirtualizerScrollOffset(700);
+      rendered.unmount();
+    }
+  });
+
+  it('preserves an intentional user scroll away from the sticky viewport', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        eventIds: ['msg-history', 'msg-latest'],
+        scrollToEventId: null
+      }
+    });
+
+    try {
+      const scrollCalls = () =>
+        Number(page.getByTestId('virtualizer-scroll-calls').element().textContent);
+
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThanOrEqual(7));
+      const callsBeforeUserScroll = scrollCalls();
+      const messageContainer = page.getByTestId('messages-container').element();
+
+      messageContainer.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+      emitVirtualizerScroll(650);
+      emitVirtualizerScroll(400);
+
+      await expect.element(page.getByTestId('jump-to-present')).toBeVisible();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(scrollCalls()).toBe(callsBeforeUserScroll);
+    } finally {
+      setVirtualizerScrollOffset(700);
+      rendered.unmount();
+    }
+  });
+
+  it('does not fight a slow scrollbar drag after the short intent window expires', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        eventIds: ['msg-history', 'msg-latest'],
+        scrollToEventId: null
+      }
+    });
+
+    try {
+      const scrollCalls = () =>
+        Number(page.getByTestId('virtualizer-scroll-calls').element().textContent);
+
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThanOrEqual(7));
+      const callsBeforeUserScroll = scrollCalls();
+      const messageContainer = page.getByTestId('messages-container').element();
+
+      messageContainer.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      emitVirtualizerScroll(650);
+      emitVirtualizerScroll(400);
+
+      await expect.element(page.getByTestId('jump-to-present')).toBeVisible();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(scrollCalls()).toBe(callsBeforeUserScroll);
+      window.dispatchEvent(new PointerEvent('pointerup'));
+    } finally {
+      setVirtualizerScrollOffset(700);
+      rendered.unmount();
     }
   });
 
