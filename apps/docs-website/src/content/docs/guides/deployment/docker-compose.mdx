@@ -261,6 +261,12 @@ only when the stack shares its host with unrelated workloads. Existing `.env`
 files retain their explicit old limits during upgrades; change and qualify all
 services deliberately.
 
+The administration broker card's **maximum NATS message size** is a protocol
+limit for one control or persistence message (1 MiB with the standard NATS
+default), not a CPU or RAM allocation. Call audio, video, and screen-sharing
+frames use LiveKit's WebRTC media path; Towk and NATS carry the small call
+control, admission, and durable state events around that media path.
+
 The generated configuration uses `rtc.use_external_ip: true`; keep that default
 when the single LiveKit host has a public address. If a custom topology instead
 sets `use_external_ip: false` with a private `rtc.node_ip`, allow embedded TURN
