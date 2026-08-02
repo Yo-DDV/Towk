@@ -181,20 +181,48 @@ describe('EventList jump completion', () => {
     );
   });
 
-  it('renders an empty room as a stable polished state instead of raw blank text', async () => {
-    render(EventListTestHarness, {
-      props: {
-        eventIds: [],
-        scrollToEventId: null,
-        isLoading: false
+  it('keeps the empty-room indicator clear of the composer across representative viewports', async () => {
+    const viewports = [
+      [320, 568],
+      [390, 844],
+      [844, 390],
+      [768, 1024],
+      [1440, 900]
+    ] as const;
+
+    try {
+      render(EventListTestHarness, {
+        props: {
+          eventIds: [],
+          scrollToEventId: null,
+          isLoading: false
+        }
+      });
+
+      await expect.element(page.getByText('No messages yet')).toBeVisible();
+
+      for (const [width, height] of viewports) {
+        await page.viewport(width, height);
+
+        const emptyState = document.querySelector('.timeline-room-empty-state');
+        const indicator = emptyState?.firstElementChild;
+        expect(emptyState).toBeInstanceOf(HTMLElement);
+        expect(indicator).toBeInstanceOf(HTMLElement);
+
+        const emptyStateBounds = (emptyState as HTMLElement).getBoundingClientRect();
+        const indicatorBounds = (indicator as HTMLElement).getBoundingClientRect();
+        expect(getComputedStyle(emptyState as HTMLElement).paddingBottom).toBe('16px');
+        const indicatorGap = emptyStateBounds.bottom - indicatorBounds.bottom;
+        expect(indicatorGap).toBeGreaterThanOrEqual(15.5);
+        expect(indicatorGap).toBeLessThanOrEqual(16.5);
+        expect(indicatorBounds.left).toBeGreaterThanOrEqual(0);
+        expect(indicatorBounds.right).toBeLessThanOrEqual(window.innerWidth + 1);
       }
-    });
 
-    await expect.element(page.getByText('No messages yet')).toBeVisible();
-    const emptyState = document.querySelector('.timeline-room-empty-state');
-
-    expect(emptyState).toBeInstanceOf(HTMLElement);
-    expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+      expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+    } finally {
+      await page.viewport(414, 896);
+    }
   });
 
   it('covers the first route-change frame with a static room switch placeholder', async () => {
