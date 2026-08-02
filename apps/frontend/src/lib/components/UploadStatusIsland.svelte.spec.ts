@@ -35,7 +35,9 @@ describe('UploadStatusIsland', () => {
       props: { entry: uploadingEntry() }
     });
 
-    await expect.element(getByText('Uploading holiday-video-with-a-long-name.mp4')).toBeVisible();
+    await expect
+      .element(getByText('Uploading holiday-video-with-a-long-name.mp4', { exact: true }))
+      .toBeVisible();
     await expect.element(getByText('42%')).toBeVisible();
     await expect
       .element(getByRole('progressbar', { name: 'Message upload progress' }))
@@ -78,7 +80,7 @@ describe('UploadStatusIsland', () => {
     );
     await rendered.rerender({ entry: sendingFailure, onRetry, onDismiss });
     expect(rendered.container.querySelector('button[aria-label="Retry upload"]')).toBeNull();
-    await expect.element(rendered.getByText('Message not confirmed')).toBeVisible();
+    await expect.element(rendered.getByRole('strong')).toHaveTextContent('Message not confirmed');
 
     const voiceFailure = failMessageUploadProgress({
       ...uploadingEntry(),
