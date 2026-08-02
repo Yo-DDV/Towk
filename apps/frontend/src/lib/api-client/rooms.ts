@@ -16,6 +16,7 @@ import {
 import type { Room, RoomBan as APIRoomBan } from '@towk/api-types/api/v1/rooms_pb';
 import { mapDirectoryMember, type DirectoryMember } from './memberDirectory.js';
 import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
+import { ROOM_NAME_MAX_LENGTH, normalizeRoomName, roomNameLength } from '$lib/validation/roomName';
 
 export type { ConnectAPIConfig } from './connect.js';
 
@@ -60,7 +61,6 @@ export type RoomBanList = {
 
 export type RoomCommandAPI = ReturnType<typeof createRoomCommandAPI>;
 
-const ROOM_NAME_MAX_LENGTH = 30;
 const ROOM_DESCRIPTION_MAX_LENGTH = 500;
 
 function publicRoom(room: Room | undefined): PublicRoom | null {
@@ -117,7 +117,10 @@ function roomBan(ban: APIRoomBan): RoomBanSummary {
 function roomValidationError(err: unknown, input: { name?: string; description?: string | null }) {
   if (!(err instanceof ConnectError) || err.code !== Code.InvalidArgument) return err;
 
-  if (input.name !== undefined && input.name.length > ROOM_NAME_MAX_LENGTH) {
+  if (
+    input.name !== undefined &&
+    roomNameLength(normalizeRoomName(input.name)) > ROOM_NAME_MAX_LENGTH
+  ) {
     return new Error(m['room.create.name_too_long']({ max: ROOM_NAME_MAX_LENGTH }));
   }
   if ((input.description ?? '').length > ROOM_DESCRIPTION_MAX_LENGTH) {

@@ -197,9 +197,9 @@ func TestRoomCatalogProjection_IgnoresMembershipEvents(t *testing.T) {
 
 func TestRoomCatalogProjection_NameClaimSnapshotTracksRoomSeq(t *testing.T) {
 	p := NewRoomCatalogProjection()
-	require.NoError(t, p.Apply(roomCreatedEvent("R1", "general", "", corev1.RoomKind_ROOM_KIND_CHANNEL), 10))
+	require.NoError(t, p.Apply(roomCreatedEvent("R1", "Café ☕", "", corev1.RoomKind_ROOM_KIND_CHANNEL), 10))
 
-	snapshot := p.NameClaimSnapshot("General")
+	snapshot := p.NameClaimSnapshot("  CAFE\u0301   ☕  ")
 	require.Equal(t, "R1", snapshot.OwnerRoomID)
 	require.Equal(t, uint64(10), snapshot.Seq)
 
@@ -209,12 +209,12 @@ func TestRoomCatalogProjection_NameClaimSnapshotTracksRoomSeq(t *testing.T) {
 	}
 	require.NoError(t, p.Apply(join, 11))
 
-	snapshot = p.NameClaimSnapshot("general")
+	snapshot = p.NameClaimSnapshot("café ☕")
 	require.Equal(t, "R1", snapshot.OwnerRoomID)
 	require.Equal(t, uint64(11), snapshot.Seq)
 
-	require.NoError(t, p.Apply(roomCreatedEvent("DM1", "general", "", corev1.RoomKind_ROOM_KIND_DM), 12))
-	snapshot = p.NameClaimSnapshot("general")
+	require.NoError(t, p.Apply(roomCreatedEvent("DM1", "CAFÉ ☕", "", corev1.RoomKind_ROOM_KIND_DM), 12))
+	snapshot = p.NameClaimSnapshot("CAFÉ ☕")
 	require.Equal(t, "R1", snapshot.OwnerRoomID)
 	require.Equal(t, uint64(12), snapshot.Seq)
 }

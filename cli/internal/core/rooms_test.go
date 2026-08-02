@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -137,6 +138,16 @@ func TestChattoCore_CreateRoom_Validation(t *testing.T) {
 			t.Errorf("Expected name to be trimmed, got: %s", room.Name)
 		}
 	})
+
+	t.Run("expressive name is normalized before persistence", func(t *testing.T) {
+		room, err := core.CreateRoom(ctx, "test-user", KindChannel, "", "  📣   Cafe\u0301\u00a0Updates  ", "Description")
+		if err != nil {
+			t.Fatalf("CreateRoom returned error: %v", err)
+		}
+		if room.Name != "📣 Café Updates" {
+			t.Fatalf("room name = %q, want %q", room.Name, "📣 Café Updates")
+		}
+	})
 }
 
 func TestValidateRoomName(t *testing.T) {
@@ -149,36 +160,21 @@ func TestValidateRoomName(t *testing.T) {
 		{"whitespace only", "   ", "room name is required"},
 		{"tabs only", "\t\t", "room name is required"},
 		{"valid name", "General", ""},
-		{"valid name with hyphen", "general-discussion", ""},
-		{"valid name with underscore", "general_discussion", ""},
-		{"valid mixed case", "GeneralDiscussion", ""},
-		{"valid with numbers", "room123", ""},
-		{"valid single char", "A", ""},
-		{"valid 30 chars", string(make([]byte, 30)), ""}, // will be replaced below
-		{"too long 31 chars", string(make([]byte, 31)), "room name must be 30 characters or less"},
-		{"invalid with spaces", "General Discussion", "room name must contain only alphanumeric characters, hyphens, and underscores (no spaces or special characters)"},
-		{"invalid with slash", "general/discussion", "room name must contain only alphanumeric characters, hyphens, and underscores (no spaces or special characters)"},
-		{"invalid with dot", "general.discussion", "room name must contain only alphanumeric characters, hyphens, and underscores (no spaces or special characters)"},
-		{"invalid with special chars", "general@discussion", "room name must contain only alphanumeric characters, hyphens, and underscores (no spaces or special characters)"},
-		{"invalid with emoji", "general💬", "room name must contain only alphanumeric characters, hyphens, and underscores (no spaces or special characters)"},
-	}
-
-	// Fix the 30-char test case
-	for i, tt := range tests {
-		if tt.name == "valid 30 chars" {
-			validName := ""
-			for j := 0; j < 30; j++ {
-				validName += "a"
-			}
-			tests[i].input = validName
-		}
-		if tt.name == "too long 31 chars" {
-			longName := ""
-			for j := 0; j < 31; j++ {
-				longName += "a"
-			}
-			tests[i].input = longName
-		}
+		{"valid with spaces", "General Discussion", ""},
+		{"valid with punctuation", "news / updates!", ""},
+		{"valid with accents", "Café entraide", ""},
+		{"valid with emoji", "💬 général", ""},
+		{"valid compound emoji", "👨‍👩‍👧‍👦 famille", ""},
+		{"valid 30 ASCII characters", strings.Repeat("a", 30), ""},
+		{"valid 30 emoji characters", strings.Repeat("💬", 30), ""},
+		{"too long 31 ASCII characters", strings.Repeat("a", 31), "room name must be 30 characters or less"},
+		{"too long 31 emoji characters", strings.Repeat("💬", 31), "room name must be 30 characters or less"},
+		{"embedded tab", "team\tupdates", "room name cannot contain control characters"},
+		{"embedded newline", "team\nupdates", "room name cannot contain control characters"},
+		{"bidi override", "team\u202eupdates", "room name cannot contain invisible formatting characters"},
+		{"zero width space", "team\u200bupdates", "room name cannot contain invisible formatting characters"},
+		{"joiner outside emoji", "team\u200dupdates", "room name cannot contain invisible formatting characters"},
+		{"combining marks only", "\u0301\u0308", "room name is required"},
 	}
 
 	for _, tt := range tests {
@@ -196,6 +192,16 @@ func TestValidateRoomName(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestNormalizeRoomName(t *testing.T) {
+	got, err := NormalizeRoomName("  📣   Cafe\u0301\u00a0Updates  ")
+	if err != nil {
+		t.Fatalf("NormalizeRoomName returned error: %v", err)
+	}
+	if got != "📣 Café Updates" {
+		t.Fatalf("NormalizeRoomName = %q, want %q", got, "📣 Café Updates")
 	}
 }
 
@@ -352,6 +358,21 @@ func TestChattoCore_CreateRoom_DuplicateName_CaseInsensitive(t *testing.T) {
 	_, err = core.CreateRoom(ctx, "test-user", KindChannel, "", "GENERAL", "General discussion allcaps")
 	if !errors.Is(err, ErrRoomNameExists) {
 		t.Errorf("Expected ErrRoomNameExists for all caps, got: %v", err)
+	}
+}
+
+func TestChattoCore_CreateRoom_DuplicateName_UnicodeCanonical(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	_, err := core.CreateRoom(ctx, "test-user", KindChannel, "", "Café ☕", "")
+	if err != nil {
+		t.Fatalf("CreateRoom composed name: %v", err)
+	}
+
+	_, err = core.CreateRoom(ctx, "test-user", KindChannel, "", "  CAFE\u0301   ☕  ", "")
+	if !errors.Is(err, ErrRoomNameExists) {
+		t.Fatalf("CreateRoom canonically equivalent name = %v, want ErrRoomNameExists", err)
 	}
 }
 
