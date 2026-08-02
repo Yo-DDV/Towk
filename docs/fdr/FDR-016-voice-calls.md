@@ -1,7 +1,7 @@
 # FDR-016: Voice Calls
 
 **Status:** Active
-**Last reviewed:** 2026-07-27
+**Last reviewed:** 2026-08-01
 
 ## Overview
 
@@ -64,11 +64,11 @@ Rooms support real-time voice conversations with optional camera video and scree
 **Why:** LiveKit delivers audio data over WebRTC, but the browser doesn't autoplay it without an attached element. Without explicit attach, the UI looks like everything works — participant rings even animate — but nobody hears anything. The pattern lives in `apps/frontend/src/lib/state/server/voiceCall.svelte.ts`; any refactor that touches LiveKit subscription handling needs to keep the `track.attach()` / `track.detach()` calls intact.
 **Tradeoff:** A subtle requirement that's easy to miss when refactoring; both microphone and `ScreenShareAudio` publications must keep this attachment path.
 
-### 5. Speaking indicators use neutral inline glyphs
+### 5. Speaking indicators follow LiveKit events and use a restrained accent pulse
 
-**Decision:** Participant cards read audio levels through the existing 60ms cache and show a neutral inline volume glyph for active speakers instead of an accent outline around the card.
-**Why:** The fast audio-level cache gives responsive speaking feedback, while keeping the visual treatment quiet and avoiding the blue outline around participant and screen-share tiles.
-**Tradeoff:** The indicator is intentionally more subtle than the previous animated card outline.
+**Decision:** Participant cards copy the complete LiveKit speaking snapshot on every `RoomEvent.ActiveSpeakersChanged` event and update their accent outline in the same browser event turn. Every participant marked as speaking remains highlighted independently, so concurrent speakers are visible together. Active outlines use a restrained transform-and-opacity pulse; reduced-motion clients keep the static outline without the pulse. Speaking indicators continue to reuse LiveKit audio levels and never open a second microphone-analysis `AudioContext`.
+**Why:** Event-driven propagation avoids adding the previous state-cache and component polling windows after LiveKit has already detected speech. Updating the complete snapshot preserves simultaneous speakers, while limiting animation to compositor-friendly properties keeps the feedback fluid across compact and large call layouts.
+**Tradeoff:** LiveKit and the media path still own speaker-detection latency, so the frontend cannot guarantee an instant outline before that event arrives. The accent outline is more prominent than a neutral glyph; reduced-motion clients intentionally receive state feedback without motion.
 
 ### 6. Screen sharing is joined-client LiveKit track state
 

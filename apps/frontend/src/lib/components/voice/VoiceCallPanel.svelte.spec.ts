@@ -31,6 +31,55 @@ function mediaQuery(matches: boolean, media: string): MediaQueryList {
 }
 
 describe('VoiceCallPanel screen-share audio', () => {
+  it('updates every simultaneous speaking card in the LiveKit event turn', async () => {
+    const levels = new Map<string, { isSpeaking: boolean; audioLevel: number }>();
+    let publishAudioLevels: () => void = () => undefined;
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'voice',
+        participantCount: 4,
+        viewportWidth: '1200px',
+        viewportHeight: '800px',
+        onStoreSeeded: (store) => {
+          store.voiceCall.getAudioLevel = (identity: string) =>
+            levels.get(identity) ?? { isSpeaking: false, audioLevel: 0 };
+          store.voiceCall.subscribeAudioLevels = (listener: () => void) => {
+            publishAudioLevels = listener;
+            return () => undefined;
+          };
+        }
+      }
+    });
+
+    const cards = await vi.waitFor(() => {
+      const values = Array.from(
+        container.querySelectorAll<HTMLElement>('[data-testid="call-participant-card"]')
+      );
+      expect(values).toHaveLength(4);
+      return values;
+    });
+    levels.set('gallery-1', { isSpeaking: true, audioLevel: 0.24 });
+    levels.set('gallery-2', { isSpeaking: true, audioLevel: 0.76 });
+    levels.set('gallery-3', { isSpeaking: true, audioLevel: 0.51 });
+    levels.set('gallery-4', { isSpeaking: true, audioLevel: 0.9 });
+
+    publishAudioLevels();
+
+    expect(cards.every((card) => card.dataset.callSpeaking === 'true')).toBe(true);
+    for (const card of cards) {
+      expect(Number(card.style.getPropertyValue('--call-speaking-ring-opacity'))).toBeGreaterThan(
+        0
+      );
+    }
+
+    levels.set('gallery-2', { isSpeaking: false, audioLevel: 0 });
+    publishAudioLevels();
+
+    expect(cards[1]?.dataset.callSpeaking).toBe('false');
+    expect(cards.filter((card) => card.dataset.callSpeaking === 'true')).toHaveLength(3);
+  });
+
   it('shows an accessible central status while the local call is joining', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'stage', scenario: 'voice', joining: true }

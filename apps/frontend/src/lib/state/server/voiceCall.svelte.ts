@@ -100,11 +100,13 @@ export type CallParticipantInfo = {
 
 export type SiblingAudioTarget = 'microphone' | 'output';
 
-/** Non-reactive audio level snapshot, read imperatively by the UI at ~60ms. */
+/** Non-reactive audio level snapshot, refreshed directly from LiveKit speaker events. */
 export type AudioLevelInfo = {
   isSpeaking: boolean;
   audioLevel: number;
 };
+
+export type AudioLevelListener = () => void;
 
 export type CallTransitionSoundDecision = 'play' | 'defer' | 'skip';
 export type VoiceCallJoinGuard = () => boolean;
@@ -414,7 +416,6 @@ export class VoiceCallState {
   private audioInputOperationQueue: Promise<void> = Promise.resolve();
   private audioOutputOperationQueue: Promise<void> = Promise.resolve();
   private e2eeWorker: Worker | null = null;
-  private audioLevelInterval: ReturnType<typeof setInterval> | null = null;
   private participantNetworkQualityInterval: ReturnType<typeof setInterval> | null = null;
   private microphoneRouteReconcileInterval: ReturnType<typeof setInterval> | null = null;
   private microphoneRouteFingerprint: string | null = null;
@@ -451,10 +452,12 @@ export class VoiceCallState {
   // backend has committed their leave.
   private terminalParticipantIds = new SvelteSet<string>();
 
-  // Non-reactive audio level cache — updated at 60ms by the polling interval.
-  // Deliberately NOT $state to avoid triggering Svelte reactivity at 60Hz.
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately non-reactive, polled imperatively at 60Hz
+  // Deliberately non-reactive: speaker events update the visible card nodes
+  // directly instead of invalidating the complete call scene.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- event-driven imperative cache
   private audioLevelCache = new Map<string, AudioLevelInfo>();
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative subscription registry
+  private audioLevelListeners = new Set<AudioLevelListener>();
 
   constructor(
     api: VoiceCallAPI,
@@ -578,12 +581,16 @@ export class VoiceCallState {
   }
 
   /**
-   * Read the current audio level for a participant. Non-reactive — intended
-   * to be called from a manual polling loop (setInterval), not from Svelte
-   * templates or $derived expressions.
+   * Read the current LiveKit audio level for a participant. This snapshot is
+   * non-reactive; subscribeAudioLevels() announces speaker-event refreshes.
    */
   getAudioLevel(identity: string): AudioLevelInfo {
     return this.audioLevelCache.get(identity) ?? { isSpeaking: false, audioLevel: 0 };
+  }
+
+  subscribeAudioLevels(listener: AudioLevelListener): () => void {
+    this.audioLevelListeners.add(listener);
+    return () => this.audioLevelListeners.delete(listener);
   }
 
   isParticipantLocallyMuted(identity: string): boolean {
@@ -2312,11 +2319,13 @@ export class VoiceCallState {
       this.updateParticipants();
     });
 
-    // Keep audio level snapshots fresh for call UI consumers without pushing
-    // 60Hz updates through Svelte's reactive graph.
-    this.audioLevelInterval = setInterval(() => {
+    // LiveKit updates every participant's isSpeaking/audioLevel fields before
+    // emitting this event. Propagate that snapshot synchronously so the UI
+    // does not add two polling windows after speech has already been detected.
+    room.on(RoomEvent.ActiveSpeakersChanged, () => {
       this.updateAudioLevels();
-    }, 60);
+    });
+    this.updateAudioLevels();
     this.microphoneRouteReconcileInterval = setInterval(() => {
       void this.observeMicrophoneRoute(room);
     }, MICROPHONE_ROUTE_RECONCILE_INTERVAL_MS);
@@ -2709,9 +2718,8 @@ export class VoiceCallState {
   }
 
   /**
-   * Update the non-reactive audio level cache. Called at ~60ms.
-   * Writes to a plain Map (not $state) so Svelte's reactive graph is
-   * completely untouched.
+   * Copy the complete LiveKit speaker snapshot, then notify imperative UI
+   * consumers once. The complete snapshot preserves simultaneous speakers.
    */
   private updateAudioLevels(): void {
     if (!this.room) return;
@@ -2721,12 +2729,22 @@ export class VoiceCallState {
       ...Array.from(this.room.remoteParticipants.values())
     ];
 
+    const activeIdentities = new SvelteSet<string>();
     for (const p of allParticipants) {
+      activeIdentities.add(p.identity);
       this.audioLevelCache.set(p.identity, {
         isSpeaking: p.isSpeaking,
         audioLevel: p.audioLevel
       });
     }
+    for (const identity of this.audioLevelCache.keys()) {
+      if (!activeIdentities.has(identity)) this.audioLevelCache.delete(identity);
+    }
+    this.notifyAudioLevelListeners();
+  }
+
+  private notifyAudioLevelListeners(): void {
+    for (const listener of this.audioLevelListeners) listener();
   }
 
   private cleanup(): void {
@@ -2837,10 +2855,6 @@ export class VoiceCallState {
 
   private releaseCurrentRoom(): void {
     this.mediaDeviceRefreshGeneration += 1;
-    if (this.audioLevelInterval) {
-      clearInterval(this.audioLevelInterval);
-      this.audioLevelInterval = null;
-    }
     if (this.participantNetworkQualityInterval) {
       clearInterval(this.participantNetworkQualityInterval);
       this.participantNetworkQualityInterval = null;
@@ -2868,6 +2882,7 @@ export class VoiceCallState {
     this.participantNetworkQualityPollRoom = null;
     this.microphoneRouteFingerprint = null;
     this.audioLevelCache.clear();
+    this.notifyAudioLevelListeners();
   }
 
   private scheduleRecovery(): void {
