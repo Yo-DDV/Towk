@@ -69,10 +69,13 @@ export const messageUploadProgress = {
     replace(transitionMessageUploadProgress(entry, 'sending', now));
   },
 
-  markConfirming(id: string, now = Date.now()): void {
+  markConfirming(id: string, eventId: string | null, now = Date.now()): void {
     const entry = entriesById.get(id);
     if (!entry) return;
-    replace(transitionMessageUploadProgress(entry, 'confirming', now));
+    replace({
+      ...transitionMessageUploadProgress(entry, 'confirming', now),
+      eventId
+    });
   },
 
   markConfirmed(id: string, now = Date.now()): void {

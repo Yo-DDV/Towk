@@ -7,7 +7,23 @@ afterEach(() => {
 });
 
 describe('message upload progress store', () => {
-  it('keeps confirmation visible briefly before removing the island', () => {
+  it('records the accepted event identity before visible confirmation', () => {
+    messageUploadProgress.begin({
+      id: 'request-1',
+      roomId: 'room-1',
+      fileNames: ['photo.png'],
+      totalBytes: 10
+    });
+
+    messageUploadProgress.markConfirming('request-1', 'event-1');
+
+    expect(messageUploadProgress.entries[0]).toMatchObject({
+      phase: 'confirming',
+      eventId: 'event-1'
+    });
+  });
+
+  it('keeps visible confirmation briefly before removing the island', () => {
     vi.useFakeTimers();
     messageUploadProgress.begin({
       id: 'request-1',

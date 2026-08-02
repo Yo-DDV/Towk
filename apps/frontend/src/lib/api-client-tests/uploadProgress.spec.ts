@@ -155,7 +155,8 @@ describe('message attachment upload progress', () => {
     ]);
     expect(messageUploadProgress.entries[0]).toMatchObject({
       id: 'request-1',
-      phase: 'confirmed',
+      phase: 'confirming',
+      eventId: 'message-1',
       roomId: 'room-1',
       committedBytes: 8,
       totalBytes: 8

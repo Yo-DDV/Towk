@@ -20,6 +20,7 @@ export type MessageUploadProgressEntry = {
   roomId: string;
   threadRootEventId: string | null;
   isVoiceMessage: boolean;
+  eventId: string | null;
   phase: MessageUploadPhase;
   failureStage: MessageUploadFailureStage | null;
   fileName: string;
@@ -70,6 +71,7 @@ export function createMessageUploadProgressEntry(
     roomId: input.roomId,
     threadRootEventId: input.threadRootEventId ?? null,
     isVoiceMessage: input.isVoiceMessage ?? false,
+    eventId: null,
     phase: 'preparing',
     failureStage: null,
     fileName: input.fileNames[0] ?? '',

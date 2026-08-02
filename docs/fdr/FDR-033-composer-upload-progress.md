@@ -17,7 +17,7 @@ This record complements [FDR-008](FDR-008-file-attachments-and-video.md) and [FD
 - Multi-file sends identify the file currently reporting progress and show its position in the batch.
 - Elapsed time is always available. Remaining time appears only after a bounded sample window has enough committed-byte movement to calculate a meaningful rate.
 - The lifecycle continues through message creation and local conversation confirmation. A completed file upload is never presented as a confirmed message.
-- A successful confirmation remains visible briefly, then dismisses automatically.
+- Confirmation starts only after the matching accepted event ID is present in the rendered room or thread timeline. It remains visible briefly, then dismisses automatically.
 - An ordinary attachment upload failure remains visible and offers a retry through the originating composer after its draft has been restored. A failed voice-message upload leaves the voice draft and its existing send control in review mode. A failure after message creation started is labelled as unconfirmed and does not offer an unsafe duplicate-send shortcut.
 - Status is keyed by server, room, thread root, and client request ID. Root-room and thread composers can therefore upload concurrently without overwriting each other.
 - The island follows the matching composer through viewport resize, zoom, scrolling, software-keyboard changes, and installed-PWA visual viewport changes.
@@ -35,11 +35,11 @@ This record complements [FDR-008](FDR-008-file-attachments-and-video.md) and [FD
 
 ### 2. The status surface is global but composer-anchored
 
-**Decision:** Upload state lives in a small client store keyed by the idempotent message request ID. A root overlay positions each island relative to the matching room or thread composer.
+**Decision:** Upload state lives in a small client store keyed by the idempotent message request ID. A root overlay positions each island relative to the matching room or thread composer and observes the matching rendered event ID before completing the status.
 
-**Why:** The API client owns the real upload lifecycle, while the composer may be replaced during route or viewport changes. Keeping the state outside a particular component instance prevents stale callbacks from corrupting a new composer and supports simultaneous room and thread sends.
+**Why:** The API client owns the real upload lifecycle, while the composer may be replaced during route or viewport changes. Keeping the state outside a particular component instance prevents stale callbacks from corrupting a new composer, supports simultaneous room and thread sends, and separates server acceptance from visible conversation confirmation.
 
-**Tradeoff:** Positioning depends on the stable composer test IDs already used by the frontend suite. Missing anchors hide the island rather than placing it over an unrelated control.
+**Tradeoff:** Positioning and final confirmation depend on the stable composer and event-row data attributes already used by the frontend suite. Missing anchors hide the island; a missing event row leaves it in the explicit confirming state rather than claiming success.
 
 ### 3. ETA is deliberately conservative
 
@@ -57,4 +57,4 @@ This record complements [FDR-008](FDR-008-file-attachments-and-video.md) and [FD
 
 The change is frontend-only. No protobuf, persisted event, storage, permission, upload limit, encryption boundary, or mixed-version contract changes. Older clients continue to upload normally without the island; newer clients work with the existing `AssetUploadService` responses.
 
-Rollback consists of reverting the frontend commit. Open upload sessions continue to follow the server's existing cancellation and expiry behavior, and no data migration is required.
+Rollback consists of reverting the frontend commits. Open upload sessions continue to follow the server's existing cancellation and expiry behavior, and no data migration is required.

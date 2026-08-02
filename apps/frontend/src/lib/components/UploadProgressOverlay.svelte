@@ -15,6 +15,28 @@
     )
   );
 
+  $effect(() => {
+    const pending = activeEntries.filter(
+      (entry) => entry.phase === 'confirming' && entry.eventId
+    );
+    if (pending.length === 0 || typeof document === 'undefined') return;
+
+    function confirmRenderedEvents() {
+      for (const entry of pending) {
+        const eventId = entry.eventId;
+        if (!eventId) continue;
+        if (document.querySelector(`[data-event-id="${CSS.escape(eventId)}"]`)) {
+          messageUploadProgress.markConfirmed(entry.id);
+        }
+      }
+    }
+
+    confirmRenderedEvents();
+    const observer = new MutationObserver(confirmRenderedEvents);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  });
+
   function retry(entry: MessageUploadProgressEntry) {
     const selector = entry.threadRootEventId
       ? '[data-testid="thread-reply-input"]'

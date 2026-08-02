@@ -141,18 +141,19 @@ export function createMessageAPI(config: MessageAPIConfig) {
         { headers: headers() }
       );
 
-      messageUploadProgress.markConfirming(input.clientRequestId);
+      messageUploadProgress.markConfirming(
+        input.clientRequestId,
+        response.message?.id ?? null
+      );
       const users = await timelineUsersForMessages(
         config,
         response.message ? [response.message] : []
       );
-      const result = {
+      return {
         event: response.message
           ? (messageToRawEvent(response.message, users) as RoomEventView | null)
           : null
       };
-      messageUploadProgress.markConfirmed(input.clientRequestId);
-      return result;
     } catch (err) {
       messageUploadProgress.fail(input.clientRequestId);
       return handleAuthError(config, err);
