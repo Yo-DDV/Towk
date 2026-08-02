@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Track } from 'livekit-client';
 import {
+  aggregateParticipantNetworkQuality,
   classifyNetworkHealth,
   collectParticipantNetworkQuality,
   selectParticipantNetworkWarningMetric
@@ -68,6 +69,71 @@ describe('participant network quality', () => {
     expect(selectParticipantNetworkWarningMetric(0, 75)).toBe('jitter');
     expect(selectParticipantNetworkWarningMetric(12.4, 82)).toBe('packetLoss');
     expect(selectParticipantNetworkWarningMetric(0.4, 12)).toBeNull();
+  });
+
+  it('aggregates every active media track using the worst current signals', () => {
+    expect(
+      aggregateParticipantNetworkQuality([
+        {
+          health: 'excellent',
+          jitterMs: 8,
+          packetLossPercent: 0,
+          warningMetric: null
+        },
+        {
+          health: 'poor',
+          jitterMs: 170,
+          packetLossPercent: 12,
+          warningMetric: 'jitter'
+        }
+      ])
+    ).toEqual({
+      health: 'poor',
+      jitterMs: 170,
+      packetLossPercent: 12,
+      warningMetric: 'packetLoss'
+    });
+    expect(aggregateParticipantNetworkQuality([])).toBeNull();
+  });
+
+  it('keeps the aggregate unknown when any active track has no usable signal', () => {
+    expect(
+      aggregateParticipantNetworkQuality([
+        {
+          health: 'excellent',
+          jitterMs: 8,
+          packetLossPercent: 0,
+          warningMetric: null
+        },
+        {
+          health: 'unknown',
+          jitterMs: null,
+          packetLossPercent: null,
+          warningMetric: null
+        }
+      ])
+    ).toBeNull();
+    expect(
+      aggregateParticipantNetworkQuality([
+        {
+          health: 'poor',
+          jitterMs: 170,
+          packetLossPercent: 12,
+          warningMetric: 'packetLoss'
+        },
+        {
+          health: 'unknown',
+          jitterMs: null,
+          packetLossPercent: null,
+          warningMetric: null
+        }
+      ])
+    ).toEqual({
+      health: 'poor',
+      jitterMs: 170,
+      packetLossPercent: 12,
+      warningMetric: 'packetLoss'
+    });
   });
 });
 

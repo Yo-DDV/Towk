@@ -47,12 +47,19 @@ export type ScreenShareDiagnosticsSample = {
   keyFrames: number | null;
   freezeCount: number | null;
   totalFreezeDurationMs: number | null;
+  freezeCountDelta: number | null;
+  freezeDurationDeltaMs: number | null;
   pauseCount: number | null;
   totalPauseDurationMs: number | null;
+  pauseCountDelta: number | null;
+  pauseDurationDeltaMs: number | null;
   jitterBufferDelayMs: number | null;
   nackCount: number | null;
+  nackCountDelta: number | null;
   pliCount: number | null;
+  pliCountDelta: number | null;
   firCount: number | null;
+  firCountDelta: number | null;
   retransmittedPackets: number | null;
   retransmittedBytes: number | null;
   codec: string | null;
@@ -86,6 +93,13 @@ export type ScreenShareDiagnosticsCounters = {
   framesForRate: number | null;
   jitterBufferDelay: number | null;
   jitterBufferEmittedCount: number | null;
+  freezeCount: number | null;
+  totalFreezeDurationMs: number | null;
+  pauseCount: number | null;
+  totalPauseDurationMs: number | null;
+  nackCount: number | null;
+  pliCount: number | null;
+  firCount: number | null;
   streams: Record<string, StreamCounters>;
 };
 
@@ -288,10 +302,27 @@ function classifyHealth(
   sample: Omit<ScreenShareDiagnosticsSample, 'health'>
 ): ScreenShareDiagnosticsHealth {
   const hasSignal =
-    sample.framesPerSecond !== null || sample.bitrateBps !== null || sample.width !== null;
+    sample.framesPerSecond !== null ||
+    sample.bitrateBps !== null ||
+    sample.width !== null ||
+    sample.packetsSent !== null ||
+    sample.packetsReceived !== null;
   if (!hasSignal) return 'unknown';
 
+  const feedbackDelta =
+    (sample.nackCountDelta ?? 0) + (sample.pliCountDelta ?? 0) + (sample.firCountDelta ?? 0);
+  const playbackPaused =
+    (sample.pauseCountDelta ?? 0) > 0 || (sample.pauseDurationDeltaMs ?? 0) >= 1_000;
+  const corroboratedFreeze =
+    (sample.freezeDurationDeltaMs ?? 0) >= 1_000 &&
+    (feedbackDelta > 0 ||
+      (sample.packetLossPercent ?? 0) >= 2 ||
+      (sample.jitterMs ?? 0) >= 50 ||
+      (sample.jitterBufferDelayMs ?? 0) >= 100);
+
   if (
+    playbackPaused ||
+    (sample.jitterBufferDelayMs !== null && sample.jitterBufferDelayMs >= 250) ||
     (sample.packetLossPercent !== null && sample.packetLossPercent >= 5) ||
     (sample.framesPerSecond !== null && sample.framesPerSecond < 12) ||
     (sample.frameDropPercent !== null && sample.frameDropPercent >= 8)
@@ -300,6 +331,8 @@ function classifyHealth(
   }
 
   if (
+    corroboratedFreeze ||
+    (sample.jitterBufferDelayMs !== null && sample.jitterBufferDelayMs >= 100) ||
     (sample.packetLossPercent !== null && sample.packetLossPercent >= 2) ||
     (sample.framesPerSecond !== null && sample.framesPerSecond < 24) ||
     (sample.frameDropPercent !== null && sample.frameDropPercent >= 3) ||
@@ -399,6 +432,15 @@ export async function collectScreenShareDiagnostics({
     jitterBufferEmittedCount,
     previous?.jitterBufferEmittedCount ?? null
   );
+  const freezeCount = direction === 'inbound' ? sum(rtpStats, 'freezeCount') : null;
+  const totalFreezeDurationMs =
+    direction === 'inbound' ? secondsToMs(sum(rtpStats, 'totalFreezesDuration')) : null;
+  const pauseCount = direction === 'inbound' ? sum(rtpStats, 'pauseCount') : null;
+  const totalPauseDurationMs =
+    direction === 'inbound' ? secondsToMs(sum(rtpStats, 'totalPausesDuration')) : null;
+  const nackCount = sum(rtpStats, 'nackCount');
+  const pliCount = sum(rtpStats, 'pliCount');
+  const firCount = sum(rtpStats, 'firCount');
 
   const streams: Record<string, StreamCounters> = {};
   const layers = rtpStats
@@ -491,21 +533,29 @@ export async function collectScreenShareDiagnostics({
       direction === 'outbound'
         ? sum(rtpStats, 'keyFramesEncoded')
         : sum(rtpStats, 'keyFramesDecoded'),
-    freezeCount: direction === 'inbound' ? sum(rtpStats, 'freezeCount') : null,
-    totalFreezeDurationMs:
-      direction === 'inbound' ? secondsToMs(sum(rtpStats, 'totalFreezesDuration')) : null,
-    pauseCount: direction === 'inbound' ? sum(rtpStats, 'pauseCount') : null,
-    totalPauseDurationMs:
-      direction === 'inbound' ? secondsToMs(sum(rtpStats, 'totalPausesDuration')) : null,
+    freezeCount,
+    totalFreezeDurationMs,
+    freezeCountDelta: safeDelta(freezeCount, previous?.freezeCount ?? null),
+    freezeDurationDeltaMs: safeDelta(
+      totalFreezeDurationMs,
+      previous?.totalFreezeDurationMs ?? null
+    ),
+    pauseCount,
+    totalPauseDurationMs,
+    pauseCountDelta: safeDelta(pauseCount, previous?.pauseCount ?? null),
+    pauseDurationDeltaMs: safeDelta(totalPauseDurationMs, previous?.totalPauseDurationMs ?? null),
     jitterBufferDelayMs:
       jitterBufferDelayDelta !== null &&
       jitterBufferEmittedDelta !== null &&
       jitterBufferEmittedDelta > 0
         ? round((jitterBufferDelayDelta / jitterBufferEmittedDelta) * 1_000, 2)
         : null,
-    nackCount: sum(rtpStats, 'nackCount'),
-    pliCount: sum(rtpStats, 'pliCount'),
-    firCount: sum(rtpStats, 'firCount'),
+    nackCount,
+    nackCountDelta: safeDelta(nackCount, previous?.nackCount ?? null),
+    pliCount,
+    pliCountDelta: safeDelta(pliCount, previous?.pliCount ?? null),
+    firCount,
+    firCountDelta: safeDelta(firCount, previous?.firCount ?? null),
     retransmittedPackets:
       direction === 'outbound' ? sum(rtpStats, 'retransmittedPacketsSent') : null,
     retransmittedBytes: direction === 'outbound' ? sum(rtpStats, 'retransmittedBytesSent') : null,
@@ -547,6 +597,13 @@ export async function collectScreenShareDiagnostics({
       framesForRate,
       jitterBufferDelay,
       jitterBufferEmittedCount,
+      freezeCount,
+      totalFreezeDurationMs,
+      pauseCount,
+      totalPauseDurationMs,
+      nackCount,
+      pliCount,
+      firCount,
       streams
     }
   };

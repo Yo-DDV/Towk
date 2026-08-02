@@ -47,6 +47,7 @@ import {
 } from '$lib/audio/backgroundNoiseSuppression';
 import * as m from '$lib/i18n/messages';
 import {
+  aggregateParticipantNetworkQuality,
   collectParticipantNetworkQuality,
   PARTICIPANT_NETWORK_QUALITY_INTERVAL_MS,
   type ParticipantNetworkCounters,
@@ -121,6 +122,7 @@ const RECENTLY_DISCONNECTED_CALL_SOUND_MS = 5_000;
 const MEDIA_DEVICE_TOAST_DEDUPLICATION_MS = 1_500;
 const SCREEN_SHARE_UNAVAILABLE_TOAST_MS = 6_000;
 const MICROPHONE_ROUTE_RECONCILE_INTERVAL_MS = 1_000;
+const PARTICIPANT_NETWORK_QUALITY_STALE_MS = PARTICIPANT_NETWORK_QUALITY_INTERVAL_MS * 2;
 const MICROPHONE_ROUTE_AUTO_RECOVERY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
 const DEVICE_AUDIO_CONTROL_RPC_METHOD = 'towk.device-audio-control.v1';
 const DEVICE_AUDIO_CONTROL_RPC_TIMEOUT_MS = 8_000;
@@ -421,6 +423,7 @@ export class VoiceCallState {
   private participantNetworkQualityPollRoom: Room | null = null;
   private participantNetworkQuality = $state<Record<string, ParticipantNetworkQuality>>({});
   private participantNetworkCounters = new SvelteMap<string, ParticipantNetworkCounters>();
+  private participantNetworkQualityFailures = new SvelteMap<string, number>();
   private suppressDisconnectToast = false;
   private intentionalDisconnect = false;
   private recoveryTarget: CallRecoveryTarget | null = null;
@@ -2439,44 +2442,112 @@ export class VoiceCallState {
     const room = this.room;
     if (!room || this.participantNetworkQualityPollRoom === room) return;
     this.participantNetworkQualityPollRoom = room;
+    let sampleExpired = false;
+    const staleTimer = setTimeout(() => {
+      if (this.room !== room || this.participantNetworkQualityPollRoom !== room) return;
+      sampleExpired = true;
+      this.participantNetworkQuality = {};
+      this.participantNetworkQualityFailures.clear();
+      this.updateParticipants();
+    }, PARTICIPANT_NETWORK_QUALITY_STALE_MS);
 
     try {
       const participants = Array.from(room.remoteParticipants.values());
-      const activeIdentities = new SvelteSet(
-        participants.map((participant) => participant.identity)
-      );
+      const participantTracks = participants.map((participant) => ({
+        participant,
+        tracks: getParticipantNetworkTracks(participant)
+      }));
       const samples = await Promise.all(
-        participants.map(async (participant) => {
-          const track = getParticipantNetworkTrack(participant);
-          if (!track) return { identity: participant.identity, result: null };
-          const result = await collectParticipantNetworkQuality(
-            track,
-            this.participantNetworkCounters.get(participant.identity) ?? null
-          ).catch(() => null);
-          return { identity: participant.identity, result };
+        participantTracks.map(async ({ participant, tracks }) => {
+          const results = await Promise.all(
+            tracks.map(async ({ counterKey, track }) => ({
+              counterKey,
+              result: await collectParticipantNetworkQuality(
+                track,
+                this.participantNetworkCounters.get(counterKey) ?? null
+              ).catch(() => null)
+            }))
+          );
+          return {
+            identity: participant.identity,
+            sampledCounterKeys: tracks.map(({ counterKey }) => counterKey),
+            results
+          };
         })
       );
-      if (this.room !== room) return;
+      if (this.room !== room || sampleExpired) return;
 
+      const currentParticipantTracks = Array.from(room.remoteParticipants.values()).map(
+        (participant) => ({
+          identity: participant.identity,
+          tracks: getParticipantNetworkTracks(participant)
+        })
+      );
+      const activeIdentities = new SvelteSet(
+        currentParticipantTracks.map(({ identity }) => identity)
+      );
+      const activeCounterKeys = new SvelteSet(
+        currentParticipantTracks.flatMap(({ tracks }) => tracks.map(({ counterKey }) => counterKey))
+      );
+      const currentCounterKeysByIdentity = new SvelteMap(
+        currentParticipantTracks.map(({ identity, tracks }) => [
+          identity,
+          tracks.map(({ counterKey }) => counterKey)
+        ])
+      );
       const next = { ...this.participantNetworkQuality };
       for (const identity of Object.keys(next)) {
         if (!activeIdentities.has(identity)) delete next[identity];
       }
-      for (const { identity, result } of samples) {
-        if (!result) {
-          const currentParticipant = room.remoteParticipants.get(identity);
-          if (!currentParticipant || !getParticipantNetworkTrack(currentParticipant)) {
-            delete next[identity];
-            this.participantNetworkCounters.delete(identity);
-          }
+      for (const identity of this.participantNetworkQualityFailures.keys()) {
+        if (!activeIdentities.has(identity))
+          this.participantNetworkQualityFailures.delete(identity);
+      }
+      for (const counterKey of this.participantNetworkCounters.keys()) {
+        if (!activeCounterKeys.has(counterKey)) this.participantNetworkCounters.delete(counterKey);
+      }
+      const sampledIdentities = new SvelteSet(samples.map(({ identity }) => identity));
+      for (const identity of activeIdentities) {
+        if (!sampledIdentities.has(identity)) delete next[identity];
+      }
+      for (const { identity, sampledCounterKeys, results } of samples) {
+        const currentCounterKeys = currentCounterKeysByIdentity.get(identity) ?? [];
+        const trackSetIsCurrent =
+          currentCounterKeys.length === sampledCounterKeys.length &&
+          currentCounterKeys.every((counterKey) => sampledCounterKeys.includes(counterKey));
+        if (!trackSetIsCurrent) {
+          delete next[identity];
+          this.participantNetworkQualityFailures.delete(identity);
           continue;
         }
-        next[identity] = result.quality;
-        this.participantNetworkCounters.set(identity, result.counters);
+        const successfulResults = results.flatMap(({ counterKey, result }) =>
+          result && activeCounterKeys.has(counterKey) ? [{ counterKey, result }] : []
+        );
+        const allTracksReported = successfulResults.length === currentCounterKeys.length;
+        const quality = allTracksReported
+          ? aggregateParticipantNetworkQuality(
+              successfulResults.map(({ result }) => result.quality)
+            )
+          : null;
+        if (quality) {
+          next[identity] = quality;
+          this.participantNetworkQualityFailures.delete(identity);
+        } else if (!currentCounterKeys.length) {
+          delete next[identity];
+          this.participantNetworkQualityFailures.delete(identity);
+        } else {
+          const failures = (this.participantNetworkQualityFailures.get(identity) ?? 0) + 1;
+          this.participantNetworkQualityFailures.set(identity, failures);
+          if (failures >= 2) delete next[identity];
+        }
+        for (const { counterKey, result } of successfulResults) {
+          this.participantNetworkCounters.set(counterKey, result.counters);
+        }
       }
       this.participantNetworkQuality = next;
       this.updateParticipants();
     } finally {
+      clearTimeout(staleTimer);
       if (this.participantNetworkQualityPollRoom === room) {
         this.participantNetworkQualityPollRoom = null;
       }
@@ -2506,41 +2577,43 @@ export class VoiceCallState {
       const canControlAudio = this.isControllableSibling(p);
       const siblingAudioState = canControlAudio ? this.siblingAudioStates[p.identity] : undefined;
       const networkQuality = this.participantNetworkQuality[p.identity];
-      return [{
-        identity: p.identity,
-        participantId,
-        userId,
-        deviceIndex: md.deviceIndex && md.deviceIndex > 0 ? md.deviceIndex : 1,
-        name: p.name ?? p.identity,
-        login: md.login ?? userId,
-        avatarUrl: md.avatarUrl ?? null,
-        isMuted: isParticipantMuted(p),
-        isLocal,
-        connectionQuality: p.connectionQuality as CallParticipantInfo['connectionQuality'],
-        networkHealth: networkQuality?.health ?? 'unknown',
-        packetLossPercent: networkQuality?.packetLossPercent ?? null,
-        jitterMs: networkQuality?.jitterMs ?? null,
-        networkWarningMetric: networkQuality?.warningMetric ?? null,
-        connectionState: 'connected' as const,
-        interruptionDeadline: null,
-        isCameraEnabled: isParticipantCameraEnabled(p),
-        videoTrack: getParticipantCameraTrack(p),
-        isScreenShareEnabled: isParticipantScreenShareEnabled(p),
-        isScreenShareAudioEnabled: isParticipantScreenShareAudioEnabled(p),
-        screenShareTrack: getParticipantScreenShareTrack(p),
-        isLocallyMuted: !isLocal && this.isParticipantLocallyMuted(p.identity),
-        canControlAudio,
-        siblingMicrophoneMuted: siblingAudioState?.microphoneMuted ?? null,
-        siblingOutputMuted: siblingAudioState?.outputMuted ?? null,
-        isSiblingMicrophoneControlPending:
-          canControlAudio &&
-          Boolean(
-            this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'microphone')]
-          ),
-        isSiblingOutputControlPending:
-          canControlAudio &&
-          Boolean(this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'output')])
-      }];
+      return [
+        {
+          identity: p.identity,
+          participantId,
+          userId,
+          deviceIndex: md.deviceIndex && md.deviceIndex > 0 ? md.deviceIndex : 1,
+          name: p.name ?? p.identity,
+          login: md.login ?? userId,
+          avatarUrl: md.avatarUrl ?? null,
+          isMuted: isParticipantMuted(p),
+          isLocal,
+          connectionQuality: p.connectionQuality as CallParticipantInfo['connectionQuality'],
+          networkHealth: networkQuality?.health ?? 'unknown',
+          packetLossPercent: networkQuality?.packetLossPercent ?? null,
+          jitterMs: networkQuality?.jitterMs ?? null,
+          networkWarningMetric: networkQuality?.warningMetric ?? null,
+          connectionState: 'connected' as const,
+          interruptionDeadline: null,
+          isCameraEnabled: isParticipantCameraEnabled(p),
+          videoTrack: getParticipantCameraTrack(p),
+          isScreenShareEnabled: isParticipantScreenShareEnabled(p),
+          isScreenShareAudioEnabled: isParticipantScreenShareAudioEnabled(p),
+          screenShareTrack: getParticipantScreenShareTrack(p),
+          isLocallyMuted: !isLocal && this.isParticipantLocallyMuted(p.identity),
+          canControlAudio,
+          siblingMicrophoneMuted: siblingAudioState?.microphoneMuted ?? null,
+          siblingOutputMuted: siblingAudioState?.outputMuted ?? null,
+          isSiblingMicrophoneControlPending:
+            canControlAudio &&
+            Boolean(
+              this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'microphone')]
+            ),
+          isSiblingOutputControlPending:
+            canControlAudio &&
+            Boolean(this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'output')])
+        }
+      ];
     });
     const connectedIdentities = new SvelteSet(
       connectedParticipants.map((participant) => participant.identity)
@@ -2791,6 +2864,7 @@ export class VoiceCallState {
     this.participants = [];
     this.participantNetworkQuality = {};
     this.participantNetworkCounters.clear();
+    this.participantNetworkQualityFailures.clear();
     this.participantNetworkQualityPollRoom = null;
     this.microphoneRouteFingerprint = null;
     this.audioLevelCache.clear();
@@ -3317,19 +3391,36 @@ function getParticipantCameraTrack(participant: Participant): Track | null {
   return null;
 }
 
-function getParticipantNetworkTrack(participant: Participant): Track | null {
+type ParticipantNetworkTrack = {
+  counterKey: string;
+  track: Track;
+};
+
+function getParticipantNetworkTracks(participant: Participant): ParticipantNetworkTrack[] {
   const preferredSources = [
     Track.Source.Microphone,
     Track.Source.Camera,
     Track.Source.ScreenShareAudio,
     Track.Source.ScreenShare
   ];
+  const tracks: ParticipantNetworkTrack[] = [];
   for (const source of preferredSources) {
+    let sourceIndex = 0;
     for (const publication of participant.getTrackPublications()) {
-      if (publication.track?.source === source && !publication.isMuted) return publication.track;
+      const track = publication.track;
+      if (track?.source !== source || publication.isMuted) continue;
+      const publicationSid = (publication as TrackPublication & { trackSid?: unknown }).trackSid;
+      const mediaTrackId = (track as Track & { mediaStreamTrack?: MediaStreamTrack })
+        .mediaStreamTrack?.id;
+      const stableTrackId =
+        typeof publicationSid === 'string' && publicationSid
+          ? publicationSid
+          : mediaTrackId || `${source}:${sourceIndex}`;
+      tracks.push({ counterKey: `${participant.identity}:${stableTrackId}`, track });
+      sourceIndex += 1;
     }
   }
-  return null;
+  return tracks;
 }
 
 function isParticipantScreenShareEnabled(participant: Participant): boolean {
