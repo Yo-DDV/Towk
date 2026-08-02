@@ -10,6 +10,7 @@ import {
 } from './messageUploadProgressModel';
 
 const entriesById = new SvelteMap<string, MessageUploadProgressEntry>();
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative timer registry
 const dismissalTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const CONFIRMED_VISIBLE_MS = 1_100;
 
