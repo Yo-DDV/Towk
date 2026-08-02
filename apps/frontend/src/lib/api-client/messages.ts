@@ -2,9 +2,14 @@ import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
 import type { LinkPreviewInput, RoomEventView } from './renderTypes.js';
 import { MessageService } from '@towk/api-types/api/v1/messages_pb';
 import { messageToRawEvent, timelineUsersForMessages } from './roomTimeline.js';
-import { createAssetUploadAPI } from './assetUploads.js';
+import {
+  createAssetUploadAPI,
+  type AttachmentUploadPhase,
+  type AttachmentUploadProgress
+} from './assetUploads.js';
 import { MAX_MESSAGE_ATTACHMENTS } from '$lib/attachments/filePolicy';
 import type { VoiceMessageMetadataInput } from '$lib/voiceMessages/policy';
+import { messageUploadProgress } from '$lib/uploads/messageUploadProgress.svelte';
 
 export { MAX_MESSAGE_ATTACHMENTS };
 
@@ -13,6 +18,17 @@ export type MessageAPIConfig = {
   baseUrl: string;
   bearerToken: string | null;
   onAuthenticationRequired?: (serverId: string) => void;
+};
+
+export type MessageUploadProgress = {
+  phase: AttachmentUploadPhase;
+  fileName: string;
+  fileIndex: number;
+  fileCount: number;
+  currentFileCommittedBytes: number;
+  currentFileTotalBytes: number;
+  committedBytes: number;
+  totalBytes: number;
 };
 
 export type CreateMessageInput = {
@@ -26,6 +42,8 @@ export type CreateMessageInput = {
   alsoSendToChannel?: boolean;
   linkPreview?: LinkPreviewInput | null;
   clientRequestId?: string;
+  signal?: AbortSignal;
+  onUploadProgress?: (progress: MessageUploadProgress) => void;
 };
 
 export type PreparedMessageInput = {
@@ -69,21 +87,44 @@ export function createMessageAPI(config: MessageAPIConfig) {
 
   async function prepareMessage(input: CreateMessageInput): Promise<PreparedMessageInput> {
     validateMessageAttachments(input);
-    const uploadedAttachmentAssetIds = await uploadMessageAttachments(config, input);
-    return {
-      roomId: input.roomId,
-      body: input.body,
-      attachmentAssetIds: [...(input.attachmentAssetIds ?? []), ...uploadedAttachmentAssetIds],
-      threadRootEventId: input.threadRootEventId ?? null,
-      inReplyTo: input.inReplyTo ?? null,
-      alsoSendToChannel: input.alsoSendToChannel ?? false,
-      linkPreviewToken: input.linkPreview?.previewToken ?? '',
-      clientRequestId: input.clientRequestId?.trim() || createClientRequestId(),
-      isVoiceMessage: !!input.voiceMessage
-    };
+    const clientRequestId = input.clientRequestId?.trim() || createClientRequestId();
+    const uploadFiles = messageUploadFiles(input);
+    if (uploadFiles.length > 0) {
+      messageUploadProgress.begin({
+        id: clientRequestId,
+        serverId: config.serverId,
+        roomId: input.roomId,
+        threadRootEventId: input.threadRootEventId,
+        fileNames: uploadFiles.map((file) => file.name || 'attachment'),
+        totalBytes: uploadFiles.reduce((total, file) => total + file.size, 0)
+      });
+    }
+
+    try {
+      const uploadedAttachmentAssetIds = await uploadMessageAttachments(
+        config,
+        input,
+        clientRequestId
+      );
+      return {
+        roomId: input.roomId,
+        body: input.body,
+        attachmentAssetIds: [...(input.attachmentAssetIds ?? []), ...uploadedAttachmentAssetIds],
+        threadRootEventId: input.threadRootEventId ?? null,
+        inReplyTo: input.inReplyTo ?? null,
+        alsoSendToChannel: input.alsoSendToChannel ?? false,
+        linkPreviewToken: input.linkPreview?.previewToken ?? '',
+        clientRequestId,
+        isVoiceMessage: !!input.voiceMessage
+      };
+    } catch (err) {
+      messageUploadProgress.fail(clientRequestId);
+      throw err;
+    }
   }
 
   async function createPreparedMessage(input: PreparedMessageInput): Promise<CreateMessageResult> {
+    messageUploadProgress.markSending(input.clientRequestId);
     try {
       const response = await client.createMessage(
         {
@@ -99,16 +140,20 @@ export function createMessageAPI(config: MessageAPIConfig) {
         { headers: headers() }
       );
 
+      messageUploadProgress.markConfirming(input.clientRequestId);
       const users = await timelineUsersForMessages(
         config,
         response.message ? [response.message] : []
       );
-      return {
+      const result = {
         event: response.message
           ? (messageToRawEvent(response.message, users) as RoomEventView | null)
           : null
       };
+      messageUploadProgress.markConfirmed(input.clientRequestId);
+      return result;
     } catch (err) {
+      messageUploadProgress.fail(input.clientRequestId);
       return handleAuthError(config, err);
     }
   }
@@ -207,29 +252,80 @@ function validateMessageAttachments(input: CreateMessageInput): void {
   }
 }
 
-async function uploadMessageAttachments(config: MessageAPIConfig, input: CreateMessageInput) {
-  const files = input.attachments;
-  const voiceMessage = input.voiceMessage;
-  if (!files?.length && !voiceMessage) return [];
+type UploadCandidate = {
+  file: File;
+  voiceMessage?: VoiceMessageMetadataInput;
+};
+
+function messageUploadFiles(input: CreateMessageInput): File[] {
+  return [...(input.attachments ?? []), ...(input.voiceMessage ? [input.voiceMessage.file] : [])];
+}
+
+async function uploadMessageAttachments(
+  config: MessageAPIConfig,
+  input: CreateMessageInput,
+  clientRequestId: string
+) {
+  const candidates: UploadCandidate[] = [
+    ...(input.attachments ?? []).map((file) => ({ file })),
+    ...(input.voiceMessage ? [{ file: input.voiceMessage.file, voiceMessage: input.voiceMessage }] : [])
+  ];
+  if (candidates.length === 0) return [];
+
+  const totalBytes = candidates.reduce((total, candidate) => total + candidate.file.size, 0);
+  const committedBytes = candidates.map(() => 0);
   const uploads = createAssetUploadAPI(config);
-  const genericUploads = (files ?? []).map((file) =>
-    uploads.uploadAttachment({
-      roomId: input.roomId,
-      file
-    })
-  );
-  const voiceUpload = voiceMessage
-    ? [
-        uploads.uploadAttachment({
-          roomId: input.roomId,
-          file: voiceMessage.file,
-          voiceMessage: {
-            durationMs: BigInt(Math.round(voiceMessage.durationMs)),
-            waveformPeaks: voiceMessage.waveformPeaks
-          }
-        })
-      ]
-    : [];
-  const assets = await Promise.all([...genericUploads, ...voiceUpload]);
-  return assets.map((asset) => asset.assetId);
+  const batchController = new AbortController();
+  const unlinkAbort = linkAbortSignal(input.signal, batchController);
+
+  const report = (index: number, progress: AttachmentUploadProgress) => {
+    committedBytes[index] = progress.committedBytes;
+    const aggregate: MessageUploadProgress = {
+      phase: progress.phase,
+      fileName: progress.fileName,
+      fileIndex: index,
+      fileCount: candidates.length,
+      currentFileCommittedBytes: progress.committedBytes,
+      currentFileTotalBytes: progress.totalBytes,
+      committedBytes: committedBytes.reduce((total, value) => total + value, 0),
+      totalBytes
+    };
+    input.onUploadProgress?.(aggregate);
+    messageUploadProgress.update(clientRequestId, aggregate);
+  };
+
+  try {
+    return await Promise.all(
+      candidates.map(async (candidate, index) => {
+        try {
+          const asset = await uploads.uploadAttachment({
+            roomId: input.roomId,
+            file: candidate.file,
+            signal: batchController.signal,
+            voiceMessage: candidate.voiceMessage
+              ? {
+                  durationMs: BigInt(Math.round(candidate.voiceMessage.durationMs)),
+                  waveformPeaks: candidate.voiceMessage.waveformPeaks
+                }
+              : undefined,
+            onProgress: (progress) => report(index, progress)
+          });
+          return asset.assetId;
+        } catch (err) {
+          if (!batchController.signal.aborted) batchController.abort(err);
+          throw err;
+        }
+      })
+    );
+  } finally {
+    unlinkAbort();
+  }
+}
+
+function linkAbortSignal(source: AbortSignal | undefined, target: AbortController): () => void {
+  if (!source) return () => undefined;
+  const abort = () => target.abort(source.reason);
+  if (source.aborted) abort();
+  else source.addEventListener('abort', abort, { once: true });
+  return () => source.removeEventListener('abort', abort);
 }
