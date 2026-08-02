@@ -12,6 +12,8 @@
       "universal_description": "Todos os membros do servidor (com permissão) são automaticamente membros desta sala.",
       "name_required": "O nome da sala é obrigatório",
       "name_too_long": "O nome da sala deve ter no máximo {max} caracteres.",
+      "name_invalid": "O nome da sala não pode conter caracteres de controle ou de formatação invisíveis.",
+      "name_help": "Use espaços, pontuação, acentos e emojis — até {max} caracteres.",
       "description_too_long": "A descrição da sala deve ter no máximo {max} caracteres.",
       "missing_group": "Escolha um grupo de salas antes de criar uma sala.",
       "failed": "Falha ao criar sala",

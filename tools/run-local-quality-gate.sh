@@ -101,10 +101,11 @@ if ((failed != 0)); then
   exit 1
 fi
 
-# Vitest Browser Mode and the end-to-end suite both own Chromium processes.
-# Keep them sequential so resource contention cannot turn media-heavy tests
-# into false timeouts. Small isolated batches bound the shared iframe runner's
-# lifetime and keep media or navigation fixtures from invalidating later files.
+# Vitest Browser Mode, Storybook tests, and the end-to-end suite own Chromium
+# processes. Keep them sequential so resource contention cannot turn
+# media-heavy tests into false timeouts. Small isolated batches bound the
+# shared iframe runner's lifetime and keep media or navigation fixtures from
+# invalidating later files.
 echo "Starting frontend browser tests"
 (
   cd apps/frontend
@@ -147,6 +148,13 @@ echo "Starting frontend browser tests"
   if ((${#browser_test_batch[@]} > 0)); then
     run_browser_batch
   fi
+)
+
+echo "Starting Storybook design-system tests and production build"
+(
+  cd apps/frontend
+  pnpm test-storybook
+  pnpm build-storybook
 )
 
 echo "Starting browser end-to-end tests"

@@ -12,6 +12,8 @@
       "universal_description": "Alle Servermitglieder (mit entsprechender Berechtigung) sind automatisch Mitglieder dieses Raums.",
       "name_required": "Raumname ist erforderlich",
       "name_too_long": "Der Raumname darf höchstens {max} Zeichen lang sein.",
+      "name_invalid": "Raumnamen dürfen keine Steuerzeichen oder unsichtbaren Formatierungszeichen enthalten.",
+      "name_help": "Leerzeichen, Satzzeichen, Akzente und Emojis sind erlaubt — bis zu {max} Zeichen.",
       "description_too_long": "Die Raumbeschreibung darf höchstens {max} Zeichen lang sein.",
       "missing_group": "Wähle eine Raumgruppe aus, bevor du einen Raum erstellst.",
       "failed": "Raum konnte nicht erstellt werden",

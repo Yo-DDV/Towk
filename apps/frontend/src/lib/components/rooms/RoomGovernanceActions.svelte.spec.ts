@@ -107,7 +107,9 @@ describe('RoomGovernanceActions', () => {
 
     const menu = container.querySelector('[role="menu"]');
     if (!(menu instanceof HTMLElement)) throw new Error('governance menu not found');
-    const bounds = menu.getBoundingClientRect();
+    const popover = menu.closest('[popover="manual"]');
+    if (!(popover instanceof HTMLElement)) throw new Error('governance popover not found');
+    const bounds = popover.getBoundingClientRect();
     expect(bounds.right).toBeCloseTo(400, 0);
     expect(bounds.top).toBeCloseTo(60, 0);
     expect(bounds.left).toBeGreaterThanOrEqual(0);
@@ -117,10 +119,11 @@ describe('RoomGovernanceActions', () => {
       DOMRect.fromRect({ x: 40, y: 0, width: 344, height: 640 })
     );
     window.dispatchEvent(new Event('resize'));
-    await vi.waitFor(() => expect(menu.getBoundingClientRect().right).toBeCloseTo(384, 0));
+    await vi.waitFor(() => expect(popover.getBoundingClientRect().right).toBeCloseTo(384, 0));
 
-    buttonByText(container, 'Lock room').focus();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    const lockAction = buttonByText(container, 'Lock room');
+    lockAction.focus();
+    lockAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await vi.waitFor(() => expect(container.querySelector('[role="menu"]')).toBeNull());
     await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
 

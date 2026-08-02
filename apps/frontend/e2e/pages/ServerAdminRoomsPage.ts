@@ -34,10 +34,10 @@ export class ServerAdminRoomsPage {
 
   /**
    * Get the room row locator for a given room name.
-   * Targets the draggable row div that contains the room name.
+   * Targets the semantic room-row container that contains the room name.
    */
   roomRow(name: string): Locator {
-    return this.page.locator('.cursor-grab', { hasText: name });
+    return this.page.locator('.room-row', { hasText: name });
   }
 
   /**
