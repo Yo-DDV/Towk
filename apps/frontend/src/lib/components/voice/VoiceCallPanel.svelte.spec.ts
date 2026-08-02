@@ -81,6 +81,47 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(container.querySelector('[data-testid="call-packet-loss-indicator"]')).toBeNull();
   });
 
+  it('explains average latency, packet loss, and jitter on keyboard focus', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'voice' }
+    });
+
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-connection-quality-indicator"][data-network-warning-metric="packetLoss"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    trigger.focus();
+
+    await vi.waitFor(() => {
+      const value = document.getElementById(trigger.getAttribute('aria-describedby') ?? '');
+      expect(value?.matches(':popover-open')).toBe(true);
+    });
+    const tooltip = document.getElementById(trigger.getAttribute('aria-describedby') ?? '')!;
+    expect(trigger.getAttribute('aria-describedby')).toBe(tooltip.id);
+    expect(tooltip.textContent).toContain('Average latency: 640 ms');
+    expect(tooltip.textContent).toContain('Packet loss: 12.4%');
+    expect(tooltip.textContent).toContain('Average jitter: 82 ms');
+  });
+
+  it('renders good measured connections as healthy instead of unavailable gray', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'voice' }
+    });
+
+    const indicator = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLElement>(
+        '[data-testid="call-connection-quality-indicator"][data-connection-quality="good"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(indicator.querySelector('.text-presence-online')).not.toBeNull();
+    expect(indicator.getAttribute('data-network-health')).toBe('good');
+  });
+
   it('navigates the device menu and restores its trigger focus', async () => {
     const devices = [
       mediaDevice('audioinput', 'mic-1', 'Microphone 1'),

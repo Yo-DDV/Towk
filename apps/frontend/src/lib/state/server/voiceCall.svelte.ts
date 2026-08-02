@@ -50,9 +50,11 @@ import {
   aggregateParticipantNetworkQuality,
   collectParticipantNetworkQuality,
   PARTICIPANT_NETWORK_QUALITY_INTERVAL_MS,
+  updateParticipantNetworkQualitySmoothing,
   type ParticipantNetworkCounters,
   type ParticipantNetworkHealth,
   type ParticipantNetworkQuality,
+  type ParticipantNetworkQualitySmoothing,
   type ParticipantNetworkWarningMetric
 } from '$lib/voice/participantNetworkQuality';
 import type {
@@ -82,6 +84,7 @@ export type CallParticipantInfo = {
   networkHealth: ParticipantNetworkHealth;
   packetLossPercent: number | null;
   jitterMs: number | null;
+  latencyMs: number | null;
   networkWarningMetric: ParticipantNetworkWarningMetric;
   connectionState: 'connected' | 'interrupted';
   interruptionDeadline: string | null;
@@ -423,6 +426,10 @@ export class VoiceCallState {
   private participantNetworkQualityPollRoom: Room | null = null;
   private participantNetworkQuality = $state<Record<string, ParticipantNetworkQuality>>({});
   private participantNetworkCounters = new SvelteMap<string, ParticipantNetworkCounters>();
+  private participantNetworkQualitySmoothing = new SvelteMap<
+    string,
+    ParticipantNetworkQualitySmoothing
+  >();
   private participantNetworkQualityFailures = new SvelteMap<string, number>();
   private suppressDisconnectToast = false;
   private intentionalDisconnect = false;
@@ -2448,6 +2455,7 @@ export class VoiceCallState {
       sampleExpired = true;
       this.participantNetworkQuality = {};
       this.participantNetworkQualityFailures.clear();
+      this.participantNetworkQualitySmoothing.clear();
       this.updateParticipants();
     }, PARTICIPANT_NETWORK_QUALITY_STALE_MS);
 
@@ -2503,6 +2511,10 @@ export class VoiceCallState {
         if (!activeIdentities.has(identity))
           this.participantNetworkQualityFailures.delete(identity);
       }
+      for (const identity of this.participantNetworkQualitySmoothing.keys()) {
+        if (!activeIdentities.has(identity))
+          this.participantNetworkQualitySmoothing.delete(identity);
+      }
       for (const counterKey of this.participantNetworkCounters.keys()) {
         if (!activeCounterKeys.has(counterKey)) this.participantNetworkCounters.delete(counterKey);
       }
@@ -2518,27 +2530,37 @@ export class VoiceCallState {
         if (!trackSetIsCurrent) {
           delete next[identity];
           this.participantNetworkQualityFailures.delete(identity);
+          this.participantNetworkQualitySmoothing.delete(identity);
           continue;
         }
         const successfulResults = results.flatMap(({ counterKey, result }) =>
           result && activeCounterKeys.has(counterKey) ? [{ counterKey, result }] : []
         );
         const allTracksReported = successfulResults.length === currentCounterKeys.length;
-        const quality = allTracksReported
+        const rawQuality = allTracksReported
           ? aggregateParticipantNetworkQuality(
               successfulResults.map(({ result }) => result.quality)
             )
           : null;
-        if (quality) {
-          next[identity] = quality;
+        if (rawQuality) {
+          const smoothed = updateParticipantNetworkQualitySmoothing(
+            this.participantNetworkQualitySmoothing.get(identity) ?? null,
+            rawQuality
+          );
+          this.participantNetworkQualitySmoothing.set(identity, smoothed.state);
+          next[identity] = smoothed.quality;
           this.participantNetworkQualityFailures.delete(identity);
         } else if (!currentCounterKeys.length) {
           delete next[identity];
           this.participantNetworkQualityFailures.delete(identity);
+          this.participantNetworkQualitySmoothing.delete(identity);
         } else {
           const failures = (this.participantNetworkQualityFailures.get(identity) ?? 0) + 1;
           this.participantNetworkQualityFailures.set(identity, failures);
-          if (failures >= 2) delete next[identity];
+          if (failures >= 2) {
+            delete next[identity];
+            this.participantNetworkQualitySmoothing.delete(identity);
+          }
         }
         for (const { counterKey, result } of successfulResults) {
           this.participantNetworkCounters.set(counterKey, result.counters);
@@ -2592,6 +2614,7 @@ export class VoiceCallState {
           networkHealth: networkQuality?.health ?? 'unknown',
           packetLossPercent: networkQuality?.packetLossPercent ?? null,
           jitterMs: networkQuality?.jitterMs ?? null,
+          latencyMs: networkQuality?.latencyMs ?? null,
           networkWarningMetric: networkQuality?.warningMetric ?? null,
           connectionState: 'connected' as const,
           interruptionDeadline: null,
@@ -2865,6 +2888,7 @@ export class VoiceCallState {
     this.participantNetworkQuality = {};
     this.participantNetworkCounters.clear();
     this.participantNetworkQualityFailures.clear();
+    this.participantNetworkQualitySmoothing.clear();
     this.participantNetworkQualityPollRoom = null;
     this.microphoneRouteFingerprint = null;
     this.audioLevelCache.clear();
