@@ -82,7 +82,7 @@ No message description provided.
 
 ### UpdatePerformanceSettings
 
-Changes the owner-requested policy with optimistic concurrency. Requires owner.
+Deprecated: adaptive scheduling replaced owner-selected profiles.
 
 ```http
 POST /api/connect/chatto.admin.v1.AdminDiagnosticsService/UpdatePerformanceSettings
@@ -92,7 +92,8 @@ POST /api/connect/chatto.admin.v1.AdminDiagnosticsService/UpdatePerformanceSetti
 
 #### Input: UpdatePerformanceSettingsRequest
 
-No message description provided.
+Deprecated owner-profile mutation retained for wire compatibility. Adaptive
+scheduling is read-only and operator ceilings remain deployment-owned.
 
 | Field | Type | Description |
 | --- | --- | --- |

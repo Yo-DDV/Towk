@@ -147,7 +147,8 @@ networks using TURN; do not add mobile, office, or broad private network ranges.
 ## Runtime hardening
 
 The example drops all Linux capabilities, enables `no-new-privileges`, uses
-read-only root filesystems and bounds processes, memory and CPU. Caddy retains
+read-only root filesystems, and bounds process counts. CPU and memory are shared
+across the VPS by default, with optional operator ceilings. Caddy retains
 only `NET_BIND_SERVICE` so it can listen on ports 80 and 443. Named volumes and
 size-limited `tmpfs` mounts provide the writable paths required by NATS, Caddy
 and Towk's private operator socket.
@@ -206,54 +207,53 @@ Fill in the placeholders and make sure the LiveKit key and secret are the same
 in `.env` and `livekit.yaml`. LiveKit requires its API secret to be at least 32
 characters.
 
-## Performance envelopes and runtime profiles
+## Adaptive shared resource envelope
 
-Performance has two separate control layers:
+NATS, LiveKit, Towk, and Caddy have no hard CPU or memory ceiling by default.
+They share the VPS pool, so each service can burst across every core when the
+others are idle. Relative CPU shares apply only under contention:
 
-1. The operator sets hard container ceilings with `TOWK_CPU_LIMIT`,
-   `TOWK_MEMORY_LIMIT`, and the corresponding NATS, LiveKit, and Caddy
-   variables in `.env`. Changing these values requires recreating the affected
-   service.
-2. A server owner selects **Economy**, **Balanced**, **Performance**, or a
-   bounded **Custom** policy in **Server administration → System**. This
-   changes media concurrency live for newly admitted work and never interrupts
-   work already in progress.
+| Service | Default CPU shares | Purpose under contention                              |
+| ------- | -----------------: | ----------------------------------------------------- |
+| LiveKit |               2048 | Favors real-time audio, video, and screen sharing     |
+| Towk    |               1024 | Serves the app while background media yields to calls |
+| NATS    |                512 | Keeps event and storage work progressing              |
+| Caddy   |                512 | Keeps TLS and HTTP routing progressing                |
 
-Towk displays both the requested policy and the effective worker limits. The
-effective values can be lower because the process applies the smallest of the
-detected CPU/memory envelope, an optional operator cap, and the owner's request.
-The browser cannot change container resources or override operator limits.
+Shares are priorities, not reservations or capacity guarantees. An idle service
+does not keep CPU away from another service. Towk separately derives image,
+upload, link-preview, and media-transcode concurrency from the CPU and current
+memory headroom visible to its process. It samples cgroup usage and host
+`MemAvailable`, keeps a safety reserve, and refreshes the limits while running.
+**Server administration → System** reports this adaptive target, its current
+effective value, and any memory or operator reduction; it does not expose
+mutable performance profiles or the Docker daemon.
 
-`env.example` and `init-env.sh` use `balanced` for new installations. Existing
-installations that omit `CHATTO_PERFORMANCE_DEFAULT_PROFILE` retain the
-historical preset for pools that were already bounded until an owner explicitly
-saves a profile. Upload chunk writes gain a balanced process-local bound instead
-of remaining unbounded. The optional `CHATTO_PERFORMANCE_MAX_*` variables are
-hard per-process ceilings; leave them unset to derive bounded ceilings from the
-process envelope.
+The optional `CHATTO_PERFORMANCE_MAX_*` variables impose hard per-process work
+ceilings. Set a non-zero `*_CPU_LIMIT` or `*_MEMORY_LIMIT` only when Towk shares
+the host with unrelated workloads. New generated environments use zero so the
+VPS itself is the shared boundary. Existing `.env` files keep their explicit
+old values during upgrades; change all four services deliberately and qualify
+the complete stack.
 
-The checked-in resource values are conservative starting points, not user-count
-or latency guarantees. A small host can lower all four services and select the
-economy policy. A larger host can raise the service ceilings and select the
-performance policy, but should still monitor CPU, memory, storage latency and
-call quality under its real workload. Do not raise only Towk while leaving NATS
-storage or LiveKit constrained.
+The deprecated `CHATTO_VIDEO_MAX_CONCURRENT` setting remains parseable for
+older binaries but current releases ignore it. Use
+`CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS` only when an explicit media-transcode
+ceiling is required.
 
-After changing a container ceiling, render and recreate the stack:
+After changing a container ceiling or CPU share, render and recreate the stack:
 
 ```bash
 docker compose config
 docker compose up -d --force-recreate
 ```
 
-After changing only the owner profile in the UI, no container restart is
-required. A rolling or multi-replica deployment may report different effective
-limits per process when replicas have different resource envelopes.
-
-The owner-selected profile is stored in Towk's event stream and is therefore
-included in the normal Towk backup and restore workflow. Operator-owned `.env`,
-Compose and Kubernetes resource settings remain outside that data archive and
-must be backed up with the deployment configuration.
+A rolling or multi-replica deployment may report different effective limits per
+process when replicas have different resource envelopes. Historical
+owner-profile events remain in Towk backups for rollback compatibility but no
+longer affect current scheduling. Operator-owned `.env`, Compose, and Kubernetes
+resource settings remain outside that data archive and must be backed up with
+the deployment configuration.
 
 ## Usage
 
@@ -411,7 +411,7 @@ docker compose ps
 
 After the update, sign in, send a text message, verify an attachment or video
 flow that matters to your server, and check **Server administration → System**
-for the requested performance profile and effective limits.
+for the detected adaptive envelope and effective limits.
 
 To roll back application code, restore the previous `TOWK_IMAGE` value from
 `.env.before-update`, re-render the Compose configuration, and recreate only
@@ -424,8 +424,9 @@ docker compose up -d towk
 ```
 
 Only restore a data backup when you intentionally need to return data to an
-older snapshot. The owner-selected performance profile is part of Towk data;
-`.env`, Compose resource ceilings, certificates, and external object-storage
+older snapshot. Historical performance-policy events are part of Towk data but
+do not control current scheduling; `.env`, Compose resource ceilings, CPU
+shares, certificates, and external object-storage
 buckets are operator-managed and must be backed up separately.
 
 ## Volumes

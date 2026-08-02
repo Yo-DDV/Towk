@@ -82,7 +82,7 @@ No message description provided.
 
 ### UpdatePerformanceSettings
 
-Changes the owner-requested policy with optimistic concurrency. Requires owner.
+Deprecated: adaptive scheduling replaced owner-selected profiles.
 
 ```http
 POST /api/connect/chatto.admin.v1.AdminDiagnosticsService/UpdatePerformanceSettings
@@ -92,7 +92,8 @@ POST /api/connect/chatto.admin.v1.AdminDiagnosticsService/UpdatePerformanceSetti
 
 #### Input: UpdatePerformanceSettingsRequest
 
-No message description provided.
+Deprecated owner-profile mutation retained for wire compatibility. Adaptive
+scheduling is read-only and operator ceilings remain deployment-owned.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -2251,13 +2252,15 @@ Source of the currently requested runtime policy.
 | `ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL` | `1` | No value description provided. |
 | `ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT` | `2` | No value description provided. |
 | `ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER` | `3` | No value description provided. |
+| `ADMIN_PERFORMANCE_POLICY_SOURCE_ADAPTIVE` | `4` | No value description provided. |
 
 
 <a id="chatto-admin-v1-AdminPerformanceProfile"></a>
 
 ### AdminPerformanceProfile
 
-Runtime performance profile exposed to server owners.
+Runtime performance mode exposed to server owners. Legacy selectable values
+remain on the wire for compatibility but no longer affect scheduling.
 
 | Name | Number | Description |
 | --- | --- | --- |
@@ -2267,6 +2270,7 @@ Runtime performance profile exposed to server owners.
 | `ADMIN_PERFORMANCE_PROFILE_PERFORMANCE` | `3` | No value description provided. |
 | `ADMIN_PERFORMANCE_PROFILE_CUSTOM` | `4` | No value description provided. |
 | `ADMIN_PERFORMANCE_PROFILE_LEGACY` | `5` | No value description provided. |
+| `ADMIN_PERFORMANCE_PROFILE_ADAPTIVE` | `6` | No value description provided. |
 
 
 <a id="chatto-admin-v1-PermissionDecision"></a>

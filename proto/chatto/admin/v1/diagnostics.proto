@@ -15,7 +15,8 @@ message GetSystemInfoResponse {
   repeated AdminProjectionState projections = 2;
 }
 
-// Runtime performance profile exposed to server owners.
+// Runtime performance mode exposed to server owners. Legacy selectable values
+// remain on the wire for compatibility but no longer affect scheduling.
 enum AdminPerformanceProfile {
   ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED = 0;
   ADMIN_PERFORMANCE_PROFILE_ECONOMY = 1;
@@ -23,6 +24,7 @@ enum AdminPerformanceProfile {
   ADMIN_PERFORMANCE_PROFILE_PERFORMANCE = 3;
   ADMIN_PERFORMANCE_PROFILE_CUSTOM = 4;
   ADMIN_PERFORMANCE_PROFILE_LEGACY = 5;
+  ADMIN_PERFORMANCE_PROFILE_ADAPTIVE = 6;
 }
 
 // Source of the currently requested runtime policy.
@@ -31,6 +33,7 @@ enum AdminPerformancePolicySource {
   ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL = 1;
   ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT = 2;
   ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER = 3;
+  ADMIN_PERFORMANCE_POLICY_SOURCE_ADAPTIVE = 4;
 }
 
 // Runtime work pools controlled by a performance policy.
@@ -97,10 +100,21 @@ message GetPerformanceSettingsResponse {
   AdminPerformanceSettings settings = 1;
 }
 
+// Deprecated owner-profile mutation retained for wire compatibility. Adaptive
+// scheduling is read-only and operator ceilings remain deployment-owned.
 message UpdatePerformanceSettingsRequest {
-  AdminPerformanceProfile profile = 1 [(buf.validate.field).enum = {defined_only: true, not_in: [0, 5]}];
+  AdminPerformanceProfile profile = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [
+      0,
+      5
+    ]
+  }];
   AdminPerformanceLimits custom_limits = 2;
-  string expected_revision = 3 [(buf.validate.field).string = {min_len: 1, max_len: 20}];
+  string expected_revision = 3 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 20
+  }];
 }
 
 message UpdatePerformanceSettingsResponse {
@@ -296,6 +310,8 @@ service AdminDiagnosticsService {
   rpc GetSystemInfo(GetSystemInfoRequest) returns (GetSystemInfoResponse);
   // Returns requested and effective runtime limits. Requires owner.
   rpc GetPerformanceSettings(GetPerformanceSettingsRequest) returns (GetPerformanceSettingsResponse);
-  // Changes the owner-requested policy with optimistic concurrency. Requires owner.
-  rpc UpdatePerformanceSettings(UpdatePerformanceSettingsRequest) returns (UpdatePerformanceSettingsResponse);
+  // Deprecated: adaptive scheduling replaced owner-selected profiles.
+  rpc UpdatePerformanceSettings(UpdatePerformanceSettingsRequest) returns (UpdatePerformanceSettingsResponse) {
+    option deprecated = true;
+  }
 }

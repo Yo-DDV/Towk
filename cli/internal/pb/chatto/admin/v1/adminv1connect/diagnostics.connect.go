@@ -52,7 +52,9 @@ type AdminDiagnosticsServiceClient interface {
 	GetSystemInfo(context.Context, *connect.Request[v1.GetSystemInfoRequest]) (*connect.Response[v1.GetSystemInfoResponse], error)
 	// Returns requested and effective runtime limits. Requires owner.
 	GetPerformanceSettings(context.Context, *connect.Request[v1.GetPerformanceSettingsRequest]) (*connect.Response[v1.GetPerformanceSettingsResponse], error)
-	// Changes the owner-requested policy with optimistic concurrency. Requires owner.
+	// Deprecated: adaptive scheduling replaced owner-selected profiles.
+	//
+	// Deprecated: do not use.
 	UpdatePerformanceSettings(context.Context, *connect.Request[v1.UpdatePerformanceSettingsRequest]) (*connect.Response[v1.UpdatePerformanceSettingsResponse], error)
 }
 
@@ -107,6 +109,8 @@ func (c *adminDiagnosticsServiceClient) GetPerformanceSettings(ctx context.Conte
 
 // UpdatePerformanceSettings calls
 // chatto.admin.v1.AdminDiagnosticsService.UpdatePerformanceSettings.
+//
+// Deprecated: do not use.
 func (c *adminDiagnosticsServiceClient) UpdatePerformanceSettings(ctx context.Context, req *connect.Request[v1.UpdatePerformanceSettingsRequest]) (*connect.Response[v1.UpdatePerformanceSettingsResponse], error) {
 	return c.updatePerformanceSettings.CallUnary(ctx, req)
 }
@@ -119,7 +123,9 @@ type AdminDiagnosticsServiceHandler interface {
 	GetSystemInfo(context.Context, *connect.Request[v1.GetSystemInfoRequest]) (*connect.Response[v1.GetSystemInfoResponse], error)
 	// Returns requested and effective runtime limits. Requires owner.
 	GetPerformanceSettings(context.Context, *connect.Request[v1.GetPerformanceSettingsRequest]) (*connect.Response[v1.GetPerformanceSettingsResponse], error)
-	// Changes the owner-requested policy with optimistic concurrency. Requires owner.
+	// Deprecated: adaptive scheduling replaced owner-selected profiles.
+	//
+	// Deprecated: do not use.
 	UpdatePerformanceSettings(context.Context, *connect.Request[v1.UpdatePerformanceSettingsRequest]) (*connect.Response[v1.UpdatePerformanceSettingsResponse], error)
 }
 

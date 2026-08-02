@@ -21,7 +21,7 @@ func TestAssessCapacityQualificationRejectsMissingPairwiseCoverage(t *testing.T)
 	report := validCapacityQualificationReport()
 	filtered := report.Runs[:0]
 	for _, run := range report.Runs {
-		if run.Profile == QualificationProfileEconomy && run.CacheState == "full" {
+		if run.Envelope.LogicalCPUs == 1 && run.CacheState == "full" {
 			continue
 		}
 		filtered = append(filtered, run)
@@ -29,22 +29,22 @@ func TestAssessCapacityQualificationRejectsMissingPairwiseCoverage(t *testing.T)
 	report.Runs = filtered
 
 	assessment := AssessCapacityQualification(report)
-	if assessment.Accepted || !qualificationReasonContains(assessment.Reasons, "profile=economy") || !qualificationReasonContains(assessment.Reasons, "cache_state=full") {
-		t.Fatalf("assessment = %#v, want missing economy/full pair", assessment)
+	if assessment.Accepted || !qualificationReasonContains(assessment.Reasons, "capacity_cpu=1") || !qualificationReasonContains(assessment.Reasons, "cache_state=full") {
+		t.Fatalf("assessment = %#v, want missing one-CPU/full pair", assessment)
 	}
 }
 
-func TestAssessCapacityQualificationRequiresCustomNominalAndResilienceCoverage(t *testing.T) {
+func TestAssessCapacityQualificationRequiresEveryAdaptiveEnvelope(t *testing.T) {
 	report := validCapacityQualificationReport()
 	filtered := report.Runs[:0]
 	for _, run := range report.Runs {
-		if run.Profile != QualificationProfileCustom {
+		if run.Envelope.LogicalCPUs != 4 {
 			filtered = append(filtered, run)
 		}
 	}
 	report.Runs = filtered
 	assessment := AssessCapacityQualification(report)
-	for _, want := range []string{"profile=custom", "custom overload", "custom recovery"} {
+	for _, want := range []string{"capacity_cpu=4", "4 CPU overload", "4 CPU recovery"} {
 		if !qualificationReasonContains(assessment.Reasons, want) {
 			t.Fatalf("assessment = %#v, want missing %q reason", assessment, want)
 		}
@@ -60,14 +60,14 @@ func TestAssessCapacityQualificationRejectsUnprovedPerformanceLimits(t *testing.
 		{name: "missing requested limits", mutate: func(report *CapacityQualificationReport) {
 			report.Runs[0].RequestedLimits = QualificationPerformanceLimits{}
 		}, want: "requested performance limits"},
-		{name: "standard preset mismatch", mutate: func(report *CapacityQualificationReport) {
+		{name: "adaptive target mismatch", mutate: func(report *CapacityQualificationReport) {
 			report.Runs[0].RequestedLimits.AssetUploadWorkers++
-		}, want: "declared standard profile"},
+		}, want: "adaptive target"},
 		{name: "effective exceeds requested", mutate: func(report *CapacityQualificationReport) {
 			report.Runs[0].EffectiveLimits.VideoWorkers = report.Runs[0].RequestedLimits.VideoWorkers + 1
 		}, want: "exceed requested limits"},
-		{name: "invalid custom bounds", mutate: func(report *CapacityQualificationReport) {
-			run := qualificationRunForProfilePhase(t, report.Runs, QualificationProfileCustom, QualificationPhaseNominal)
+		{name: "invalid adaptive bounds", mutate: func(report *CapacityQualificationReport) {
+			run := qualificationRunForPhase(t, report.Runs, QualificationPhaseNominal)
 			run.RequestedLimits.ImageTransformAdmissions = run.RequestedLimits.ImageTransformWorkers - 1
 		}, want: "requested performance limits"},
 		{name: "unknown overload subsystem", mutate: func(report *CapacityQualificationReport) {
@@ -166,13 +166,13 @@ func TestAssessCapacityQualificationRequiresEveryResiliencePhase(t *testing.T) {
 		remove func(QualificationRun) bool
 		want   string
 	}{
-		{name: "economy overload", remove: func(run QualificationRun) bool {
-			return run.Profile == QualificationProfileEconomy && run.Phase == QualificationPhaseOverload
-		}, want: "economy overload"},
-		{name: "performance recovery", remove: func(run QualificationRun) bool {
-			return run.Profile == QualificationProfilePerformance && run.Phase == QualificationPhaseRecovery
-		}, want: "performance recovery"},
-		{name: "balanced soak", remove: func(run QualificationRun) bool { return run.Phase == QualificationPhaseSoak }, want: "balanced soak"},
+		{name: "one CPU overload", remove: func(run QualificationRun) bool {
+			return run.Envelope.LogicalCPUs == 1 && run.Phase == QualificationPhaseOverload
+		}, want: "1 CPU overload"},
+		{name: "eight CPU recovery", remove: func(run QualificationRun) bool {
+			return run.Envelope.LogicalCPUs == 8 && run.Phase == QualificationPhaseRecovery
+		}, want: "8 CPU recovery"},
+		{name: "two CPU soak", remove: func(run QualificationRun) bool { return run.Phase == QualificationPhaseSoak }, want: "2 CPU soak"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -225,7 +225,7 @@ func TestAssessCapacityQualificationRejectsIncompleteRecoveryAndSoak(t *testing.
 		want   string
 	}{
 		{name: "slow recovery", phase: QualificationPhaseRecovery, mutate: func(run *QualificationRun) { run.RecoverySeconds = 61 }, want: "within 60 seconds"},
-		{name: "unlinked recovery", phase: QualificationPhaseRecovery, mutate: func(run *QualificationRun) { run.PrecedingOverloadRunID = "" }, want: "same-profile overload"},
+		{name: "unlinked recovery", phase: QualificationPhaseRecovery, mutate: func(run *QualificationRun) { run.PrecedingOverloadRunID = "" }, want: "same-envelope overload"},
 		{name: "throughput not restored", phase: QualificationPhaseRecovery, mutate: func(run *QualificationRun) { run.RecoveredThroughputPerSecond = 89 }, want: "90% of baseline throughput"},
 		{name: "latency not restored", phase: QualificationPhaseRecovery, mutate: func(run *QualificationRun) { run.RecoveredP95Millis = 111 }, want: "110% of baseline p95"},
 		{name: "short soak", phase: QualificationPhaseSoak, mutate: func(run *QualificationRun) { run.DurationSeconds = 7199 }, want: "soak duration"},
@@ -264,51 +264,46 @@ func TestAssessCapacityQualificationRejectsWrongScaleMemoryAndUnboundedLimitatio
 
 func validCapacityQualificationReport() CapacityQualificationReport {
 	const revision = "0123456789abcdef0123456789abcdef01234567"
-	profiles := []QualificationProfile{
-		QualificationProfileEconomy,
-		QualificationProfileBalanced,
-		QualificationProfilePerformance,
-		QualificationProfileCustom,
-	}
+	cpus := []int{1, 2, 4, 8}
 	backends := []string{"nats", "s3"}
 	caches := []string{"cold", "warm", "full"}
 	networks := []NetworkProfileName{NetworkNormal, NetworkDegraded}
 	paths := []string{"direct", "caddy_tls"}
-	envelopes := map[QualificationProfile]QualificationEnvelope{
-		QualificationProfileEconomy: {
+	envelopes := map[int]QualificationEnvelope{
+		1: {
 			LogicalCPUs: 1, MemoryLimitBytes: 2 << 30, HostMemoryBytes: 4 << 30,
 			Architecture: "amd64", CPUModel: "qualification-cpu", CgroupFingerprint: strings.Repeat("1", 64), ThermalProven: true,
 		},
-		QualificationProfileBalanced: {
+		2: {
 			LogicalCPUs: 2, MemoryLimitBytes: 4 << 30, HostMemoryBytes: 8 << 30,
 			Architecture: "amd64", CPUModel: "qualification-cpu", CgroupFingerprint: strings.Repeat("2", 64), ThermalProven: true,
 		},
-		QualificationProfilePerformance: {
+		8: {
 			LogicalCPUs: 8, MemoryLimitBytes: 16 << 30, HostMemoryBytes: 24 << 30,
 			Architecture: "amd64", CPUModel: "qualification-cpu", CgroupFingerprint: strings.Repeat("3", 64), ThermalProven: true,
 		},
-		QualificationProfileCustom: {
+		4: {
 			LogicalCPUs: 4, MemoryLimitBytes: 8 << 30, HostMemoryBytes: 12 << 30,
 			Architecture: "amd64", CPUModel: "qualification-cpu", CgroupFingerprint: strings.Repeat("4", 64), ThermalProven: true,
 		},
 	}
-	limits := map[QualificationProfile]QualificationPerformanceLimits{
-		QualificationProfileEconomy:     {ImageTransformWorkers: 1, ImageTransformAdmissions: 4, AssetUploadWorkers: 2, LinkPreviewWorkers: 1, VideoWorkers: 1},
-		QualificationProfileBalanced:    {ImageTransformWorkers: 2, ImageTransformAdmissions: 8, AssetUploadWorkers: 4, LinkPreviewWorkers: 2, VideoWorkers: 2},
-		QualificationProfilePerformance: {ImageTransformWorkers: 4, ImageTransformAdmissions: 16, AssetUploadWorkers: 8, LinkPreviewWorkers: 4, VideoWorkers: 4},
-		QualificationProfileCustom:      {ImageTransformWorkers: 3, ImageTransformAdmissions: 12, AssetUploadWorkers: 6, LinkPreviewWorkers: 3, VideoWorkers: 2},
+	limits := map[int]QualificationPerformanceLimits{
+		1: {ImageTransformWorkers: 1, ImageTransformAdmissions: 8, AssetUploadWorkers: 2, LinkPreviewWorkers: 1, VideoWorkers: 1},
+		2: {ImageTransformWorkers: 2, ImageTransformAdmissions: 16, AssetUploadWorkers: 4, LinkPreviewWorkers: 2, VideoWorkers: 2},
+		4: {ImageTransformWorkers: 4, ImageTransformAdmissions: 32, AssetUploadWorkers: 8, LinkPreviewWorkers: 4, VideoWorkers: 4},
+		8: {ImageTransformWorkers: 8, ImageTransformAdmissions: 64, AssetUploadWorkers: 16, LinkPreviewWorkers: 8, VideoWorkers: 8},
 	}
 	var runs []QualificationRun
 	index := 1
-	for _, profile := range profiles {
+	for _, cpuCount := range cpus {
 		for _, backend := range backends {
 			for _, cacheState := range caches {
 				for _, network := range networks {
 					for _, path := range paths {
-						envelope := envelopes[profile]
-						performanceLimits := limits[profile]
+						envelope := envelopes[cpuCount]
+						performanceLimits := limits[cpuCount]
 						runs = append(runs, QualificationRun{
-							RunID: fmt.Sprintf("%032x", index), Revision: revision, Profile: profile,
+							RunID: fmt.Sprintf("%032x", index), Revision: revision, Profile: QualificationProfileAdaptive,
 							Backend: backend, CacheState: cacheState, Network: network, Path: path,
 							Phase: QualificationPhaseNominal, DurationSeconds: 1800, PreflightStatus: "VERIFIED",
 							Envelope: envelope, RequestedLimits: performanceLimits, EffectiveLimits: performanceLimits,
@@ -324,11 +319,11 @@ func validCapacityQualificationReport() CapacityQualificationReport {
 			}
 		}
 	}
-	for _, profile := range profiles {
-		envelope := envelopes[profile]
-		performanceLimits := limits[profile]
+	for _, cpuCount := range cpus {
+		envelope := envelopes[cpuCount]
+		performanceLimits := limits[cpuCount]
 		base := QualificationRun{
-			Revision: revision, Profile: profile, Backend: "nats", CacheState: "warm", Network: NetworkNormal, Path: "direct",
+			Revision: revision, Profile: QualificationProfileAdaptive, Backend: "nats", CacheState: "warm", Network: NetworkNormal, Path: "direct",
 			PreflightStatus: "VERIFIED", Envelope: envelope, RequestedLimits: performanceLimits, EffectiveLimits: performanceLimits,
 			Load:     QualificationLoadVector{ActiveConnections: 4, MessagesPerSecond: 1, ConcurrentUploads: 1, UploadMbps: 2, WarmReadsPerSecond: 5},
 			Requests: 10_000, WorkingSetP95Bytes: envelope.MemoryLimitBytes / 2,
@@ -360,15 +355,15 @@ func validCapacityQualificationReport() CapacityQualificationReport {
 		runs = append(runs, recovery)
 		index++
 	}
-	balancedEnvelope := envelopes[QualificationProfileBalanced]
+	soakEnvelope := envelopes[2]
 	runs = append(runs, QualificationRun{
-		RunID: fmt.Sprintf("%032x", index), Revision: revision, Profile: QualificationProfileBalanced,
+		RunID: fmt.Sprintf("%032x", index), Revision: revision, Profile: QualificationProfileAdaptive,
 		Backend: "nats", CacheState: "warm", Network: NetworkNormal, Path: "direct",
-		Phase: QualificationPhaseSoak, DurationSeconds: 7200, PreflightStatus: "VERIFIED", Envelope: balancedEnvelope,
-		RequestedLimits: limits[QualificationProfileBalanced], EffectiveLimits: limits[QualificationProfileBalanced],
+		Phase: QualificationPhaseSoak, DurationSeconds: 7200, PreflightStatus: "VERIFIED", Envelope: soakEnvelope,
+		RequestedLimits: limits[2], EffectiveLimits: limits[2],
 		Load:     QualificationLoadVector{ActiveConnections: 4, MessagesPerSecond: 1, ConcurrentUploads: 1, UploadMbps: 2, WarmReadsPerSecond: 5},
-		Requests: 10_000, WorkingSetP95Bytes: balancedEnvelope.MemoryLimitBytes / 2,
-		WorkingSetPeakBytes: balancedEnvelope.MemoryLimitBytes * 3 / 5, HostMemoryPeakBytes: balancedEnvelope.HostMemoryBytes / 2,
+		Requests: 10_000, WorkingSetP95Bytes: soakEnvelope.MemoryLimitBytes / 2,
+		WorkingSetPeakBytes: soakEnvelope.MemoryLimitBytes * 3 / 5, HostMemoryPeakBytes: soakEnvelope.HostMemoryBytes / 2,
 		CPUUsageSeconds: 100, CPUThrottledSeconds: 1,
 	})
 	return CapacityQualificationReport{
@@ -381,17 +376,6 @@ func validCapacityQualificationReport() CapacityQualificationReport {
 			{CPUs: 8, MemoryLimitBytes: 16 << 30, ThroughputPerSecond: 500},
 		},
 	}
-}
-
-func qualificationRunForProfilePhase(t *testing.T, runs []QualificationRun, profile QualificationProfile, phase QualificationPhase) *QualificationRun {
-	t.Helper()
-	for index := range runs {
-		if runs[index].Profile == profile && runs[index].Phase == phase {
-			return &runs[index]
-		}
-	}
-	t.Fatalf("missing %s phase %s", profile, phase)
-	return nil
 }
 
 func qualificationRunForPhase(t *testing.T, runs []QualificationRun, phase QualificationPhase) *QualificationRun {

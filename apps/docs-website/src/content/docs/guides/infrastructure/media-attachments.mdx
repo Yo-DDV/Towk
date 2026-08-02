@@ -13,17 +13,17 @@ Members can attach files through drag-and-drop, paste, or the file picker when t
 
 On Windows, macOS, and Linux, Towk accepts every file object the browser exposes from the native clipboard. This covers Chromium's desktop implementations, Firefox's native file paste, and WebKit/Safari on macOS. Current Firefox implementations on macOS and Linux can expose only the first native file, and current non-Cocoa WebKit does not expose native clipboard files. Towk never reads a local path itself: if the clipboard contains a local file reference but the browser withholds the file, the composer consumes the reference, displays an error, and leaves the path out of the message. Drag-and-drop and the picker remain available in that case.
 
-| Asset type | Behavior |
-| ---------- | -------- |
-| Images | Dimensions are inspected, image URLs can request resized WebP variants, and thumbnails are cached when enabled. |
-| Documents and ordinary files | Stored as persisted assets and exposed through signed URLs. |
-| Voice messages | Recorded from the composer, reviewed locally before send, stored as typed audio assets with duration and waveform metadata, then rendered with Towk's waveform player. |
-| Archives | ZIP, 7z, RAR, tar, and compressed archives are accepted as opaque files and are not extracted by Towk. |
-| Executables and installers | Direct executable, installer, command-script, WebAssembly, and macro-enabled Office payloads are rejected by browser metadata/content checks and authoritative server checks. |
-| Videos | Stored as originals; when processing is enabled, Towk also generates a thumbnail and portable MP4 variants for cross-platform playback. |
-| Animated GIFs | Uploaded as images when video processing is disabled; routed through video processing when enabled. |
-| Avatars, logos, banners | Stored in the same asset system but gated by profile or admin permissions. |
-| Link-preview images | Downloaded, converted to a size-limited WebP, and stored in a dedicated quota-bounded NATS object store. |
+| Asset type                   | Behavior                                                                                                                                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Images                       | Dimensions are inspected, image URLs can request resized WebP variants, and thumbnails are cached when enabled.                                                               |
+| Documents and ordinary files | Stored as persisted assets and exposed through signed URLs.                                                                                                                   |
+| Voice messages               | Recorded from the composer, reviewed locally before send, stored as typed audio assets with duration and waveform metadata, then rendered with Towk's waveform player.        |
+| Archives                     | ZIP, 7z, RAR, tar, and compressed archives are accepted as opaque files and are not extracted by Towk.                                                                        |
+| Executables and installers   | Direct executable, installer, command-script, WebAssembly, and macro-enabled Office payloads are rejected by browser metadata/content checks and authoritative server checks. |
+| Videos                       | Stored as originals; when processing is enabled, Towk also generates a thumbnail and portable MP4 variants for cross-platform playback.                                       |
+| Animated GIFs                | Uploaded as images when video processing is disabled; routed through video processing when enabled.                                                                           |
+| Avatars, logos, banners      | Stored in the same asset system but gated by profile or admin permissions.                                                                                                    |
+| Link-preview images          | Downloaded, converted to a size-limited WebP, and stored in a dedicated quota-bounded NATS object store.                                                                      |
 
 The default general upload limit is 25 MB and applies to original videos while processing is disabled. Enabling video processing gives videos a separate 100 MB default limit.
 
@@ -51,7 +51,9 @@ cannot be bypassed by an in-progress recording.
 Attachment URLs are signed per user and still check that the signed user can access the room. If a user leaves, is removed, or loses room access, new asset fetches fail even if an old message still contains the URL.
 
 <Aside type="note">
-  Signed attachment URLs are bearer capabilities until they expire. Towk keeps their TTL bounded and checks the signed user's current room access on every protected asset fetch.
+  Signed attachment URLs are bearer capabilities until they expire. Towk keeps
+  their TTL bounded and checks the signed user's current room access on every
+  protected asset fetch.
 </Aside>
 
 Streamed protected originals and derivatives use a private revalidating browser
@@ -75,12 +77,12 @@ The fetcher is designed to be SSRF-safe, rejects images above 10 million decoded
 
 ## Storage Backend Choice
 
-| Deployment | Recommended backend |
-| ---------- | ------------------- |
-| Small server with light uploads | NATS ObjectStore, the default. |
-| Active community with many files | S3-compatible storage. |
-| Video-heavy server | S3-compatible storage plus video processing. |
-| Replicated NATS cluster | S3-compatible storage to avoid multiplying large binary storage. |
+| Deployment                       | Recommended backend                                              |
+| -------------------------------- | ---------------------------------------------------------------- |
+| Small server with light uploads  | NATS ObjectStore, the default.                                   |
+| Active community with many files | S3-compatible storage.                                           |
+| Video-heavy server               | S3-compatible storage plus video processing.                     |
+| Replicated NATS cluster          | S3-compatible storage to avoid multiplying large binary storage. |
 
 Switching to S3 affects new assets. Existing NATS-stored assets continue to work because each asset records its own backend.
 
@@ -113,7 +115,6 @@ Enable it only when the server has CPU and temporary disk space for transcoding:
 
 ```toml
 [performance]
-default_profile = "balanced"
 max_video_workers = 2
 [video]
 enabled = true
@@ -121,12 +122,16 @@ enabled = true
 
 The official Docker image includes the required ffmpeg tools. Host installs need
 those binaries installed separately for video/GIF processing and for
-cross-platform voice-message normalization. Tune throughput with the runtime
-performance profile and `performance.max_video_workers`; keep
-`video.max_concurrent` only for compatibility with older configuration files.
+cross-platform voice-message normalization. Towk tunes throughput from the
+visible process envelope; use `performance.max_video_workers` only for a hard
+operator ceiling and keep
+`video.max_concurrent` only for compatibility with older binaries; current
+adaptive scheduling ignores it.
 
 <Aside type="caution">
-  Video processing is currently in-process and best-effort. Towk records durable asset processing state and retries missed unmanifested video assets on boot, but operators should still treat transcoding as CPU-heavy background work.
+  Video processing is currently in-process and best-effort. Towk records durable
+  asset processing state and retries missed unmanifested video assets on boot,
+  but operators should still treat transcoding as CPU-heavy background work.
 </Aside>
 
 ## Active Document Safety
@@ -136,9 +141,29 @@ Uploaded HTML, XHTML, SVG, XML, and XML-derived active document formats are serv
 ## Related Guides
 
 <CardGrid>
-  <LinkCard title="S3 Storage" href="/guides/infrastructure/s3-storage/" description="Configure S3-compatible storage for persisted assets." />
-  <LinkCard title="Video Processing" href="/guides/infrastructure/video-processing/" description="Enable ffmpeg-backed video and animated-GIF processing." />
-  <LinkCard title="Asset Upload API" href="/reference/connectrpc-api/asset-uploads/" description="Typed API reference for uploads, including voice-message metadata." />
-  <LinkCard title="Backup & Restore" href="/guides/operations/backup-restore/" description="Plan backups that include asset storage and encryption keys." />
-  <LinkCard title="Room Attachment API" href="/reference/connectrpc-api/rooms/#chatto-api-v1-RoomService-ListRoomAttachments" description="Typed API reference for room attachment list reads." />
+  <LinkCard
+    title="S3 Storage"
+    href="/guides/infrastructure/s3-storage/"
+    description="Configure S3-compatible storage for persisted assets."
+  />
+  <LinkCard
+    title="Video Processing"
+    href="/guides/infrastructure/video-processing/"
+    description="Enable ffmpeg-backed video and animated-GIF processing."
+  />
+  <LinkCard
+    title="Asset Upload API"
+    href="/reference/connectrpc-api/asset-uploads/"
+    description="Typed API reference for uploads, including voice-message metadata."
+  />
+  <LinkCard
+    title="Backup & Restore"
+    href="/guides/operations/backup-restore/"
+    description="Plan backups that include asset storage and encryption keys."
+  />
+  <LinkCard
+    title="Room Attachment API"
+    href="/reference/connectrpc-api/rooms/#chatto-api-v1-RoomService-ListRoomAttachments"
+    description="Typed API reference for room attachment list reads."
+  />
 </CardGrid>

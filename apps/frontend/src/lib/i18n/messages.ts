@@ -2080,6 +2080,8 @@ const msg_admin_system_performance_subtitle = (): LocalizedString => messages().
 const msg_admin_system_performance_loading = (): LocalizedString => messages().admin_system_performance_loading(empty());
 const msg_admin_system_performance_load_failed = (): LocalizedString => messages().admin_system_performance_load_failed(empty());
 const msg_admin_system_performance_profile = (): LocalizedString => messages().admin_system_performance_profile(empty());
+const msg_admin_system_performance_profile_adaptive = (): LocalizedString => messages().admin_system_performance_profile_adaptive(empty());
+const msg_admin_system_performance_adaptive_help = (): LocalizedString => messages().admin_system_performance_adaptive_help(empty());
 const msg_admin_system_performance_profile_economy = (): LocalizedString => messages().admin_system_performance_profile_economy(empty());
 const msg_admin_system_performance_profile_economy_description = (): LocalizedString => messages().admin_system_performance_profile_economy_description(empty());
 const msg_admin_system_performance_profile_balanced = (): LocalizedString => messages().admin_system_performance_profile_balanced(empty());
@@ -2122,8 +2124,10 @@ const msg_admin_system_performance_cap_unknown = (): LocalizedString => messages
 const msg_admin_system_performance_source_historical = (): LocalizedString => messages().admin_system_performance_source_historical(empty());
 const msg_admin_system_performance_source_operator_default = (): LocalizedString => messages().admin_system_performance_source_operator_default(empty());
 const msg_admin_system_performance_source_owner = (): LocalizedString => messages().admin_system_performance_source_owner(empty());
+const msg_admin_system_performance_source_adaptive = (): LocalizedString => messages().admin_system_performance_source_adaptive(empty());
 const msg_admin_system_performance_source_unknown = (): LocalizedString => messages().admin_system_performance_source_unknown(empty());
 const msg_admin_system_performance_live_apply = (): LocalizedString => messages().admin_system_performance_live_apply(empty());
+const msg_admin_system_performance_operator_owned = (): LocalizedString => messages().admin_system_performance_operator_owned(empty());
 const msg_admin_system_performance_restart_required = (): LocalizedString => messages().admin_system_performance_restart_required(empty());
 const msg_admin_system_performance_save = (): LocalizedString => messages().admin_system_performance_save(empty());
 const msg_admin_system_performance_saved = (): LocalizedString => messages().admin_system_performance_saved(empty());
@@ -3975,6 +3979,8 @@ export { msg_admin_system_performance_subtitle as 'admin.system.performance_subt
 export { msg_admin_system_performance_loading as 'admin.system.performance_loading' };
 export { msg_admin_system_performance_load_failed as 'admin.system.performance_load_failed' };
 export { msg_admin_system_performance_profile as 'admin.system.performance_profile' };
+export { msg_admin_system_performance_profile_adaptive as 'admin.system.performance_profile_adaptive' };
+export { msg_admin_system_performance_adaptive_help as 'admin.system.performance_adaptive_help' };
 export { msg_admin_system_performance_profile_economy as 'admin.system.performance_profile_economy' };
 export { msg_admin_system_performance_profile_economy_description as 'admin.system.performance_profile_economy_description' };
 export { msg_admin_system_performance_profile_balanced as 'admin.system.performance_profile_balanced' };
@@ -4009,8 +4015,10 @@ export { msg_admin_system_performance_cap_unknown as 'admin.system.performance_c
 export { msg_admin_system_performance_source_historical as 'admin.system.performance_source_historical' };
 export { msg_admin_system_performance_source_operator_default as 'admin.system.performance_source_operator_default' };
 export { msg_admin_system_performance_source_owner as 'admin.system.performance_source_owner' };
+export { msg_admin_system_performance_source_adaptive as 'admin.system.performance_source_adaptive' };
 export { msg_admin_system_performance_source_unknown as 'admin.system.performance_source_unknown' };
 export { msg_admin_system_performance_live_apply as 'admin.system.performance_live_apply' };
+export { msg_admin_system_performance_operator_owned as 'admin.system.performance_operator_owned' };
 export { msg_admin_system_performance_restart_required as 'admin.system.performance_restart_required' };
 export { msg_admin_system_performance_save as 'admin.system.performance_save' };
 export { msg_admin_system_performance_saved as 'admin.system.performance_saved' };

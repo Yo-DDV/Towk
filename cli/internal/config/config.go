@@ -115,6 +115,7 @@ type DiagnosticsConfig struct {
 }
 
 const (
+	PerformanceProfileAdaptive    = "adaptive"
 	PerformanceProfileLegacy      = "legacy"
 	PerformanceProfileEconomy     = "economy"
 	PerformanceProfileBalanced    = "balanced"
@@ -124,12 +125,12 @@ const (
 	MaxPerformanceAdmissions      = 256
 )
 
-// PerformanceConfig defines the operator-owned ceiling for runtime worker
-// policies. Zero caps mean "derive from the detected process envelope", never
-// unlimited. DefaultProfile is written as balanced by `towk init`; an omitted
-// value preserves the historical preset for upgraded configurations.
+// PerformanceConfig defines optional operator-owned ceilings for adaptive
+// runtime work pools. Zero caps mean "derive from the detected process
+// envelope", never unlimited. DefaultProfile is retained only so existing
+// configurations continue to parse; scheduling no longer depends on it.
 type PerformanceConfig struct {
-	DefaultProfile              string `toml:"default_profile,omitempty" env:"CHATTO_PERFORMANCE_DEFAULT_PROFILE" comment:"Runtime profile used when no owner policy exists. New configurations use balanced; omit to preserve historical upgrade behavior."`
+	DefaultProfile              string `toml:"default_profile,omitempty" env:"CHATTO_PERFORMANCE_DEFAULT_PROFILE" comment:"Deprecated compatibility field. Towk always uses adaptive scheduling."`
 	MaxImageTransformWorkers    int    `toml:"max_image_transform_workers,commented" env:"CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_WORKERS" comment:"Operator ceiling for concurrent image transforms. Zero derives a safe ceiling from process resources."`
 	MaxImageTransformAdmissions int    `toml:"max_image_transform_admissions,commented" env:"CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_ADMISSIONS" comment:"Operator ceiling for admitted image transforms, including queued work. Zero derives a bounded ceiling."`
 	MaxAssetUploadWorkers       int    `toml:"max_asset_upload_workers,commented" env:"CHATTO_PERFORMANCE_MAX_ASSET_UPLOAD_WORKERS" comment:"Operator ceiling for concurrent asset-upload chunk writes. Zero derives a bounded ceiling."`
@@ -137,14 +138,19 @@ type PerformanceConfig struct {
 	MaxVideoWorkers             int    `toml:"max_video_workers,commented" env:"CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS" comment:"Operator ceiling for concurrent media transcodes, including video processing and voice-message normalization. Zero derives a safe ceiling from process resources."`
 }
 
-// DefaultProfileOrLegacy keeps upgraded configurations without an explicit
-// profile on the historical runtime behavior.
-func (c PerformanceConfig) DefaultProfileOrLegacy() string {
+// DefaultProfileOrAdaptive normalizes the deprecated compatibility field.
+func (c PerformanceConfig) DefaultProfileOrAdaptive() string {
 	profile := strings.ToLower(strings.TrimSpace(c.DefaultProfile))
 	if profile == "" {
-		return PerformanceProfileLegacy
+		return PerformanceProfileAdaptive
 	}
 	return profile
+}
+
+// DefaultProfileOrLegacy is retained for source compatibility.
+// Deprecated: use DefaultProfileOrAdaptive.
+func (c PerformanceConfig) DefaultProfileOrLegacy() string {
+	return c.DefaultProfileOrAdaptive()
 }
 
 // OperatorAPIConfig controls the local root-equivalent operator API socket.
@@ -985,7 +991,7 @@ type VideoConfig struct {
 	Enabled       bool              `toml:"enabled" env:"CHATTO_VIDEO_ENABLED" comment:"Enable video processing (transcoding, thumbnails). Requires ffmpeg and ffprobe installed on the system."`
 	FFmpegPath    string            `toml:"ffmpeg_path,commented" env:"CHATTO_VIDEO_FFMPEG_PATH" comment:"Path to ffmpeg binary. Auto-detected from PATH if empty."`
 	FFprobePath   string            `toml:"ffprobe_path,commented" env:"CHATTO_VIDEO_FFPROBE_PATH" comment:"Path to ffprobe binary. Auto-detected from PATH if empty."`
-	MaxConcurrent int               `toml:"max_concurrent,commented" env:"CHATTO_VIDEO_MAX_CONCURRENT" comment:"Maximum number of videos to process simultaneously. Default: 2."`
+	MaxConcurrent int               `toml:"max_concurrent,commented" env:"CHATTO_VIDEO_MAX_CONCURRENT" comment:"Deprecated compatibility field. Adaptive scheduling ignores it; use performance.max_video_workers for an operator ceiling."`
 	MaxUploadSize datasize.ByteSize `toml:"max_upload_size,commented" env:"CHATTO_VIDEO_MAX_UPLOAD_SIZE" comment:"Maximum size for video uploads when video processing is enabled. Disabled processing uses the general attachment limit. Supports human-readable formats like '100 MB'. Default: 100 MB."`
 	MaxDuration   Duration          `toml:"max_duration,commented" env:"CHATTO_VIDEO_MAX_DURATION" comment:"Maximum source video or animated GIF duration accepted for server-side processing. Supports values like '20m' or '1h'. Default: 20m."`
 	MaxPixels     int64             `toml:"max_pixels,commented" env:"CHATTO_VIDEO_MAX_PIXELS" comment:"Maximum source display pixel area accepted for server-side processing. Default: 8294400 (3840x2160). Increase for 8K-capable servers."`
@@ -1005,7 +1011,10 @@ const (
 	DefaultVideoMaxPixels int64 = 3840 * 2160
 )
 
-// MaxConcurrentOrDefault returns the max concurrent workers, defaulting to 2.
+// MaxConcurrentOrDefault returns the historical video worker setting.
+//
+// Deprecated: adaptive scheduling ignores VideoConfig.MaxConcurrent. Use
+// PerformanceConfig.MaxVideoWorkers when an operator ceiling is required.
 func (c *VideoConfig) MaxConcurrentOrDefault() int {
 	if c.MaxConcurrent <= 0 {
 		return 2
@@ -1226,10 +1235,10 @@ func (c *ChattoConfig) Validate() error {
 		}
 	}
 
-	switch c.Performance.DefaultProfileOrLegacy() {
-	case PerformanceProfileLegacy, PerformanceProfileEconomy, PerformanceProfileBalanced, PerformanceProfilePerformance:
+	switch c.Performance.DefaultProfileOrAdaptive() {
+	case PerformanceProfileAdaptive, PerformanceProfileLegacy, PerformanceProfileEconomy, PerformanceProfileBalanced, PerformanceProfilePerformance:
 	default:
-		errs = append(errs, "performance.default_profile must be one of: legacy, economy, balanced, performance")
+		errs = append(errs, "performance.default_profile must be one of: adaptive, legacy, economy, balanced, performance (deprecated; scheduling is adaptive)")
 	}
 	performanceCaps := []struct {
 		name  string

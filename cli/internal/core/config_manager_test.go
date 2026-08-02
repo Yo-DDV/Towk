@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"hmans.de/chatto/internal/config"
 	configv1 "hmans.de/chatto/internal/pb/chatto/config/v1"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -195,8 +196,8 @@ func TestConfigManager_PerformancePolicyRoundTrip(t *testing.T) {
 	if got.GetPerformancePolicy().GetProfile() != "performance" || got.GetPerformancePolicy().GetRevision() != 1 {
 		t.Fatalf("performance policy = %#v", got.GetPerformancePolicy())
 	}
-	if status := core.PerformanceStatus(); status.Source != performanceSourceOwner || status.Revision != 1 {
-		t.Fatalf("effective performance status = %#v", status)
+	if status := core.PerformanceStatus(); status.Source != performanceSourceAdaptive || status.Revision != 0 || status.RequestedProfile != config.PerformanceProfileAdaptive {
+		t.Fatalf("historical policy affected adaptive performance status = %#v", status)
 	}
 }
 
