@@ -1319,6 +1319,13 @@ const msg_voice_participant_packet_loss = (
 const msg_voice_participant_high_jitter = (
   inputs: Parameters<LocaleMessages['voice_participant_high_jitter']>[0]
 ): LocalizedString => messages().voice_participant_high_jitter(inputs);
+const msg_voice_participant_high_latency = (
+  inputs: Parameters<LocaleMessages['voice_participant_high_latency']>[0]
+): LocalizedString => messages().voice_participant_high_latency(inputs);
+const msg_voice_participant_connection_metrics = (
+  inputs: Parameters<LocaleMessages['voice_participant_connection_metrics']>[0]
+): LocalizedString => messages().voice_participant_connection_metrics(inputs);
+const msg_voice_connection_metric_unavailable = (): LocalizedString => messages().voice_connection_metric_unavailable(empty());
 const msg_voice_screen_share = (): LocalizedString => messages().voice_screen_share(empty());
 const msg_voice_screen_title = (
   inputs: Parameters<LocaleMessages['voice_screen_title']>[0]
@@ -3354,6 +3361,9 @@ export { msg_voice_connection_quality_unknown as 'voice.connection_quality_unkno
 export { msg_voice_participant_reconnecting as 'voice.participant_reconnecting' };
 export { msg_voice_participant_packet_loss as 'voice.participant_packet_loss' };
 export { msg_voice_participant_high_jitter as 'voice.participant_high_jitter' };
+export { msg_voice_participant_high_latency as 'voice.participant_high_latency' };
+export { msg_voice_participant_connection_metrics as 'voice.participant_connection_metrics' };
+export { msg_voice_connection_metric_unavailable as 'voice.connection_metric_unavailable' };
 export { msg_voice_screen_share as 'voice.screen_share' };
 export { msg_voice_screen_title as 'voice.screen_title' };
 export { msg_voice_devices as 'voice.devices' };

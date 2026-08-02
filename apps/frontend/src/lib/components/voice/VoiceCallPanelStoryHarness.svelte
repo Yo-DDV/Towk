@@ -184,6 +184,7 @@
       networkHealth: 'unknown',
       packetLossPercent: null,
       jitterMs: null,
+      latencyMs: null,
       networkWarningMetric: null,
       connectionState: 'connected',
       interruptionDeadline: null,
@@ -224,7 +225,11 @@
       isLocallyMuted: true,
       connectionState: interrupted ? 'interrupted' : 'connected',
       interruptionDeadline: interrupted ? new Date(Date.now() + 60_000).toISOString() : null,
-      connectionQuality: interrupted ? 'lost' : 'excellent'
+      connectionQuality: interrupted ? 'lost' : 'good',
+      networkHealth: interrupted ? 'poor' : 'good',
+      packetLossPercent: interrupted ? null : 0.4,
+      jitterMs: interrupted ? null : 12,
+      latencyMs: interrupted ? null : 110
     });
     const chloe = participant('chloe', 'Chloe', {
       isMuted: true,
@@ -232,6 +237,7 @@
       networkHealth: 'poor',
       packetLossPercent: jitterWarning ? 0 : 12.4,
       jitterMs: 82,
+      latencyMs: 640,
       networkWarningMetric: jitterWarning ? 'jitter' : 'packetLoss'
     });
 
@@ -258,6 +264,7 @@
           connectionQuality: index % 7 === 6 ? 'poor' : index % 4 === 2 ? 'good' : 'excellent',
           networkHealth: index % 7 === 6 ? 'poor' : index % 4 === 2 ? 'good' : 'excellent',
           packetLossPercent: index % 7 === 6 ? 12.4 : null,
+          latencyMs: index % 7 === 6 ? 640 : 90,
           networkWarningMetric: index % 7 === 6 ? 'packetLoss' : null,
           isCameraEnabled:
             (scenario === 'camera' && index % 2 === 0) ||
@@ -313,6 +320,7 @@
           connectionQuality: 'poor',
           networkHealth: 'poor',
           packetLossPercent: 12.4,
+          latencyMs: 640,
           networkWarningMetric: 'packetLoss',
           canControlAudio: true,
           siblingMicrophoneMuted: true,

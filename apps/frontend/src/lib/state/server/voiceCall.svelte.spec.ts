@@ -4471,9 +4471,15 @@ describe('VoiceCallState', () => {
 
     await state.join('wss://livekit.example.test', 'R1');
     await flushPromises();
+    await (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
+    await (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
 
-    expect(microphoneStats).toHaveBeenCalledOnce();
-    expect(screenShareStats).toHaveBeenCalledOnce();
+    expect(microphoneStats).toHaveBeenCalledTimes(3);
+    expect(screenShareStats).toHaveBeenCalledTimes(3);
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
@@ -4550,6 +4556,12 @@ describe('VoiceCallState', () => {
       .mockResolvedValueOnce(
         inboundNetworkStatsReport({ packetsLost: 200, packetsReceived: 800, jitter: 0.16 })
       )
+      .mockResolvedValueOnce(
+        inboundNetworkStatsReport({ packetsLost: 400, packetsReceived: 1_600, jitter: 0.16 })
+      )
+      .mockResolvedValueOnce(
+        inboundNetworkStatsReport({ packetsLost: 600, packetsReceived: 2_400, jitter: 0.16 })
+      )
       .mockResolvedValue(undefined);
     mockRemoteParticipants.set('remote-user', {
       identity: 'remote-user',
@@ -4577,6 +4589,12 @@ describe('VoiceCallState', () => {
 
     await state.join('wss://livekit.example.test', 'R1');
     await flushPromises();
+    await (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
+    await (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({ networkHealth: 'poor' });
