@@ -6,7 +6,7 @@
   import MessageComposer, {
     type MessageComposerApi
   } from '$lib/components/composer/MessageComposer.svelte';
-  import { createRoleAPI } from '$lib/api-client/roles';
+  import { createRoleAPI, type ServerRole } from '$lib/api-client/roles';
   import {
     useRoomData,
     useRoomUnread,
@@ -114,6 +114,7 @@
   // Create context-based state (must be synchronous, before children render)
   const composerContext = createComposerContext({ scroll: true });
   const mentionRoles = createMentionRoles();
+  let serverRoles = $state<ServerRole[]>([]);
   const replyState = composerContext.replyState;
   let replyStateRoomId: string | null = null;
   const jumpState = composerContext.jumpState;
@@ -242,10 +243,12 @@
       } catch {
         if (!cancelled) {
           mentionRoles.clear();
+          serverRoles = [];
         }
         return;
       }
       if (cancelled) return;
+      serverRoles = roles ?? [];
       mentionRoles.setRoles(
         roles
           ?.filter((role) => role.name !== 'everyone')
@@ -866,6 +869,7 @@
             )}
             currentUserId={currentUser.user?.id ?? null}
             membersStore={roomMembersStore}
+            roles={serverRoles}
             onOpenFile={(messageEventId, threadRootEventId) =>
               openFileMessage(messageEventId, threadRootEventId, true)}
             onClose={() => appUi.closeMobileRoomSidebarPanel()}
@@ -890,6 +894,7 @@
           )}
           currentUserId={currentUser.user?.id ?? null}
           membersStore={roomMembersStore}
+          roles={serverRoles}
           onOpenFile={(messageEventId, threadRootEventId) =>
             openFileMessage(messageEventId, threadRootEventId)}
           onClose={closeDesktopRoomSidebarPanel}

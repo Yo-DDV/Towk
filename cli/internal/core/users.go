@@ -603,10 +603,19 @@ func (c *ChattoCore) UploadUserAvatar(ctx context.Context, userID string, reader
 
 // SetUserAvatar stores the user's avatar asset reference through the user aggregate.
 func (c *ChattoCore) SetUserAvatar(ctx context.Context, userID string, asset *corev1.AssetRecord) error {
+	_, err := c.setUserAvatarAndGetPrevious(ctx, userID, asset)
+	return err
+}
+
+// setUserAvatarAndGetPrevious stores the user's avatar and returns the avatar
+// that immediately preceded it in the user aggregate. The previous value is
+// captured inside the OCC check so a retry observes the latest projection
+// rather than a stale value read before the mutation.
+func (c *ChattoCore) setUserAvatarAndGetPrevious(ctx context.Context, userID string, asset *corev1.AssetRecord) (*corev1.AssetRecord, error) {
 	// Verify user exists
 	_, err := c.GetUser(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("user not found: %w", err)
+		return nil, fmt.Errorf("user not found: %w", err)
 	}
 
 	event := newEvent(userID, &corev1.Event{Event: &corev1.Event_AssetCreated{
@@ -616,8 +625,19 @@ func (c *ChattoCore) SetUserAvatar(ctx context.Context, userID string, asset *co
 			UserId:                  userID,
 		},
 	}})
-	if _, err := c.appendUserEvent(ctx, userID, event, "", nil); err != nil {
-		return fmt.Errorf("failed to store avatar: %w", err)
+	var previous *corev1.AssetRecord
+	if _, err := c.appendUserEvent(ctx, userID, event, "", func() error {
+		current, err := c.GetUserAvatar(ctx, userID)
+		if err != nil {
+			return err
+		}
+		previous = nil
+		if current != nil {
+			previous = proto.Clone(current).(*corev1.AssetRecord)
+		}
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed to store avatar: %w", err)
 	}
 
 	c.logger.Info("Updated user avatar", "user_id", userID)
@@ -625,7 +645,7 @@ func (c *ChattoCore) SetUserAvatar(ctx context.Context, userID string, asset *co
 	// Publish profile update event
 	c.publishUserProfileUpdate(ctx, userID)
 
-	return nil
+	return previous, nil
 }
 
 // GetUserAvatar retrieves a user's avatar asset reference from the user projection.

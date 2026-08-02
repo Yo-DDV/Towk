@@ -19,6 +19,7 @@ func TestRBACProjection_RoleMetadataAndReorder(t *testing.T) {
 			Description: "First",
 			Rank:        10,
 			Pingable:    true,
+			Color:       "#123456",
 		},
 	}})
 	applyRBACProjectionEvent(t, p, &corev1.Event{Event: &corev1.Event_RbacRoleCreated{
@@ -47,6 +48,12 @@ func TestRBACProjection_RoleMetadataAndReorder(t *testing.T) {
 			Pingable: false,
 		},
 	}})
+	applyRBACProjectionEvent(t, p, &corev1.Event{Event: &corev1.Event_RbacRoleColorChanged{
+		RbacRoleColorChanged: &corev1.RbacRoleColorChangedEvent{
+			RoleName: "alpha",
+			Color:    "#ABCDEF",
+		},
+	}})
 	applyRBACProjectionEvent(t, p, &corev1.Event{Event: &corev1.Event_RbacRolesReordered{
 		RbacRolesReordered: &corev1.RbacRolesReorderedEvent{
 			RoleNames: []string{"beta", "alpha"},
@@ -69,6 +76,9 @@ func TestRBACProjection_RoleMetadataAndReorder(t *testing.T) {
 	if alpha.GetPingable() {
 		t.Fatal("alpha pingable = true, want false")
 	}
+	if alpha.GetColor() != "#ABCDEF" {
+		t.Fatalf("alpha color = %q, want #ABCDEF", alpha.GetColor())
+	}
 
 	beta, ok := p.GetRole("beta")
 	if !ok {
@@ -76,6 +86,27 @@ func TestRBACProjection_RoleMetadataAndReorder(t *testing.T) {
 	}
 	if beta.GetPosition() != PositionCustomFirst {
 		t.Fatalf("beta position = %d, want %d", beta.GetPosition(), PositionCustomFirst)
+	}
+	if beta.GetColor() != defaultRoleColor("beta", 20) {
+		t.Fatalf("legacy beta color = %q, want deterministic fallback", beta.GetColor())
+	}
+}
+
+func TestRBACProjection_LegacySystemRoleGetsDisplayDefault(t *testing.T) {
+	p := NewRBACProjection()
+	applyRBACProjectionEvent(t, p, &corev1.Event{Event: &corev1.Event_RbacRoleCreated{
+		RbacRoleCreated: &corev1.RbacRoleCreatedEvent{
+			RoleName: RoleOwner,
+			Rank:     PositionOwner,
+		},
+	}})
+
+	owner, ok := p.GetRole(RoleOwner)
+	if !ok {
+		t.Fatal("owner role missing")
+	}
+	if owner.GetColor() != RoleColorOwner {
+		t.Fatalf("legacy owner color = %q, want %q", owner.GetColor(), RoleColorOwner)
 	}
 }
 

@@ -695,6 +695,10 @@ const msg_room_create_name_required = (): LocalizedString => messages().room_cre
 const msg_room_create_name_too_long = (
   inputs: Parameters<LocaleMessages['room_create_name_too_long']>[0]
 ): LocalizedString => messages().room_create_name_too_long(inputs);
+const msg_room_create_name_invalid = (): LocalizedString => messages().room_create_name_invalid(empty());
+const msg_room_create_name_help = (
+  inputs: Parameters<LocaleMessages['room_create_name_help']>[0]
+): LocalizedString => messages().room_create_name_help(inputs);
 const msg_room_create_description_too_long = (
   inputs: Parameters<LocaleMessages['room_create_description_too_long']>[0]
 ): LocalizedString => messages().room_create_description_too_long(inputs);
@@ -874,6 +878,9 @@ const msg_room_sidebar_no_members = (): LocalizedString => messages().room_sideb
 const msg_room_sidebar_online = (
   inputs: Parameters<LocaleMessages['room_sidebar_online']>[0]
 ): LocalizedString => messages().room_sidebar_online(inputs);
+const msg_room_sidebar_role_members = (
+  inputs: Parameters<LocaleMessages['room_sidebar_role_members']>[0]
+): LocalizedString => messages().room_sidebar_role_members(inputs);
 const msg_room_sidebar_offline = (
   inputs: Parameters<LocaleMessages['room_sidebar_offline']>[0]
 ): LocalizedString => messages().room_sidebar_offline(inputs);
@@ -1654,6 +1661,14 @@ const msg_rbac_role_form_display_name_placeholder = (): LocalizedString => messa
 const msg_rbac_role_form_display_name_too_long = (): LocalizedString => messages().rbac_role_form_display_name_too_long(empty());
 const msg_rbac_role_form_description = (): LocalizedString => messages().rbac_role_form_description(empty());
 const msg_rbac_role_form_description_placeholder = (): LocalizedString => messages().rbac_role_form_description_placeholder(empty());
+const msg_rbac_role_form_color = (): LocalizedString => messages().rbac_role_form_color(empty());
+const msg_rbac_role_form_color_description = (): LocalizedString => messages().rbac_role_form_color_description(empty());
+const msg_rbac_role_form_color_picker = (): LocalizedString => messages().rbac_role_form_color_picker(empty());
+const msg_rbac_role_form_color_presets = (): LocalizedString => messages().rbac_role_form_color_presets(empty());
+const msg_rbac_role_form_color_preset = (
+  inputs: Parameters<LocaleMessages['rbac_role_form_color_preset']>[0]
+): LocalizedString => messages().rbac_role_form_color_preset(inputs);
+const msg_rbac_role_form_color_invalid = (): LocalizedString => messages().rbac_role_form_color_invalid(empty());
 const msg_rbac_role_form_pingable = (): LocalizedString => messages().rbac_role_form_pingable(empty());
 const msg_rbac_role_form_pingable_description = (): LocalizedString => messages().rbac_role_form_pingable_description(empty());
 const msg_rbac_permissions_loading = (): LocalizedString => messages().rbac_permissions_loading(empty());
@@ -1982,7 +1997,6 @@ const msg_admin_rooms_admin_edit_room = (): LocalizedString => messages().admin_
 const msg_admin_rooms_admin_edit_room_action = (): LocalizedString => messages().admin_rooms_admin_edit_room_action(empty());
 const msg_admin_rooms_admin_room_description_placeholder = (): LocalizedString => messages().admin_rooms_admin_room_description_placeholder(empty());
 const msg_admin_rooms_admin_room_name_empty = (): LocalizedString => messages().admin_rooms_admin_room_name_empty(empty());
-const msg_admin_rooms_admin_room_name_trim = (): LocalizedString => messages().admin_rooms_admin_room_name_trim(empty());
 const msg_admin_rooms_admin_room_name_charset = (): LocalizedString => messages().admin_rooms_admin_room_name_charset(empty());
 const msg_admin_rooms_admin_room_name_too_long = (): LocalizedString => messages().admin_rooms_admin_room_name_too_long(empty());
 const msg_admin_rooms_admin_create_group = (): LocalizedString => messages().admin_rooms_admin_create_group(empty());
@@ -2842,6 +2856,8 @@ export { msg_room_create_universal_label as 'room.create.universal_label' };
 export { msg_room_create_universal_description as 'room.create.universal_description' };
 export { msg_room_create_name_required as 'room.create.name_required' };
 export { msg_room_create_name_too_long as 'room.create.name_too_long' };
+export { msg_room_create_name_invalid as 'room.create.name_invalid' };
+export { msg_room_create_name_help as 'room.create.name_help' };
 export { msg_room_create_description_too_long as 'room.create.description_too_long' };
 export { msg_room_create_missing_group as 'room.create.missing_group' };
 export { msg_room_create_failed as 'room.create.failed' };
@@ -2967,6 +2983,7 @@ export { msg_room_sidebar_search_members_placeholder as 'room.sidebar.search_mem
 export { msg_room_sidebar_clear_member_search as 'room.sidebar.clear_member_search' };
 export { msg_room_sidebar_no_members as 'room.sidebar.no_members' };
 export { msg_room_sidebar_online as 'room.sidebar.online' };
+export { msg_room_sidebar_role_members as 'room.sidebar.role_members' };
 export { msg_room_sidebar_offline as 'room.sidebar.offline' };
 export { msg_room_sidebar_no_files as 'room.sidebar.no_files' };
 export { msg_room_sidebar_files as 'room.sidebar.files' };
@@ -3629,6 +3646,12 @@ export { msg_rbac_role_form_display_name_placeholder as 'rbac.role_form.display_
 export { msg_rbac_role_form_display_name_too_long as 'rbac.role_form.display_name_too_long' };
 export { msg_rbac_role_form_description as 'rbac.role_form.description' };
 export { msg_rbac_role_form_description_placeholder as 'rbac.role_form.description_placeholder' };
+export { msg_rbac_role_form_color as 'rbac.role_form.color' };
+export { msg_rbac_role_form_color_description as 'rbac.role_form.color_description' };
+export { msg_rbac_role_form_color_picker as 'rbac.role_form.color_picker' };
+export { msg_rbac_role_form_color_presets as 'rbac.role_form.color_presets' };
+export { msg_rbac_role_form_color_preset as 'rbac.role_form.color_preset' };
+export { msg_rbac_role_form_color_invalid as 'rbac.role_form.color_invalid' };
 export { msg_rbac_role_form_pingable as 'rbac.role_form.pingable' };
 export { msg_rbac_role_form_pingable_description as 'rbac.role_form.pingable_description' };
 export { msg_rbac_permissions_loading as 'rbac.permissions.loading' };
@@ -3897,7 +3920,6 @@ export { msg_admin_rooms_admin_edit_room as 'admin.rooms_admin.edit_room' };
 export { msg_admin_rooms_admin_edit_room_action as 'admin.rooms_admin.edit_room_action' };
 export { msg_admin_rooms_admin_room_description_placeholder as 'admin.rooms_admin.room_description_placeholder' };
 export { msg_admin_rooms_admin_room_name_empty as 'admin.rooms_admin.room_name_empty' };
-export { msg_admin_rooms_admin_room_name_trim as 'admin.rooms_admin.room_name_trim' };
 export { msg_admin_rooms_admin_room_name_charset as 'admin.rooms_admin.room_name_charset' };
 export { msg_admin_rooms_admin_room_name_too_long as 'admin.rooms_admin.room_name_too_long' };
 export { msg_admin_rooms_admin_create_group as 'admin.rooms_admin.create_group' };

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // StringLengthError is returned when a persisted user-controlled string exceeds
@@ -24,6 +25,31 @@ func (e *StringLengthError) Is(target error) bool {
 func validateStringMaxLength(field, value string, max int) error {
 	if len(value) > max {
 		return &StringLengthError{Field: field, Max: max}
+	}
+	return nil
+}
+
+// StringCharacterLengthError is returned when a human-facing Unicode string
+// exceeds its durable limit measured in Unicode code points.
+type StringCharacterLengthError struct {
+	Field string
+	Max   int
+}
+
+func (e *StringCharacterLengthError) Error() string {
+	return fmt.Sprintf("%s cannot exceed %d characters", e.Field, e.Max)
+}
+
+func (e *StringCharacterLengthError) Is(target error) bool {
+	return target == ErrInvalidArgument
+}
+
+func validateStringMaxCharacters(field, value string, max int) error {
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("%w: %s must be valid UTF-8", ErrInvalidArgument, field)
+	}
+	if utf8.RuneCountInString(value) > max {
+		return &StringCharacterLengthError{Field: field, Max: max}
 	}
 	return nil
 }

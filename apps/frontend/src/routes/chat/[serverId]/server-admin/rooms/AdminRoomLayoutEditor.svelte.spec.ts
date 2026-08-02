@@ -228,7 +228,7 @@ describe('AdminRoomLayoutEditor', () => {
     });
   });
 
-  it('keeps Save disabled and shows validation when a room name has leading whitespace', async () => {
+  it('accepts emoji and normalizes room name spacing before saving', async () => {
     const layout = makeLayout();
     layout.initialized = true;
     layout.groups = [group('g1', [room('r1', { name: 'general' })], 'Lobby')];
@@ -241,14 +241,14 @@ describe('AdminRoomLayoutEditor', () => {
     flushSync();
 
     const input = q(container, '#edit-room-name') as HTMLInputElement;
-    fill(input, ' bad-name');
+    fill(input, '  📣   Cafe\u0301 Updates  ');
 
-    expect(container.textContent).toContain('Room name cannot have leading or trailing whitespace');
     const save = buttonByText(container, 'Save Changes');
-    expect(save.disabled).toBe(true);
+    expect(save.disabled).toBe(false);
     save.click();
-    await Promise.resolve();
-    expect(updateRoom).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(updateRoom).toHaveBeenCalledWith('r1', '📣 Café Updates', null);
+    });
   });
 
   it('edits the Universal flag from the room edit modal, not a row action', async () => {

@@ -18,6 +18,7 @@ and similar room-specific panels can plug into the same shell. See the
   import UserCustomStatusBadge from '$lib/components/UserCustomStatusBadge.svelte';
   import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
   import type { PresenceStatus } from '$lib/render/types';
+  import type { ServerRole } from '$lib/api-client/roles';
   import type { RoomFilesStore, RoomMember, RoomMembersStore } from '$lib/state/room';
   import { getPresenceCache } from '$lib/state/presenceCache.svelte';
   import {
@@ -38,6 +39,12 @@ and similar room-specific panels can plug into the same shell. See the
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
   import RoomFilesPanel from './RoomFilesPanel.svelte';
   import { roomSidebarShellClass } from './roomSidebarBehavior';
+  import { localizedRoleDisplayName } from '$lib/rbacLabels';
+  import {
+    displayRoleForMember,
+    groupMembersByDisplayRole,
+    safeRoleColor
+  } from './memberRoleSections';
 
   let {
     loading = false,
@@ -47,6 +54,7 @@ and similar room-specific panels can plug into the same shell. See the
     canBanRoomMembers = false,
     currentUserId = null,
     membersStore,
+    roles = [],
     filesStore,
     fileGroupingNow,
     onOpenFile,
@@ -59,6 +67,7 @@ and similar room-specific panels can plug into the same shell. See the
     canBanRoomMembers?: boolean;
     currentUserId?: string | null;
     membersStore: RoomMembersStore;
+    roles?: ServerRole[];
     filesStore?: RoomFilesStore;
     fileGroupingNow?: Date;
     onOpenFile?: (messageEventId: string, threadRootEventId: string | null) => void;
@@ -146,6 +155,12 @@ and similar room-specific panels can plug into the same shell. See the
   });
   const onlineMembers = $derived(groupedMembers.online);
   const offlineMembers = $derived(groupedMembers.offline);
+  const onlineRoleGroups = $derived(groupMembersByDisplayRole(onlineMembers, roles));
+  const rolesByName = $derived(new Map(roles.map((role) => [role.name, role])));
+
+  function memberRoleColor(member: RoomMember): string | null {
+    return safeRoleColor(displayRoleForMember(member, rolesByName)?.color);
+  }
 
   // Look up the selected member for the popover (rendered outside the {#each} loop
   // to avoid Svelte reactivity cycles between the popover's $effect and onlineMembers' $derived)
@@ -282,13 +297,33 @@ and similar room-specific panels can plug into the same shell. See the
           <div class="px-2 py-8 text-center text-sm text-muted">
             {m['room.sidebar.no_members']()}
           </div>
-        {:else if onlineMembers.length > 0}
-          <CollapsibleGroup
-            label={m['room.sidebar.online']({ count: onlineMembers.length })}
-            items={onlineMembers}
-            item={memberRow}
-            persistKey={serverStorageKey(getActiveServer(), 'collapsible:room-members:online')}
-          />
+        {:else}
+          {#each onlineRoleGroups.sections as section, index (section.role.name)}
+            <CollapsibleGroup
+              label={m['room.sidebar.role_members']({
+                role: localizedRoleDisplayName(section.role.name, section.role.displayName),
+                count: section.members.length
+              })}
+              items={section.members}
+              item={memberRow}
+              accentColor={safeRoleColor(section.role.color)}
+              persistKey={serverStorageKey(
+                getActiveServer(),
+                `collapsible:room-members:role:${section.role.name}`
+              )}
+              class={index === 0 ? undefined : 'mt-3'}
+            />
+          {/each}
+
+          {#if onlineRoleGroups.ungrouped.length > 0}
+            <CollapsibleGroup
+              label={m['room.sidebar.online']({ count: onlineRoleGroups.ungrouped.length })}
+              items={onlineRoleGroups.ungrouped}
+              item={memberRow}
+              persistKey={serverStorageKey(getActiveServer(), 'collapsible:room-members:online')}
+              class={onlineRoleGroups.sections.length > 0 ? 'mt-3' : undefined}
+            />
+          {/if}
         {/if}
 
         {#if offlineMembers.length > 0}
@@ -362,6 +397,7 @@ and similar room-specific panels can plug into the same shell. See the
 
 {#snippet memberRow(member: RoomMember)}
   {@const isOnline = isOnlineStatus(getPresence(member))}
+  {@const roleColor = memberRoleColor(member)}
   {@const callPresence = member.deleted
     ? null
     : activeCallRooms.getParticipantCallPresenceInAnyRoom(member.id)}
@@ -387,7 +423,11 @@ and similar room-specific panels can plug into the same shell. See the
     <UserAvatar user={member} size="sm" showPresence />
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-1.5">
-        <span class="min-w-0 truncate">{getLiveDisplayName(member.id, member.displayName)}</span>
+        <span
+          class={['min-w-0 truncate', roleColor && 'role-member-name']}
+          style:--member-role-color={roleColor ?? undefined}
+          >{getLiveDisplayName(member.id, member.displayName)}</span
+        >
         <UserCustomStatusBadge
           status={getLiveCustomStatus(member.id, member.customStatus)}
           class="shrink-0 text-xs"
@@ -404,5 +444,9 @@ and similar room-specific panels can plug into the same shell. See the
     -webkit-appearance: none;
     appearance: none;
     display: none;
+  }
+
+  .role-member-name {
+    color: color-mix(in srgb, var(--member-role-color) 72%, var(--color-text-top));
   }
 </style>

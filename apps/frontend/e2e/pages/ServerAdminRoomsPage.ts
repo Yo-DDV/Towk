@@ -34,10 +34,12 @@ export class ServerAdminRoomsPage {
 
   /**
    * Get the room row locator for a given room name.
-   * Targets the stable row container rather than its draggable handle.
+   * Targets the stable admin row test id and its exact visible room name.
    */
   roomRow(name: string): Locator {
-    return this.page.locator('.room-row', { hasText: name });
+    return this.page
+      .getByTestId('admin-room-row')
+      .filter({ has: this.page.getByText(name, { exact: true }) });
   }
 
   /**
@@ -73,7 +75,7 @@ export class ServerAdminRoomsPage {
   /** Click the Archive button on a room row (opens confirmation dialog). */
   async clickArchive(roomName: string): Promise<void> {
     const row = this.roomRow(roomName);
-    await row.getByTitle('Archive room').click();
+    await row.getByRole('button', { name: 'Archive Room', exact: true }).click();
     await expect(this.dialog).toBeVisible();
   }
 
@@ -86,7 +88,7 @@ export class ServerAdminRoomsPage {
   /** Click the Unarchive button on an archived room row (opens confirmation dialog). */
   async clickUnarchive(roomName: string): Promise<void> {
     const row = this.roomRow(roomName);
-    await row.getByTitle('Unarchive room').click();
+    await row.getByRole('button', { name: 'Unarchive Room', exact: true }).click();
     await expect(this.dialog).toBeVisible();
   }
 

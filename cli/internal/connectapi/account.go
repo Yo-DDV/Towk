@@ -72,12 +72,7 @@ func (s *accountService) UploadAvatar(ctx context.Context, req *connect.Request[
 		return nil, invalidArgument("image is required")
 	}
 
-	asset, err := s.api.core.UploadUserAvatar(ctx, caller.UserID, bytes.NewReader(image.GetImage()))
-	if err != nil {
-		return nil, connectError(err)
-	}
-	if err := s.api.core.SetUserAvatar(ctx, caller.UserID, asset); err != nil {
-		s.api.core.CleanupAsset(ctx, core.DeprecatedAssetFromAsset(asset))
+	if _, err := s.api.core.ReplaceUserAvatarFromUpload(ctx, caller.UserID, bytes.NewReader(image.GetImage())); err != nil {
 		return nil, connectError(err)
 	}
 	user, err := s.api.core.GetUser(ctx, caller.UserID)

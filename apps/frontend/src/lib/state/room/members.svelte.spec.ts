@@ -40,7 +40,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function user(id: string, login = id) {
+function user(id: string, login = id, roles: string[] = []) {
   return {
     id,
     login,
@@ -49,7 +49,7 @@ function user(id: string, login = id) {
     avatarUrl: null,
     presenceStatus: PresenceStatus.Online,
     customStatus: null,
-    roles: [],
+    roles,
     createdAt: null
   };
 }
@@ -73,6 +73,14 @@ function createStore(results: Array<MemberDirectoryPage | Promise<MemberDirector
 describe('RoomMembersStore', () => {
   it('requests room members in 250-member pages', () => {
     expect(ROOM_MEMBERS_PAGE_SIZE).toBe(250);
+  });
+
+  it('preserves directory roles for member-list presentation', async () => {
+    const store = createStore([pageResult([user('u1', 'alice', ['everyone', 'moderator'])])]);
+    store.setRoom('room-1');
+    await store.loadInitial();
+
+    expect(store.members[0]?.roles).toEqual(['everyone', 'moderator']);
   });
 
   it('publishes the first page before hydrating the canonical member list in the background', async () => {
