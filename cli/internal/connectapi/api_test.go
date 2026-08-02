@@ -27,12 +27,14 @@ import (
 	"connectrpc.com/authn"
 	"connectrpc.com/connect"
 	"connectrpc.com/grpcreflect"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"hmans.de/chatto/internal/assets"
 	"hmans.de/chatto/internal/authctx"
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
@@ -5100,6 +5102,15 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	if len(participants) != 1 || participants[0].GetUser().GetId() != env.viewer.Id || participants[0].GetCallId() == "" || participants[0].GetJoinedAt() == nil {
 		t.Fatalf("participants = %+v, want viewer participant with call metadata", participants)
 	}
+	if err := env.core.SetUserAvatar(ctx, env.viewer.Id, &corev1.AssetRecord{
+		Id:       "voice-animated-avatar",
+		Filename: assets.AnimatedAvatarFilename,
+		Storage: &corev1.AssetRecord_Nats{Nats: &corev1.NATSAsset{
+			Key: "voice-animated-avatar",
+		}},
+	}); err != nil {
+		t.Fatalf("SetUserAvatar: %v", err)
+	}
 
 	tokenResp, err := env.voice.GetCallToken(ctx, connect.NewRequest(&apiv1.GetCallTokenRequest{
 		RoomId: room.Id,
@@ -5109,6 +5120,19 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	}
 	if tokenResp.Msg.GetToken() == "" || tokenResp.Msg.GetE2EeKey() == "" || tokenResp.Msg.GetCallId() != participants[0].GetCallId() {
 		t.Fatalf("GetCallToken response = %+v, want token/e2ee key/call id", tokenResp.Msg)
+	}
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	parsedToken, _, err := parser.ParseUnverified(tokenResp.Msg.GetToken(), jwt.MapClaims{})
+	if err != nil {
+		t.Fatalf("parse call token: %v", err)
+	}
+	metadata, ok := parsedToken.Claims.(jwt.MapClaims)["metadata"].(string)
+	if !ok {
+		t.Fatal("call token metadata claim missing")
+	}
+	participantMetadata := core.ParseParticipantMetadata(metadata)
+	if !strings.Contains(participantMetadata.AvatarURL, "/assets/server/voice-animated-avatar") || strings.Contains(participantMetadata.AvatarURL, "/t/") {
+		t.Fatalf("animated avatar URL = %q, want canonical untransformed asset URL", participantMetadata.AvatarURL)
 	}
 	expectedJoin, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
 		RoomId:         room.Id,

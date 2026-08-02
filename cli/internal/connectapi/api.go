@@ -78,14 +78,16 @@ func handlerOptionsWithReadMax(readMaxBytes int) []connect.HandlerOption {
 
 func (a *API) Handlers() []Handler {
 	options := HandlerOptions()
+	accountUploadOptions := options
 	uploadOptions := options
 	assetUploadOptions := options
 	if a.core != nil {
+		accountUploadOptions = handlerOptionsWithReadMax(avatarUploadRequestMaxBytes(a.core.AssetsConfig().MaxUploadSize))
 		uploadOptions = handlerOptionsWithReadMax(uploadRequestMaxBytes(a.core.AssetsConfig().MaxUploadSize))
 		assetUploadOptions = handlerOptionsWithReadMax(assetUploadRequestMaxBytes())
 	}
 
-	accountPath, accountHandler := apiv1connect.NewMyAccountServiceHandler(&accountService{api: a}, uploadOptions...)
+	accountPath, accountHandler := apiv1connect.NewMyAccountServiceHandler(&accountService{api: a}, accountUploadOptions...)
 	assetPath, assetHandler := apiv1connect.NewAssetServiceHandler(&assetService{api: a}, options...)
 	assetUploadPath, assetUploadHandler := apiv1connect.NewAssetUploadServiceHandler(&assetUploadService{api: a}, assetUploadOptions...)
 	adminDiagnosticsPath, adminDiagnosticsHandler := adminv1connect.NewAdminDiagnosticsServiceHandler(&adminDiagnosticsService{api: a}, options...)
