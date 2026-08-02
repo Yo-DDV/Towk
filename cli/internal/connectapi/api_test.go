@@ -1336,6 +1336,11 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 	if err := env.core.AssignServerRole(env.ctx, core.SystemActorID, env.viewer.Id, core.RoleAdmin); err != nil {
 		t.Fatalf("AssignServerRole admin: %v", err)
 	}
+	if _, err := env.roles.CreateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.CreateRoleRequest{
+		Name: "unsafe-color", DisplayName: "Unsafe Color", Color: stringPtr("red"),
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("unsafe color CreateRole code = %v, want invalid argument", connect.CodeOf(err))
+	}
 
 	if _, err := env.roles.CreateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.CreateRoleRequest{
 		Name:        "InvalidName",
@@ -1349,12 +1354,13 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 		DisplayName: "Helpdesk",
 		Description: "Support queue",
 		Pingable:    true,
+		Color:       stringPtr("#2563eb"),
 	}))
 	if err != nil {
 		t.Fatalf("CreateRole: %v", err)
 	}
-	if got := createResp.Msg.GetRole().GetRole(); got.GetName() != "helpdesk" || !got.GetPingable() {
-		t.Fatalf("created role = %+v, want helpdesk pingable", got)
+	if got := createResp.Msg.GetRole().GetRole(); got.GetName() != "helpdesk" || !got.GetPingable() || got.GetColor() != "#2563EB" {
+		t.Fatalf("created role = %+v, want helpdesk pingable with normalized color", got)
 	}
 
 	if _, err := env.roles.CreateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.CreateRoleRequest{
@@ -1373,7 +1379,7 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("public GetRole: %v", err)
 	}
-	if got := publicGetResp.Msg.GetRole(); got.GetName() != "helpdesk" || got.GetDisplayName() != "Helpdesk" || !got.GetPingable() {
+	if got := publicGetResp.Msg.GetRole(); got.GetName() != "helpdesk" || got.GetDisplayName() != "Helpdesk" || !got.GetPingable() || got.GetColor() != "#2563EB" {
 		t.Fatalf("public GetRole role = %+v, want helpdesk metadata", got)
 	}
 	if _, err := env.publicRoles.GetRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetRoleRequest{Name: "missing-role"})); connect.CodeOf(err) != connect.CodeNotFound {
@@ -1432,17 +1438,19 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 		t.Fatalf("empty UpdateRole code = %v, want invalid argument", connect.CodeOf(err))
 	}
 	pingable := false
+	updatedColor := "#db2777"
 	updateResp, err := env.roles.UpdateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.UpdateRoleRequest{
 		Name:        "helpdesk",
 		DisplayName: stringPtr("Support"),
 		Description: stringPtr("Support team"),
 		Pingable:    &pingable,
+		Color:       &updatedColor,
 	}))
 	if err != nil {
 		t.Fatalf("UpdateRole: %v", err)
 	}
-	if updateResp.Msg.GetRole().GetRole().GetDisplayName() != "Support" || updateResp.Msg.GetRole().GetRole().GetPingable() {
-		t.Fatalf("updated role = %+v, want Support pingable false", updateResp.Msg.GetRole())
+	if got := updateResp.Msg.GetRole().GetRole(); got.GetDisplayName() != "Support" || got.GetPingable() || got.GetColor() != "#DB2777" {
+		t.Fatalf("updated role = %+v, want Support pingable false with normalized color", updateResp.Msg.GetRole())
 	}
 	partialRoleResp, err := env.roles.UpdateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.UpdateRoleRequest{
 		Name:        "helpdesk",
@@ -1451,8 +1459,8 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("partial UpdateRole: %v", err)
 	}
-	if got := partialRoleResp.Msg.GetRole().GetRole(); got.GetDisplayName() != "Support" || got.GetDescription() != "Escalation queue" || got.GetPingable() {
-		t.Fatalf("partial role = %+v, want preserved display/pingable and updated description", got)
+	if got := partialRoleResp.Msg.GetRole().GetRole(); got.GetDisplayName() != "Support" || got.GetDescription() != "Escalation queue" || got.GetPingable() || got.GetColor() != "#DB2777" {
+		t.Fatalf("partial role = %+v, want preserved display/pingable/color and updated description", got)
 	}
 
 	if _, err := env.roles.DeleteRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.DeleteRoleRequest{
@@ -4373,6 +4381,9 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 	if _, err := env.core.JoinRoom(env.ctx, member.Id, core.KindChannel, member.Id, room.Id); err != nil {
 		t.Fatalf("JoinRoom member: %v", err)
 	}
+	if err := env.core.AssignAdminRole(env.ctx, member.Id); err != nil {
+		t.Fatalf("AssignAdminRole member: %v", err)
+	}
 	if err := env.core.SetPresence(env.ctx, member.Id, core.PresenceStatusDoNotDisturb); err != nil {
 		t.Fatalf("SetPresence member: %v", err)
 	}
@@ -4412,6 +4423,9 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 	if got.GetUser().GetId() != member.Id || got.GetUser().GetDisplayName() != "Room Alice" || got.GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_DO_NOT_DISTURB {
 		t.Fatalf("room member = %+v, want hydrated Room Alice", got)
 	}
+	if roles := strings.Join(got.GetRoles(), ","); roles != "everyone,admin" {
+		t.Fatalf("room member roles = %q, want everyone,admin", roles)
+	}
 
 	getResp, err := env.rooms.GetMember(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetRoomMemberRequest{RoomId: room.Id, UserId: member.Id}))
 	if err != nil {
@@ -4419,6 +4433,8 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 	}
 	if got := getResp.Msg.GetMember(); got.GetUser().GetId() != member.Id || got.GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_DO_NOT_DISTURB {
 		t.Fatalf("GetMember member = %+v, want room member", got)
+	} else if roles := strings.Join(got.GetRoles(), ","); roles != "everyone,admin" {
+		t.Fatalf("GetMember roles = %q, want everyone,admin", roles)
 	}
 	if _, err := env.rooms.GetMember(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetRoomMemberRequest{RoomId: room.Id, UserId: outsider.Id})); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("non-member GetMember code = %v, want not_found", connect.CodeOf(err))
@@ -4434,6 +4450,9 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 	gotBatch := batchResp.Msg.GetMembers()
 	if len(gotBatch) != 2 || gotBatch[0].GetUser().GetId() != member.Id || gotBatch[1].GetUser().GetId() != env.viewer.Id {
 		t.Fatalf("BatchGetMembers members = %+v, want member,viewer", gotBatch)
+	}
+	if roles := strings.Join(gotBatch[0].GetRoles(), ","); roles != "everyone,admin" {
+		t.Fatalf("BatchGetMembers member roles = %q, want everyone,admin", roles)
 	}
 }
 

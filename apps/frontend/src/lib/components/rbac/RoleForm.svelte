@@ -1,11 +1,13 @@
 <script lang="ts">
   import { Button, Checkbox, Form, TextInput, TextArea } from '$lib/ui/form';
   import * as m from '$lib/i18n/messages';
+  import RoleColorField from './RoleColorField.svelte';
 
   let {
     name = $bindable(''),
     displayName = $bindable(''),
     description = $bindable(''),
+    color = $bindable('#2563EB'),
     pingable = $bindable(false),
     nameEditable = true,
     saving = false,
@@ -18,6 +20,7 @@
     name?: string;
     displayName?: string;
     description?: string;
+    color?: string;
     pingable?: boolean;
     nameEditable?: boolean;
     saving?: boolean;
@@ -41,13 +44,15 @@
 
   let displayNameError = $derived.by(() => {
     if (!displayName) return undefined;
-    if (displayName.length > 64) {
+    if (Array.from(displayName).length > 80) {
       return m['rbac.role_form.display_name_too_long']();
     }
     return undefined;
   });
 
-  const isValid = $derived(name && displayName && !nameError && !displayNameError);
+  const colorError = $derived(!/^#[0-9A-Fa-f]{6}$/.test(color));
+
+  const isValid = $derived(name && displayName && !nameError && !displayNameError && !colorError);
 
   function handleSubmit(e: Event) {
     e.preventDefault();
@@ -98,6 +103,8 @@
     disabled={saving}
     placeholder={m['rbac.role_form.description_placeholder']()}
   />
+
+  <RoleColorField bind:color disabled={saving} />
 
   <Checkbox
     id="pingable"

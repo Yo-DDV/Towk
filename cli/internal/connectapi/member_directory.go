@@ -255,7 +255,7 @@ func (s *roomService) ListMembers(ctx context.Context, req *connect.Request[apiv
 	page, totalCount, hasMore := paginateDirectoryUsers(users, limit, offset)
 	out := make([]*apiv1.DirectoryMember, 0, len(page))
 	for _, user := range page {
-		apiMember, err := directoryMember(ctx, s.api, user, nil)
+		apiMember, err := serverMemberForUser(ctx, s.api, user)
 		if err != nil {
 			return nil, err
 		}
@@ -282,7 +282,7 @@ func (s *roomService) GetMember(ctx context.Context, req *connect.Request[apiv1.
 	if user == nil {
 		return nil, connectError(core.ErrNotFound)
 	}
-	member, err := directoryMember(ctx, s.api, user, nil)
+	member, err := serverMemberForUser(ctx, s.api, user)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +316,7 @@ func (s *roomService) BatchGetMembers(ctx context.Context, req *connect.Request[
 		if user == nil {
 			continue
 		}
-		member, err := directoryMember(ctx, s.api, user, nil)
+		member, err := serverMemberForUser(ctx, s.api, user)
 		if err != nil {
 			return nil, err
 		}

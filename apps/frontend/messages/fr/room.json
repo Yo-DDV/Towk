@@ -164,6 +164,7 @@
       "clear_member_search": "Effacer la recherche de membres",
       "no_members": "Aucun membre trouvé.",
       "online": "En ligne ({count})",
+      "role_members": "{role} — {count}",
       "offline": "Hors ligne ({count})",
       "no_files": "Aucun fichier dans ce salon pour l'instant.",
       "files": "Fichiers",

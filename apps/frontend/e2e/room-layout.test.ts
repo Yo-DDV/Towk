@@ -788,7 +788,9 @@ test.describe('Room Layout', () => {
           expect(allRoomIds).toContain(roomId);
         }
         await expect(
-          serverAdminRoomsPage.roomRow('to-archive').getByTitle('Unarchive room')
+          serverAdminRoomsPage
+            .roomRow('to-archive')
+            .getByRole('button', { name: 'Unarchive Room', exact: true })
         ).toBeVisible();
       }).toPass({ timeout: TIMEOUTS.UI_STANDARD, intervals: [100, 250, 500, 1000] });
     });

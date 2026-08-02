@@ -18,6 +18,9 @@ message Role {
   int32 position = 5;
   // Whether messages may notify users assigned to this role.
   bool pingable = 6;
+  // Display-only accent color in canonical #RRGGBB form. Empty means the
+  // ordinary text color (used by the implicit everyone role).
+  string color = 7;
 }
 
 // Request the current role catalog.

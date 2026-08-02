@@ -61,6 +61,8 @@ func (p *RBACProjection) Apply(event *corev1.Event, seq uint64) error {
 		p.applyRoleDescriptionChanged(e.RbacRoleDescriptionChanged.GetRoleName(), e.RbacRoleDescriptionChanged.GetDescription())
 	case *corev1.Event_RbacRolePingableChanged:
 		p.applyRolePingableChanged(e.RbacRolePingableChanged.GetRoleName(), e.RbacRolePingableChanged.GetPingable())
+	case *corev1.Event_RbacRoleColorChanged:
+		p.applyRoleColorChanged(e.RbacRoleColorChanged.GetRoleName(), e.RbacRoleColorChanged.GetColor())
 	case *corev1.Event_RbacRoleDeleted:
 		p.applyRoleDeleted(e.RbacRoleDeleted.GetRoleName())
 	case *corev1.Event_RbacRolesReordered:
@@ -106,12 +108,17 @@ func rbacRoleFromCreated(event *corev1.RbacRoleCreatedEvent) *corev1.Role {
 	if event == nil {
 		return nil
 	}
+	color, err := normalizeRoleColor(event.GetColor())
+	if err != nil {
+		color = defaultRoleColor(event.GetRoleName(), event.GetRank())
+	}
 	return &corev1.Role{
 		Name:        event.GetRoleName(),
 		DisplayName: event.GetDisplayName(),
 		Description: event.GetDescription(),
 		Position:    event.GetRank(),
 		Pingable:    event.GetPingable(),
+		Color:       color,
 	}
 }
 
@@ -158,6 +165,23 @@ func (p *RBACProjection) applyRolePingableChanged(roleName string, pingable bool
 	}
 	updated := proto.Clone(role).(*corev1.Role)
 	updated.Pingable = pingable
+	p.roles[roleName] = updated
+}
+
+func (p *RBACProjection) applyRoleColorChanged(roleName, color string) {
+	if roleName == "" {
+		return
+	}
+	normalized, err := normalizeRoleColor(color)
+	if err != nil {
+		return
+	}
+	role := p.roles[roleName]
+	if role == nil {
+		return
+	}
+	updated := proto.Clone(role).(*corev1.Role)
+	updated.Color = normalized
 	p.roles[roleName] = updated
 }
 
