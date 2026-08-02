@@ -304,7 +304,7 @@
       "all_subjects": "todos os assuntos",
       "pending_state": "Pendente",
       "rtt": "RTT",
-      "max_payload": "Carga útil máxima",
+      "max_payload": "Tamanho máximo da mensagem NATS",
       "server_id": "ID do servidor",
       "server_name": "Nome do servidor",
       "limit": "Limite: {limit}",

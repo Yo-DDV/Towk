@@ -222,10 +222,12 @@ others are idle. Relative CPU shares apply only under contention:
 
 Shares are priorities, not reservations or capacity guarantees. An idle service
 does not keep CPU away from another service. Towk separately derives image,
-upload, link-preview, and media-transcode concurrency from the CPU and memory
-visible to its process. **Server administration → System** reports this adaptive
-target, its current effective value, and any memory or operator reduction; it
-does not expose mutable performance profiles or the Docker daemon.
+upload, link-preview, and media-transcode concurrency from the CPU and current
+memory headroom visible to its process. It samples cgroup usage and host
+`MemAvailable`, keeps a safety reserve, and refreshes the limits while running.
+**Server administration → System** reports this adaptive target, its current
+effective value, and any memory or operator reduction; it does not expose
+mutable performance profiles or the Docker daemon.
 
 The optional `CHATTO_PERFORMANCE_MAX_*` variables impose hard per-process work
 ceilings. Set a non-zero `*_CPU_LIMIT` or `*_MEMORY_LIMIT` only when Towk shares

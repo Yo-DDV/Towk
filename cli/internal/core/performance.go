@@ -58,7 +58,10 @@ type PerformanceManager struct {
 	detectedAt time.Time
 }
 
-const performanceEnvelopeCacheTTL = 5 * time.Second
+// A short cache avoids reading proc/cgroup files for every admission while
+// keeping adaptive back-pressure responsive to a host or sibling container
+// consuming memory. Limiters poll this value at most every 250ms when queued.
+const performanceEnvelopeCacheTTL = 2 * time.Second
 
 // ConfigurePerformance applies the operator-owned envelope before runtime
 // services begin accepting work.
@@ -217,11 +220,11 @@ const maxPerformanceValue = int(^uint32(0) >> 1)
 func adaptivePerformanceLimits(envelope runtimecap.Capacity) PerformanceLimits {
 	cpus := max(1, envelope.CPUs)
 	return PerformanceLimits{
-		ImageTransformWorkers:    cpus,
-		ImageTransformAdmissions: saturatedMultiply(cpus, 8),
-		AssetUploadWorkers:       saturatedMultiply(cpus, 2),
-		LinkPreviewWorkers:       cpus,
-		VideoWorkers:             cpus,
+		ImageTransformWorkers:    min(config.MaxPerformanceWorkers, cpus),
+		ImageTransformAdmissions: min(config.MaxPerformanceAdmissions, saturatedMultiply(cpus, 8)),
+		AssetUploadWorkers:       min(config.MaxPerformanceWorkers, saturatedMultiply(cpus, 2)),
+		LinkPreviewWorkers:       min(config.MaxPerformanceWorkers, cpus),
+		VideoWorkers:             min(config.MaxPerformanceWorkers, cpus),
 	}
 }
 
@@ -263,6 +266,14 @@ func boundedPerformanceValue(name string, requested, operator, cpu, memory int, 
 
 func memorySlots(total, reserve, perWorker int64) int {
 	if total <= reserve || perWorker <= 0 {
+		return 1
+	}
+	// Keep a proportional reserve on large hosts so a burst does not consume
+	// every byte merely because MemAvailable was high at the last sample.
+	if proportional := total / 8; proportional > reserve {
+		reserve = proportional
+	}
+	if total <= reserve {
 		return 1
 	}
 	slots := (total - reserve) / perWorker

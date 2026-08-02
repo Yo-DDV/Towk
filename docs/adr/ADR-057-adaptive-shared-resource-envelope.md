@@ -25,7 +25,7 @@ The Compose example uses zero as the default `cpus` and `mem_limit` value. Docke
 therefore omits the hard per-container limit and all four services share the VPS
 resource pool. A non-zero `*_CPU_LIMIT` or `*_MEMORY_LIMIT` remains an optional
 operator-owned ceiling for deployments that share a host with unrelated
-workloads.
+workloads. Existing non-zero values are never rewritten silently by an upgrade.
 
 Compose assigns relative CPU shares of 2048 to LiveKit, 1024 to Towk, and 512
 each to NATS and Caddy. CPU shares apply only while runnable services contend;
@@ -47,7 +47,11 @@ envelope periodically:
 | Shared media transcodes |              `CPU` |
 
 Memory-aware ceilings are then applied to image workers, image admissions,
-uploads, link previews, and the shared ffmpeg pool. Optional
+uploads, link previews, and the shared ffmpeg pool. The memory signal is the
+smallest of a finite Go limit, cgroup remaining bytes (`memory.max` minus
+`memory.current`), and host `MemAvailable`; `MemTotal` is only a compatibility
+fallback. A proportional reserve is held back on larger hosts, and the sample
+is refreshed while the process runs. Optional
 `CHATTO_PERFORMANCE_MAX_*` values remain final operator ceilings. An admission
 ceiling also bounds image workers, so a stricter queue limit cannot be bypassed.
 The historical `video.max_concurrent` field remains parseable for rollback to

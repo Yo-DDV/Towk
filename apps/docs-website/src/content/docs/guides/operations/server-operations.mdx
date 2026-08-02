@@ -49,10 +49,13 @@ Towk uses two complementary layers:
 | Link-preview workers    |     `CPU` |
 | Media-transcode workers |     `CPU` |
 
-Memory-aware limits may reduce these CPU-derived targets on a small host. The
-System page shows the detected envelope, target, effective limit, and every
-reduction. It is intentionally read-only: the browser cannot resize a container
-or access the container runtime.
+Memory-aware limits may reduce these CPU-derived targets on a small or busy
+host. Towk samples cgroup headroom and `MemAvailable` rather than treating
+installed RAM as free capacity, keeps a proportional safety reserve, and
+refreshes the envelope while the process is running. The System page shows the
+detected envelope, target, effective limit, and every reduction. It is
+intentionally read-only: the browser cannot resize a container or access the
+container runtime.
 
 Existing deployments keep any explicit non-zero `.env` ceilings until the
 operator changes them. Historical owner-profile events remain backup- and
@@ -78,21 +81,22 @@ Keep labels aggregated. Media metrics deliberately omit user, room, asset,
 filename, URL, cache key, and request identifiers. Enable pprof only for a
 bounded local diagnostic and disable it afterward.
 
-### Safe Profile Change
+### Safe Envelope Change
 
-1. Record the current requested and effective profile, cap reasons, deployment
-   resource limits, storage use, and media latency/error baseline.
-2. Change one profile or one operator ceiling at a time.
+1. Record the current adaptive target and effective limit, cap reasons,
+   deployment resource limits, storage use, and media latency/error baseline.
+2. Change one deployment limit or one `CHATTO_PERFORMANCE_MAX_*` ceiling at a
+   time.
 3. Observe new admissions, memory, CPU throttling, storage p95, upload errors,
    transform latency, and call quality before continuing.
 4. If latency, errors, throttling, or memory cross the accepted envelope,
-   restore the previous owner profile immediately. Already admitted work is
+   restore the previous operator setting immediately. Already admitted work is
    allowed to finish; new work follows the restored bound.
 
-Changing only the owner policy does not require a restart. Changing a container
-or pod resource or an environment cap requires a recreation or rollout. The
-owner policy is included in Towk event-stream backups; Compose, Kubernetes, and
-environment settings are separate operator data and need their own backup.
+The adaptive scheduler applies host-memory and process-envelope changes to new
+work without a restart. Changing a container or pod resource or an environment
+cap requires a recreation or rollout. Compose, Kubernetes, and environment
+settings are operator data and need their own backup.
 
 ## Metrics
 

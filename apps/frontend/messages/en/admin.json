@@ -304,7 +304,7 @@
       "all_subjects": "all subjects",
       "pending_state": "Pending",
       "rtt": "RTT",
-      "max_payload": "Max Payload",
+      "max_payload": "Max NATS message size",
       "server_id": "Server ID",
       "server_name": "Server Name",
       "limit": "Limit: {limit}",

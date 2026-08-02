@@ -70,6 +70,15 @@ func TestPerformanceManagerUsesMemoryToKeepSmallHostsSafe(t *testing.T) {
 	}
 }
 
+func TestMemorySlotsKeepsAReserveOnLargeHosts(t *testing.T) {
+	if got, want := memorySlots(16<<30, 512<<20, 512<<20), 28; got != want {
+		t.Fatalf("large-host memory slots = %d, want %d after proportional reserve", got, want)
+	}
+	if got := memorySlots(1<<30, 512<<20, 512<<20); got != 1 {
+		t.Fatalf("small-host memory slots = %d, want fail-safe one slot", got)
+	}
+}
+
 func TestPerformanceManagerAppliesOptionalOperatorCapsAfterAdaptiveSizing(t *testing.T) {
 	manager := newPerformanceManager(config.PerformanceConfig{
 		MaxImageTransformWorkers:    3,
@@ -143,14 +152,17 @@ func TestPerformanceManagerFallsBackToOneCPUWhenDetectorIsInvalid(t *testing.T) 
 	}
 }
 
-func TestAdaptivePerformanceLimitsSaturateAtTheWireSafeMaximum(t *testing.T) {
+func TestAdaptivePerformanceLimitsStayWithinWorkPoolMaximums(t *testing.T) {
 	got := adaptivePerformanceLimits(runtimecap.Capacity{CPUs: maxPerformanceValue})
-	if got.ImageTransformWorkers != maxPerformanceValue ||
-		got.ImageTransformAdmissions != maxPerformanceValue ||
-		got.AssetUploadWorkers != maxPerformanceValue ||
-		got.LinkPreviewWorkers != maxPerformanceValue ||
-		got.VideoWorkers != maxPerformanceValue {
-		t.Fatalf("saturated adaptive limits = %#v", got)
+	want := PerformanceLimits{
+		ImageTransformWorkers:    config.MaxPerformanceWorkers,
+		ImageTransformAdmissions: config.MaxPerformanceAdmissions,
+		AssetUploadWorkers:       config.MaxPerformanceWorkers,
+		LinkPreviewWorkers:       config.MaxPerformanceWorkers,
+		VideoWorkers:             config.MaxPerformanceWorkers,
+	}
+	if got != want {
+		t.Fatalf("saturated adaptive limits = %#v, want %#v", got, want)
 	}
 }
 
