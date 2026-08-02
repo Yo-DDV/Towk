@@ -18,7 +18,7 @@ This record complements [FDR-008](FDR-008-file-attachments-and-video.md) and [FD
 - Elapsed time is always available. Remaining time appears only after a bounded sample window has enough committed-byte movement to calculate a meaningful rate.
 - The lifecycle continues through message creation and local conversation confirmation. A completed file upload is never presented as a confirmed message.
 - A successful confirmation remains visible briefly, then dismisses automatically.
-- An upload failure remains visible and offers a retry through the originating composer after its draft has been restored. A failure after message creation started is labelled as unconfirmed and does not offer an unsafe duplicate-send shortcut.
+- An ordinary attachment upload failure remains visible and offers a retry through the originating composer after its draft has been restored. A failed voice-message upload leaves the voice draft and its existing send control in review mode. A failure after message creation started is labelled as unconfirmed and does not offer an unsafe duplicate-send shortcut.
 - Status is keyed by server, room, thread root, and client request ID. Root-room and thread composers can therefore upload concurrently without overwriting each other.
 - The island follows the matching composer through viewport resize, zoom, scrolling, software-keyboard changes, and installed-PWA visual viewport changes.
 - Every visible string is localized in English, French, German, Spanish, and Portuguese.

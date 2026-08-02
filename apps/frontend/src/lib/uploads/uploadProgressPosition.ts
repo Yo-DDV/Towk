@@ -8,6 +8,8 @@ export type UploadProgressRect = {
 export type UploadProgressViewport = {
   width: number;
   height: number;
+  offsetTop?: number;
+  offsetLeft?: number;
 };
 
 export type UploadProgressPosition = {
@@ -24,19 +26,21 @@ export function computeUploadProgressPosition(
   island: Pick<UploadProgressRect, 'height'>,
   viewport: UploadProgressViewport
 ): UploadProgressPosition {
+  const offsetTop = viewport.offsetTop ?? 0;
+  const offsetLeft = viewport.offsetLeft ?? 0;
   const availableWidth = Math.max(0, viewport.width - VIEWPORT_PADDING_PX * 2);
   const width = Math.min(Math.max(0, anchor.width), MAX_ISLAND_WIDTH_PX, availableWidth);
   const centeredLeft = anchor.left + (anchor.width - width) / 2;
   const left = clamp(
     centeredLeft,
-    VIEWPORT_PADDING_PX,
-    viewport.width - width - VIEWPORT_PADDING_PX
+    offsetLeft + VIEWPORT_PADDING_PX,
+    offsetLeft + viewport.width - width - VIEWPORT_PADDING_PX
   );
   const preferredTop = anchor.top - Math.max(0, island.height) - VIEWPORT_PADDING_PX;
   const top = clamp(
     preferredTop,
-    VIEWPORT_PADDING_PX,
-    viewport.height - Math.max(0, island.height) - VIEWPORT_PADDING_PX
+    offsetTop + VIEWPORT_PADDING_PX,
+    offsetTop + viewport.height - Math.max(0, island.height) - VIEWPORT_PADDING_PX
   );
   return { top: Math.round(top), left: Math.round(left), width: Math.round(width) };
 }

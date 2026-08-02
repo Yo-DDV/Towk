@@ -88,6 +88,7 @@ describe('message upload progress model', () => {
     );
 
     expect(stale.announcementPercent).toBe(60);
+    expect(stale.committedBytes).toBe(6 * 1024 * 1024);
   });
 
   it('distinguishes retryable upload failures from unconfirmed messages', () => {
@@ -108,6 +109,12 @@ describe('message upload progress model', () => {
     expect(canRetryMessageUpload(uploadFailure)).toBe(true);
     expect(sendingFailure.failureStage).toBe('sending');
     expect(canRetryMessageUpload(sendingFailure)).toBe(false);
+
+    const voiceFailure = failMessageUploadProgress({
+      ...uploading,
+      isVoiceMessage: true
+    });
+    expect(canRetryMessageUpload(voiceFailure)).toBe(false);
   });
 
   it('holds terminal confirmation against late progress callbacks', () => {

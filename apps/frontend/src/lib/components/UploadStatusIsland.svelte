@@ -28,7 +28,10 @@
   const percent = $derived(uploadProgressPercent(entry));
   const canRetry = $derived(canRetryMessageUpload(entry));
   const showProgress = $derived(entry.phase !== 'failed');
-  const isIndeterminate = $derived(entry.phase === 'preparing' || entry.totalBytes <= 0);
+  const isIndeterminate = $derived(
+    ['preparing', 'finalizing', 'sending', 'confirming'].includes(entry.phase) ||
+      entry.totalBytes <= 0
+  );
   const title = $derived.by(() => {
     switch (entry.phase) {
       case 'preparing':
@@ -80,7 +83,7 @@
   );
   const announcement = $derived(
     entry.phase === 'uploading' && entry.announcementPercent !== null
-      ? `${title}. ${entry.announcementPercent}%`
+      ? `${title}. ${formatPercent(entry.announcementPercent)}`
       : title
   );
   const iconClass = $derived.by(() => {
@@ -112,18 +115,41 @@
       value /= 1_000;
       unit = units[index];
     }
-    return `${new Intl.NumberFormat(locale, { maximumFractionDigits: value < 10 ? 1 : 0 }).format(value)} ${unit}`;
+    const formatted = new Intl.NumberFormat(locale, {
+      maximumFractionDigits: value < 10 ? 1 : 0
+    }).format(value);
+    return `${formatted} ${unit}`;
+  }
+
+  function formatPercent(value: number): string {
+    return new Intl.NumberFormat(getReactiveLocale(), {
+      style: 'percent',
+      maximumFractionDigits: 0
+    }).format(value / 100);
   }
 
   function formatDuration(milliseconds: number): string {
+    const locale = getReactiveLocale();
     const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1_000));
-    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const unit = (value: number, name: 'second' | 'minute' | 'hour') =>
+      new Intl.NumberFormat(locale, {
+        style: 'unit',
+        unit: name,
+        unitDisplay: 'narrow'
+      }).format(value);
+    if (totalSeconds < 60) return unit(totalSeconds, 'second');
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    if (minutes < 60) return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+    if (minutes < 60) {
+      return seconds > 0
+        ? `${unit(minutes, 'minute')} ${unit(seconds, 'second')}`
+        : unit(minutes, 'minute');
+    }
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
-    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+    return remainingMinutes > 0
+      ? `${unit(hours, 'hour')} ${unit(remainingMinutes, 'minute')}`
+      : unit(hours, 'hour');
   }
 </script>
 
@@ -146,8 +172,10 @@
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-baseline gap-2">
         <strong class="min-w-0 truncate text-sm font-semibold text-text">{title}</strong>
-        {#if percent !== null && entry.phase !== 'preparing' && entry.phase !== 'failed'}
-          <span class="shrink-0 text-xs font-semibold text-muted tabular-nums">{percent}%</span>
+        {#if percent !== null && entry.phase === 'uploading'}
+          <span class="shrink-0 text-xs font-semibold text-muted tabular-nums">
+            {formatPercent(percent)}
+          </span>
         {/if}
       </div>
 

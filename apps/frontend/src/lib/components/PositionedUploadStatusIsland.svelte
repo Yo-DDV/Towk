@@ -29,7 +29,10 @@
 
     function findAnchor(): HTMLElement | null {
       const editor = document.querySelector<HTMLElement>(selector);
-      return editor?.closest<HTMLElement>('[data-testid="message-composer-shell"]') ?? null;
+      const shell =
+        editor?.closest<HTMLElement>('[data-testid="message-composer-shell"]') ?? null;
+      if (!shell || !entry.isVoiceMessage) return shell;
+      return shell.querySelector<HTMLElement>('[data-testid="voice-message-recorder"]') ?? shell;
     }
 
     function connectAnchor(nextAnchor: HTMLElement | null) {
@@ -56,14 +59,12 @@
       const anchorRect = anchor.getBoundingClientRect();
       const islandRect = islandElement.getBoundingClientRect();
       const visualViewport = window.visualViewport;
-      const position = computeUploadProgressPosition(
-        anchorRect,
-        islandRect,
-        {
-          width: visualViewport?.width ?? window.innerWidth,
-          height: visualViewport?.height ?? window.innerHeight
-        }
-      );
+      const position = computeUploadProgressPosition(anchorRect, islandRect, {
+        width: visualViewport?.width ?? window.innerWidth,
+        height: visualViewport?.height ?? window.innerHeight,
+        offsetTop: visualViewport?.offsetTop ?? 0,
+        offsetLeft: visualViewport?.offsetLeft ?? 0
+      });
 
       positionStyle = `top:${position.top}px;left:${position.left}px;width:${position.width}px`;
       positioned = true;
@@ -84,7 +85,6 @@
       window.visualViewport?.removeEventListener('scroll', schedulePosition);
     };
   });
-
 </script>
 
 <div

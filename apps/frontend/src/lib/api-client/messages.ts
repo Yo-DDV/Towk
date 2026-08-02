@@ -95,6 +95,7 @@ export function createMessageAPI(config: MessageAPIConfig) {
         serverId: config.serverId,
         roomId: input.roomId,
         threadRootEventId: input.threadRootEventId,
+        isVoiceMessage: !!input.voiceMessage,
         fileNames: uploadFiles.map((file) => file.name || 'attachment'),
         totalBytes: uploadFiles.reduce((total, file) => total + file.size, 0)
       });
@@ -274,14 +275,18 @@ async function uploadMessageAttachments(
 
   const totalBytes = candidates.reduce((total, candidate) => total + candidate.file.size, 0);
   const committedBytes = candidates.map(() => 0);
+  const phases: AttachmentUploadPhase[] = candidates.map(() => 'preparing');
   const uploads = createAssetUploadAPI(config);
-  const batchController = new AbortController();
-  const unlinkAbort = linkAbortSignal(input.signal, batchController);
+  const batchController = candidates.length > 1 || input.signal ? new AbortController() : null;
+  const unlinkAbort = batchController
+    ? linkAbortSignal(input.signal, batchController)
+    : () => undefined;
 
   const report = (index: number, progress: AttachmentUploadProgress) => {
-    committedBytes[index] = progress.committedBytes;
+    committedBytes[index] = Math.max(committedBytes[index] ?? 0, progress.committedBytes);
+    phases[index] = progress.phase;
     const aggregate: MessageUploadProgress = {
-      phase: progress.phase,
+      phase: aggregateUploadPhase(phases),
       fileName: progress.fileName,
       fileIndex: index,
       fileCount: candidates.length,
@@ -301,7 +306,7 @@ async function uploadMessageAttachments(
           const asset = await uploads.uploadAttachment({
             roomId: input.roomId,
             file: candidate.file,
-            signal: batchController.signal,
+            signal: batchController?.signal,
             voiceMessage: candidate.voiceMessage
               ? {
                   durationMs: BigInt(Math.round(candidate.voiceMessage.durationMs)),
@@ -312,7 +317,7 @@ async function uploadMessageAttachments(
           });
           return asset.assetId;
         } catch (err) {
-          if (!batchController.signal.aborted) batchController.abort(err);
+          if (batchController && !batchController.signal.aborted) batchController.abort(err);
           throw err;
         }
       })
@@ -320,6 +325,13 @@ async function uploadMessageAttachments(
   } finally {
     unlinkAbort();
   }
+}
+
+function aggregateUploadPhase(phases: readonly AttachmentUploadPhase[]): AttachmentUploadPhase {
+  if (phases.every((phase) => phase === 'completed')) return 'completed';
+  if (phases.some((phase) => phase === 'uploading')) return 'uploading';
+  if (phases.some((phase) => phase === 'preparing')) return 'preparing';
+  return 'finalizing';
 }
 
 function linkAbortSignal(source: AbortSignal | undefined, target: AbortController): () => void {

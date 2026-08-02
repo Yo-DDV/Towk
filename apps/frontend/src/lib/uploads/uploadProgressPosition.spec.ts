@@ -22,6 +22,16 @@ describe('computeUploadProgressPosition', () => {
     ).toEqual({ top: 230, left: 8, width: 304 });
   });
 
+  it('respects a shifted visual viewport on mobile WebKit', () => {
+    expect(
+      computeUploadProgressPosition(
+        { top: 260, left: 12, width: 300, height: 60 },
+        { height: 84 },
+        { width: 320, height: 360, offsetTop: 40, offsetLeft: 0 }
+      )
+    ).toEqual({ top: 168, left: 12, width: 300 });
+  });
+
   it('clamps to the visible top edge when vertical space is constrained', () => {
     expect(
       computeUploadProgressPosition(

@@ -11,7 +11,7 @@ import {
 
 const entriesById = new SvelteMap<string, MessageUploadProgressEntry>();
 const dismissalTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const CONFIRMED_VISIBLE_MS = 900;
+const CONFIRMED_VISIBLE_MS = 1_100;
 
 function replace(entry: MessageUploadProgressEntry): void {
   entriesById.set(entry.id, entry);
@@ -39,6 +39,8 @@ export const messageUploadProgress = {
   },
 
   begin(input: BeginMessageUploadInput): MessageUploadProgressEntry {
+    clearTimer(input.id);
+    entriesById.delete(input.id);
     for (const entry of entriesById.values()) {
       if (
         entry.serverId === (input.serverId ?? '') &&

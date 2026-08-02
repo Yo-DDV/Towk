@@ -42,6 +42,24 @@ describe('UploadStatusIsland', () => {
       .toHaveAttribute('value', '420000');
   });
 
+  it('keeps server finalization explicitly indeterminate', async () => {
+    const finalizing = applyMessageUploadProgress(uploadingEntry(), {
+      phase: 'completed',
+      fileName: 'holiday-video-with-a-long-name.mp4',
+      fileIndex: 0,
+      fileCount: 2,
+      committedBytes: 1_000_000,
+      totalBytes: 1_000_000
+    });
+    const { getByRole } = render(UploadStatusIsland, {
+      props: { entry: finalizing }
+    });
+
+    await expect
+      .element(getByRole('progressbar', { name: 'Message upload progress' }))
+      .not.toHaveAttribute('value');
+  });
+
   it('offers retry only for a failure that happened before message creation', async () => {
     const onRetry = vi.fn();
     const onDismiss = vi.fn();
@@ -59,7 +77,14 @@ describe('UploadStatusIsland', () => {
       transitionMessageUploadProgress(uploadingEntry(), 'sending')
     );
     await rendered.rerender({ entry: sendingFailure, onRetry, onDismiss });
-    expect(rendered.queryByRole('button', { name: 'Retry upload' })).toBeNull();
+    expect(rendered.container.querySelector('button[aria-label="Retry upload"]')).toBeNull();
     await expect.element(rendered.getByText('Message not confirmed')).toBeVisible();
+
+    const voiceFailure = failMessageUploadProgress({
+      ...uploadingEntry(),
+      isVoiceMessage: true
+    });
+    await rendered.rerender({ entry: voiceFailure, onRetry, onDismiss });
+    expect(rendered.container.querySelector('button[aria-label="Retry upload"]')).toBeNull();
   });
 });

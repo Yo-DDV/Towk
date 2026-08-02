@@ -19,6 +19,7 @@ export type MessageUploadProgressEntry = {
   serverId: string;
   roomId: string;
   threadRootEventId: string | null;
+  isVoiceMessage: boolean;
   phase: MessageUploadPhase;
   failureStage: MessageUploadFailureStage | null;
   fileName: string;
@@ -38,6 +39,7 @@ export type BeginMessageUploadInput = {
   serverId?: string;
   roomId: string;
   threadRootEventId?: string | null;
+  isVoiceMessage?: boolean;
   fileNames: readonly string[];
   totalBytes: number;
   now?: number;
@@ -67,6 +69,7 @@ export function createMessageUploadProgressEntry(
     serverId: input.serverId ?? '',
     roomId: input.roomId,
     threadRootEventId: input.threadRootEventId ?? null,
+    isVoiceMessage: input.isVoiceMessage ?? false,
     phase: 'preparing',
     failureStage: null,
     fileName: input.fileNames[0] ?? '',
@@ -89,16 +92,27 @@ export function applyMessageUploadProgress(
 ): MessageUploadProgressEntry {
   if (entry.phase === 'confirmed' || entry.phase === 'failed') return entry;
 
-  const committedBytes = clamp(update.committedBytes, 0, Math.max(0, update.totalBytes));
-  const samples = appendSample(entry.samples, now, committedBytes, update.phase === 'uploading');
-  const totalBytes = Math.max(0, update.totalBytes);
+  const incomingPhase = update.phase === 'completed' ? 'finalizing' : update.phase;
+  const phase =
+    entry.phase === 'sending' || entry.phase === 'confirming' ? entry.phase : incomingPhase;
+  const totalBytes = Math.max(0, entry.totalBytes, update.totalBytes);
+  const nextCommittedBytes = clamp(update.committedBytes, 0, totalBytes);
+  const committedBytes = Math.max(entry.committedBytes, nextCommittedBytes);
+  const samples = appendSample(
+    entry.samples,
+    now,
+    committedBytes,
+    phase === 'uploading' && committedBytes > entry.committedBytes
+  );
   const percent = totalBytes > 0 ? Math.floor((committedBytes / totalBytes) * 100) : null;
   const announcementPercent =
-    percent === null ? null : Math.max(entry.announcementPercent ?? 0, Math.floor(percent / 10) * 10);
+    percent === null
+      ? null
+      : Math.max(entry.announcementPercent ?? 0, Math.floor(percent / 10) * 10);
 
   return {
     ...entry,
-    phase: update.phase === 'completed' ? 'finalizing' : update.phase,
+    phase,
     failureStage: null,
     fileName: update.fileName,
     fileIndex: clamp(Math.trunc(update.fileIndex), 0, Math.max(0, update.fileCount - 1)),
@@ -106,12 +120,10 @@ export function applyMessageUploadProgress(
     committedBytes,
     totalBytes,
     updatedAt: now,
-    estimatedRemainingMs: estimateRemainingMs(
-      samples,
-      committedBytes,
-      totalBytes,
-      entry.estimatedRemainingMs
-    ),
+    estimatedRemainingMs:
+      phase === 'uploading'
+        ? estimateRemainingMs(samples, committedBytes, totalBytes, entry.estimatedRemainingMs)
+        : null,
     announcementPercent,
     samples
   };
@@ -127,9 +139,7 @@ export function transitionMessageUploadProgress(
     ...entry,
     phase,
     failureStage: null,
-    committedBytes: phase === 'sending' || phase === 'confirming' || phase === 'confirmed'
-      ? entry.totalBytes
-      : entry.committedBytes,
+    committedBytes: entry.totalBytes,
     updatedAt: now,
     estimatedRemainingMs: null,
     announcementPercent: phase === 'confirmed' ? 100 : entry.announcementPercent
@@ -159,6 +169,7 @@ export function uploadProgressPercent(entry: MessageUploadProgressEntry): number
 
 export function canRetryMessageUpload(entry: MessageUploadProgressEntry): boolean {
   return (
+    !entry.isVoiceMessage &&
     entry.phase === 'failed' &&
     entry.failureStage !== null &&
     ['preparing', 'uploading', 'finalizing'].includes(entry.failureStage)

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { fade } from 'svelte/transition';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { messageUploadProgress } from '$lib/uploads/messageUploadProgress.svelte';
   import type { MessageUploadProgressEntry } from '$lib/uploads/messageUploadProgressModel';
@@ -9,7 +10,8 @@
     messageUploadProgress.entries.filter(
       (entry) =>
         entry.roomId === page.params.roomId &&
-        (!entry.serverId || entry.serverId === getActiveServer())
+        (!entry.serverId || entry.serverId === getActiveServer()) &&
+        (!entry.threadRootEventId || entry.threadRootEventId === page.params.threadId)
     )
   );
 
@@ -32,9 +34,11 @@
 </script>
 
 {#each activeEntries as entry (entry.id)}
-  <PositionedUploadStatusIsland
-    {entry}
-    onRetry={() => retry(entry)}
-    onDismiss={() => messageUploadProgress.dismiss(entry.id)}
-  />
+  <div transition:fade={{ duration: 160 }}>
+    <PositionedUploadStatusIsland
+      {entry}
+      onRetry={() => retry(entry)}
+      onDismiss={() => messageUploadProgress.dismiss(entry.id)}
+    />
+  </div>
 {/each}

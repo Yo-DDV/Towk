@@ -18,10 +18,36 @@ describe('message upload progress store', () => {
 
     messageUploadProgress.markConfirmed('request-1');
     expect(messageUploadProgress.entries).toHaveLength(1);
-    vi.advanceTimersByTime(899);
+    vi.advanceTimersByTime(1_099);
     expect(messageUploadProgress.entries).toHaveLength(1);
     vi.advanceTimersByTime(1);
     expect(messageUploadProgress.entries).toHaveLength(0);
+  });
+
+  it('does not let an old confirmation timer remove a reused request ID', () => {
+    vi.useFakeTimers();
+    messageUploadProgress.begin({
+      id: 'request-reused',
+      roomId: 'room-1',
+      fileNames: ['first.png'],
+      totalBytes: 10
+    });
+    messageUploadProgress.markConfirmed('request-reused');
+
+    messageUploadProgress.begin({
+      id: 'request-reused',
+      roomId: 'room-1',
+      fileNames: ['second.png'],
+      totalBytes: 20
+    });
+    vi.advanceTimersByTime(1_100);
+
+    expect(messageUploadProgress.entries).toHaveLength(1);
+    expect(messageUploadProgress.entries[0]).toMatchObject({
+      id: 'request-reused',
+      phase: 'preparing',
+      fileName: 'second.png'
+    });
   });
 
   it('replaces a failed status when the same composer starts a new attempt', () => {
