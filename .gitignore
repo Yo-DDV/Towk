@@ -32,6 +32,7 @@ examples/dockercompose/.turn-tls/
 # Build output
 /dist/
 /.context/
+/apps/frontend/storybook-static/
 
 # Test results
 test-results/

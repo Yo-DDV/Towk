@@ -5,7 +5,9 @@
   import VideoThumbnail from './VideoThumbnail.svelte';
   import ScreenShareDiagnostics from './ScreenShareDiagnostics.svelte';
 
+  let overlay = $state<HTMLElement | null>(null);
   let closeButton = $state<HTMLButtonElement | null>(null);
+  let diagnosticsButton = $state<HTMLButtonElement | null>(null);
   let diagnosticsOpen = $state(false);
   let currentMediaKey = $state<string | null>(null);
   let diagnosticsPanelId = $derived(
@@ -18,16 +20,25 @@
     callFullscreenMedia.close();
   }
 
+  function closeDiagnostics(): void {
+    diagnosticsOpen = false;
+    requestAnimationFrame(() => diagnosticsButton?.focus());
+  }
+
   function toggleDiagnostics(event: MouseEvent): void {
     event.stopPropagation();
-    diagnosticsOpen = !diagnosticsOpen;
+    if (diagnosticsOpen) {
+      closeDiagnostics();
+    } else {
+      diagnosticsOpen = true;
+    }
   }
 
   function handleKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       event.preventDefault();
       if (diagnosticsOpen) {
-        diagnosticsOpen = false;
+        closeDiagnostics();
         return;
       }
       close();
@@ -35,8 +46,23 @@
     }
 
     if (event.key === 'Tab') {
-      event.preventDefault();
-      closeButton?.focus();
+      const focusable = Array.from(
+        overlay?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), summary, a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      ).filter(
+        (element) => element.tabIndex >= 0 && element.getAttribute('aria-hidden') !== 'true'
+      );
+      if (!focusable.length) return;
+
+      const activeIndex = focusable.indexOf(document.activeElement as HTMLElement);
+      const shouldWrapBackward = event.shiftKey && activeIndex <= 0;
+      const shouldWrapForward = !event.shiftKey && activeIndex === focusable.length - 1;
+      if (activeIndex < 0 || shouldWrapBackward || shouldWrapForward) {
+        event.preventDefault();
+        const target = event.shiftKey ? focusable.at(-1) : focusable[0];
+        target?.focus();
+      }
     }
   }
 
@@ -66,6 +92,7 @@
 {#if callFullscreenMedia.current}
   {@const media = callFullscreenMedia.current}
   <div
+    bind:this={overlay}
     class="call-fullscreen-media fixed inset-0 z-[9999] bg-black text-white"
     role="dialog"
     aria-modal="true"
@@ -80,6 +107,7 @@
       </h2>
       {#if media.kind === 'screen' && media.diagnosticsDirection}
         <button
+          bind:this={diagnosticsButton}
           type="button"
           class={[
             'flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:bg-white/25',
@@ -119,7 +147,7 @@
           track={media.track}
           direction={media.diagnosticsDirection}
           panelId={diagnosticsPanelId}
-          onclose={() => (diagnosticsOpen = false)}
+          onclose={closeDiagnostics}
         />
       {/if}
     </main>

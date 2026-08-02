@@ -14,6 +14,22 @@ test('create room with valid name succeeds', async ({ page, chatPage }) => {
   await chatPage.expectRoomHeaderVisible(roomName);
 });
 
+test('create room with spaces and emoji succeeds', async ({
+  page,
+  chatPage,
+  serverAdminRoomsPage
+}) => {
+  await createAndLoginTestUser(page);
+  await chatPage.goto();
+  await chatPage.openCreateRoomModal();
+
+  const roomName = '📣 Team Updates';
+  await chatPage.roomNameInput.fill(roomName);
+  await chatPage.roomFormSubmitButton.click();
+
+  await expect(serverAdminRoomsPage.roomRow(roomName)).toBeVisible();
+});
+
 test('room header shows channel description on desktop', async ({ page, chatPage }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await createAndLoginTestUser(page);
@@ -53,12 +69,8 @@ test('create room with name exceeding max length shows error', async ({ page, ch
   const longName = 'a'.repeat(31);
   await chatPage.roomNameInput.fill(longName);
 
-  // Submit
-  await chatPage.roomFormSubmitButton.click();
-
-  // The dialog keeps transport details private; ConnectRPC contract tests cover
-  // the precise core validation message.
-  await chatPage.expectValidationError('Failed to create room');
+  await chatPage.expectRoomSubmitDisabled();
+  await chatPage.expectValidationError('Room name must be 30 characters or less.');
 });
 
 test('create room with description exceeding max length shows error', async ({

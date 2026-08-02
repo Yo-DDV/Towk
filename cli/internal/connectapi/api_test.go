@@ -27,12 +27,14 @@ import (
 	"connectrpc.com/authn"
 	"connectrpc.com/connect"
 	"connectrpc.com/grpcreflect"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"hmans.de/chatto/internal/assets"
 	"hmans.de/chatto/internal/authctx"
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
@@ -3190,7 +3192,7 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 	}
 
 	if _, err := env.rooms.CreateRoom(ctx, connect.NewRequest(&apiv1.CreateRoomRequest{
-		Name:    "connect room",
+		Name:    "connect\u200broom",
 		GroupId: groupID,
 	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("invalid CreateRoom name code = %v, want invalid argument", connect.CodeOf(err))
@@ -3211,7 +3213,7 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 	}
 
 	createResp, err := env.rooms.CreateRoom(ctx, connect.NewRequest(&apiv1.CreateRoomRequest{
-		Name:        "connect-room",
+		Name:        "  📣   Team Updates  ",
 		Description: "created through ConnectRPC",
 		GroupId:     groupID,
 		Universal:   true,
@@ -3223,17 +3225,33 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 	if room.GetId() == "" || room.GetKind() != apiv1.RoomKind_ROOM_KIND_CHANNEL || room.GetGroupId() != groupID || !room.GetUniversal() {
 		t.Fatalf("created room = %+v", room)
 	}
+	if room.GetName() != "📣 Team Updates" {
+		t.Fatalf("created room name = %q, want normalized expressive name", room.GetName())
+	}
+
+	if _, err := env.rooms.CreateRoom(ctx, connect.NewRequest(&apiv1.CreateRoomRequest{
+		Name:    strings.Repeat("💬", 30),
+		GroupId: groupID,
+	})); err != nil {
+		t.Fatalf("CreateRoom with 30 emoji: %v", err)
+	}
+	if _, err := env.rooms.CreateRoom(ctx, connect.NewRequest(&apiv1.CreateRoomRequest{
+		Name:    strings.Repeat("💬", 31),
+		GroupId: groupID,
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("CreateRoom with 31 emoji code = %v, want invalid argument", connect.CodeOf(err))
+	}
 
 	updateResp, err := env.rooms.UpdateRoom(ctx, connect.NewRequest(&apiv1.UpdateRoomRequest{
 		RoomId:      room.GetId(),
-		Name:        stringPtr("connect-renamed"),
+		Name:        stringPtr("💬 General chat"),
 		Description: stringPtr("updated through ConnectRPC"),
 	}))
 	if err != nil {
 		t.Fatalf("UpdateRoom: %v", err)
 	}
-	if updateResp.Msg.GetRoom().GetName() != "connect-renamed" {
-		t.Fatalf("UpdateRoom name = %q, want connect-renamed", updateResp.Msg.GetRoom().GetName())
+	if updateResp.Msg.GetRoom().GetName() != "💬 General chat" {
+		t.Fatalf("UpdateRoom name = %q, want expressive name", updateResp.Msg.GetRoom().GetName())
 	}
 	partialUpdateResp, err := env.rooms.UpdateRoom(ctx, connect.NewRequest(&apiv1.UpdateRoomRequest{
 		RoomId:      room.GetId(),
@@ -3242,7 +3260,7 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 	if err != nil {
 		t.Fatalf("partial UpdateRoom: %v", err)
 	}
-	if got := partialUpdateResp.Msg.GetRoom(); got.GetName() != "connect-renamed" || got.GetDescription() != "description-only patch" {
+	if got := partialUpdateResp.Msg.GetRoom(); got.GetName() != "💬 General chat" || got.GetDescription() != "description-only patch" {
 		t.Fatalf("partial room update = %+v, want preserved name and updated description", got)
 	}
 	if _, err := env.rooms.UpdateRoom(ctx, connect.NewRequest(&apiv1.UpdateRoomRequest{
@@ -5103,6 +5121,15 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	if len(participants) != 1 || participants[0].GetUser().GetId() != env.viewer.Id || participants[0].GetCallId() == "" || participants[0].GetJoinedAt() == nil {
 		t.Fatalf("participants = %+v, want viewer participant with call metadata", participants)
 	}
+	if err := env.core.SetUserAvatar(ctx, env.viewer.Id, &corev1.AssetRecord{
+		Id:       "voice-animated-avatar",
+		Filename: assets.AnimatedAvatarFilename,
+		Storage: &corev1.AssetRecord_Nats{Nats: &corev1.NATSAsset{
+			Key: "voice-animated-avatar",
+		}},
+	}); err != nil {
+		t.Fatalf("SetUserAvatar: %v", err)
+	}
 
 	tokenResp, err := env.voice.GetCallToken(ctx, connect.NewRequest(&apiv1.GetCallTokenRequest{
 		RoomId: room.Id,
@@ -5112,6 +5139,19 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	}
 	if tokenResp.Msg.GetToken() == "" || tokenResp.Msg.GetE2EeKey() == "" || tokenResp.Msg.GetCallId() != participants[0].GetCallId() {
 		t.Fatalf("GetCallToken response = %+v, want token/e2ee key/call id", tokenResp.Msg)
+	}
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	parsedToken, _, err := parser.ParseUnverified(tokenResp.Msg.GetToken(), jwt.MapClaims{})
+	if err != nil {
+		t.Fatalf("parse call token: %v", err)
+	}
+	metadata, ok := parsedToken.Claims.(jwt.MapClaims)["metadata"].(string)
+	if !ok {
+		t.Fatal("call token metadata claim missing")
+	}
+	participantMetadata := core.ParseParticipantMetadata(metadata)
+	if !strings.Contains(participantMetadata.AvatarURL, "/assets/server/voice-animated-avatar") || strings.Contains(participantMetadata.AvatarURL, "/t/") {
+		t.Fatalf("animated avatar URL = %q, want canonical untransformed asset URL", participantMetadata.AvatarURL)
 	}
 	expectedJoin, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
 		RoomId:         room.Id,

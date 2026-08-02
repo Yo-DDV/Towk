@@ -36,7 +36,7 @@ func (s *userService) userSummary(ctx context.Context, user *corev1.User, avatar
 
 func (s *userService) userAvatarURL(ctx context.Context, userID string, avatar *apiv1.ImageTransformOptions) (string, error) {
 	if avatar == nil {
-		url, err := s.api.core.GetUserAvatarURL(ctx, userID, nil, nil, "")
+		url, err := s.api.core.GetUserAvatarDisplayURL(ctx, userID, nil, nil, "")
 		if err != nil {
 			return "", connectError(err)
 		}
@@ -48,7 +48,7 @@ func (s *userService) userAvatarURL(ctx context.Context, userID string, avatar *
 	if avatar.GetFit() == apiv1.ImageFitMode_IMAGE_FIT_MODE_CONTAIN {
 		fit = "contain"
 	}
-	url, err := s.api.core.GetUserAvatarURL(ctx, userID, &width, &height, fit)
+	url, err := s.api.core.GetUserAvatarDisplayURL(ctx, userID, &width, &height, fit)
 	if err != nil {
 		return "", connectError(err)
 	}

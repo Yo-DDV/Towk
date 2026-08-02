@@ -51,11 +51,19 @@ function minimumReadableTileSize(width: number, height: number): number {
   return 160;
 }
 
-export function computeSceneGrid(width: number, height: number, tileCount: number): SceneGrid {
+export function computeSceneGrid(
+  width: number,
+  height: number,
+  tileCount: number,
+  minimumTileSizeOverride?: number
+): SceneGrid {
   const safeWidth = Math.max(1, width);
   const safeHeight = Math.max(1, height);
   const count = Math.max(1, tileCount);
-  const minimumTileSize = minimumReadableTileSize(safeWidth, safeHeight);
+  const minimumTileSize = Math.max(
+    minimumReadableTileSize(safeWidth, safeHeight),
+    minimumTileSizeOverride ?? 0
+  );
   let capacity = count;
   let grid = squareGrid(safeWidth, safeHeight, capacity);
 
@@ -67,10 +75,17 @@ export function computeSceneGrid(width: number, height: number, tileCount: numbe
   return { capacity, ...grid };
 }
 
-export function computeFilmstripCapacity(width: number, _height: number): number {
+export function computeFilmstripCapacity(
+  width: number,
+  _height: number,
+  minimumTileWidthOverride?: number
+): number {
   const safeWidth = Math.max(1, width);
   const classLimit = safeWidth < 520 ? 2 : safeWidth < 900 ? 3 : 6;
-  const minimumTileWidth = safeWidth < 520 ? 144 : safeWidth < 900 ? 156 : 180;
+  const minimumTileWidth = Math.max(
+    safeWidth < 520 ? 144 : safeWidth < 900 ? 156 : 180,
+    minimumTileWidthOverride ?? 0
+  );
   const horizontalSlots = Math.max(
     1,
     Math.floor((safeWidth + SCENE_GAP_PX) / (minimumTileWidth + SCENE_GAP_PX))
@@ -90,7 +105,17 @@ export function computeFilmstripMaxHeight(width: number, height: number): number
   const safeWidth = Math.max(1, width);
   const safeHeight = Math.max(1, height);
   const minimumHeight =
-    safeWidth < 300 ? (safeHeight >= 420 ? 160 : 144) : safeWidth >= 900 ? 180 : 120;
+    safeWidth < 300
+      ? safeHeight >= 420
+        ? 160
+        : 144
+      : safeWidth < 520
+        ? safeHeight >= 360
+          ? 160
+          : 144
+        : safeWidth >= 900
+          ? 180
+          : 120;
   const maximumHeight = safeWidth >= 2_400 ? 320 : 210;
   return Math.max(minimumHeight, Math.min(maximumHeight, Math.floor(safeHeight * 0.28)));
 }

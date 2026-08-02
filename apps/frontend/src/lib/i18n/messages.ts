@@ -695,6 +695,10 @@ const msg_room_create_name_required = (): LocalizedString => messages().room_cre
 const msg_room_create_name_too_long = (
   inputs: Parameters<LocaleMessages['room_create_name_too_long']>[0]
 ): LocalizedString => messages().room_create_name_too_long(inputs);
+const msg_room_create_name_invalid = (): LocalizedString => messages().room_create_name_invalid(empty());
+const msg_room_create_name_help = (
+  inputs: Parameters<LocaleMessages['room_create_name_help']>[0]
+): LocalizedString => messages().room_create_name_help(inputs);
 const msg_room_create_description_too_long = (
   inputs: Parameters<LocaleMessages['room_create_description_too_long']>[0]
 ): LocalizedString => messages().room_create_description_too_long(inputs);
@@ -1996,7 +2000,6 @@ const msg_admin_rooms_admin_edit_room = (): LocalizedString => messages().admin_
 const msg_admin_rooms_admin_edit_room_action = (): LocalizedString => messages().admin_rooms_admin_edit_room_action(empty());
 const msg_admin_rooms_admin_room_description_placeholder = (): LocalizedString => messages().admin_rooms_admin_room_description_placeholder(empty());
 const msg_admin_rooms_admin_room_name_empty = (): LocalizedString => messages().admin_rooms_admin_room_name_empty(empty());
-const msg_admin_rooms_admin_room_name_trim = (): LocalizedString => messages().admin_rooms_admin_room_name_trim(empty());
 const msg_admin_rooms_admin_room_name_charset = (): LocalizedString => messages().admin_rooms_admin_room_name_charset(empty());
 const msg_admin_rooms_admin_room_name_too_long = (): LocalizedString => messages().admin_rooms_admin_room_name_too_long(empty());
 const msg_admin_rooms_admin_create_group = (): LocalizedString => messages().admin_rooms_admin_create_group(empty());
@@ -2856,6 +2859,8 @@ export { msg_room_create_universal_label as 'room.create.universal_label' };
 export { msg_room_create_universal_description as 'room.create.universal_description' };
 export { msg_room_create_name_required as 'room.create.name_required' };
 export { msg_room_create_name_too_long as 'room.create.name_too_long' };
+export { msg_room_create_name_invalid as 'room.create.name_invalid' };
+export { msg_room_create_name_help as 'room.create.name_help' };
 export { msg_room_create_description_too_long as 'room.create.description_too_long' };
 export { msg_room_create_missing_group as 'room.create.missing_group' };
 export { msg_room_create_failed as 'room.create.failed' };
@@ -3919,7 +3924,6 @@ export { msg_admin_rooms_admin_edit_room as 'admin.rooms_admin.edit_room' };
 export { msg_admin_rooms_admin_edit_room_action as 'admin.rooms_admin.edit_room_action' };
 export { msg_admin_rooms_admin_room_description_placeholder as 'admin.rooms_admin.room_description_placeholder' };
 export { msg_admin_rooms_admin_room_name_empty as 'admin.rooms_admin.room_name_empty' };
-export { msg_admin_rooms_admin_room_name_trim as 'admin.rooms_admin.room_name_trim' };
 export { msg_admin_rooms_admin_room_name_charset as 'admin.rooms_admin.room_name_charset' };
 export { msg_admin_rooms_admin_room_name_too_long as 'admin.rooms_admin.room_name_too_long' };
 export { msg_admin_rooms_admin_create_group as 'admin.rooms_admin.create_group' };
