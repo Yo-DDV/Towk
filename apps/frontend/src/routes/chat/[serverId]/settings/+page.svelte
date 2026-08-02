@@ -387,16 +387,16 @@
   <p class="mb-2">
     {m['settings.profile.username.confirm_prompt']({ login: pendingLogin ?? '' })}
   </p>
-  <p class="mb-4 text-muted">{m['settings.profile.username.confirm_cooldown']()}</p>
+  <p class="text-muted">{m['settings.profile.username.confirm_cooldown']()}</p>
 
-  <div class="flex items-center gap-3">
+  {#snippet footer()}
+    <Button variant="secondary" onclick={() => (showLoginConfirm = false)}>
+      <span class="iconify uil--times"></span>
+      {m['common.cancel']()}
+    </Button>
     <Button onclick={confirmLoginChange}>
       <span class="iconify uil--check"></span>
       {m['settings.profile.username.confirm_button']()}
     </Button>
-    <Button variant="ghost" onclick={() => (showLoginConfirm = false)}>
-      <span class="iconify uil--times"></span>
-      {m['common.cancel']()}
-    </Button>
-  </div>
+  {/snippet}
 </Dialog>

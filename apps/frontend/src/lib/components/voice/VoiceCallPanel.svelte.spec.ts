@@ -31,6 +31,55 @@ function mediaQuery(matches: boolean, media: string): MediaQueryList {
 }
 
 describe('VoiceCallPanel screen-share audio', () => {
+  it('updates every simultaneous speaking card in the LiveKit event turn', async () => {
+    const levels = new Map<string, { isSpeaking: boolean; audioLevel: number }>();
+    let publishAudioLevels: () => void = () => undefined;
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'voice',
+        participantCount: 4,
+        viewportWidth: '1200px',
+        viewportHeight: '800px',
+        onStoreSeeded: (store) => {
+          store.voiceCall.getAudioLevel = (identity: string) =>
+            levels.get(identity) ?? { isSpeaking: false, audioLevel: 0 };
+          store.voiceCall.subscribeAudioLevels = (listener: () => void) => {
+            publishAudioLevels = listener;
+            return () => undefined;
+          };
+        }
+      }
+    });
+
+    const cards = await vi.waitFor(() => {
+      const values = Array.from(
+        container.querySelectorAll<HTMLElement>('[data-testid="call-participant-card"]')
+      );
+      expect(values).toHaveLength(4);
+      return values;
+    });
+    levels.set('gallery-1', { isSpeaking: true, audioLevel: 0.24 });
+    levels.set('gallery-2', { isSpeaking: true, audioLevel: 0.76 });
+    levels.set('gallery-3', { isSpeaking: true, audioLevel: 0.51 });
+    levels.set('gallery-4', { isSpeaking: true, audioLevel: 0.9 });
+
+    publishAudioLevels();
+
+    expect(cards.every((card) => card.dataset.callSpeaking === 'true')).toBe(true);
+    for (const card of cards) {
+      expect(Number(card.style.getPropertyValue('--call-speaking-ring-opacity'))).toBeGreaterThan(
+        0
+      );
+    }
+
+    levels.set('gallery-2', { isSpeaking: false, audioLevel: 0 });
+    publishAudioLevels();
+
+    expect(cards[1]?.dataset.callSpeaking).toBe('false');
+    expect(cards.filter((card) => card.dataset.callSpeaking === 'true')).toHaveLength(3);
+  });
+
   it('shows an accessible central status while the local call is joining', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'stage', scenario: 'voice', joining: true }
@@ -896,6 +945,33 @@ describe('VoiceCallPanel screen-share audio', () => {
     }
   });
 
+  it('keeps four camera previews usable on a 320px portrait viewport', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'camera',
+        participantCount: 4,
+        dockVariant: 'floating',
+        viewportWidth: '320px',
+        viewportHeight: '568px'
+      }
+    });
+
+    const previews = await vi.waitFor(() => {
+      const values = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          '[data-call-media-kind="camera"] [data-testid="call-media-preview"]'
+        )
+      );
+      expect(values).toHaveLength(2);
+      return values;
+    });
+
+    for (const preview of previews) {
+      expect(preview.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    }
+  });
+
   it('paginates short-landscape camera galleries before previews become decorative strips', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: {
@@ -1211,6 +1287,78 @@ describe('VoiceCallPanel screen-share audio', () => {
     }
   });
 
+  it('keeps a dense companion-device card readable in a Fold screen-share filmstrip', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'screen-devices',
+        dockVariant: 'floating',
+        viewportWidth: '720px',
+        viewportHeight: '780px'
+      }
+    });
+
+    const cards = await vi.waitFor(() => {
+      const values = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          '[data-testid="call-secondary-stage-list"] [data-testid="call-participant-card"]'
+        )
+      );
+      expect(values).toHaveLength(3);
+      return values;
+    });
+    const denseCard = cards.find(
+      (card) => card.querySelector('[data-testid="call-device-output-toggle"]') !== null
+    );
+    expect(denseCard).not.toBeUndefined();
+
+    const cardRect = denseCard!.getBoundingClientRect();
+    const name = denseCard!.querySelector<HTMLElement>('[data-testid="call-participant-name"]');
+    const identity = denseCard!.querySelector<HTMLElement>(
+      '[data-testid="call-participant-identity"]'
+    );
+    const footer = denseCard!.querySelector<HTMLElement>(
+      '[data-testid="call-gallery-voice-footer"]'
+    );
+    const indicators = denseCard!.querySelector<HTMLElement>(
+      '[data-testid="call-participant-indicators"]'
+    );
+    const actions = denseCard!.querySelector<HTMLElement>('[data-testid="call-voice-actions"]');
+
+    expect(identity).not.toBeNull();
+    expect(name).not.toBeNull();
+    expect(footer).not.toBeNull();
+    expect(indicators).not.toBeNull();
+    expect(actions).not.toBeNull();
+    expect(cardRect.width).toBeGreaterThanOrEqual(220);
+    expect(identity!.getBoundingClientRect().left).toBeGreaterThanOrEqual(cardRect.left + 8);
+    expect(Number.parseFloat(getComputedStyle(name!).fontSize)).toBeGreaterThanOrEqual(15);
+    const deviceBadge = denseCard!.querySelector<HTMLElement>('[data-testid="call-device-badge"]');
+    expect(deviceBadge).not.toBeNull();
+    expect(
+      Math.abs(
+        deviceBadge!.getBoundingClientRect().top +
+          deviceBadge!.getBoundingClientRect().height / 2 -
+          (name!.getBoundingClientRect().top + name!.getBoundingClientRect().height / 2)
+      )
+    ).toBeLessThanOrEqual(2);
+    expect(name!.getBoundingClientRect().right).toBeLessThanOrEqual(
+      deviceBadge!.getBoundingClientRect().left - 2
+    );
+    expect(footer!.scrollWidth).toBeLessThanOrEqual(footer!.clientWidth + 1);
+    expect(indicators!.scrollWidth).toBeLessThanOrEqual(indicators!.clientWidth + 1);
+    expect(indicators!.getBoundingClientRect().right).toBeLessThanOrEqual(
+      actions!.getBoundingClientRect().left + 1
+    );
+    for (const element of [identity!, footer!, indicators!, actions!]) {
+      const rect = element.getBoundingClientRect();
+      expect(rect.left).toBeGreaterThanOrEqual(cardRect.left - 1);
+      expect(rect.right).toBeLessThanOrEqual(cardRect.right + 1);
+      expect(rect.top).toBeGreaterThanOrEqual(cardRect.top - 1);
+      expect(rect.bottom).toBeLessThanOrEqual(cardRect.bottom + 1);
+    }
+  });
+
   it('keeps tile geometry stable on the final page and exposes 44px pagination targets', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: {
@@ -1485,7 +1633,8 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
     expect(panel.closest('[data-call-media-card]')).toBe(mediaCard);
     expect(panel.textContent).toContain('Receiving');
     expect(panel.textContent).toContain('1920 × 1080');
-    expect(panel.textContent).not.toContain('Technical details');
+    expect(panel.textContent).toContain('Technical details');
+    expect(panel.querySelector('details')?.open).toBe(false);
     expect(panel.textContent).toContain('AV1');
 
     container

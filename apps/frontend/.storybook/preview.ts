@@ -1,6 +1,7 @@
 import type { Preview, Decorator } from '@storybook/sveltekit';
 import { themes } from 'storybook/theming';
 import '../src/app.css';
+import '../src/lib/styles/app-shell-depth.css';
 import './storybook.css';
 
 const prefersDark =

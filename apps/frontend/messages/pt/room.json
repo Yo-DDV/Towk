@@ -12,6 +12,8 @@
       "universal_description": "Todos os membros do servidor (com permissão) são automaticamente membros desta sala.",
       "name_required": "O nome da sala é obrigatório",
       "name_too_long": "O nome da sala deve ter no máximo {max} caracteres.",
+      "name_invalid": "O nome da sala não pode conter caracteres de controle ou de formatação invisíveis.",
+      "name_help": "Use espaços, pontuação, acentos e emojis — até {max} caracteres.",
       "description_too_long": "A descrição da sala deve ter no máximo {max} caracteres.",
       "missing_group": "Escolha um grupo de salas antes de criar uma sala.",
       "failed": "Falha ao criar sala",
@@ -55,8 +57,7 @@
       "joined_group_many": "Você entrou em {count} salas em {group}",
       "join_group_failed": "Falha ao entrar no grupo",
       "left": "Você saiu de #{room}",
-      "left_generic": "Você saiu da sala",
-      "leave_confirm": "Tem certeza de que deseja sair de #{room}?"
+      "left_generic": "Você saiu da sala"
     },
     "server": {
       "leave_title": "Sair do servidor",
@@ -162,6 +163,7 @@
       "clear_member_search": "Limpar pesquisa de membros",
       "no_members": "Nenhum membro encontrado.",
       "online": "On-line ({count})",
+      "role_members": "{role} — {count}",
       "offline": "Off-line ({count})",
       "no_files": "Ainda não há arquivos nesta sala.",
       "files": "Arquivos",

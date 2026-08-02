@@ -29,6 +29,7 @@
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import { toast } from '$lib/ui/toast';
   import { getUniversalRoomHelpText } from '$lib/utils/roomCopy';
+  import { ROOM_NAME_MAX_LENGTH, validateRoomName } from '$lib/validation/roomName';
   import { flip } from 'svelte/animate';
   import { dragHandle, dragHandleZone, type DndEvent } from 'svelte-dnd-action';
   import * as m from '$lib/i18n/messages';
@@ -199,21 +200,21 @@
   let editRoomOriginalDescription = $state('');
   let editRoomOriginalUniversal = $state(false);
 
+  let editRoomNameValidation = $derived(validateRoomName(editRoomName));
   let editRoomNameError = $derived.by(() => {
     if (!editRoomName) return undefined;
-    if (editRoomName.trim() === '') return m['admin.rooms_admin.room_name_empty']();
-    if (editRoomName !== editRoomName.trim()) return m['admin.rooms_admin.room_name_trim']();
-    if (!/^[a-zA-Z0-9_-]+$/.test(editRoomName.trim())) {
-      return m['admin.rooms_admin.room_name_charset']();
+    if (editRoomNameValidation.valid) return undefined;
+    if (editRoomNameValidation.errorCode === 'required') {
+      return m['admin.rooms_admin.room_name_empty']();
     }
-    if (editRoomName.length > 30) {
+    if (editRoomNameValidation.errorCode === 'too_long') {
       return m['admin.rooms_admin.room_name_too_long']();
     }
-    return undefined;
+    return m['admin.rooms_admin.room_name_charset']();
   });
 
   let editRoomMetadataChanged = $derived(
-    editRoomName.trim() !== editRoomOriginalName ||
+    editRoomNameValidation.normalized !== editRoomOriginalName ||
       editRoomDescription.trim() !== editRoomOriginalDescription
   );
   let editRoomUniversalChanged = $derived(editRoomUniversal !== editRoomOriginalUniversal);
@@ -238,7 +239,7 @@
     if (editRoomMetadataChanged) {
       const result = await layout.updateRoom(
         editRoomId,
-        editRoomName.trim(),
+        editRoomNameValidation.normalized,
         editRoomDescription.trim() || null
       );
       if (!result.ok) {
@@ -790,6 +791,7 @@
                 <div
                   animate:flip={{ duration: 200 }}
                   class="room-row group rounded-lg py-2 pr-2 pl-2 hover:bg-surface-100"
+                  data-testid="admin-room-row"
                 >
                   <span
                     use:dragHandle
@@ -894,7 +896,7 @@
   submitLabel={m['admin.permissions.save_changes']()}
   submitLoadingText={m['rbac.role_form.saving']()}
   loading={editRoomSaving}
-  disabled={!editRoomName.trim() || !!editRoomNameError || !editRoomChanged}
+  disabled={!editRoomNameValidation.valid || !!editRoomNameError || !editRoomChanged}
   onsubmit={handleEditRoomSubmit}
   onclose={() => (editRoomDialogVisible = false)}
 >
@@ -905,6 +907,7 @@
     required
     disabled={editRoomSaving}
     error={editRoomNameError}
+    description={m['room.create.name_help']({ max: ROOM_NAME_MAX_LENGTH })}
   />
 
   <TextArea

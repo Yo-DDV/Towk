@@ -52,6 +52,7 @@ func defaultRBACRoles() map[string]*corev1.Role {
 			Description: "Full server control", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
 			Position:    PositionOwner,
 			Pingable:    false,
+			Color:       RoleColorOwner,
 		},
 		RoleAdmin: {
 			Name:        RoleAdmin,
@@ -59,6 +60,7 @@ func defaultRBACRoles() map[string]*corev1.Role {
 			Description: "Full administrative access to the server", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
 			Position:    PositionAdmin,
 			Pingable:    false,
+			Color:       RoleColorAdmin,
 		},
 		RoleModerator: {
 			Name:        RoleModerator,
@@ -66,6 +68,7 @@ func defaultRBACRoles() map[string]*corev1.Role {
 			DisplayName: "Moderator",
 			Position:    PositionModerator,
 			Pingable:    true,
+			Color:       RoleColorModerator,
 		},
 		RoleEveryone: {
 			Name:        RoleEveryone,
@@ -73,6 +76,7 @@ func defaultRBACRoles() map[string]*corev1.Role {
 			Description: "All authenticated users", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
 			Position:    PositionEveryone,
 			Pingable:    false,
+			Color:       "",
 		},
 	}
 }
@@ -121,6 +125,7 @@ func rbacSeedEntries(roles map[string]*corev1.Role, assignments []rbacSeedAssign
 				Description: role.GetDescription(),
 				Rank:        role.GetPosition(),
 				Pingable:    role.GetPingable(),
+				Color:       role.GetColor(),
 			},
 		}})
 		entries = append(entries, events.BatchEntry{Subject: rbacSubjectForEvent(event), Event: event})

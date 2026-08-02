@@ -29,9 +29,9 @@
     },
     "sign_out": {
       "title": "Sign Out",
-      "current_server": "Current Server",
-      "all_servers": "All Servers",
-      "description": "Sign out of only the selected server, or disconnect every server from this client."
+      "current_server": "Sign Out of This Server",
+      "all_servers": "Sign Out of All Servers",
+      "description": "Choose whether to sign out of the selected server or every server connected to this client."
     },
     "overview": {
       "title": "Overview"

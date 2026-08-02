@@ -19,12 +19,44 @@ function statsReport(sample: number): RTCStatsReport {
     framesReceived: 900 + sample * 60,
     framesDecoded: 895 + sample * 60,
     framesDropped: 5,
-    codecId: 'codec'
+    freezeCount: 1 + sample,
+    totalFreezesDuration: 0.5 + sample * 0.75,
+    pauseCount: sample,
+    totalPausesDuration: sample * 5.25,
+    jitter: 0.012,
+    jitterBufferDelay: 2 + sample * 0.75,
+    jitterBufferEmittedCount: 1_000 + sample * 900,
+    nackCount: 3 + sample * 2,
+    pliCount: 1 + sample,
+    firCount: sample,
+    decoderImplementation: 'Dav1d',
+    powerEfficientDecoder: true,
+    codecId: 'codec',
+    transportId: 'transport'
   };
   const codec = { id: 'codec', type: 'codec', timestamp: stat.timestamp, mimeType: 'video/AV1' };
+  const transport = {
+    id: 'transport',
+    type: 'transport',
+    selectedCandidatePairId: 'pair'
+  };
+  const pair = {
+    id: 'pair',
+    type: 'candidate-pair',
+    state: 'succeeded',
+    nominated: true,
+    currentRoundTripTime: 0.08,
+    availableIncomingBitrate: 8_000_000,
+    localCandidateId: 'local',
+    remoteCandidateId: 'remote'
+  };
   const items = new Map<string, Record<string, unknown>>([
     [stat.id, stat],
-    [codec.id, codec]
+    [codec.id, codec],
+    [transport.id, transport],
+    [pair.id, pair],
+    ['local', { id: 'local', type: 'local-candidate', candidateType: 'host', protocol: 'udp' }],
+    ['remote', { id: 'remote', type: 'remote-candidate', candidateType: 'relay' }]
   ]);
   return {
     get: (id: string) => items.get(id),
@@ -88,11 +120,27 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(panel.getAttribute('role')).toBe('region');
     expect(panel.getAttribute('aria-modal')).toBeNull();
     expect(panel.className).toContain('absolute');
-    expect(panel.querySelector('details')).toBeNull();
-    expect(panel.textContent).not.toContain('Technical details');
+    expect(panel.querySelector('details')).not.toBeNull();
+    expect(
+      panel.querySelector('[data-testid="screen-share-diagnostics-close"]')?.className
+    ).toContain('h-[44px]');
+    expect(panel.querySelector('summary')?.className).toContain('min-h-[44px]');
+    expect(panel.textContent).toContain('Technical details');
+    expect(panel.textContent).toContain('Local metrics');
     expect(panel.textContent).not.toContain('Transport');
+
+    (panel.querySelector('summary') as HTMLElement).click();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(panel.textContent).toContain('Transport');
     expect(panel.textContent).toContain('RTP packets');
+    expect(panel.textContent).toContain('Jitter-buffer delay');
+    expect(panel.textContent).toContain('Freezes');
+    expect(panel.textContent).toContain('Playback pauses');
+    expect(panel.textContent).toContain('ICE candidate path');
+    expect(panel.textContent).toContain('RTP feedback');
     expect(panel.textContent).toContain('AV1');
+    expect(panel.querySelectorAll('svg')).toHaveLength(4);
 
     await vi.advanceTimersByTimeAsync(4_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(3);
@@ -180,13 +228,15 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     await vi.advanceTimersByTimeAsync(0);
     const panel = document.getElementById('diagnostics-age-test')!;
     expect(panel.textContent).toContain('1920 × 1080');
-    expect(panel.textContent).not.toContain('Live');
-    expect(panel.textContent).not.toContain('Updated');
+    expect(panel.textContent).toContain('Live');
+    expect(panel.textContent).toContain('Updated now');
 
     await vi.advanceTimersByTimeAsync(5_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
     expect(panel.textContent).toContain('1920 × 1080');
-    expect(panel.textContent).not.toContain('Updated');
+    expect(panel.textContent).toContain('Updated 5 s ago');
+    expect(panel.textContent).toContain('Collecting');
+    expect(panel.textContent).not.toContain('Excellent');
     rendered.unmount();
   });
 

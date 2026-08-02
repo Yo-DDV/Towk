@@ -284,6 +284,9 @@ test.describe('User context menu', () => {
       await expect(handle).toBeVisible();
       const handleBox = await handle.boundingBox();
       expect(handleBox).not.toBeNull();
+      expect(handleBox!.height).toBeGreaterThanOrEqual(44);
+      expect(handleBox!.x).toBeGreaterThanOrEqual(0);
+      expect(handleBox!.x + handleBox!.width).toBeLessThanOrEqual(390);
       const x = handleBox!.x + handleBox!.width / 2;
       const y = handleBox!.y + handleBox!.height / 2;
       await page.mouse.move(x, y);

@@ -82,6 +82,18 @@
   </div>
 </Story>
 
+<Story name="Simultaneous speaking participants" asChild>
+  <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
+    <VoiceCallPanelStoryHarness
+      layout="stage"
+      scenario="voice"
+      participantCount={4}
+      speakingParticipantIds={['gallery-1', 'gallery-2', 'gallery-3', 'gallery-4']}
+      dockVariant="floating"
+    />
+  </div>
+</Story>
+
 <Story name="Adaptive single voice participant" asChild>
   <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
     <VoiceCallPanelStoryHarness
@@ -118,6 +130,12 @@
 <Story name="Adaptive screen share stage" asChild>
   <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
     <VoiceCallPanelStoryHarness layout="stage" scenario="screen" dockVariant="floating" />
+  </div>
+</Story>
+
+<Story name="Adaptive screen share with companion devices" asChild>
+  <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
+    <VoiceCallPanelStoryHarness layout="stage" scenario="screen-devices" dockVariant="floating" />
   </div>
 </Story>
 

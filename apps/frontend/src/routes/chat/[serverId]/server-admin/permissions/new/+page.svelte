@@ -18,6 +18,7 @@
   let name = $state('');
   let displayName = $state('');
   let description = $state('');
+  let color = $state('#2563EB');
   let pingable = $state(false);
   let creating = $state(false);
   let error = $state<string | null>(null);
@@ -52,7 +53,8 @@
         name: name.trim(),
         displayName: displayName.trim(),
         description: description.trim(),
-        pingable
+        pingable,
+        color
       });
     } catch (err) {
       error = localizedErrorMessage(err, m['admin.permissions.load_instance_failed']());
@@ -112,6 +114,7 @@
           bind:name
           bind:displayName
           bind:description
+          bind:color
           bind:pingable
           saving={creating}
           submitLabel={m['admin.permissions.create_role_action']()}

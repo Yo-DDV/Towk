@@ -8,6 +8,7 @@ function renderRoleForm(
     name: string;
     displayName: string;
     description: string;
+    color: string;
     pingable: boolean;
     nameEditable: boolean;
     saving: boolean;
@@ -21,6 +22,7 @@ function renderRoleForm(
     name: '',
     displayName: '',
     description: '',
+    color: '#2563EB',
     pingable: false,
     nameEditable: true,
     saving: false,
@@ -62,6 +64,12 @@ describe('RoleForm', () => {
       await expect.element(q(container, '#pingable')).toBeInTheDocument();
     });
 
+    it('renders an accessible role color picker and hex input', async () => {
+      const { container } = renderRoleForm({ color: '#2563EB' });
+      await expect.element(q(container, '#roleColor')).toHaveAttribute('type', 'color');
+      await expect.element(q(container, '#roleColorHex')).toHaveValue('#2563EB');
+    });
+
     it('renders submit button with custom label', async () => {
       const { container } = renderRoleForm({ submitLabel: 'Create Role' });
       const button = q(container, 'button[type="submit"]');
@@ -70,14 +78,17 @@ describe('RoleForm', () => {
 
     it('renders cancel button when onCancel is provided', async () => {
       const { container } = renderRoleForm({ onCancel: vi.fn() });
-      const cancelButton = container.querySelector('button:not([type="submit"])');
+      const cancelButton = Array.from(container.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Cancel')
+      );
       await expect.element(cancelButton as HTMLElement).toHaveTextContent('Cancel');
     });
 
     it('does not render cancel button when onCancel is not provided', async () => {
       const { container } = renderRoleForm({});
-      const buttons = container.querySelectorAll('button');
-      expect(buttons.length).toBe(1); // Only submit button
+      expect(
+        container.querySelector('button:not([type="submit"])[aria-label="Cancel"]')
+      ).toBeNull();
     });
   });
 
@@ -121,6 +132,30 @@ describe('RoleForm', () => {
       const error = q(container, 'p.text-error');
       expect(error).toBeNull();
     });
+
+    it('counts emoji display names by Unicode code point up to 80 characters', async () => {
+      const { container } = renderRoleForm({
+        name: 'emoji-team',
+        displayName: '🌈'.repeat(80)
+      });
+      await expect.element(q(container, 'button[type="submit"]')).toBeEnabled();
+
+      const tooLong = renderRoleForm({
+        name: 'emoji-team',
+        displayName: '🌈'.repeat(81)
+      });
+      await expect.element(q(tooLong.container, 'button[type="submit"]')).toBeDisabled();
+    });
+
+    it('rejects colors outside canonical hexadecimal form', async () => {
+      const { container } = renderRoleForm({
+        name: 'unsafe-color',
+        displayName: 'Unsafe Color',
+        color: 'red'
+      });
+      await expect.element(q(container, 'button[type="submit"]')).toBeDisabled();
+      await expect.element(q(container, '#roleColorHex')).toHaveAttribute('aria-invalid', 'true');
+    });
   });
 
   describe('saving state', () => {
@@ -134,6 +169,8 @@ describe('RoleForm', () => {
       await expect.element(q(container, '#displayName')).toBeDisabled();
       await expect.element(q(container, '#description')).toBeDisabled();
       await expect.element(q(container, '#pingable')).toBeDisabled();
+      await expect.element(q(container, '#roleColor')).toBeDisabled();
+      await expect.element(q(container, '#roleColorHex')).toBeDisabled();
     });
 
     it('disables submit button when saving', async () => {

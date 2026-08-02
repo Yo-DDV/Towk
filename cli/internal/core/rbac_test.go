@@ -1457,7 +1457,24 @@ func TestChattoCore_RoleMetadataLengthLimits(t *testing.T) {
 
 	t.Run("create rejects over-limit display name", func(t *testing.T) {
 		_, err := core.CreateServerRole(ctx, SystemActorID, "longdisplay", strings.Repeat("d", MaxRoleDisplayNameLength+1), "")
-		assertStringLengthError(t, err, "role display name", MaxRoleDisplayNameLength)
+		assertStringCharacterLengthError(t, err, "role display name", MaxRoleDisplayNameLength)
+	})
+
+	t.Run("display name limit counts Unicode code points", func(t *testing.T) {
+		displayName := strings.Repeat("🌈", MaxRoleDisplayNameLength)
+		role, err := core.CreateServerRole(ctx, SystemActorID, "unicode", displayName, "")
+		if err != nil {
+			t.Fatalf("CreateServerRole with Unicode display name: %v", err)
+		}
+		if role.DisplayName != displayName {
+			t.Fatalf("display name = %q, want Unicode input", role.DisplayName)
+		}
+
+		_, err = core.CreateServerRole(ctx, SystemActorID, "unicodeover", displayName+"🌈", "")
+		var lengthErr *StringCharacterLengthError
+		if !errors.As(err, &lengthErr) || lengthErr.Field != "role display name" || lengthErr.Max != MaxRoleDisplayNameLength {
+			t.Fatalf("over-limit Unicode error = %v, want role display name character limit", err)
+		}
 	})
 
 	t.Run("create rejects over-limit description", func(t *testing.T) {
@@ -1470,7 +1487,7 @@ func TestChattoCore_RoleMetadataLengthLimits(t *testing.T) {
 			t.Fatalf("CreateServerRole: %v", err)
 		}
 		_, err := core.UpdateServerRole(ctx, SystemActorID, "editable", strings.Repeat("d", MaxRoleDisplayNameLength+1), "")
-		assertStringLengthError(t, err, "role display name", MaxRoleDisplayNameLength)
+		assertStringCharacterLengthError(t, err, "role display name", MaxRoleDisplayNameLength)
 	})
 }
 
@@ -2235,6 +2252,16 @@ func TestChattoCore_CreateDefaultRoles(t *testing.T) {
 	if adminRole.Name != RoleOwner {
 		t.Errorf("Expected admin role name '%s', got '%s'", RoleOwner, adminRole.Name)
 	}
+	if adminRole.Color != RoleColorOwner {
+		t.Errorf("owner color = %q, want %q", adminRole.Color, RoleColorOwner)
+	}
+	moderatorRole, err := core.GetServerRole(ctx, RoleModerator)
+	if err != nil {
+		t.Fatalf("Failed to get moderator role: %v", err)
+	}
+	if moderatorRole.Color != RoleColorModerator {
+		t.Errorf("moderator color = %q, want %q", moderatorRole.Color, RoleColorModerator)
+	}
 
 	// Owner role now has explicitly stored permissions. Verify the owner-role
 	// holder has all the expected permissions.
@@ -2760,6 +2787,7 @@ func TestChattoCore_AdminRoleManagementAuthorization(t *testing.T) {
 	}
 
 	pingable := true
+	color := "#e8783b"
 	if _, err := core.AdminCreateServerRole(ctx, "", AdminRoleInput{Name: "helpdesk", DisplayName: "Helpdesk"}); !errors.Is(err, ErrNotAuthenticated) {
 		t.Fatalf("unauth create err = %v, want ErrNotAuthenticated", err)
 	}
@@ -2771,26 +2799,40 @@ func TestChattoCore_AdminRoleManagementAuthorization(t *testing.T) {
 		DisplayName: "Helpdesk",
 		Description: "Support team",
 		Pingable:    &pingable,
+		Color:       &color,
 	})
 	if err != nil {
 		t.Fatalf("AdminCreateServerRole: %v", err)
 	}
-	if !role.Pingable {
-		t.Fatal("Pingable = false, want true")
+	if !role.Pingable || role.Color != "#E8783B" {
+		t.Fatalf("created role = %+v, want pingable and normalized color", role)
+	}
+	invalidColor := "red"
+	if _, err := core.AdminCreateServerRole(ctx, admin.Id, AdminRoleInput{
+		Name: "badcolor", DisplayName: "Bad Color", Color: &invalidColor,
+	}); !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("invalid color err = %v, want ErrInvalidArgument", err)
 	}
 
 	pingable = false
+	color = "#123abc"
 	updated, err := core.AdminUpdateServerRole(ctx, admin.Id, AdminRoleUpdateInput{
 		Name:        "helpdesk",
 		DisplayName: stringPtrForCoreTest("Support"),
 		Description: stringPtrForCoreTest("Support queue"),
 		Pingable:    &pingable,
+		Color:       &color,
 	})
 	if err != nil {
 		t.Fatalf("AdminUpdateServerRole: %v", err)
 	}
-	if updated.DisplayName != "Support" || updated.Pingable {
-		t.Fatalf("updated role = %+v, want display Support and pingable false", updated)
+	if updated.DisplayName != "Support" || updated.Pingable || updated.Color != "#123ABC" {
+		t.Fatalf("updated role = %+v, want display Support, pingable false, color #123ABC", updated)
+	}
+	if _, err := core.AdminUpdateServerRole(ctx, admin.Id, AdminRoleUpdateInput{
+		Name: RoleEveryone, Color: &color,
+	}); !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("everyone color update err = %v, want ErrInvalidArgument", err)
 	}
 
 	if err := core.AdminDeleteServerRole(ctx, regular.Id, "helpdesk"); !errors.Is(err, ErrPermissionDenied) {

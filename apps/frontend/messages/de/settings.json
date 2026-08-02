@@ -395,10 +395,10 @@
       "delete_modal": {
         "title": "Konto löschen",
         "warning_label": "Warnung:",
-        "warning_text": "Diese Aktion ist dauerhaft und kann nicht rückgängig gemacht werden.",
-        "intro": "Dadurch wird dein Konto dauerhaft gelöscht und:",
+        "warning_text": "Dieses Konto kann nach dem Löschen nicht wiederhergestellt werden.",
+        "intro": "Das Löschen dieses Kontos hat folgende Folgen:",
         "remove_from_rooms": "du wirst aus allen Spaces und Räumen entfernt",
-        "delete_messages": "alle deine Nachrichten werden gelöscht (Inhalte können nicht wiederhergestellt werden)",
+        "delete_messages": "alle deine Nachrichten werden dauerhaft gelöscht",
         "delete_profile": "dein Profil, Avatar und zugehörige Daten werden gelöscht",
         "confirm_label": "Gib {confirmation} ein, um zu bestätigen",
         "confirmation_token": "LÖSCHEN",

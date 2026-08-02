@@ -209,7 +209,7 @@ test.describe('Authentication', () => {
     await expect(page.getByTitle('Sign out')).toBeVisible();
 
     await page.getByTitle('Sign out').click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Current Server' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Sign Out of This Server' }).click();
     await page.waitForURL('/');
     await page.goto('/login');
     await expect(page.getByRole('heading', { name: 'Sign In' })).toBeVisible();
@@ -475,9 +475,11 @@ test.describe('Authentication', () => {
       // Click sign out button - should show confirmation modal
       await authPage.logoutButton.click();
       await expect(authPage.logoutDialog).toBeVisible();
-      await expect(authPage.logoutDialog.getByText('disconnect every server')).toBeVisible();
       await expect(
-        authPage.logoutDialog.getByRole('button', { name: 'Current Server' })
+        authPage.logoutDialog.getByText('selected server or every server')
+      ).toBeVisible();
+      await expect(
+        authPage.logoutDialog.getByRole('button', { name: 'Sign Out of This Server' })
       ).toBeVisible();
       await expect(authPage.confirmLogoutButton).toBeVisible();
     });

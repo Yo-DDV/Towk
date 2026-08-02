@@ -29,9 +29,9 @@
     },
     "sign_out": {
       "title": "Abmelden",
-      "current_server": "Aktueller Server",
-      "all_servers": "Alle Server",
-      "description": "Melde dich nur vom ausgewählten Server ab oder trenne alle Server von diesem Client."
+      "current_server": "Von diesem Server abmelden",
+      "all_servers": "Von allen Servern abmelden",
+      "description": "Wähle, ob du dich vom ausgewählten Server oder von allen mit diesem Client verbundenen Servern abmelden möchtest."
     },
     "overview": {
       "title": "Übersicht"

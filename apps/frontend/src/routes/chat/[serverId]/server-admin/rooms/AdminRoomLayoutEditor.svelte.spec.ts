@@ -228,7 +228,7 @@ describe('AdminRoomLayoutEditor', () => {
     });
   });
 
-  it('keeps Save disabled and shows validation when a room name has leading whitespace', async () => {
+  it('accepts emoji and normalizes room name spacing before saving', async () => {
     const layout = makeLayout();
     layout.initialized = true;
     layout.groups = [group('g1', [room('r1', { name: 'general' })], 'Lobby')];
@@ -241,14 +241,14 @@ describe('AdminRoomLayoutEditor', () => {
     flushSync();
 
     const input = q(container, '#edit-room-name') as HTMLInputElement;
-    fill(input, ' bad-name');
+    fill(input, '  📣   Cafe\u0301 Updates  ');
 
-    expect(container.textContent).toContain('Room name cannot have leading or trailing whitespace');
     const save = buttonByText(container, 'Save Changes');
-    expect(save.disabled).toBe(true);
+    expect(save.disabled).toBe(false);
     save.click();
-    await Promise.resolve();
-    expect(updateRoom).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(updateRoom).toHaveBeenCalledWith('r1', '📣 Café Updates', null);
+    });
   });
 
   it('edits the Universal flag from the room edit modal, not a row action', async () => {
@@ -281,6 +281,52 @@ describe('AdminRoomLayoutEditor', () => {
       expect(updateRoomUniversal).toHaveBeenCalledWith('r1', true);
     });
     expect(updateRoom).not.toHaveBeenCalled();
+  });
+
+  it('gives every edit-dialog action the full available width on a narrow phone', async () => {
+    await page.viewport(320, 568);
+
+    try {
+      const layout = makeLayout();
+      layout.initialized = true;
+      layout.groups = [group('g1', [room('r1', { name: 'general' })], 'Lobby')];
+      const { container } = renderEditor(layout);
+
+      const edit = container.querySelector('[title="Edit room"]');
+      if (!(edit instanceof HTMLButtonElement)) throw new Error('edit button not found');
+      edit.click();
+      flushSync();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      const dialog = q(container, 'dialog') as HTMLDialogElement;
+      const footer = q(container, '.dialog-footer') as HTMLElement;
+      if (!(footer instanceof HTMLElement)) throw new Error('responsive dialog footer missing');
+      const buttons = [...footer.querySelectorAll('button')];
+
+      expect(buttons).toHaveLength(2);
+      await vi.waitFor(() => {
+        const dialogBounds = dialog.getBoundingClientRect();
+        const footerBounds = footer.getBoundingClientRect();
+        const footerStyle = getComputedStyle(footer);
+        const footerContentWidth =
+          footerBounds.width -
+          Number.parseFloat(footerStyle.paddingLeft) -
+          Number.parseFloat(footerStyle.paddingRight);
+
+        expect(dialogBounds.left).toBeGreaterThanOrEqual(0);
+        expect(dialogBounds.right).toBeLessThanOrEqual(window.innerWidth + 1);
+        expect(dialog.scrollWidth).toBeLessThanOrEqual(Math.ceil(dialogBounds.width) + 1);
+
+        for (const button of buttons) {
+          const buttonBounds = button.getBoundingClientRect();
+          expect(buttonBounds.width).toBeGreaterThanOrEqual(footerContentWidth - 2);
+          expect(Number.parseFloat(getComputedStyle(button).minHeight)).toBeGreaterThanOrEqual(44);
+          expect(button.scrollWidth).toBeLessThanOrEqual(button.clientWidth + 1);
+        }
+      });
+    } finally {
+      await page.viewport(414, 896);
+    }
   });
 
   it('keeps a neutral permanent-delete action in every active room row', async () => {

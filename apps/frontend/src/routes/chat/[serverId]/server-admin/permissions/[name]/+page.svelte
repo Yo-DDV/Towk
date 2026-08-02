@@ -12,7 +12,12 @@
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { Button, Checkbox, TextInput, TextArea, FormError } from '$lib/ui/form';
-  import { DeleteRoleModal, RolePermissionsMatrix, type Role } from '$lib/components/rbac';
+  import {
+    DeleteRoleModal,
+    RoleColorField,
+    RolePermissionsMatrix,
+    type Role
+  } from '$lib/components/rbac';
   import { localizedRoleDescription, localizedRoleDisplayName } from '$lib/rbacLabels';
   import * as m from '$lib/i18n/messages';
   import { localizedErrorMessage } from '$lib/i18n/localizedError';
@@ -38,6 +43,7 @@
   let editDisplayName = $state('');
   let editDescription = $state('');
   let editPingable = $state(false);
+  let editColor = $state('');
 
   async function loadData() {
     loading = true;
@@ -61,6 +67,7 @@
       editDisplayName = role.displayName;
       editDescription = role.description;
       editPingable = role.pingable;
+      editColor = role.color;
     }
 
     loading = false;
@@ -73,7 +80,7 @@
   });
 
   async function saveMetadata() {
-    if (!role || savingPingable) return;
+    if (!role || savingPingable || !editColorValid) return;
 
     saving = true;
     error = null;
@@ -82,7 +89,8 @@
       await roleAPI().updateRole({
         name: role.name,
         displayName: editDisplayName,
-        description: editDescription
+        description: editDescription,
+        color: editColor
       });
       // Reload data
       await loadData();
@@ -162,9 +170,13 @@
   );
 
   const metadataChanged = $derived(
-    role && (editDisplayName !== role.displayName || editDescription !== role.description)
+    role &&
+      (editDisplayName !== role.displayName ||
+        editDescription !== role.description ||
+        editColor !== role.color)
   );
   const canEditPingable = $derived(role?.name !== 'everyone');
+  const editColorValid = $derived(role?.name === 'everyone' || /^#[0-9A-Fa-f]{6}$/.test(editColor));
   const roleDisplayName = $derived(
     role ? localizedRoleDisplayName(role.name, role.displayName) : ''
   );
@@ -211,6 +223,10 @@
             <p class="mt-1 text-xs text-muted">{m['rbac.role_form.name_locked']()}</p>
           </div>
 
+          {#if role.name !== 'everyone'}
+            <RoleColorField bind:color={editColor} disabled={saving || savingPingable} />
+          {/if}
+
           {#if role.isSystem}
             <div>
               <div class="mb-1 text-sm font-medium">{m['rbac.role_form.display_name']()}</div>
@@ -231,6 +247,17 @@
                 ? m['rbac.role_form.pingable_description']()
                 : m['admin.permissions.everyone_pingable_description']()}
             />
+            {#if role.name !== 'everyone'}
+              <div class="flex gap-2">
+                <Button
+                  variant="primary"
+                  disabled={!metadataChanged || !editColorValid || saving || savingPingable}
+                  onclick={saveMetadata}
+                >
+                  {saving ? m['rbac.role_form.saving']() : m['admin.permissions.save_changes']()}
+                </Button>
+              </div>
+            {/if}
           {:else}
             <TextInput
               id="displayName"
@@ -257,7 +284,7 @@
             <div class="flex gap-2">
               <Button
                 variant="primary"
-                disabled={!metadataChanged || saving || savingPingable}
+                disabled={!metadataChanged || !editColorValid || saving || savingPingable}
                 onclick={saveMetadata}
               >
                 {saving ? m['rbac.role_form.saving']() : m['admin.permissions.save_changes']()}

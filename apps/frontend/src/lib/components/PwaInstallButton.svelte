@@ -261,6 +261,12 @@
   });
 </script>
 
+{#snippet installFooter()}
+  <Button loading={installing} loadingText={m['ui.pwa_install.installing']()} onclick={install}>
+    {m['ui.pwa_install.install_now']()}
+  </Button>
+{/snippet}
+
 {#if installPromotionAvailable}
   <button
     type="button"
@@ -277,7 +283,13 @@
     ></span>
   </button>
 
-  <Dialog bind:visible={dialogVisible} title={m['ui.pwa_install.title']()} size="lg" tall>
+  <Dialog
+    bind:visible={dialogVisible}
+    title={m['ui.pwa_install.title']()}
+    size="lg"
+    tall
+    footer={installEvent ? installFooter : undefined}
+  >
     <div
       class={[
         'pwa-install-content flex flex-col gap-4 text-sm',
@@ -328,15 +340,6 @@
       {/if}
 
       {#if installEvent}
-        <Button
-          fullWidth
-          loading={installing}
-          loadingText={m['ui.pwa_install.installing']()}
-          onclick={install}
-        >
-          {m['ui.pwa_install.install_now']()}
-        </Button>
-
         <button
           type="button"
           class="flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-1 py-1.5 text-left text-xs font-medium text-muted transition-colors hover:text-text"

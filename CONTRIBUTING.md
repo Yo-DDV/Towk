@@ -69,5 +69,7 @@ mise build
 ```
 
 Maintainer changes must follow this guide, the pull-request template, the
-applicable licensing rules in [LICENSING.md](LICENSING.md), and the design
+applicable licensing rules in [LICENSING.md](LICENSING.md), the product direction
+in [DESIGN.md](DESIGN.md), the reusable frontend contract in
+[docs/FRONTEND_DESIGN_SYSTEM.md](docs/FRONTEND_DESIGN_SYSTEM.md), and the design
 records in [docs/adr/](docs/adr/) and [docs/fdr/](docs/fdr/) when they apply.

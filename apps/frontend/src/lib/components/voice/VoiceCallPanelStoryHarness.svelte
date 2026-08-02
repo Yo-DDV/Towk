@@ -31,11 +31,13 @@
     dockVariant = 'sidebar',
     viewportWidth = null,
     viewportHeight = null,
+    speakingParticipantIds = [],
     onStoreSeeded = null
   }: {
     layout?: 'sidebar' | 'stage';
     scenario?:
       | 'screen'
+      | 'screen-devices'
       | 'dual-screen'
       | 'screen-single-secondary'
       | 'camera'
@@ -53,6 +55,7 @@
     dockVariant?: 'sidebar' | 'floating';
     viewportWidth?: string | null;
     viewportHeight?: string | null;
+    speakingParticipantIds?: string[];
     onStoreSeeded?: ((store: ServerStateStore) => void) | null;
   } = $props();
 
@@ -299,6 +302,36 @@
       ];
     }
 
+    if (scenario === 'screen-devices') {
+      return [
+        participant('viewer-device-2', 'Alexandria Montgomery', {
+          participantId: 'viewer-device-2',
+          userId: 'viewer',
+          deviceIndex: 2,
+          isMuted: true,
+          isLocallyMuted: true,
+          connectionQuality: 'poor',
+          networkHealth: 'poor',
+          packetLossPercent: 12.4,
+          networkWarningMetric: 'packetLoss',
+          canControlAudio: true,
+          siblingMicrophoneMuted: true,
+          siblingOutputMuted: true
+        }),
+        participant('viewer-device-1', 'Alexandria Montgomery', {
+          participantId: 'viewer-device-1',
+          userId: 'viewer',
+          deviceIndex: 1,
+          isLocal: true
+        }),
+        participant('share-owner', 'Alan Rivera', {
+          isScreenShareEnabled: true,
+          isScreenShareAudioEnabled: true,
+          screenShareTrack: screenTrack
+        })
+      ];
+    }
+
     if (scenario === 'screen-single-secondary') {
       return [
         participant('viewer', 'Alice', {
@@ -401,7 +434,12 @@
       noiseSuppression: 'unavailable'
     };
     store.voiceCall.isCameraEnabled = scenario !== 'voice';
-    store.voiceCall.isScreenShareEnabled = scenario === 'screen' || scenario === 'dual-screen';
+    store.voiceCall.isScreenShareEnabled =
+      scenario === 'screen' || scenario === 'screen-devices' || scenario === 'dual-screen';
+    store.voiceCall.getAudioLevel = (identity: string) =>
+      speakingParticipantIds.includes(identity)
+        ? { isSpeaking: true, audioLevel: 0.68 }
+        : { isSpeaking: false, audioLevel: 0 };
     if (scenario === 'mobile-camera') {
       store.voiceCall.videoDevices = [
         mediaDevice('front', 'videoinput', 'camera2 1, facing front'),

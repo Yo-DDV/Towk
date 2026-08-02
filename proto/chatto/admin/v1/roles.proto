@@ -57,6 +57,8 @@ message CreateRoleRequest {
   string description = 3 [(buf.validate.field).string.max_len = 500];
   // Whether messages may notify users assigned to this role.
   bool pingable = 4;
+  // Optional display accent. Omission lets the server choose a stable default.
+  optional string color = 5 [(buf.validate.field).string.pattern = "^#[0-9A-Fa-f]{6}$"];
 }
 
 // Result of creating a role.
@@ -75,6 +77,8 @@ message UpdateRoleRequest {
   optional string description = 3 [(buf.validate.field).string.max_len = 500];
   // Whether messages may notify users assigned to this role, when changing it.
   optional bool pingable = 4;
+  // Display accent to apply, in #RRGGBB form.
+  optional string color = 5 [(buf.validate.field).string.pattern = "^#[0-9A-Fa-f]{6}$"];
 }
 
 // Result of updating a role.

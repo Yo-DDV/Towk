@@ -395,10 +395,10 @@
       "delete_modal": {
         "title": "Supprimer le compte",
         "warning_label": "Avertissement :",
-        "warning_text": "Cette action est définitive et irréversible.",
-        "intro": "Cela supprimera définitivement votre compte et :",
+        "warning_text": "Ce compte ne pourra pas être restauré.",
+        "intro": "La suppression de ce compte entraînera les conséquences suivantes :",
         "remove_from_rooms": "Vous retirer de tous les espaces et salons",
-        "delete_messages": "Supprimer tous vos messages (leur contenu sera irrécupérable)",
+        "delete_messages": "Supprimer définitivement tous vos messages",
         "delete_profile": "Supprimer votre profil, votre avatar et les données associées",
         "confirm_label": "Saisissez {confirmation} pour confirmer",
         "confirmation_token": "SUPPRIMER",

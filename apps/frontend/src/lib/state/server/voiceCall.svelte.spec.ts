@@ -358,6 +358,7 @@ vi.mock('livekit-client', () => {
       MediaDevicesChanged: 'MediaDevicesChanged',
       ActiveDeviceChanged: 'ActiveDeviceChanged',
       MediaDevicesError: 'MediaDevicesError',
+      ActiveSpeakersChanged: 'ActiveSpeakersChanged',
       ConnectionQualityChanged: 'ConnectionQualityChanged',
       TrackSubscribed: 'TrackSubscribed',
       TrackUnsubscribed: 'TrackUnsubscribed',
@@ -469,6 +470,30 @@ function deferredValue<T>(): { promise: Promise<T>; resolve: (value: T) => void 
     resolve = res;
   });
   return { promise, resolve };
+}
+
+function inboundNetworkStatsReport({
+  packetsLost,
+  packetsReceived,
+  jitter
+}: {
+  packetsLost: number;
+  packetsReceived: number;
+  jitter: number;
+}): RTCStatsReport {
+  return new Map([
+    [
+      'inbound',
+      {
+        id: 'inbound',
+        type: 'inbound-rtp',
+        kind: 'video',
+        packetsLost,
+        packetsReceived,
+        jitter
+      }
+    ]
+  ]) as unknown as RTCStatsReport;
 }
 
 async function flushPromises(times = 5): Promise<void> {
@@ -3063,8 +3088,20 @@ describe('VoiceCallState', () => {
     expect(toastMocks.error).not.toHaveBeenCalled();
   });
 
-  it('uses LiveKit local speaking levels without an auxiliary microphone graph', async () => {
-    vi.useFakeTimers();
+  it('publishes simultaneous LiveKit speaking levels immediately without polling', async () => {
+    const remoteParticipant = {
+      identity: 'device-2',
+      name: 'Remote User',
+      metadata:
+        '{"userId":"remote-user","participantId":"device-2","deviceIndex":1,"login":"remote-user"}',
+      connectionQuality: 'good',
+      audioLevel: 0,
+      isSpeaking: false,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    };
+    mockRemoteParticipants.set(remoteParticipant.identity, remoteParticipant);
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
@@ -3075,13 +3112,26 @@ describe('VoiceCallState', () => {
     };
     localParticipant.audioLevel = 0.42;
     localParticipant.isSpeaking = true;
+    remoteParticipant.audioLevel = 0.73;
+    remoteParticipant.isSpeaking = true;
+    const onAudioLevelsChanged = vi.fn();
+    const unsubscribe = state.subscribeAudioLevels(onAudioLevelsChanged);
 
-    vi.advanceTimersByTime(60);
+    roomEventHandlers.get('ActiveSpeakersChanged')?.();
 
+    expect(onAudioLevelsChanged).toHaveBeenCalledOnce();
     expect(state.getAudioLevel(localParticipant.identity)).toEqual({
       audioLevel: 0.42,
       isSpeaking: true
     });
+    expect(state.getAudioLevel(remoteParticipant.identity)).toEqual({
+      audioLevel: 0.73,
+      isSpeaking: true
+    });
+
+    unsubscribe();
+    roomEventHandlers.get('ActiveSpeakersChanged')?.();
+    expect(onAudioLevelsChanged).toHaveBeenCalledOnce();
   });
 
   it('keeps camera pending until LiveKit applies the toggle', async () => {
@@ -4324,13 +4374,7 @@ describe('VoiceCallState', () => {
     const state = new VoiceCallState(createVoiceCallClient());
     await state.join('wss://livekit.example.test', 'R1');
 
-    state.handleParticipantLeftEvent(
-      'R1',
-      'call-1',
-      'remote-device',
-      'remote-user',
-      'local-user'
-    );
+    state.handleParticipantLeftEvent('R1', 'call-1', 'remote-device', 'remote-user', 'local-user');
     state.handleParticipantConnectionChangedEvent(
       'R1',
       'call-1',
@@ -4391,6 +4435,304 @@ describe('VoiceCallState', () => {
 
     recoveredPoll.resolve(emptyReport);
     await flushPromises();
+    await state.leave();
+  });
+
+  it('reports the worst current quality across microphone and screen-share tracks', async () => {
+    const microphoneStats = vi.fn(async () =>
+      inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 1_000, jitter: 0.008 })
+    );
+    const screenShareStats = vi.fn(async () =>
+      inboundNetworkStatsReport({ packetsLost: 200, packetsReceived: 800, jitter: 0.16 })
+    );
+    mockRemoteParticipants.set('remote-user', {
+      identity: 'remote-user',
+      name: 'Remote User',
+      metadata: '',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [
+        {
+          trackSid: 'microphone-track',
+          isMuted: false,
+          track: { source: 'microphone', getRTCStatsReport: microphoneStats }
+        },
+        {
+          trackSid: 'screen-share-track',
+          isMuted: false,
+          track: { source: 'screen_share', getRTCStatsReport: screenShareStats }
+        }
+      ])
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    await flushPromises();
+
+    expect(microphoneStats).toHaveBeenCalledOnce();
+    expect(screenShareStats).toHaveBeenCalledOnce();
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({
+      networkHealth: 'poor',
+      packetLossPercent: 20,
+      jitterMs: 160,
+      networkWarningMetric: 'packetLoss'
+    });
+
+    await state.leave();
+  });
+
+  it('clears a participant quality sample when every active track stops reporting stats', async () => {
+    const getRTCStatsReport = vi
+      .fn<() => Promise<RTCStatsReport | undefined>>()
+      .mockResolvedValueOnce(
+        inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 1_000, jitter: 0.008 })
+      )
+      .mockResolvedValueOnce(undefined);
+    mockRemoteParticipants.set('remote-user', {
+      identity: 'remote-user',
+      name: 'Remote User',
+      metadata: '',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [
+        {
+          trackSid: 'microphone-track',
+          isMuted: false,
+          track: { source: 'microphone', getRTCStatsReport }
+        }
+      ])
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    await flushPromises();
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({ networkHealth: 'excellent' });
+
+    await (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({ networkHealth: 'excellent' });
+
+    await (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
+
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({
+      networkHealth: 'unknown',
+      packetLossPercent: null,
+      jitterMs: null,
+      networkWarningMetric: null
+    });
+
+    await state.leave();
+  });
+
+  it('does not let a healthy track mask another active track whose stats became unavailable', async () => {
+    const microphoneStats = vi.fn(async () =>
+      inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 1_000, jitter: 0.008 })
+    );
+    const screenShareStats = vi
+      .fn<() => Promise<RTCStatsReport | undefined>>()
+      .mockResolvedValueOnce(
+        inboundNetworkStatsReport({ packetsLost: 200, packetsReceived: 800, jitter: 0.16 })
+      )
+      .mockResolvedValue(undefined);
+    mockRemoteParticipants.set('remote-user', {
+      identity: 'remote-user',
+      name: 'Remote User',
+      metadata: '',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [
+        {
+          trackSid: 'microphone-track',
+          isMuted: false,
+          track: { source: 'microphone', getRTCStatsReport: microphoneStats }
+        },
+        {
+          trackSid: 'screen-share-track',
+          isMuted: false,
+          track: { source: 'screen_share', getRTCStatsReport: screenShareStats }
+        }
+      ])
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    await flushPromises();
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({ networkHealth: 'poor' });
+
+    await (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({ networkHealth: 'poor' });
+
+    await (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({
+      networkHealth: 'unknown',
+      packetLossPercent: null,
+      jitterMs: null,
+      networkWarningMetric: null
+    });
+
+    await state.leave();
+  });
+
+  it('expires a participant quality sample when a WebRTC stats read never settles', async () => {
+    vi.useFakeTimers({ now: 1_000 });
+    const stalledReport = deferredValue<RTCStatsReport>();
+    const getRTCStatsReport = vi
+      .fn<() => Promise<RTCStatsReport>>()
+      .mockResolvedValueOnce(
+        inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 1_000, jitter: 0.008 })
+      )
+      .mockReturnValueOnce(stalledReport.promise);
+    mockRemoteParticipants.set('remote-user', {
+      identity: 'remote-user',
+      name: 'Remote User',
+      metadata: '',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [
+        {
+          trackSid: 'microphone-track',
+          isMuted: false,
+          track: { source: 'microphone', getRTCStatsReport }
+        }
+      ])
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    await flushPromises();
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({ networkHealth: 'excellent' });
+
+    const poll = (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
+    await flushPromises();
+    expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(4_001);
+    expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({
+      networkHealth: 'unknown',
+      packetLossPercent: null,
+      jitterMs: null,
+      networkWarningMetric: null
+    });
+
+    stalledReport.resolve(
+      inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 2_000, jitter: 0.008 })
+    );
+    await poll;
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({
+      networkHealth: 'unknown',
+      packetLossPercent: null,
+      jitterMs: null,
+      networkWarningMetric: null
+    });
+    await state.leave();
+  });
+
+  it('discards an in-flight sample when the participant track set changes', async () => {
+    const stalePoll = deferredValue<RTCStatsReport>();
+    const microphoneStats = vi
+      .fn<() => Promise<RTCStatsReport>>()
+      .mockResolvedValueOnce(
+        inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 1_000, jitter: 0.008 })
+      )
+      .mockReturnValueOnce(stalePoll.promise);
+    const screenShareStats = vi.fn(async () =>
+      inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 1_000, jitter: 0.01 })
+    );
+    let publications = [
+      {
+        trackSid: 'microphone-track',
+        isMuted: false,
+        track: { source: 'microphone', getRTCStatsReport: microphoneStats }
+      }
+    ];
+    mockRemoteParticipants.set('remote-user', {
+      identity: 'remote-user',
+      name: 'Remote User',
+      metadata: '',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => publications)
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    await flushPromises();
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({ networkHealth: 'excellent' });
+
+    const poll = (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
+    publications = [
+      {
+        trackSid: 'screen-share-track',
+        isMuted: false,
+        track: { source: 'screen_share', getRTCStatsReport: screenShareStats }
+      }
+    ];
+    stalePoll.resolve(
+      inboundNetworkStatsReport({ packetsLost: 200, packetsReceived: 800, jitter: 0.16 })
+    );
+    await poll;
+
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({ networkHealth: 'unknown' });
+
+    await (
+      state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
+    ).refreshParticipantNetworkQuality();
+    expect(screenShareStats).toHaveBeenCalledOnce();
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-user')
+    ).toMatchObject({ networkHealth: 'excellent' });
+
     await state.leave();
   });
 
