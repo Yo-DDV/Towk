@@ -453,6 +453,53 @@ describe('VoiceCallPanel screen-share audio', () => {
     enumerateDevices.mockRestore();
   });
 
+  it('offers Android speakerphone by default with an explicit earpiece route', async () => {
+    const setAndroidAudioRoute = vi.fn(async () => true);
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'sidebar',
+        scenario: 'voice',
+        onStoreSeeded: (store) => {
+          store.voiceCall.isAudioOutputSelectionSupported = false;
+          store.voiceCall.isAndroidAudioRouteSelectionSupported = true;
+          store.voiceCall.androidAudioRoute = 'speakerphone';
+          store.voiceCall.setAndroidAudioRoute = setAndroidAudioRoute;
+        }
+      }
+    });
+
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="global-call-dock-devices"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    trigger.click();
+
+    const routes = await vi.waitFor(() => {
+      const menu = document.querySelector<HTMLElement>('#call-audio-device-menu[role="menu"]');
+      expect(menu).not.toBeNull();
+      const values = Array.from(
+        menu!.querySelectorAll<HTMLButtonElement>('[data-testid="android-audio-route"]')
+      );
+      expect(values.map((item) => item.textContent?.trim())).toEqual([
+        'Speakerphone Call speaker and paired microphone',
+        'Phone earpiece Earpiece and paired microphone'
+      ]);
+      return values;
+    });
+
+    expect(routes[0]?.getAttribute('aria-checked')).toBe('true');
+    expect(routes[1]?.getAttribute('aria-checked')).toBe('false');
+    expect(routes.every((route) => route.getBoundingClientRect().height >= 44)).toBe(true);
+
+    routes[1]?.click();
+    await vi.waitFor(() => {
+      expect(setAndroidAudioRoute).toHaveBeenCalledWith('earpiece');
+    });
+  });
+
   it('offers a one-touch camera switch when several phone lenses are available', async () => {
     const devices = [
       mediaDevice('audioinput', 'mobile-microphone', 'Phone microphone'),

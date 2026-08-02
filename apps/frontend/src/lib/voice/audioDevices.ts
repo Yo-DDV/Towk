@@ -64,6 +64,18 @@ export function audioDeviceRouteKind(device: MediaDeviceInfo): AudioDeviceRouteK
   return 'unknown';
 }
 
+/**
+ * Resolve Chromium's synthetic Android communication devices without relying
+ * on their opaque device IDs. Selecting one of these audio inputs selects the
+ * matching input/output communication pair inside Chromium.
+ */
+export function audioDeviceIdForRouteKind(
+  devices: MediaDeviceInfo[],
+  routeKind: AudioDeviceRouteKind
+): string | null {
+  return devices.find((device) => audioDeviceRouteKind(device) === routeKind)?.deviceId ?? null;
+}
+
 export function audioDeviceMayUseBluetooth(
   device: MediaDeviceInfo,
   availableDevices: MediaDeviceInfo[]
