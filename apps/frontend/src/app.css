@@ -35,7 +35,7 @@
   --color-background: var(--color-gray-100);
   --color-text: var(--color-gray-600);
   --color-text-top: var(--color-black);
-  --color-muted: var(--color-gray-500);
+  --color-muted: var(--color-gray-600);
 
   --color-border: var(--color-gray-200);
   --color-surface: var(--color-gray-200);
@@ -50,15 +50,15 @@
   --color-input: var(--color-white);
   --color-input-border: var(--color-gray-300);
 
-  --color-accent: var(--color-sky-600);
+  --color-accent: var(--color-sky-700);
   --color-primary: #64748b;
   --color-primary-hover: #475569;
   --color-link: var(--color-accent);
   --color-link-hover: color-mix(in srgb, var(--color-accent), black 20%);
-  --color-success: var(--color-green-600);
+  --color-success: var(--color-green-800);
   --color-warning: var(--color-amber-600);
-  --color-danger: var(--color-red-600);
-  --color-error: var(--color-red-600);
+  --color-danger: var(--color-red-700);
+  --color-error: var(--color-red-700);
   --color-server: var(--color-indigo-600);
   --color-presence-online: var(--color-green-500);
   --color-presence-away: var(--color-yellow-500);
