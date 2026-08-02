@@ -429,7 +429,7 @@ Phase-specific evidence uses:
 | ----- | ---------------------------- |
 | `overload` | `admission_bounded`, `admission_subsystem`, `admission_rejections`, `admission_limit`, `peak_admitted` |
 | `recovery` | `preceding_overload_run_id`, `recovery_seconds`, `baseline_throughput_per_second`, `recovered_throughput_per_second`, `baseline_p95_millis`, `recovered_p95_millis` |
-| `soak` | Balanced profile, two-hour `duration_seconds`, common resource and lifecycle evidence |
+| `soak` | Adaptive 2 CPU envelope, two-hour `duration_seconds`, common resource and lifecycle evidence |
 
 Each `scale_points` entry contains `cpus`, `memory_limit_bytes`,
 `throughput_per_second`, `separate_generator`, and optional bounded
@@ -437,21 +437,22 @@ Each `scale_points` entry contains `cpus`, `memory_limit_bytes`,
 
 ### Nominal envelopes
 
-| Profile | Qualification envelope | Minimum nominal observation |
-| ------- | ---------------------- | --------------------------- |
-| `economy` | 1 logical CPU, 2 GiB process memory | 30 minutes |
-| `balanced` | 2 logical CPUs, 4 GiB process memory | 30 minutes |
-| `performance` | 8 logical CPUs, 16 GiB process memory | 30 minutes |
-| `custom` | Explicit measured CPU/memory envelope | 30 minutes |
+| Scheduling mode | Qualification envelope | Minimum nominal observation |
+| --------------- | ---------------------- | --------------------------- |
+| `adaptive` | 1 logical CPU, 2 GiB process memory | 30 minutes |
+| `adaptive` | 2 logical CPUs, 4 GiB process memory | 30 minutes |
+| `adaptive` | 4 logical CPUs, 8 GiB process memory | 30 minutes |
+| `adaptive` | 8 logical CPUs, 16 GiB process memory | 30 minutes |
 
-The standard rows are controlled comparison envelopes, not minimum deployment
-sizes and not recommendations to reserve the whole host for Towk. A Custom row
-must record a valid bounded requested policy and the effective policy observed
-after operator and process limits; effective values may not exceed requested
-values. Standard rows must record their exact preset values. Each nominal
+These are controlled comparison envelopes, not minimum deployment sizes and
+not recommendations to reserve the whole host for Towk. Every row records the
+CPU-derived adaptive target and the effective policy observed after memory and
+operator limits; effective values may not exceed requested values. The stable
+`profile` report field is retained for schema compatibility and must contain
+`adaptive`. Each nominal
 report must provide pairwise coverage across all of these factors:
 
-- profile: `economy`, `balanced`, `performance`, `custom`;
+- capacity CPU: `1`, `2`, `4`, `8`;
 - backend: `nats`, `s3`;
 - cache state: `cold`, `warm`, `full`;
 - shaped network: `normal`, `degraded`;
@@ -484,12 +485,12 @@ accepted only when it carries bounded measured bottleneck evidence; the
 validator publishes that evidence as a limitation rather than hiding it.
 
 Any reported point at 12 CPUs or more requires a separate load generator.
-Custom 12, 18, or 24 CPU capacity is measured on that hardware and is never
+Adaptive 12, 18, or 24 CPU capacity is measured on that hardware and is never
 extrapolated from the 8 CPU curve.
 
 ### Overload, recovery, and soak
 
-Each profile, including Custom, needs a linked overload/recovery pair:
+Each 1, 2, 4, and 8 CPU envelope needs a linked overload/recovery pair:
 
 1. Apply at least ten minutes of real overload. Record the saturated subsystem
    (`image_transform`, `asset_upload`, `link_preview`, or `video`). Admission
@@ -498,11 +499,11 @@ Each profile, including Custom, needs a linked overload/recovery pair:
 2. Remove the overload and observe recovery for at least one minute. Recovery
    must complete within 60 seconds, restore at least 90% of baseline
    throughput, and keep recovered p95 at or below 110% of baseline p95.
-3. Run an additional Balanced soak for at least two hours under the declared
+3. Run an additional adaptive 2 CPU soak for at least two hours under the declared
    non-idle load.
 
 The recovery row carries `preceding_overload_run_id`; the validator requires it
-to identify an overload row with the same profile, resource envelope, requested
+to identify an overload row with the same scheduling mode, resource envelope, requested
 and effective limits, backend, cache state, network, and application path. This
 prevents an unrelated healthy sample from being presented as recovery evidence.
 
@@ -515,11 +516,11 @@ as measured capacity.
 ### Current publication status
 
 The repository intentionally publishes no universal user-count or media
-latency promise for Economy, Balanced, Performance, ARM64, or large Custom
-hosts until accepted reports from the stated envelopes exist. Missing thermal
+latency promise for adaptive x86-64, ARM64, or large hosts until accepted
+reports from the stated envelopes exist. Missing thermal
 telemetry, a shared load generator, an unstable repeated campaign, or an
 unmeasured device/architecture remains `UNVERIFIED`; it is not filled by an
-estimate. This explicit absence is safer than presenting profile presets as
+estimate. This explicit absence is safer than presenting worker formulas as
 capacity measurements.
 
 ## Result classification

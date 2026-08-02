@@ -105,6 +105,17 @@ test('Compose naming checks cover fresh installs, existing projects, and safe re
   assert.match(verifier, /unsafe_rename=.*unsafe-rename/);
 });
 
+test('Compose resource checks preserve shared capacity and optional hard ceilings', async () => {
+  const quickGate = await readFile('.github/workflows/quick-gate.yml', 'utf8');
+  const verifier = await readFile('tools/verify-compose-resource-envelope.sh', 'utf8');
+
+  assert.match(quickGate, /bash tools\/verify-compose-resource-envelope\.sh/);
+  assert.match(verifier, /has a default hard CPU quota/);
+  assert.match(verifier, /has a default hard memory limit/);
+  assert.match(verifier, /LIVEKIT_CPU_SHARES: '2048'/);
+  assert.match(verifier, /generated environment still selects a runtime performance profile/);
+});
+
 test('native clipboard CI installs only the portable toolchain', async () => {
   const setupAction = await readFile('.github/actions/setup/action.yml', 'utf8');
   const ciWorkflow = await readFile('.github/workflows/ci.yml', 'utf8');

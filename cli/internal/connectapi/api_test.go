@@ -1748,7 +1748,7 @@ func TestAdminDiagnosticsServiceGetSystemInfoRequiresOwner(t *testing.T) {
 	}
 }
 
-func TestAdminDiagnosticsPerformanceSettingsRequireOwnerAndUseRevision(t *testing.T) {
+func TestAdminDiagnosticsPerformanceSettingsRequireOwnerAndRejectRetiredUpdates(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	getRequest := connect.NewRequest(&adminv1.GetPerformanceSettingsRequest{})
 	if _, err := env.adminDiagnostics.GetPerformanceSettings(env.ctx, getRequest); connect.CodeOf(err) != connect.CodeUnauthenticated {
@@ -1770,49 +1770,26 @@ func TestAdminDiagnosticsPerformanceSettingsRequireOwnerAndUseRevision(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if initial.Msg.GetSettings().GetRevision() != "0" || initial.Msg.GetSettings().GetRequestedProfile() != adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_LEGACY {
+	if initial.Msg.GetSettings().GetRevision() != "0" ||
+		initial.Msg.GetSettings().GetRequestedProfile() != adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ADAPTIVE ||
+		initial.Msg.GetSettings().GetEffectiveProfile() != adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ADAPTIVE ||
+		initial.Msg.GetSettings().GetSource() != adminv1.AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_ADAPTIVE {
 		t.Fatalf("initial performance settings = %#v", initial.Msg.GetSettings())
 	}
 
-	updated, err := env.adminDiagnostics.UpdatePerformanceSettings(ownerCtx, connect.NewRequest(&adminv1.UpdatePerformanceSettingsRequest{
+	_, err = env.adminDiagnostics.UpdatePerformanceSettings(ownerCtx, connect.NewRequest(&adminv1.UpdatePerformanceSettingsRequest{
 		Profile:          adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_BALANCED,
 		ExpectedRevision: "0",
 	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Msg.GetSettings().GetRevision() != "1" || updated.Msg.GetSettings().GetSource() != adminv1.AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER {
-		t.Fatalf("updated performance settings = %#v", updated.Msg.GetSettings())
-	}
-
-	_, err = env.adminDiagnostics.UpdatePerformanceSettings(ownerCtx, connect.NewRequest(&adminv1.UpdatePerformanceSettingsRequest{
-		Profile:          adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ECONOMY,
-		ExpectedRevision: "0",
-	}))
-	if connect.CodeOf(err) != connect.CodeAborted {
-		t.Fatalf("stale update code = %v, want aborted", connect.CodeOf(err))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "adaptive") {
+		t.Fatalf("retired update error = %v, want adaptive invalid argument", err)
 	}
 	current, err := env.adminDiagnostics.GetPerformanceSettings(ownerCtx, getRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.Msg.GetSettings().GetRevision() != "1" || current.Msg.GetSettings().GetRequestedProfile() != adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_BALANCED {
-		t.Fatalf("stale update changed settings = %#v", current.Msg.GetSettings())
-	}
-
-	if _, err := env.adminDiagnostics.UpdatePerformanceSettings(ownerCtx, connect.NewRequest(&adminv1.UpdatePerformanceSettingsRequest{
-		Profile:          adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_CUSTOM,
-		ExpectedRevision: "1",
-		CustomLimits:     &adminv1.AdminPerformanceLimits{},
-	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("invalid custom update code = %v, want invalid argument", connect.CodeOf(err))
-	}
-	if _, err := env.adminDiagnostics.UpdatePerformanceSettings(ownerCtx, connect.NewRequest(&adminv1.UpdatePerformanceSettingsRequest{
-		Profile:          adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_BALANCED,
-		ExpectedRevision: "1",
-		CustomLimits:     &adminv1.AdminPerformanceLimits{ImageTransformWorkers: 1},
-	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("preset with custom limits code = %v, want invalid argument", connect.CodeOf(err))
+	if current.Msg.GetSettings().GetRevision() != "0" || current.Msg.GetSettings().GetRequestedProfile() != adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ADAPTIVE {
+		t.Fatalf("retired update changed settings = %#v", current.Msg.GetSettings())
 	}
 
 	events, err := env.core.ListEventLog(ownerCtx, env.viewer.Id, core.EventLogQuery{
@@ -1825,8 +1802,8 @@ func TestAdminDiagnosticsPerformanceSettingsRequireOwnerAndUseRevision(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events.Entries) != 1 || events.Entries[0].ActorID != env.viewer.Id {
-		t.Fatalf("performance policy audit entries = %#v", events.Entries)
+	if len(events.Entries) != 0 {
+		t.Fatalf("retired update wrote performance policy audit entries = %#v", events.Entries)
 	}
 }
 

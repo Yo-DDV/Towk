@@ -20,7 +20,7 @@ This is the easiest backup to restore correctly. Keep the passphrase somewhere s
 Backups contain all persistent JetStream streams, KV buckets, and object stores:
 
 - **Server data** — users, memberships, roles, permissions, notifications, rooms, messages, threads, reactions, message bodies
-- **Owner-managed runtime configuration facts** — including the performance profile selected in Server administration
+- **Historical runtime configuration facts** — including retired owner performance profiles retained for rollback compatibility
 - **Call facts** — room-scoped call start/join/leave/end events used to rebuild active call participant state
 - **NATS-backed assets** — user avatars, server icon and banner, message attachments, and persisted link-preview images
 
@@ -28,31 +28,43 @@ Backups contain all persistent JetStream streams, KV buckets, and object stores:
 
 Certain streams are intentionally excluded:
 
-| Stream | Reason |
-|--------|--------|
-| Encryption keys | Security: excluded by default, unless you pass `--include-keys`. |
-| User presence | Ephemeral (memory-only), reconstructed at runtime |
+| Stream                 | Reason                                                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Encryption keys        | Security: excluded by default, unless you pass `--include-keys`.                                                                   |
+| User presence          | Ephemeral (memory-only), reconstructed at runtime                                                                                  |
 | LiveKit E2EE call keys | Stored in `ENCRYPTION_KEYS` and excluded unless key backups are explicitly included; active calls cannot be recovered without them |
-| Link preview cache | Regeneratable on demand |
-| Asset cache | Regeneratable (resized image variants) |
+| Link preview cache     | Regeneratable on demand                                                                                                            |
+| Asset cache            | Regeneratable (resized image variants)                                                                                             |
 
 Deployment-owned configuration is outside the Towk data archive. Back up your
 `towk.toml`, `.env`, Docker Compose files, Kubernetes manifests, resource
 limits, `CHATTO_PERFORMANCE_MAX_*` operator caps, TLS material, and external S3
 bucket policy with your normal infrastructure backup process. A restored Towk
-archive can restore the owner-selected performance profile, but it cannot
-recreate host CPU/memory limits or external object-storage contents.
+archive can restore historical performance-policy events, but current Towk
+scheduling derives capacity from the live host and ignores those retired
+profiles. A backup cannot recreate host CPU/memory limits or external
+object-storage contents.
 
 <Aside type="tip">
-  Use `--encrypt --include-keys` for the simplest complete backup of the built-in KMS. A monolithic encrypted backup is simpler to automate, easier to test, and harder to restore incorrectly.
+  Use `--encrypt --include-keys` for the simplest complete backup of the
+  built-in KMS. A monolithic encrypted backup is simpler to automate, easier to
+  test, and harder to restore incorrectly.
 </Aside>
 
 <Aside type="caution">
-  Backups are outside the account-deletion flow. If you restore an old backup that includes keys, or restore an old backup together with a matching key export, data deleted after that backup was created can become readable again. Set a backup-retention policy that matches your legal obligations.
+  Backups are outside the account-deletion flow. If you restore an old backup
+  that includes keys, or restore an old backup together with a matching key
+  export, data deleted after that backup was created can become readable again.
+  Set a backup-retention policy that matches your legal obligations.
 </Aside>
 
 <Aside type="note">
-  `RUNTIME_STATE` is included in backups. Active runtime credentials and pending registration, email-verification, password-reset, account-deletion, and OAuth-code flows can survive a restore when the restored server uses the same `core.secret_key`. Backup archives contain HMAC verifier keys, not raw bearer tokens, cookie handles, links, or OAuth codes; changing `core.secret_key` intentionally invalidates those credentials.
+  `RUNTIME_STATE` is included in backups. Active runtime credentials and pending
+  registration, email-verification, password-reset, account-deletion, and
+  OAuth-code flows can survive a restore when the restored server uses the same
+  `core.secret_key`. Backup archives contain HMAC verifier keys, not raw bearer
+  tokens, cookie handles, links, or OAuth codes; changing `core.secret_key`
+  intentionally invalidates those credentials.
 </Aside>
 
 ## Creating a backup
@@ -101,19 +113,27 @@ vault kv get -field=passphrase secret/towk | towk backup -c towk.toml --encrypt 
 ```
 
 <Aside type="caution">
-  A backup made with `--include-keys` contains the keys needed to decrypt message bodies and durable user PII after restore. Always combine `--include-keys` with `--encrypt`, and treat the archive as sensitive material.
+  A backup made with `--include-keys` contains the keys needed to decrypt
+  message bodies and durable user PII after restore. Always combine
+  `--include-keys` with `--encrypt`, and treat the archive as sensitive
+  material.
 </Aside>
 
 ## Restoring a backup
 
 <Aside type="caution">
-  Make sure Towk is **not running** before restoring. For embedded NATS setups, the restore command starts its own temporary NATS server. For external NATS, stop the Towk application but keep NATS running.
+  Make sure Towk is **not running** before restoring. For embedded NATS setups,
+  the restore command starts its own temporary NATS server. For external NATS,
+  stop the Towk application but keep NATS running.
 </Aside>
 
 Restore accepts regular files and directories only, rejects unsafe manifest and archive paths, and stops archives that exceed the built-in entry-count or expanded-size safety limits. These limits are intentionally generous for production backups while preventing malformed archives from expanding without a bound.
 
 <Aside type="tip">
-  Keep the same `core.secret_key` in `towk.toml` when restoring if you want existing bearer tokens, cookie-session handles, OAuth codes, and pending account-flow credentials to remain valid. Using a new value is a clean way to invalidate them during disaster recovery.
+  Keep the same `core.secret_key` in `towk.toml` when restoring if you want
+  existing bearer tokens, cookie-session handles, OAuth codes, and pending
+  account-flow credentials to remain valid. Using a new value is a clean way to
+  invalidate them during disaster recovery.
 </Aside>
 
 <Steps>
@@ -152,10 +172,10 @@ Restore accepts regular files and directories only, rejects unsafe manifest and 
 
 By default, restore fails if any stream already exists. Use `--conflict` to change this:
 
-| Flag | Behavior | Use case |
-|------|----------|----------|
-| `--conflict=error` | Fail if any stream exists (default) | Fresh server restore |
-| `--conflict=skip` | Skip existing streams | Partial restore / merge |
+| Flag                   | Behavior                             | Use case                        |
+| ---------------------- | ------------------------------------ | ------------------------------- |
+| `--conflict=error`     | Fail if any stream exists (default)  | Fresh server restore            |
+| `--conflict=skip`      | Skip existing streams                | Partial restore / merge         |
 | `--conflict=overwrite` | Delete and recreate existing streams | Full restore over existing data |
 
 ```bash
@@ -228,7 +248,11 @@ towk keys import keys.backup -c towk.toml
 ```
 
 <Aside type="tip">
-  Without the matching keys, the server cannot decrypt durable login, display-name, and verified-email events while rebuilding account projections. Existing accounts and their login indexes may therefore be unavailable, in addition to historical message text. Treat a keyless archive as intentionally incomplete unless you also retain a matching key export.
+  Without the matching keys, the server cannot decrypt durable login,
+  display-name, and verified-email events while rebuilding account projections.
+  Existing accounts and their login indexes may therefore be unavailable, in
+  addition to historical message text. Treat a keyless archive as intentionally
+  incomplete unless you also retain a matching key export.
 </Aside>
 
 ## Automated backup script
@@ -319,7 +343,9 @@ rm backup.tar.gz
 ```
 
 <Aside type="caution">
-  When decrypting files manually, the unencrypted data is temporarily on disk. Make sure to securely delete the plaintext files when you're done — especially key exports, which contain the raw encryption keys.
+  When decrypting files manually, the unencrypted data is temporarily on disk.
+  Make sure to securely delete the plaintext files when you're done — especially
+  key exports, which contain the raw encryption keys.
 </Aside>
 
 ## Backup strategy recommendations

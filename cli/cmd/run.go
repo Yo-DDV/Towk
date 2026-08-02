@@ -146,7 +146,7 @@ func runServer(configPath string) {
 		exitCode = 1
 		return
 	}
-	chattoCore.ConfigurePerformance(performanceConfigWithLegacyVideoCap(cfg.Performance, cfg.Video))
+	chattoCore.ConfigurePerformance(performanceConfigForRuntime(cfg.Performance, cfg.Video))
 	chattoCore.MediaFFmpegPath = cfg.Video.FFmpegPath
 	chattoCore.MediaFFprobePath = cfg.Video.FFprobePath
 
@@ -262,15 +262,10 @@ func runServer(configPath string) {
 	}
 }
 
-func performanceConfigWithLegacyVideoCap(performance config.PerformanceConfig, video config.VideoConfig) config.PerformanceConfig {
-	legacyCap := min(video.MaxConcurrent, config.MaxPerformanceWorkers)
-	if legacyCap > 0 &&
-		(performance.MaxVideoWorkers == 0 || legacyCap < performance.MaxVideoWorkers) {
-		// Preserve the historical video.max_concurrent operator ceiling while
-		// performance profiles become the canonical runtime policy. Values above
-		// the supported worker range are conservatively clamped, not reset.
-		performance.MaxVideoWorkers = legacyCap
-	}
+// performanceConfigForRuntime deliberately ignores video.max_concurrent. That
+// legacy field remains parseable for rollback to older binaries, while current
+// media concurrency is adaptive unless the operator sets a performance cap.
+func performanceConfigForRuntime(performance config.PerformanceConfig, _ config.VideoConfig) config.PerformanceConfig {
 	return performance
 }
 

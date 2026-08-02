@@ -3,19 +3,25 @@ title: Server Operations
 description: Day-to-day operations for Towk admins and self-hosters, including diagnostics, metrics, backups, upgrades, and recovery.
 ---
 
-import { Aside, CardGrid, LinkCard, Tabs, TabItem } from "@astrojs/starlight/components";
+import {
+  Aside,
+  CardGrid,
+  LinkCard,
+  Tabs,
+  TabItem,
+} from "@astrojs/starlight/components";
 
 Running Towk is mostly about keeping the process healthy, watching storage growth, testing backups, and knowing which tool to use when an account or deployment needs repair.
 
 ## Operator Surfaces
 
-| Surface | Use for |
-| ------- | ------- |
-| Admin UI | Member management, roles, permissions, room layout, server branding, event log, and system diagnostics. |
+| Surface          | Use for                                                                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Admin UI         | Member management, roles, permissions, room layout, server branding, event log, and system diagnostics.                       |
 | Metrics listener | Per-process Prometheus metrics such as Go runtime, readiness, realtime counters, NATS client counters, and projection health. |
-| Exporter | Deployment-wide metrics from NATS resources and asset storage. |
-| Operator CLI | Local recovery and bootstrap actions over a Unix socket. |
-| Backups | Disaster recovery, migration rehearsal, and upgrade safety. |
+| Exporter         | Deployment-wide metrics from NATS resources and asset storage.                                                                |
+| Operator CLI     | Local recovery and bootstrap actions over a Unix socket.                                                                      |
+| Backups          | Disaster recovery, migration rehearsal, and upgrade safety.                                                                   |
 
 ## Admin Dashboard
 
@@ -23,40 +29,35 @@ Owners and permissioned admins use the admin UI for daily operations. Depending 
 
 The system pages expose operational metadata, not conversation content; they do not provide a special endpoint for reading every message or file. This application boundary does not constrain an infrastructure operator who controls the running process, storage, and encryption keys. See [Encryption at Rest and Data Erasure](/guides/operations/privacy-erasure/) for the threat model.
 
-## Performance Profiles And Resource Envelopes
+## Adaptive Performance And Resource Envelopes
 
-Towk separates host capacity from live media concurrency:
+Towk uses two complementary layers:
 
-1. The deployment operator sets CPU, memory, storage, and optional
-   `CHATTO_PERFORMANCE_MAX_*` ceilings. Changing a container or pod envelope
-   requires a service recreation or rollout.
-2. A server owner selects Economy, Balanced, Performance, or Custom in
-   **Server administration → System**. This updates newly admitted work live;
-   work already in progress is not cancelled.
+1. On the single-VPS Compose deployment, NATS, LiveKit, Towk, and Caddy share
+   the host CPU and memory by default. Relative CPU shares favor LiveKit under
+   contention without reserving idle capacity. Non-zero container limits remain
+   an operator option for shared hosts and require service recreation.
+2. Each Towk process derives live work-pool targets from its visible CPU and
+   memory. Optional `CHATTO_PERFORMANCE_MAX_*` values can impose stricter
+   operator ceilings.
 
-| Requested profile | Image workers | Image admissions | Upload workers | Link-preview workers | Media-transcode workers |
-| ----------------- | ------------: | ---------------: | -------------: | -------------------: | ----------------------: |
-| Economy | 1 | 4 | 2 | 1 | 1 |
-| Balanced | 2 | 8 | 4 | 2 | 2 |
-| Performance | 4 | 16 | 8 | 4 | 4 |
+| Adaptive target         |   Formula |
+| ----------------------- | --------: |
+| Image workers           |     `CPU` |
+| Image admissions        | `CPU × 8` |
+| Upload workers          | `CPU × 2` |
+| Link-preview workers    |     `CPU` |
+| Media-transcode workers |     `CPU` |
 
-These values are requests, not hardware sizing or user-count guarantees. Each
-process applies the smallest limit from the requested profile, explicit
-operator caps, detected process CPU capacity, and detected process memory.
-The System page shows requested and effective values separately and explains
-each reduction. A Custom policy accepts 1–64 workers and 1–256 image admissions;
-image admissions must be at least the requested image-worker count.
+Memory-aware limits may reduce these CPU-derived targets on a small host. The
+System page shows the detected envelope, target, effective limit, and every
+reduction. It is intentionally read-only: the browser cannot resize a container
+or access the container runtime.
 
-New generated configurations use Balanced. Existing installations without an
-explicit default preserve their historical bounded behavior until an owner
-saves a profile. Invalid or future policy data falls back conservatively and is
-reported to owners instead of being guessed.
-
-Use Economy as the first trial on a small constrained VPS, Balanced as the
-normal starting policy, and Performance only after raising and observing the
-whole deployment envelope. Towk, NATS storage, LiveKit, and the reverse proxy
-have separate resource limits; raising one service alone can merely move the
-bottleneck. Follow the [public performance qualification protocol](https://github.com/Yo-DDV/Towk/blob/main/docs/PERFORMANCE.md)
+Existing deployments keep any explicit non-zero `.env` ceilings until the
+operator changes them. Historical owner-profile events remain backup- and
+rollback-compatible but no longer affect current scheduling. Follow the
+[public performance qualification protocol](https://github.com/Yo-DDV/Towk/blob/main/docs/PERFORMANCE.md)
 before publishing capacity or latency claims.
 
 ### Diagnose Before Raising Limits
@@ -64,14 +65,14 @@ before publishing capacity or latency claims.
 Start with the effective values and cap reasons in the System page, then match
 the symptom to bounded metrics. Do not change several resource layers at once.
 
-| Symptom | Check first | Safe interpretation |
-| ------- | ----------- | ------------------- |
-| Requested profile is higher than effective | Process CPU/memory envelope and `operator_cap`, `process_cpu`, or `process_memory` reasons | Towk is honoring a lower hard boundary. Raise only the measured bottleneck, then recreate the service when the deployment envelope changed. |
-| First image render is slow but later renders improve | `towk_media_transform_duration_seconds` and `towk_media_cache_lookups_total` | Cold transforms cost CPU. Enable and size the derivative cache only when storage has headroom; a full cache deliberately falls back to uncached delivery. |
-| Streamed protected media downloads fully on every view | Response `Cache-Control`, `ETag`, and conditional request/response behavior | Towk-streamed originals and derivatives should use `private, no-cache` and can return an authorized `304`. A short-lived S3 object response for heavy passive media intentionally remains `private, no-store`. Never rewrite protected responses to `public`. |
-| Seeking returns `416` | `towk_media_range_requests_total` and the exact `Range` header | Streamed originals support one valid byte range. Multiple, malformed, or unsatisfiable ranges are rejected intentionally. Verify that the reverse proxy preserves `Range`, `If-Range`, `ETag`, and `Content-Range`. |
-| Uploads return resource exhaustion | `towk_asset_upload_operations_total`, JetStream `SERVER_ASSETS` usage, temporary-chunk reservations, and external S3 quota | More upload workers cannot fix storage exhaustion. Reclaim space or raise a measured storage quota before increasing concurrency. |
-| Admission rejections rise under load | Active work, queue/admission limit, CPU throttling, memory and storage p95 | Bounded rejection protects the process. Scale the proven bottleneck or lower the requested policy; do not remove the bound. |
+| Symptom                                                | Check first                                                                                                                | Safe interpretation                                                                                                                                                                                                                                           |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Adaptive target is higher than the current limit       | Process CPU/memory envelope and `operator_cap` or `process_memory` reasons                                                 | Towk is honoring a measured safety boundary. Raise only the proven bottleneck; recreate the service only when deployment-owned limits changed.                                                                                                                |
+| First image render is slow but later renders improve   | `towk_media_transform_duration_seconds` and `towk_media_cache_lookups_total`                                               | Cold transforms cost CPU. Enable and size the derivative cache only when storage has headroom; a full cache deliberately falls back to uncached delivery.                                                                                                     |
+| Streamed protected media downloads fully on every view | Response `Cache-Control`, `ETag`, and conditional request/response behavior                                                | Towk-streamed originals and derivatives should use `private, no-cache` and can return an authorized `304`. A short-lived S3 object response for heavy passive media intentionally remains `private, no-store`. Never rewrite protected responses to `public`. |
+| Seeking returns `416`                                  | `towk_media_range_requests_total` and the exact `Range` header                                                             | Streamed originals support one valid byte range. Multiple, malformed, or unsatisfiable ranges are rejected intentionally. Verify that the reverse proxy preserves `Range`, `If-Range`, `ETag`, and `Content-Range`.                                           |
+| Uploads return resource exhaustion                     | `towk_asset_upload_operations_total`, JetStream `SERVER_ASSETS` usage, temporary-chunk reservations, and external S3 quota | More upload workers cannot fix storage exhaustion. Reclaim space or raise a measured storage quota before increasing concurrency.                                                                                                                             |
+| Admission rejections rise under load                   | Active work, queue/admission limit, CPU throttling, memory and storage p95                                                 | Bounded rejection protects the process. Scale the proven bottleneck or set a measured operator cap; do not remove admission control.                                                                                                                          |
 
 Keep labels aggregated. Media metrics deliberately omit user, room, asset,
 filename, URL, cache key, and request identifiers. Enable pprof only for a
@@ -177,7 +178,8 @@ Use it for tasks such as:
 - deleting an account
 
 <Aside type="danger">
-  Treat operator socket access like root access to Towk. Do not mount the socket into untrusted containers or expose it over TCP.
+  Treat operator socket access like root access to Towk. Do not mount the socket
+  into untrusted containers or expose it over TCP.
 </Aside>
 
 ## Upgrade Practice
@@ -224,9 +226,29 @@ chunk size from the server instead of assuming 1 MiB.
 ## Related Guides
 
 <CardGrid>
-  <LinkCard title="Backup & Restore" href="/guides/operations/backup-restore/" description="Backup, restore, key export, and disaster recovery procedures." />
-  <LinkCard title="Operator CLI" href="/guides/operations/operator-cli/" description="Local recovery and bootstrap commands." />
-  <LinkCard title="High Availability" href="/guides/infrastructure/high-availability/" description="Run Towk with replicated infrastructure." />
-  <LinkCard title="Horizontal Scaling" href="/guides/infrastructure/horizontal-scaling/" description="Scale server processes and externalize runtime dependencies." />
-  <LinkCard title="Environment Variables" href="/reference/environment-variables/#metrics" description="Metrics, exporter, and operator API configuration reference." />
+  <LinkCard
+    title="Backup & Restore"
+    href="/guides/operations/backup-restore/"
+    description="Backup, restore, key export, and disaster recovery procedures."
+  />
+  <LinkCard
+    title="Operator CLI"
+    href="/guides/operations/operator-cli/"
+    description="Local recovery and bootstrap commands."
+  />
+  <LinkCard
+    title="High Availability"
+    href="/guides/infrastructure/high-availability/"
+    description="Run Towk with replicated infrastructure."
+  />
+  <LinkCard
+    title="Horizontal Scaling"
+    href="/guides/infrastructure/horizontal-scaling/"
+    description="Scale server processes and externalize runtime dependencies."
+  />
+  <LinkCard
+    title="Environment Variables"
+    href="/reference/environment-variables/#metrics"
+    description="Metrics, exporter, and operator API configuration reference."
+  />
 </CardGrid>

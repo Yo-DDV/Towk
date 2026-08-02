@@ -116,14 +116,9 @@ export type AdminProjectionMetric = {
 };
 
 export type PerformanceProfile =
-  | 'economy'
-  | 'balanced'
-  | 'performance'
-  | 'custom'
-  | 'legacy'
-  | 'unknown';
-export type MutablePerformanceProfile = Exclude<PerformanceProfile, 'legacy' | 'unknown'>;
-export type PerformancePolicySource = 'historical' | 'operator_default' | 'owner' | 'unknown';
+  'adaptive' | 'economy' | 'balanced' | 'performance' | 'custom' | 'legacy' | 'unknown';
+export type PerformancePolicySource =
+  'adaptive' | 'historical' | 'operator_default' | 'owner' | 'unknown';
 export type PerformanceLimitField =
   | 'image_transform_workers'
   | 'image_transform_admissions'
@@ -261,35 +256,6 @@ export async function getAdminPerformanceSettings(
   return mapPerformanceSettings(response.settings);
 }
 
-export async function updateAdminPerformanceSettings(
-  config: AdminDiagnosticsAPIConfig,
-  input: {
-    profile: MutablePerformanceProfile;
-    expectedRevision: string;
-    customLimits?: PerformanceLimits;
-  }
-): Promise<AdminPerformanceSettings> {
-  const { client, headers } = adminDiagnosticsClient(config);
-  const response = await client.updatePerformanceSettings(
-    {
-      profile: performanceProfileToProto(input.profile),
-      expectedRevision: input.expectedRevision,
-      customLimits:
-        input.profile === 'custom' && input.customLimits
-          ? {
-              imageTransformWorkers: input.customLimits.image_transform_workers,
-              imageTransformAdmissions: input.customLimits.image_transform_admissions,
-              assetUploadWorkers: input.customLimits.asset_upload_workers,
-              linkPreviewWorkers: input.customLimits.link_preview_workers,
-              videoWorkers: input.customLimits.video_workers
-            }
-          : undefined
-    },
-    { headers }
-  );
-  return mapPerformanceSettings(response.settings);
-}
-
 function mapPerformanceSettings(
   settings: AdminPerformanceSettingsMessage | undefined
 ): AdminPerformanceSettings {
@@ -328,17 +294,10 @@ function mapPerformanceSettings(
   };
 }
 
-function performanceProfileToProto(profile: MutablePerformanceProfile): AdminPerformanceProfile {
-  return {
-    economy: AdminPerformanceProfile.ECONOMY,
-    balanced: AdminPerformanceProfile.BALANCED,
-    performance: AdminPerformanceProfile.PERFORMANCE,
-    custom: AdminPerformanceProfile.CUSTOM
-  }[profile];
-}
-
 function performanceProfileFromProto(profile: AdminPerformanceProfile): PerformanceProfile {
   switch (profile) {
+    case AdminPerformanceProfile.ADAPTIVE:
+      return 'adaptive';
     case AdminPerformanceProfile.ECONOMY:
       return 'economy';
     case AdminPerformanceProfile.BALANCED:
@@ -356,6 +315,8 @@ function performanceProfileFromProto(profile: AdminPerformanceProfile): Performa
 
 function performanceSourceFromProto(source: AdminPerformancePolicySource): PerformancePolicySource {
   switch (source) {
+    case AdminPerformancePolicySource.ADAPTIVE:
+      return 'adaptive';
     case AdminPerformancePolicySource.HISTORICAL:
       return 'historical';
     case AdminPerformancePolicySource.OPERATOR_DEFAULT:

@@ -115,19 +115,17 @@ Update these values (generate secrets with `openssl rand -hex 32`):
 - `CHATTO_CORE_SECRET_KEY` - Bearer-token and account-flow verifier key
 - `CHATTO_CORE_ASSETS_SIGNING_SECRET` - Asset URL signing secret
 
-### Performance policy and pod resources
+### Adaptive performance and pod resources
 
-The pod's `resources.limits`, CPU affinity and optional
-`CHATTO_PERFORMANCE_MAX_*` values form the operator-owned envelope.
-`CHATTO_PERFORMANCE_DEFAULT_PROFILE=balanced` selects the initial runtime media
-policy for new deployments. Server owners can later choose economy, balanced,
-performance, or bounded custom concurrency in **Server administration →
-System** without changing the Deployment.
+The pod's `resources.limits`, CPU affinity, and optional
+`CHATTO_PERFORMANCE_MAX_*` values form the operator-owned envelope. Towk derives
+media concurrency automatically from the CPU and memory visible inside each pod.
+**Server administration → System** reports the adaptive target and current
+effective limits without changing the Deployment.
 
 Effective worker counts never exceed the pod's detected cgroup envelope or the
 optional `CHATTO_PERFORMANCE_MAX_*` caps in `secrets.local.yaml`. Changing pod
-resources or operator caps requires a rollout; changing only the owner profile
-applies live to newly admitted work. Different replicas can report different
+resources or operator caps requires a rollout. Different replicas can report different
 effective values when their node or pod envelopes differ. The example sets a
 memory limit but deliberately leaves CPU as a request; add a CPU limit only
 when a hard CPU ceiling is appropriate for the cluster's scheduling and
@@ -214,8 +212,9 @@ kubectl -n towk rollout status deployment/towk
 Before changing the image, create a Towk backup using the
 [Backup & Restore guide](../../apps/docs-website/src/content/docs/guides/operations/backup-restore.mdx)
 and keep a copy of the exact manifests and secrets you are about to replace.
-The owner-selected performance profile is part of Towk's event stream; pod
-resources, `CHATTO_PERFORMANCE_MAX_*` operator caps, TLS material, and external
+Historical owner-profile events remain in Towk's event stream for rollback
+compatibility but no longer affect scheduling; pod resources,
+`CHATTO_PERFORMANCE_MAX_*` operator caps, TLS material, and external
 object-storage buckets are cluster/operator configuration and must be backed up
 separately.
 
@@ -233,7 +232,7 @@ The deployment uses a rolling update strategy with `maxUnavailable: 0` to ensure
 
 After the rollout, verify the ingress, sign in, send a text message, exercise
 an attachment or video flow that matters to your deployment, and check
-**Server administration → System** for the requested performance profile and
+**Server administration → System** for the detected adaptive envelope and
 effective limits.
 
 To roll back application code, either reapply the previous manifest with the

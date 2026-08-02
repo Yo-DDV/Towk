@@ -1,10 +1,6 @@
 import { protoInt64 } from '@bufbuild/protobuf';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  getAdminPerformanceSettings,
-  getAdminSystemInfo,
-  updateAdminPerformanceSettings
-} from '$lib/api-client/adminDiagnostics';
+import { getAdminPerformanceSettings, getAdminSystemInfo } from '$lib/api-client/adminDiagnostics';
 import {
   AdminPerformanceCapReason,
   AdminPerformanceLimitField,
@@ -16,8 +12,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   createConnectTransport: vi.fn(),
   getSystemInfo: vi.fn(),
-  getPerformanceSettings: vi.fn(),
-  updatePerformanceSettings: vi.fn()
+  getPerformanceSettings: vi.fn()
 }));
 
 vi.mock('@connectrpc/connect', async (importOriginal) => {
@@ -38,22 +33,20 @@ describe('admin diagnostics client', () => {
     mocks.createConnectTransport.mockReset();
     mocks.getSystemInfo.mockReset();
     mocks.getPerformanceSettings.mockReset();
-    mocks.updatePerformanceSettings.mockReset();
     mocks.createConnectTransport.mockReturnValue({ kind: 'transport' });
     mocks.createClient.mockReturnValue({
       getSystemInfo: mocks.getSystemInfo,
-      getPerformanceSettings: mocks.getPerformanceSettings,
-      updatePerformanceSettings: mocks.updatePerformanceSettings
+      getPerformanceSettings: mocks.getPerformanceSettings
     });
   });
 
-  it('maps truthful performance limits and sends custom updates with the expected revision', async () => {
+  it('maps adaptive capacity and truthful effective limits', async () => {
     const settings = {
-      requestedProfile: AdminPerformanceProfile.CUSTOM,
-      effectiveProfile: AdminPerformanceProfile.BALANCED,
-      source: AdminPerformancePolicySource.OWNER,
-      schemaVersion: 1,
-      revision: '12',
+      requestedProfile: AdminPerformanceProfile.ADAPTIVE,
+      effectiveProfile: AdminPerformanceProfile.ADAPTIVE,
+      source: AdminPerformancePolicySource.ADAPTIVE,
+      schemaVersion: 2,
+      revision: '0',
       requestedLimits: {
         imageTransformWorkers: 6,
         imageTransformAdmissions: 12,
@@ -84,14 +77,13 @@ describe('admin diagnostics client', () => {
       caps: [
         {
           field: AdminPerformanceLimitField.VIDEO_WORKERS,
-          reasons: [AdminPerformanceCapReason.PROCESS_CPU]
+          reasons: [AdminPerformanceCapReason.PROCESS_MEMORY]
         }
       ],
       policyError: '',
       restartRequired: false
     };
     mocks.getPerformanceSettings.mockResolvedValue({ settings });
-    mocks.updatePerformanceSettings.mockResolvedValue({ settings });
 
     const config = {
       baseUrl: 'https://chat.example.test/api/connect',
@@ -99,31 +91,11 @@ describe('admin diagnostics client', () => {
     };
     const current = await getAdminPerformanceSettings(config);
 
-    expect(current.requestedProfile).toBe('custom');
-    expect(current.effectiveProfile).toBe('balanced');
+    expect(current.requestedProfile).toBe('adaptive');
+    expect(current.effectiveProfile).toBe('adaptive');
+    expect(current.source).toBe('adaptive');
     expect(current.envelope.memoryBytes).toBe(4 * 1024 * 1024 * 1024);
-    expect(current.caps.video_workers).toEqual(['process_cpu']);
-
-    await updateAdminPerformanceSettings(config, {
-      profile: 'custom',
-      expectedRevision: current.revision,
-      customLimits: current.requestedLimits
-    });
-
-    expect(mocks.updatePerformanceSettings).toHaveBeenCalledWith(
-      {
-        profile: AdminPerformanceProfile.CUSTOM,
-        expectedRevision: '12',
-        customLimits: {
-          imageTransformWorkers: 6,
-          imageTransformAdmissions: 12,
-          assetUploadWorkers: 5,
-          linkPreviewWorkers: 4,
-          videoWorkers: 3
-        }
-      },
-      { headers: { Authorization: 'Bearer token' } }
-    );
+    expect(current.caps.video_workers).toEqual(['process_memory']);
   });
 
   it('does not mislabel an unknown future performance profile as historical', async () => {
