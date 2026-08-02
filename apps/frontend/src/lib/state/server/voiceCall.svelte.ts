@@ -50,9 +50,11 @@ import {
   aggregateParticipantNetworkQuality,
   collectParticipantNetworkQuality,
   PARTICIPANT_NETWORK_QUALITY_INTERVAL_MS,
+  updateParticipantNetworkQualitySmoothing,
   type ParticipantNetworkCounters,
   type ParticipantNetworkHealth,
   type ParticipantNetworkQuality,
+  type ParticipantNetworkQualitySmoothing,
   type ParticipantNetworkWarningMetric
 } from '$lib/voice/participantNetworkQuality';
 import type {
@@ -82,6 +84,7 @@ export type CallParticipantInfo = {
   networkHealth: ParticipantNetworkHealth;
   packetLossPercent: number | null;
   jitterMs: number | null;
+  latencyMs: number | null;
   networkWarningMetric: ParticipantNetworkWarningMetric;
   connectionState: 'connected' | 'interrupted';
   interruptionDeadline: string | null;
@@ -100,11 +103,13 @@ export type CallParticipantInfo = {
 
 export type SiblingAudioTarget = 'microphone' | 'output';
 
-/** Non-reactive audio level snapshot, read imperatively by the UI at ~60ms. */
+/** Non-reactive audio level snapshot, refreshed directly from LiveKit speaker events. */
 export type AudioLevelInfo = {
   isSpeaking: boolean;
   audioLevel: number;
 };
+
+export type AudioLevelListener = () => void;
 
 export type CallTransitionSoundDecision = 'play' | 'defer' | 'skip';
 export type VoiceCallJoinGuard = () => boolean;
@@ -414,7 +419,6 @@ export class VoiceCallState {
   private audioInputOperationQueue: Promise<void> = Promise.resolve();
   private audioOutputOperationQueue: Promise<void> = Promise.resolve();
   private e2eeWorker: Worker | null = null;
-  private audioLevelInterval: ReturnType<typeof setInterval> | null = null;
   private participantNetworkQualityInterval: ReturnType<typeof setInterval> | null = null;
   private microphoneRouteReconcileInterval: ReturnType<typeof setInterval> | null = null;
   private microphoneRouteFingerprint: string | null = null;
@@ -423,6 +427,10 @@ export class VoiceCallState {
   private participantNetworkQualityPollRoom: Room | null = null;
   private participantNetworkQuality = $state<Record<string, ParticipantNetworkQuality>>({});
   private participantNetworkCounters = new SvelteMap<string, ParticipantNetworkCounters>();
+  private participantNetworkQualitySmoothing = new SvelteMap<
+    string,
+    ParticipantNetworkQualitySmoothing
+  >();
   private participantNetworkQualityFailures = new SvelteMap<string, number>();
   private suppressDisconnectToast = false;
   private intentionalDisconnect = false;
@@ -451,10 +459,12 @@ export class VoiceCallState {
   // backend has committed their leave.
   private terminalParticipantIds = new SvelteSet<string>();
 
-  // Non-reactive audio level cache — updated at 60ms by the polling interval.
-  // Deliberately NOT $state to avoid triggering Svelte reactivity at 60Hz.
-  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately non-reactive, polled imperatively at 60Hz
+  // Deliberately non-reactive: speaker events update the visible card nodes
+  // directly instead of invalidating the complete call scene.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- event-driven imperative cache
   private audioLevelCache = new Map<string, AudioLevelInfo>();
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative subscription registry
+  private audioLevelListeners = new Set<AudioLevelListener>();
 
   constructor(
     api: VoiceCallAPI,
@@ -578,12 +588,16 @@ export class VoiceCallState {
   }
 
   /**
-   * Read the current audio level for a participant. Non-reactive — intended
-   * to be called from a manual polling loop (setInterval), not from Svelte
-   * templates or $derived expressions.
+   * Read the current LiveKit audio level for a participant. This snapshot is
+   * non-reactive; subscribeAudioLevels() announces speaker-event refreshes.
    */
   getAudioLevel(identity: string): AudioLevelInfo {
     return this.audioLevelCache.get(identity) ?? { isSpeaking: false, audioLevel: 0 };
+  }
+
+  subscribeAudioLevels(listener: AudioLevelListener): () => void {
+    this.audioLevelListeners.add(listener);
+    return () => this.audioLevelListeners.delete(listener);
   }
 
   isParticipantLocallyMuted(identity: string): boolean {
@@ -1668,6 +1682,9 @@ export class VoiceCallState {
       if (this.room !== room) return;
 
       this.isCameraEnabled = newEnabled;
+      if (newEnabled && this.isScreenShareEnabled) {
+        setLocalCameraPublishingQuality(room, VideoQuality.LOW);
+      }
       if (newEnabled) {
         await this.refreshDevices({ requestVideoPermissions: true });
       }
@@ -1716,6 +1733,11 @@ export class VoiceCallState {
 
   private async performToggleScreenShare(room: Room): Promise<void> {
     const newEnabled = !this.isScreenShareEnabled;
+    if (newEnabled) {
+      // Reserve uplink capacity before the screen sender starts. The camera
+      // remains live on its 360p layer and returns to full quality afterward.
+      setLocalCameraPublishingQuality(room, VideoQuality.LOW);
+    }
     try {
       await this.runExplicitMediaDeviceOperation(() => {
         if (!newEnabled) return room.localParticipant.setScreenShareEnabled(false);
@@ -1728,9 +1750,13 @@ export class VoiceCallState {
       if (this.room !== room) return;
 
       this.isScreenShareEnabled = newEnabled;
+      if (!newEnabled) {
+        setLocalCameraPublishingQuality(room, VideoQuality.HIGH);
+      }
     } catch (err) {
       if (this.room !== room) return;
       if (newEnabled) {
+        setLocalCameraPublishingQuality(room, VideoQuality.HIGH);
         this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('screen', err, 'enable'));
       }
       this.isScreenShareEnabled = newEnabled ? false : this.isScreenShareEnabled;
@@ -2309,14 +2335,20 @@ export class VoiceCallState {
     });
 
     room.on(RoomEvent.LocalTrackUnpublished, () => {
+      const screenShareWasEnabled = this.isScreenShareEnabled;
       this.updateParticipants();
+      if (screenShareWasEnabled && !this.isScreenShareEnabled) {
+        setLocalCameraPublishingQuality(room, VideoQuality.HIGH);
+      }
     });
 
-    // Keep audio level snapshots fresh for call UI consumers without pushing
-    // 60Hz updates through Svelte's reactive graph.
-    this.audioLevelInterval = setInterval(() => {
+    // LiveKit updates every participant's isSpeaking/audioLevel fields before
+    // emitting this event. Propagate that snapshot synchronously so the UI
+    // does not add two polling windows after speech has already been detected.
+    room.on(RoomEvent.ActiveSpeakersChanged, () => {
       this.updateAudioLevels();
-    }, 60);
+    });
+    this.updateAudioLevels();
     this.microphoneRouteReconcileInterval = setInterval(() => {
       void this.observeMicrophoneRoute(room);
     }, MICROPHONE_ROUTE_RECONCILE_INTERVAL_MS);
@@ -2448,6 +2480,7 @@ export class VoiceCallState {
       sampleExpired = true;
       this.participantNetworkQuality = {};
       this.participantNetworkQualityFailures.clear();
+      this.participantNetworkQualitySmoothing.clear();
       this.updateParticipants();
     }, PARTICIPANT_NETWORK_QUALITY_STALE_MS);
 
@@ -2503,6 +2536,10 @@ export class VoiceCallState {
         if (!activeIdentities.has(identity))
           this.participantNetworkQualityFailures.delete(identity);
       }
+      for (const identity of this.participantNetworkQualitySmoothing.keys()) {
+        if (!activeIdentities.has(identity))
+          this.participantNetworkQualitySmoothing.delete(identity);
+      }
       for (const counterKey of this.participantNetworkCounters.keys()) {
         if (!activeCounterKeys.has(counterKey)) this.participantNetworkCounters.delete(counterKey);
       }
@@ -2518,27 +2555,37 @@ export class VoiceCallState {
         if (!trackSetIsCurrent) {
           delete next[identity];
           this.participantNetworkQualityFailures.delete(identity);
+          this.participantNetworkQualitySmoothing.delete(identity);
           continue;
         }
         const successfulResults = results.flatMap(({ counterKey, result }) =>
           result && activeCounterKeys.has(counterKey) ? [{ counterKey, result }] : []
         );
         const allTracksReported = successfulResults.length === currentCounterKeys.length;
-        const quality = allTracksReported
+        const rawQuality = allTracksReported
           ? aggregateParticipantNetworkQuality(
               successfulResults.map(({ result }) => result.quality)
             )
           : null;
-        if (quality) {
-          next[identity] = quality;
+        if (rawQuality) {
+          const smoothed = updateParticipantNetworkQualitySmoothing(
+            this.participantNetworkQualitySmoothing.get(identity) ?? null,
+            rawQuality
+          );
+          this.participantNetworkQualitySmoothing.set(identity, smoothed.state);
+          next[identity] = smoothed.quality;
           this.participantNetworkQualityFailures.delete(identity);
         } else if (!currentCounterKeys.length) {
           delete next[identity];
           this.participantNetworkQualityFailures.delete(identity);
+          this.participantNetworkQualitySmoothing.delete(identity);
         } else {
           const failures = (this.participantNetworkQualityFailures.get(identity) ?? 0) + 1;
           this.participantNetworkQualityFailures.set(identity, failures);
-          if (failures >= 2) delete next[identity];
+          if (failures >= 2) {
+            delete next[identity];
+            this.participantNetworkQualitySmoothing.delete(identity);
+          }
         }
         for (const { counterKey, result } of successfulResults) {
           this.participantNetworkCounters.set(counterKey, result.counters);
@@ -2592,6 +2639,7 @@ export class VoiceCallState {
           networkHealth: networkQuality?.health ?? 'unknown',
           packetLossPercent: networkQuality?.packetLossPercent ?? null,
           jitterMs: networkQuality?.jitterMs ?? null,
+          latencyMs: networkQuality?.latencyMs ?? null,
           networkWarningMetric: networkQuality?.warningMetric ?? null,
           connectionState: 'connected' as const,
           interruptionDeadline: null,
@@ -2709,9 +2757,8 @@ export class VoiceCallState {
   }
 
   /**
-   * Update the non-reactive audio level cache. Called at ~60ms.
-   * Writes to a plain Map (not $state) so Svelte's reactive graph is
-   * completely untouched.
+   * Copy the complete LiveKit speaker snapshot, then notify imperative UI
+   * consumers once. The complete snapshot preserves simultaneous speakers.
    */
   private updateAudioLevels(): void {
     if (!this.room) return;
@@ -2721,12 +2768,22 @@ export class VoiceCallState {
       ...Array.from(this.room.remoteParticipants.values())
     ];
 
+    const activeIdentities = new SvelteSet<string>();
     for (const p of allParticipants) {
+      activeIdentities.add(p.identity);
       this.audioLevelCache.set(p.identity, {
         isSpeaking: p.isSpeaking,
         audioLevel: p.audioLevel
       });
     }
+    for (const identity of this.audioLevelCache.keys()) {
+      if (!activeIdentities.has(identity)) this.audioLevelCache.delete(identity);
+    }
+    this.notifyAudioLevelListeners();
+  }
+
+  private notifyAudioLevelListeners(): void {
+    for (const listener of this.audioLevelListeners) listener();
   }
 
   private cleanup(): void {
@@ -2837,10 +2894,6 @@ export class VoiceCallState {
 
   private releaseCurrentRoom(): void {
     this.mediaDeviceRefreshGeneration += 1;
-    if (this.audioLevelInterval) {
-      clearInterval(this.audioLevelInterval);
-      this.audioLevelInterval = null;
-    }
     if (this.participantNetworkQualityInterval) {
       clearInterval(this.participantNetworkQualityInterval);
       this.participantNetworkQualityInterval = null;
@@ -2865,9 +2918,11 @@ export class VoiceCallState {
     this.participantNetworkQuality = {};
     this.participantNetworkCounters.clear();
     this.participantNetworkQualityFailures.clear();
+    this.participantNetworkQualitySmoothing.clear();
     this.participantNetworkQualityPollRoom = null;
     this.microphoneRouteFingerprint = null;
     this.audioLevelCache.clear();
+    this.notifyAudioLevelListeners();
   }
 
   private scheduleRecovery(): void {
@@ -3065,6 +3120,7 @@ export class VoiceCallState {
         );
         if (!shouldContinue()) return;
         this.isScreenShareEnabled = true;
+        setLocalCameraPublishingQuality(room, VideoQuality.LOW);
       } catch (error) {
         if (!shouldContinue()) return;
         this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('screen', error, 'enable'));
@@ -3493,16 +3549,19 @@ const CAMERA_ENCODING = {
 
 const CAMERA_LOW_LAYER = new VideoPreset(480, 360, 500_000, 30, 'medium');
 const CAMERA_MID_LAYER = new VideoPreset(960, 720, 1_800_000, 30, 'medium');
-const SCREEN_SHARE_STANDARD_LAYER = new VideoPreset(1280, 720, 2_000_000, 30, 'high');
+// Keep a legible downgrade path below typical constrained mobile uplinks. The
+// full-resolution layer remains available, while the SFU can select this layer
+// without making screen share and camera compete for the whole uplink.
+const SCREEN_SHARE_STANDARD_LAYER = new VideoPreset(1280, 720, 1_500_000, 30, 'high');
 
 const SCREEN_SHARE_ENCODING = {
-  maxBitrate: 8_000_000,
+  maxBitrate: 5_000_000,
   maxFramerate: 30,
   priority: 'high' as const
 };
 
 const HIGH_FRAME_RATE_SCREEN_SHARE_ENCODING = {
-  maxBitrate: 12_000_000,
+  maxBitrate: 8_000_000,
   maxFramerate: 60,
   priority: 'high' as const
 };
@@ -3593,11 +3652,16 @@ function createScreenShareCaptureOptions(highFrameRate = false): ScreenShareCapt
 
 function createScreenSharePublishOptions(highFrameRate = false): TrackPublishOptions {
   return {
-    audioPreset: AudioPresets.musicHighQualityStereo,
+    // A microphone and browser-tab audio share the same bundled Opus payload
+    // type. Keep their fmtp identical so adding a screen share cannot trigger
+    // a failed SDP application and fallback renegotiation in Chromium.
+    audioPreset: AudioPresets.speech,
     backupCodec: false,
-    degradationPreference: 'maintain-resolution',
+    // Preserve motion under congestion while allowing WebRTC to trade some
+    // resolution instead of freezing a full-resolution frame for seconds.
+    degradationPreference: 'balanced',
     dtx: true,
-    forceStereo: true,
+    forceStereo: false,
     red: true,
     screenShareEncoding: highFrameRate
       ? HIGH_FRAME_RATE_SCREEN_SHARE_ENCODING
@@ -3606,6 +3670,14 @@ function createScreenSharePublishOptions(highFrameRate = false): TrackPublishOpt
     simulcast: !isWebKitBasedClient(),
     videoCodec: preferredScreenShareVideoCodec()
   };
+}
+
+function setLocalCameraPublishingQuality(room: Room, quality: VideoQuality): void {
+  const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+  if (!track || !("setPublishingQuality" in track)) return;
+  const setPublishingQuality = track.setPublishingQuality;
+  if (typeof setPublishingQuality !== 'function') return;
+  setPublishingQuality.call(track, quality);
 }
 
 type BrowserVideoCaptureOptions = Omit<VideoCaptureOptions, 'resolution'> & {

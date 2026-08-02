@@ -22,7 +22,8 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Runtime performance profile exposed to server owners.
+// Runtime performance mode exposed to server owners. Legacy selectable values
+// remain on the wire for compatibility but no longer affect scheduling.
 type AdminPerformanceProfile int32
 
 const (
@@ -32,6 +33,7 @@ const (
 	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_PERFORMANCE AdminPerformanceProfile = 3
 	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_CUSTOM      AdminPerformanceProfile = 4
 	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_LEGACY      AdminPerformanceProfile = 5
+	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ADAPTIVE    AdminPerformanceProfile = 6
 )
 
 // Enum value maps for AdminPerformanceProfile.
@@ -43,6 +45,7 @@ var (
 		3: "ADMIN_PERFORMANCE_PROFILE_PERFORMANCE",
 		4: "ADMIN_PERFORMANCE_PROFILE_CUSTOM",
 		5: "ADMIN_PERFORMANCE_PROFILE_LEGACY",
+		6: "ADMIN_PERFORMANCE_PROFILE_ADAPTIVE",
 	}
 	AdminPerformanceProfile_value = map[string]int32{
 		"ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED": 0,
@@ -51,6 +54,7 @@ var (
 		"ADMIN_PERFORMANCE_PROFILE_PERFORMANCE": 3,
 		"ADMIN_PERFORMANCE_PROFILE_CUSTOM":      4,
 		"ADMIN_PERFORMANCE_PROFILE_LEGACY":      5,
+		"ADMIN_PERFORMANCE_PROFILE_ADAPTIVE":    6,
 	}
 )
 
@@ -89,6 +93,7 @@ const (
 	AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL       AdminPerformancePolicySource = 1
 	AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT AdminPerformancePolicySource = 2
 	AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER            AdminPerformancePolicySource = 3
+	AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_ADAPTIVE         AdminPerformancePolicySource = 4
 )
 
 // Enum value maps for AdminPerformancePolicySource.
@@ -98,12 +103,14 @@ var (
 		1: "ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL",
 		2: "ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT",
 		3: "ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER",
+		4: "ADMIN_PERFORMANCE_POLICY_SOURCE_ADAPTIVE",
 	}
 	AdminPerformancePolicySource_value = map[string]int32{
 		"ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED":      0,
 		"ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL":       1,
 		"ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT": 2,
 		"ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER":            3,
+		"ADMIN_PERFORMANCE_POLICY_SOURCE_ADAPTIVE":         4,
 	}
 )
 
@@ -751,6 +758,8 @@ func (x *GetPerformanceSettingsResponse) GetSettings() *AdminPerformanceSettings
 	return nil
 }
 
+// Deprecated owner-profile mutation retained for wire compatibility. Adaptive
+// scheduling is read-only and operator ceilings remain deployment-owned.
 type UpdatePerformanceSettingsRequest struct {
 	state            protoimpl.MessageState  `protogen:"open.v1"`
 	Profile          AdminPerformanceProfile `protobuf:"varint,1,opt,name=profile,proto3,enum=chatto.admin.v1.AdminPerformanceProfile" json:"profile,omitempty"`
@@ -1990,19 +1999,21 @@ const file_chatto_admin_v1_diagnostics_proto_rawDesc = "" +
 	"\x15AdminProjectionMetric\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value\x12\x14\n" +
-	"\x05bytes\x18\x03 \x01(\x03R\x05bytes*\x8a\x02\n" +
+	"\x05bytes\x18\x03 \x01(\x03R\x05bytes*\xb2\x02\n" +
 	"\x17AdminPerformanceProfile\x12)\n" +
 	"%ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED\x10\x00\x12%\n" +
 	"!ADMIN_PERFORMANCE_PROFILE_ECONOMY\x10\x01\x12&\n" +
 	"\"ADMIN_PERFORMANCE_PROFILE_BALANCED\x10\x02\x12)\n" +
 	"%ADMIN_PERFORMANCE_PROFILE_PERFORMANCE\x10\x03\x12$\n" +
 	" ADMIN_PERFORMANCE_PROFILE_CUSTOM\x10\x04\x12$\n" +
-	" ADMIN_PERFORMANCE_PROFILE_LEGACY\x10\x05*\xe0\x01\n" +
+	" ADMIN_PERFORMANCE_PROFILE_LEGACY\x10\x05\x12&\n" +
+	"\"ADMIN_PERFORMANCE_PROFILE_ADAPTIVE\x10\x06*\x8e\x02\n" +
 	"\x1cAdminPerformancePolicySource\x12/\n" +
 	"+ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED\x10\x00\x12.\n" +
 	"*ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL\x10\x01\x124\n" +
 	"0ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT\x10\x02\x12)\n" +
-	"%ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER\x10\x03*\xe5\x02\n" +
+	"%ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER\x10\x03\x12,\n" +
+	"(ADMIN_PERFORMANCE_POLICY_SOURCE_ADAPTIVE\x10\x04*\xe5\x02\n" +
 	"\x1aAdminPerformanceLimitField\x12-\n" +
 	")ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED\x10\x00\x129\n" +
 	"5ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_WORKERS\x10\x01\x12<\n" +
@@ -2014,11 +2025,11 @@ const file_chatto_admin_v1_diagnostics_proto_rawDesc = "" +
 	"(ADMIN_PERFORMANCE_CAP_REASON_UNSPECIFIED\x10\x00\x12-\n" +
 	")ADMIN_PERFORMANCE_CAP_REASON_OPERATOR_CAP\x10\x01\x12,\n" +
 	"(ADMIN_PERFORMANCE_CAP_REASON_PROCESS_CPU\x10\x02\x12/\n" +
-	"+ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY\x10\x032\xf9\x02\n" +
+	"+ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY\x10\x032\xfe\x02\n" +
 	"\x17AdminDiagnosticsService\x12^\n" +
 	"\rGetSystemInfo\x12%.chatto.admin.v1.GetSystemInfoRequest\x1a&.chatto.admin.v1.GetSystemInfoResponse\x12y\n" +
-	"\x16GetPerformanceSettings\x12..chatto.admin.v1.GetPerformanceSettingsRequest\x1a/.chatto.admin.v1.GetPerformanceSettingsResponse\x12\x82\x01\n" +
-	"\x19UpdatePerformanceSettings\x121.chatto.admin.v1.UpdatePerformanceSettingsRequest\x1a2.chatto.admin.v1.UpdatePerformanceSettingsResponseB\xba\x01\n" +
+	"\x16GetPerformanceSettings\x12..chatto.admin.v1.GetPerformanceSettingsRequest\x1a/.chatto.admin.v1.GetPerformanceSettingsResponse\x12\x87\x01\n" +
+	"\x19UpdatePerformanceSettings\x121.chatto.admin.v1.UpdatePerformanceSettingsRequest\x1a2.chatto.admin.v1.UpdatePerformanceSettingsResponse\"\x03\x88\x02\x01B\xba\x01\n" +
 	"\x13com.chatto.admin.v1B\x10DiagnosticsProtoP\x01Z3hmans.de/chatto/internal/pb/chatto/admin/v1;adminv1\xa2\x02\x03CAX\xaa\x02\x0fChatto.Admin.V1\xca\x02\x0fChatto\\Admin\\V1\xe2\x02\x1bChatto\\Admin\\V1\\GPBMetadata\xea\x02\x11Chatto::Admin::V1b\x06proto3"
 
 var (

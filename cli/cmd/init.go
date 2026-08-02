@@ -74,7 +74,7 @@ var initCmd = &cobra.Command{
 				LogFormat: "auto",
 			},
 			Performance: config.PerformanceConfig{
-				DefaultProfile: config.PerformanceProfileBalanced,
+				DefaultProfile: config.PerformanceProfileAdaptive,
 			},
 			Auth: config.AuthConfig{
 				DirectRegistration: &directRegistration,

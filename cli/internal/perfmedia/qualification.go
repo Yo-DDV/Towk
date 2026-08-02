@@ -3,9 +3,8 @@ package perfmedia
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
-
-	"hmans.de/chatto/internal/config"
 )
 
 const (
@@ -19,10 +18,7 @@ const (
 type QualificationProfile string
 
 const (
-	QualificationProfileEconomy     QualificationProfile = "economy"
-	QualificationProfileBalanced    QualificationProfile = "balanced"
-	QualificationProfilePerformance QualificationProfile = "performance"
-	QualificationProfileCustom      QualificationProfile = "custom"
+	QualificationProfileAdaptive QualificationProfile = "adaptive"
 )
 
 type QualificationPhase string
@@ -234,8 +230,8 @@ func validateQualificationRun(prefix string, run QualificationRun) []string {
 		if run.DurationSeconds < qualificationSoakSeconds {
 			reasons = append(reasons, fmt.Sprintf("%s soak duration must be at least %d seconds", prefix, qualificationSoakSeconds))
 		}
-		if run.Profile != QualificationProfileBalanced {
-			reasons = append(reasons, prefix+" soak must use the balanced profile")
+		if run.Profile != QualificationProfileAdaptive || run.Envelope.LogicalCPUs != 2 {
+			reasons = append(reasons, prefix+" soak must use the adaptive 2 CPU envelope")
 		}
 	default:
 		reasons = append(reasons, prefix+" phase is unsupported by the capacity matrix")
@@ -265,7 +261,7 @@ func validateQualificationRun(prefix string, run QualificationRun) []string {
 		reasons = append(reasons, prefix+" path must be direct or caddy_tls")
 	}
 	reasons = append(reasons, validateQualificationEnvelope(prefix, run.Profile, run.Envelope)...)
-	reasons = append(reasons, validateQualificationPerformanceLimits(prefix, run.Profile, run.RequestedLimits, run.EffectiveLimits)...)
+	reasons = append(reasons, validateQualificationPerformanceLimits(prefix, run.Profile, run.Envelope, run.RequestedLimits, run.EffectiveLimits)...)
 	if !validQualificationLoad(run.Load) {
 		reasons = append(reasons, prefix+" load vector is missing, negative, non-finite, or idle")
 	}
@@ -295,6 +291,7 @@ func validateQualificationRun(prefix string, run QualificationRun) []string {
 func validateQualificationPerformanceLimits(
 	prefix string,
 	profile QualificationProfile,
+	envelope QualificationEnvelope,
 	requested, effective QualificationPerformanceLimits,
 ) []string {
 	var reasons []string
@@ -304,8 +301,8 @@ func validateQualificationPerformanceLimits(
 	if !validQualificationPerformanceLimits(effective) {
 		reasons = append(reasons, prefix+" effective performance limits are missing or invalid")
 	}
-	if requestedValidPreset, preset := qualificationPerformancePreset(profile); preset && requested != requestedValidPreset {
-		reasons = append(reasons, prefix+" requested limits do not match the declared standard profile")
+	if profile == QualificationProfileAdaptive && envelope.LogicalCPUs > 0 && requested != qualificationAdaptiveTarget(envelope.LogicalCPUs) {
+		reasons = append(reasons, prefix+" requested limits do not match the adaptive target for the measured CPU envelope")
 	}
 	if effective.ImageTransformWorkers > requested.ImageTransformWorkers ||
 		effective.ImageTransformAdmissions > requested.ImageTransformAdmissions ||
@@ -318,24 +315,16 @@ func validateQualificationPerformanceLimits(
 }
 
 func validQualificationPerformanceLimits(limits QualificationPerformanceLimits) bool {
-	return limits.ImageTransformWorkers >= 1 && limits.ImageTransformWorkers <= config.MaxPerformanceWorkers &&
-		limits.ImageTransformAdmissions >= limits.ImageTransformWorkers && limits.ImageTransformAdmissions <= config.MaxPerformanceAdmissions &&
-		limits.AssetUploadWorkers >= 1 && limits.AssetUploadWorkers <= config.MaxPerformanceWorkers &&
-		limits.LinkPreviewWorkers >= 1 && limits.LinkPreviewWorkers <= config.MaxPerformanceWorkers &&
-		limits.VideoWorkers >= 1 && limits.VideoWorkers <= config.MaxPerformanceWorkers
+	return limits.ImageTransformWorkers >= 1 &&
+		limits.ImageTransformAdmissions >= limits.ImageTransformWorkers &&
+		limits.AssetUploadWorkers >= 1 &&
+		limits.LinkPreviewWorkers >= 1 &&
+		limits.VideoWorkers >= 1
 }
 
-func qualificationPerformancePreset(profile QualificationProfile) (QualificationPerformanceLimits, bool) {
-	switch profile {
-	case QualificationProfileEconomy:
-		return QualificationPerformanceLimits{1, 4, 2, 1, 1}, true
-	case QualificationProfileBalanced:
-		return QualificationPerformanceLimits{2, 8, 4, 2, 2}, true
-	case QualificationProfilePerformance:
-		return QualificationPerformanceLimits{4, 16, 8, 4, 4}, true
-	default:
-		return QualificationPerformanceLimits{}, false
-	}
+func qualificationAdaptiveTarget(cpus int) QualificationPerformanceLimits {
+	cpus = max(1, cpus)
+	return QualificationPerformanceLimits{cpus, cpus * 8, cpus * 2, cpus, cpus}
 }
 
 func qualificationAdmissionLimit(subsystem string, limits QualificationPerformanceLimits) (int, bool) {
@@ -355,9 +344,8 @@ func qualificationAdmissionLimit(subsystem string, limits QualificationPerforman
 
 func validateQualificationEnvelope(prefix string, profile QualificationProfile, envelope QualificationEnvelope) []string {
 	var reasons []string
-	wantCPUs, wantMemory := qualificationProfileEnvelope(profile)
-	if profile != QualificationProfileCustom && (envelope.LogicalCPUs != wantCPUs || envelope.MemoryLimitBytes != wantMemory) {
-		reasons = append(reasons, fmt.Sprintf("%s envelope does not match profile %s (%d CPU, %d bytes)", prefix, profile, wantCPUs, wantMemory))
+	if profile != QualificationProfileAdaptive {
+		reasons = append(reasons, prefix+" must use adaptive scheduling")
 	}
 	if envelope.LogicalCPUs <= 0 || envelope.MemoryLimitBytes <= 0 || envelope.HostMemoryBytes < envelope.MemoryLimitBytes {
 		reasons = append(reasons, prefix+" resource envelope is invalid")
@@ -377,21 +365,8 @@ func validateQualificationEnvelope(prefix string, profile QualificationProfile, 
 	return reasons
 }
 
-func qualificationProfileEnvelope(profile QualificationProfile) (int, int64) {
-	switch profile {
-	case QualificationProfileEconomy:
-		return 1, 2 * qualificationGiB
-	case QualificationProfileBalanced:
-		return 2, 4 * qualificationGiB
-	case QualificationProfilePerformance:
-		return 8, 16 * qualificationGiB
-	default:
-		return 0, 0
-	}
-}
-
 func validQualificationProfile(profile QualificationProfile) bool {
-	return profile == QualificationProfileEconomy || profile == QualificationProfileBalanced || profile == QualificationProfilePerformance || profile == QualificationProfileCustom
+	return profile == QualificationProfileAdaptive
 }
 
 func validQualificationLoad(load QualificationLoadVector) bool {
@@ -425,37 +400,33 @@ type qualificationFactor struct {
 
 func validateQualificationResilienceCoverage(overload, recovery, soak []QualificationRun) []string {
 	var reasons []string
-	overloadRuns := make(map[QualificationProfile]map[string]QualificationRun)
+	overloadRuns := make(map[int]map[string]QualificationRun)
 	for _, run := range overload {
-		if overloadRuns[run.Profile] == nil {
-			overloadRuns[run.Profile] = make(map[string]QualificationRun)
+		cpus := run.Envelope.LogicalCPUs
+		if overloadRuns[cpus] == nil {
+			overloadRuns[cpus] = make(map[string]QualificationRun)
 		}
-		overloadRuns[run.Profile][run.RunID] = run
+		overloadRuns[cpus][run.RunID] = run
 	}
-	for _, profile := range []QualificationProfile{
-		QualificationProfileEconomy,
-		QualificationProfileBalanced,
-		QualificationProfilePerformance,
-		QualificationProfileCustom,
-	} {
-		if !qualificationPhaseCoversProfile(overload, profile) {
-			reasons = append(reasons, fmt.Sprintf("qualification lacks %s overload evidence", profile))
+	for _, cpus := range []int{1, 2, 4, 8} {
+		if !qualificationPhaseCoversCPU(overload, cpus) {
+			reasons = append(reasons, fmt.Sprintf("qualification lacks %d CPU overload evidence", cpus))
 		}
-		if !qualificationPhaseCoversProfile(recovery, profile) {
-			reasons = append(reasons, fmt.Sprintf("qualification lacks %s recovery evidence", profile))
+		if !qualificationPhaseCoversCPU(recovery, cpus) {
+			reasons = append(reasons, fmt.Sprintf("qualification lacks %d CPU recovery evidence", cpus))
 		}
 	}
-	if !qualificationPhaseCoversProfile(soak, QualificationProfileBalanced) {
-		reasons = append(reasons, "qualification lacks balanced soak evidence")
+	if !qualificationPhaseCoversCPU(soak, 2) {
+		reasons = append(reasons, "qualification lacks 2 CPU soak evidence")
 	}
 	for _, run := range recovery {
 		if !ValidDeliveryRunID(run.PrecedingOverloadRunID) {
-			reasons = append(reasons, fmt.Sprintf("recovery run %s is not linked to a same-profile overload", run.RunID))
+			reasons = append(reasons, fmt.Sprintf("recovery run %s is not linked to a same-envelope overload", run.RunID))
 			continue
 		}
-		overload, exists := overloadRuns[run.Profile][run.PrecedingOverloadRunID]
+		overload, exists := overloadRuns[run.Envelope.LogicalCPUs][run.PrecedingOverloadRunID]
 		if !exists {
-			reasons = append(reasons, fmt.Sprintf("recovery run %s is not linked to a same-profile overload", run.RunID))
+			reasons = append(reasons, fmt.Sprintf("recovery run %s is not linked to a same-envelope overload", run.RunID))
 			continue
 		}
 		if run.Envelope != overload.Envelope || run.RequestedLimits != overload.RequestedLimits || run.EffectiveLimits != overload.EffectiveLimits || run.Backend != overload.Backend || run.CacheState != overload.CacheState || run.Network != overload.Network || run.Path != overload.Path {
@@ -465,9 +436,9 @@ func validateQualificationResilienceCoverage(overload, recovery, soak []Qualific
 	return reasons
 }
 
-func qualificationPhaseCoversProfile(runs []QualificationRun, profile QualificationProfile) bool {
+func qualificationPhaseCoversCPU(runs []QualificationRun, cpus int) bool {
 	for _, run := range runs {
-		if run.Profile == profile {
+		if run.Profile == QualificationProfileAdaptive && run.Envelope.LogicalCPUs == cpus {
 			return true
 		}
 	}
@@ -476,7 +447,7 @@ func qualificationPhaseCoversProfile(runs []QualificationRun, profile Qualificat
 
 func validateQualificationPairwiseCoverage(runs []QualificationRun) []string {
 	factors := []qualificationFactor{
-		{name: "profile", values: []string{"economy", "balanced", "performance", "custom"}, value: func(run QualificationRun) string { return string(run.Profile) }},
+		{name: "capacity_cpu", values: []string{"1", "2", "4", "8"}, value: func(run QualificationRun) string { return strconv.Itoa(run.Envelope.LogicalCPUs) }},
 		{name: "backend", values: []string{"nats", "s3"}, value: func(run QualificationRun) string { return run.Backend }},
 		{name: "cache_state", values: []string{"cold", "warm", "full"}, value: func(run QualificationRun) string { return run.CacheState }},
 		{name: "network", values: []string{"normal", "degraded"}, value: func(run QualificationRun) string { return string(run.Network) }},

@@ -15,7 +15,12 @@ const SCENE_GAP_PX = 12;
 
 type GridCandidate = Omit<SceneGrid, 'capacity'>;
 
-function squareGrid(width: number, height: number, tileCount: number): GridCandidate {
+function squareGrid(
+  width: number,
+  height: number,
+  tileCount: number,
+  minimumTileSize: number
+): GridCandidate {
   const candidates = Array.from({ length: tileCount }, (_, index) => {
     const columns = index + 1;
     const rows = Math.ceil(tileCount / columns);
@@ -28,11 +33,21 @@ function squareGrid(width: number, height: number, tileCount: number): GridCandi
       emptySlots: columns * rows - tileCount
     };
   });
-  const largestTile = Math.max(...candidates.map((candidate) => candidate.tileSize));
-  const nearLargest = candidates.filter((candidate) => candidate.tileSize >= largestTile * 0.96);
+  const readableCandidates = candidates.filter(
+    (candidate) => candidate.tileSize >= minimumTileSize
+  );
+  const rankedCandidates = readableCandidates.length > 0 ? readableCandidates : candidates;
+  const largestTile = Math.max(...rankedCandidates.map((candidate) => candidate.tileSize));
+  const balancedTwoParticipantThreshold = tileCount === 2 ? 0.85 : 0.96;
+  const nearLargest = rankedCandidates.filter(
+    (candidate) => candidate.tileSize >= largestTile * balancedTwoParticipantThreshold
+  );
   nearLargest.sort(
     (left, right) =>
-      left.emptySlots - right.emptySlots || right.tileSize - left.tileSize || left.rows - right.rows
+      left.emptySlots - right.emptySlots ||
+      (tileCount === 2 ? left.rows - right.rows : 0) ||
+      right.tileSize - left.tileSize ||
+      left.rows - right.rows
   );
   const selected = nearLargest[0];
   return {
@@ -65,11 +80,11 @@ export function computeSceneGrid(
     minimumTileSizeOverride ?? 0
   );
   let capacity = count;
-  let grid = squareGrid(safeWidth, safeHeight, capacity);
+  let grid = squareGrid(safeWidth, safeHeight, capacity, minimumTileSize);
 
   while (capacity > 1 && grid.tileSize < minimumTileSize) {
     capacity -= 1;
-    grid = squareGrid(safeWidth, safeHeight, capacity);
+    grid = squareGrid(safeWidth, safeHeight, capacity, minimumTileSize);
   }
 
   return { capacity, ...grid };
@@ -97,7 +112,18 @@ export function computeFilmstripTileWidth(width: number, columns: number): numbe
   const safeWidth = Math.max(1, width);
   const safeColumns = Math.max(1, Math.floor(columns));
   const availableWidth = Math.max(1, safeWidth - SCENE_GAP_PX * (safeColumns - 1));
-  const maximumTileWidth = safeWidth >= 3_200 ? 720 : safeWidth >= 2_400 ? 560 : 420;
+  const maximumTileWidth =
+    safeColumns <= 2
+      ? safeWidth >= 3_200
+        ? 960
+        : safeWidth >= 2_400
+          ? 720
+          : 560
+      : safeWidth >= 3_200
+        ? 720
+        : safeWidth >= 2_400
+          ? 560
+          : 420;
   return Math.min(maximumTileWidth, Math.max(1, Math.floor(availableWidth / safeColumns)));
 }
 

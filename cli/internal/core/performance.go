@@ -3,8 +3,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"math"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,11 +12,10 @@ import (
 )
 
 const performancePolicySchemaVersion uint32 = 1
+const performanceSettingsSchemaVersion uint32 = 2
 
 const (
-	performanceSourceHistorical      = "historical"
-	performanceSourceOperatorDefault = "operator_default"
-	performanceSourceOwner           = "owner"
+	performanceSourceAdaptive = "adaptive"
 )
 
 const (
@@ -50,19 +47,21 @@ type PerformanceStatus struct {
 	RestartRequired  bool
 }
 
-// PerformanceManager resolves an owner policy against the operator envelope
-// and process-visible CPU/memory limits. It is intentionally stateless so each
-// admission sees the latest projected policy and cgroup envelope.
+// PerformanceManager derives work-pool capacity from operator ceilings and the
+// process-visible CPU/memory envelope. Each admission observes the refreshed
+// cgroup envelope without persisting a product-level profile.
 type PerformanceManager struct {
 	config     config.PerformanceConfig
-	projection *ConfigProjection
 	detect     func() runtimecap.Capacity
 	mu         sync.Mutex
 	envelope   runtimecap.Capacity
 	detectedAt time.Time
 }
 
-const performanceEnvelopeCacheTTL = 5 * time.Second
+// A short cache avoids reading proc/cgroup files for every admission while
+// keeping adaptive back-pressure responsive to a host or sibling container
+// consuming memory. Limiters poll this value at most every 250ms when queued.
+const performanceEnvelopeCacheTTL = 2 * time.Second
 
 // ConfigurePerformance applies the operator-owned envelope before runtime
 // services begin accepting work.
@@ -119,41 +118,11 @@ func (c *ChattoCore) GetPerformanceSettings(ctx context.Context, actorID string)
 	return c.PerformanceStatus(), nil
 }
 
-func (c *ChattoCore) UpdatePerformanceSettings(ctx context.Context, actorID string, expectedRevision uint64, profile string, custom PerformanceLimits) (PerformanceStatus, error) {
+func (c *ChattoCore) UpdatePerformanceSettings(ctx context.Context, actorID string, _ uint64, _ string, _ PerformanceLimits) (PerformanceStatus, error) {
 	if err := c.requirePerformanceOwner(ctx, actorID); err != nil {
 		return PerformanceStatus{}, err
 	}
-	if expectedRevision == math.MaxUint64 {
-		return PerformanceStatus{}, invalidArgument("performance policy revision is out of range")
-	}
-	profile = strings.ToLower(strings.TrimSpace(profile))
-	policy := &configv1.ServerPerformancePolicy{
-		SchemaVersion: performancePolicySchemaVersion,
-		Profile:       profile,
-		Revision:      expectedRevision + 1,
-	}
-	if profile == config.PerformanceProfileCustom {
-		policy.CustomLimits = performanceLimitsToProto(custom)
-	}
-	if err := validatePerformancePolicy(policy); err != nil {
-		return PerformanceStatus{}, err
-	}
-
-	_, err := c.configManager.UpdateServerConfigFunc(ctx, actorID, func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
-		currentRevision := uint64(0)
-		if current.GetPerformancePolicy() != nil {
-			currentRevision = current.GetPerformancePolicy().GetRevision()
-		}
-		if currentRevision != expectedRevision {
-			return nil, ErrConfigConflict
-		}
-		current.PerformancePolicy = clonePerformancePolicy(policy)
-		return current, nil
-	})
-	if err != nil {
-		return PerformanceStatus{}, err
-	}
-	return c.PerformanceStatus(), nil
+	return PerformanceStatus{}, invalidArgument("performance profiles are retired; Towk scheduling is adaptive")
 }
 
 func (c *ChattoCore) requirePerformanceOwner(ctx context.Context, actorID string) error {
@@ -174,15 +143,22 @@ func NewPerformanceManager(cfg config.PerformanceConfig, projection *ConfigProje
 	return newPerformanceManager(cfg, projection, runtimecap.Detect)
 }
 
-func newPerformanceManager(cfg config.PerformanceConfig, projection *ConfigProjection, detect func() runtimecap.Capacity) *PerformanceManager {
+func newPerformanceManager(cfg config.PerformanceConfig, _ *ConfigProjection, detect func() runtimecap.Capacity) *PerformanceManager {
 	if detect == nil {
 		detect = runtimecap.Detect
 	}
-	return &PerformanceManager{config: cfg, projection: projection, detect: detect}
+	return &PerformanceManager{config: cfg, detect: detect}
 }
 
 func (m *PerformanceManager) Status() PerformanceStatus {
+	envelope := m.processEnvelope()
+	requested := adaptivePerformanceLimits(envelope)
 	status := PerformanceStatus{
+		RequestedProfile: config.PerformanceProfileAdaptive,
+		EffectiveProfile: config.PerformanceProfileAdaptive,
+		Source:           performanceSourceAdaptive,
+		SchemaVersion:    performanceSettingsSchemaVersion,
+		Requested:        requested,
 		OperatorCaps: PerformanceLimits{
 			ImageTransformWorkers:    m.config.MaxImageTransformWorkers,
 			ImageTransformAdmissions: m.config.MaxImageTransformAdmissions,
@@ -190,20 +166,10 @@ func (m *PerformanceManager) Status() PerformanceStatus {
 			LinkPreviewWorkers:       m.config.MaxLinkPreviewWorkers,
 			VideoWorkers:             m.config.MaxVideoWorkers,
 		},
-		Envelope:   m.processEnvelope(),
+		Envelope:   envelope,
 		CapReasons: make(map[string][]string),
 	}
-
-	policy := (*configv1.ServerPerformancePolicy)(nil)
-	if m.projection != nil {
-		policy = m.projection.PerformancePolicy()
-	}
-	status.RequestedProfile, status.Source, status.SchemaVersion, status.Revision, status.Requested, status.PolicyError = m.requested(policy)
-	if status.PolicyError != "" {
-		status.Requested = performancePreset(config.PerformanceProfileEconomy)
-	}
 	status.Effective = m.effective(status.Requested, status.Envelope, status.OperatorCaps, status.CapReasons)
-	status.EffectiveProfile = effectivePerformanceProfile(status.Effective)
 	return status
 }
 
@@ -217,50 +183,22 @@ func (m *PerformanceManager) processEnvelope() runtimecap.Capacity {
 	return m.envelope
 }
 
-func (m *PerformanceManager) requested(policy *configv1.ServerPerformancePolicy) (string, string, uint32, uint64, PerformanceLimits, string) {
-	if policy == nil {
-		profile := m.config.DefaultProfileOrLegacy()
-		source := performanceSourceOperatorDefault
-		if profile == config.PerformanceProfileLegacy {
-			source = performanceSourceHistorical
-		}
-		limits, ok := knownPerformancePreset(profile)
-		if !ok {
-			return profile, source, 0, 0, PerformanceLimits{}, fmt.Sprintf("unknown default performance profile %q", profile)
-		}
-		return profile, source, 0, 0, limits, ""
-	}
-
-	profile := strings.ToLower(strings.TrimSpace(policy.GetProfile()))
-	if policy.GetSchemaVersion() != performancePolicySchemaVersion {
-		return profile, performanceSourceOwner, policy.GetSchemaVersion(), policy.GetRevision(), PerformanceLimits{}, fmt.Sprintf("unsupported performance policy schema version %d", policy.GetSchemaVersion())
-	}
-	if profile == config.PerformanceProfileCustom {
-		limits, err := performanceLimitsFromProto(policy.GetCustomLimits())
-		if err != nil {
-			return profile, performanceSourceOwner, policy.GetSchemaVersion(), policy.GetRevision(), PerformanceLimits{}, err.Error()
-		}
-		return profile, performanceSourceOwner, policy.GetSchemaVersion(), policy.GetRevision(), limits, ""
-	}
-	limits, ok := knownPerformancePreset(profile)
-	if !ok || profile == config.PerformanceProfileLegacy {
-		return profile, performanceSourceOwner, policy.GetSchemaVersion(), policy.GetRevision(), PerformanceLimits{}, fmt.Sprintf("unknown owner performance profile %q", profile)
-	}
-	return profile, performanceSourceOwner, policy.GetSchemaVersion(), policy.GetRevision(), limits, ""
-}
-
 func (m *PerformanceManager) effective(requested PerformanceLimits, envelope runtimecap.Capacity, operator PerformanceLimits, reasons map[string][]string) PerformanceLimits {
 	cpus := max(1, envelope.CPUs)
-	memoryHeavy, memoryLink, memoryUpload := config.MaxPerformanceWorkers, config.MaxPerformanceWorkers, config.MaxPerformanceWorkers
+	memoryHeavy := maxPerformanceValue
+	memoryAdmissions := maxPerformanceValue
+	memoryLink := maxPerformanceValue
+	memoryUpload := maxPerformanceValue
 	if envelope.MemoryBytes > 0 {
 		memoryHeavy = memorySlots(envelope.MemoryBytes, 512<<20, 512<<20)
+		memoryAdmissions = memorySlots(envelope.MemoryBytes, 512<<20, 64<<20)
 		memoryLink = memorySlots(envelope.MemoryBytes, 256<<20, 128<<20)
 		memoryUpload = memorySlots(envelope.MemoryBytes, 256<<20, 64<<20)
 	}
 
 	workers := boundedPerformanceValue("image_transform_workers", requested.ImageTransformWorkers, operator.ImageTransformWorkers, cpus, memoryHeavy, reasons)
-	admissionCPU := min(config.MaxPerformanceAdmissions, max(workers, cpus*8))
-	admissions := boundedPerformanceValue("image_transform_admissions", requested.ImageTransformAdmissions, operator.ImageTransformAdmissions, admissionCPU, config.MaxPerformanceAdmissions, reasons)
+	admissionCPU := max(workers, saturatedMultiply(cpus, 8))
+	admissions := boundedPerformanceValue("image_transform_admissions", requested.ImageTransformAdmissions, operator.ImageTransformAdmissions, admissionCPU, memoryAdmissions, reasons)
 	if admissions < workers {
 		workers = admissions
 		for _, reason := range reasons["image_transform_admissions"] {
@@ -271,10 +209,33 @@ func (m *PerformanceManager) effective(requested PerformanceLimits, envelope run
 	return PerformanceLimits{
 		ImageTransformWorkers:    workers,
 		ImageTransformAdmissions: admissions,
-		AssetUploadWorkers:       boundedPerformanceValue("asset_upload_workers", requested.AssetUploadWorkers, operator.AssetUploadWorkers, cpus*2, memoryUpload, reasons),
+		AssetUploadWorkers:       boundedPerformanceValue("asset_upload_workers", requested.AssetUploadWorkers, operator.AssetUploadWorkers, saturatedMultiply(cpus, 2), memoryUpload, reasons),
 		LinkPreviewWorkers:       boundedPerformanceValue("link_preview_workers", requested.LinkPreviewWorkers, operator.LinkPreviewWorkers, cpus, memoryLink, reasons),
 		VideoWorkers:             boundedPerformanceValue("video_workers", requested.VideoWorkers, operator.VideoWorkers, cpus, memoryHeavy, reasons),
 	}
+}
+
+const maxPerformanceValue = int(^uint32(0) >> 1)
+
+func adaptivePerformanceLimits(envelope runtimecap.Capacity) PerformanceLimits {
+	cpus := max(1, envelope.CPUs)
+	return PerformanceLimits{
+		ImageTransformWorkers:    min(config.MaxPerformanceWorkers, cpus),
+		ImageTransformAdmissions: min(config.MaxPerformanceAdmissions, saturatedMultiply(cpus, 8)),
+		AssetUploadWorkers:       min(config.MaxPerformanceWorkers, saturatedMultiply(cpus, 2)),
+		LinkPreviewWorkers:       min(config.MaxPerformanceWorkers, cpus),
+		VideoWorkers:             min(config.MaxPerformanceWorkers, cpus),
+	}
+}
+
+func saturatedMultiply(value, factor int) int {
+	if value < 1 || factor < 1 {
+		return 1
+	}
+	if value > maxPerformanceValue/factor {
+		return maxPerformanceValue
+	}
+	return value * factor
 }
 
 func appendPerformanceReason(reasons []string, reason string) []string {
@@ -284,19 +245,6 @@ func appendPerformanceReason(reasons []string, reason string) []string {
 		}
 	}
 	return append(reasons, reason)
-}
-
-func effectivePerformanceProfile(limits PerformanceLimits) string {
-	for _, profile := range []string{
-		config.PerformanceProfileEconomy,
-		config.PerformanceProfileBalanced,
-		config.PerformanceProfilePerformance,
-	} {
-		if limits == performancePreset(profile) {
-			return profile
-		}
-	}
-	return config.PerformanceProfileCustom
 }
 
 func boundedPerformanceValue(name string, requested, operator, cpu, memory int, reasons map[string][]string) int {
@@ -320,25 +268,19 @@ func memorySlots(total, reserve, perWorker int64) int {
 	if total <= reserve || perWorker <= 0 {
 		return 1
 	}
-	return max(1, min(config.MaxPerformanceWorkers, int((total-reserve)/perWorker)))
-}
-
-func performancePreset(profile string) PerformanceLimits {
-	limits, _ := knownPerformancePreset(profile)
-	return limits
-}
-
-func knownPerformancePreset(profile string) (PerformanceLimits, bool) {
-	switch profile {
-	case config.PerformanceProfileEconomy:
-		return PerformanceLimits{1, 4, 2, 1, 1}, true
-	case config.PerformanceProfileLegacy, config.PerformanceProfileBalanced:
-		return PerformanceLimits{2, 8, 4, 2, 2}, true
-	case config.PerformanceProfilePerformance:
-		return PerformanceLimits{4, 16, 8, 4, 4}, true
-	default:
-		return PerformanceLimits{}, false
+	// Keep a proportional reserve on large hosts so a burst does not consume
+	// every byte merely because MemAvailable was high at the last sample.
+	if proportional := total / 8; proportional > reserve {
+		reserve = proportional
 	}
+	if total <= reserve {
+		return 1
+	}
+	slots := (total - reserve) / perWorker
+	if slots > int64(maxPerformanceValue) {
+		return maxPerformanceValue
+	}
+	return max(1, int(slots))
 }
 
 func performanceLimitsFromProto(limits *configv1.PerformanceLimits) (PerformanceLimits, error) {
@@ -366,14 +308,4 @@ func performanceLimitsFromProto(limits *configv1.PerformanceLimits) (Performance
 		return PerformanceLimits{}, invalidArgument("image transform admissions must be greater than or equal to workers")
 	}
 	return result, nil
-}
-
-func performanceLimitsToProto(limits PerformanceLimits) *configv1.PerformanceLimits {
-	return &configv1.PerformanceLimits{
-		ImageTransformWorkers:    int32(limits.ImageTransformWorkers),
-		ImageTransformAdmissions: int32(limits.ImageTransformAdmissions),
-		AssetUploadWorkers:       int32(limits.AssetUploadWorkers),
-		LinkPreviewWorkers:       int32(limits.LinkPreviewWorkers),
-		VideoWorkers:             int32(limits.VideoWorkers),
-	}
 }

@@ -46,6 +46,57 @@ func TestDetectFromUsesHostMemoryWithoutCgroup(t *testing.T) {
 	}
 }
 
+func TestDetectFromUsesCurrentMemoryHeadroom(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "/proc/meminfo", "MemTotal:        16777216 kB\nMemAvailable:    12582912 kB\n")
+	writeTestFile(t, root, "/proc/self/cgroup", "0::/tenant/towk\n")
+	writeTestFile(t, root, "/sys/fs/cgroup/tenant/towk/memory.max", "8589934592\n")
+	writeTestFile(t, root, "/sys/fs/cgroup/tenant/towk/memory.current", "6442450944\n")
+
+	got := detectFrom(root, 8, math.MaxInt64)
+	if got.MemoryBytes != 2*1024*1024*1024 || got.MemorySource != "cgroup_available" {
+		t.Fatalf("memory headroom = %#v, want 2 GiB cgroup availability", got)
+	}
+}
+
+func TestDetectFromPairsNestedCgroupLimitAndUsage(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "/proc/self/cgroup", "0::/tenant/towk\n")
+	writeTestFile(t, root, "/sys/fs/cgroup/memory.max", "8589934592\n")
+	writeTestFile(t, root, "/sys/fs/cgroup/memory.current", "7516192768\n")
+	writeTestFile(t, root, "/sys/fs/cgroup/tenant/towk/memory.max", "4294967296\n")
+	writeTestFile(t, root, "/sys/fs/cgroup/tenant/towk/memory.current", "1073741824\n")
+
+	got := detectFrom(root, 4, math.MaxInt64)
+	if got.MemoryBytes != 1*1024*1024*1024 || got.MemorySource != "cgroup_available" {
+		t.Fatalf("nested memory headroom = %#v, want 1 GiB from the tight parent", got)
+	}
+}
+
+func TestDetectFromUsesHostAvailableWhenCgroupIsUnlimited(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "/proc/meminfo", "MemTotal:        16777216 kB\nMemAvailable:    4194304 kB\n")
+	writeTestFile(t, root, "/proc/self/cgroup", "0::/tenant/towk\n")
+	writeTestFile(t, root, "/sys/fs/cgroup/tenant/towk/memory.max", "max\n")
+
+	got := detectFrom(root, 8, math.MaxInt64)
+	if got.MemoryBytes != 4*1024*1024*1024 || got.MemorySource != "host_available" {
+		t.Fatalf("memory headroom = %#v, want 4 GiB host availability", got)
+	}
+}
+
+func TestDetectFromFailsSafeWhenCgroupMemoryIsSaturated(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "/proc/self/cgroup", "0::/tenant/towk\n")
+	writeTestFile(t, root, "/sys/fs/cgroup/tenant/towk/memory.max", "1073741824\n")
+	writeTestFile(t, root, "/sys/fs/cgroup/tenant/towk/memory.current", "1073741824\n")
+
+	got := detectFrom(root, 2, math.MaxInt64)
+	if got.MemoryBytes != 1 || got.MemorySource != "cgroup_available" {
+		t.Fatalf("saturated memory headroom = %#v, want fail-safe one-byte budget", got)
+	}
+}
+
 func TestCountCPUList(t *testing.T) {
 	for _, tc := range []struct {
 		value string

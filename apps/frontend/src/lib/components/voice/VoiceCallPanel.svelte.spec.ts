@@ -31,6 +31,55 @@ function mediaQuery(matches: boolean, media: string): MediaQueryList {
 }
 
 describe('VoiceCallPanel screen-share audio', () => {
+  it('updates every simultaneous speaking card in the LiveKit event turn', async () => {
+    const levels = new Map<string, { isSpeaking: boolean; audioLevel: number }>();
+    let publishAudioLevels: () => void = () => undefined;
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'voice',
+        participantCount: 4,
+        viewportWidth: '1200px',
+        viewportHeight: '800px',
+        onStoreSeeded: (store) => {
+          store.voiceCall.getAudioLevel = (identity: string) =>
+            levels.get(identity) ?? { isSpeaking: false, audioLevel: 0 };
+          store.voiceCall.subscribeAudioLevels = (listener: () => void) => {
+            publishAudioLevels = listener;
+            return () => undefined;
+          };
+        }
+      }
+    });
+
+    const cards = await vi.waitFor(() => {
+      const values = Array.from(
+        container.querySelectorAll<HTMLElement>('[data-testid="call-participant-card"]')
+      );
+      expect(values).toHaveLength(4);
+      return values;
+    });
+    levels.set('gallery-1', { isSpeaking: true, audioLevel: 0.24 });
+    levels.set('gallery-2', { isSpeaking: true, audioLevel: 0.76 });
+    levels.set('gallery-3', { isSpeaking: true, audioLevel: 0.51 });
+    levels.set('gallery-4', { isSpeaking: true, audioLevel: 0.9 });
+
+    publishAudioLevels();
+
+    expect(cards.every((card) => card.dataset.callSpeaking === 'true')).toBe(true);
+    for (const card of cards) {
+      expect(Number(card.style.getPropertyValue('--call-speaking-ring-opacity'))).toBeGreaterThan(
+        0
+      );
+    }
+
+    levels.set('gallery-2', { isSpeaking: false, audioLevel: 0 });
+    publishAudioLevels();
+
+    expect(cards[1]?.dataset.callSpeaking).toBe('false');
+    expect(cards.filter((card) => card.dataset.callSpeaking === 'true')).toHaveLength(3);
+  });
+
   it('shows an accessible central status while the local call is joining', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'stage', scenario: 'voice', joining: true }
@@ -79,6 +128,47 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(indicator?.textContent).toContain('82 ms');
     expect(indicator?.getAttribute('aria-label')).toBe('Unstable network — 82 ms jitter');
     expect(container.querySelector('[data-testid="call-packet-loss-indicator"]')).toBeNull();
+  });
+
+  it('explains average latency, packet loss, and jitter on keyboard focus', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'voice' }
+    });
+
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-connection-quality-indicator"][data-network-warning-metric="packetLoss"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    trigger.focus();
+
+    await vi.waitFor(() => {
+      const value = document.getElementById(trigger.getAttribute('aria-describedby') ?? '');
+      expect(value?.matches(':popover-open')).toBe(true);
+    });
+    const tooltip = document.getElementById(trigger.getAttribute('aria-describedby') ?? '')!;
+    expect(trigger.getAttribute('aria-describedby')).toBe(tooltip.id);
+    expect(tooltip.textContent).toContain('Average latency: 640 ms');
+    expect(tooltip.textContent).toContain('Packet loss: 12.4%');
+    expect(tooltip.textContent).toContain('Average jitter: 82 ms');
+  });
+
+  it('renders good measured connections as healthy instead of unavailable gray', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'voice' }
+    });
+
+    const indicator = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLElement>(
+        '[data-testid="call-connection-quality-indicator"][data-connection-quality="good"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(indicator.querySelector('.text-presence-online')).not.toBeNull();
+    expect(indicator.getAttribute('data-network-health')).toBe('good');
   });
 
   it('navigates the device menu and restores its trigger focus', async () => {

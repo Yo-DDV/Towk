@@ -25,6 +25,7 @@ retained only for non-joined projections that still consume this component.
   import CallTileActionButton from './CallTileActionButton.svelte';
   import CallTileActionToolbar from './CallTileActionToolbar.svelte';
   import ScreenShareDiagnostics from './ScreenShareDiagnostics.svelte';
+  import FloatingTooltip from '$lib/ui/FloatingTooltip.svelte';
   import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
   import type { Track } from 'livekit-client';
   import type { Attachment } from 'svelte/attachments';
@@ -60,6 +61,12 @@ retained only for non-joined projections that still consume this component.
   let hasActiveCall = $derived(activeCallRooms.has(roomId));
   let isStageLayout = $derived(layout === 'stage');
   let diagnosticsParticipantKey = $state<string | null>(null);
+  let connectionTooltip = $state<{
+    key: string;
+    anchor: { top: number; bottom: number; left: number };
+    pointer: boolean;
+    focus: boolean;
+  } | null>(null);
   let pictureInPictureAvailable = $state(false);
   let pictureInPictureActive = $state(false);
   let sceneWidth = $state(1_200);
@@ -162,7 +169,8 @@ retained only for non-joined projections that still consume this component.
     networkHealth: 'excellent' | 'good' | 'degraded' | 'poor' | 'unknown';
     packetLossPercent: number | null;
     jitterMs: number | null;
-    networkWarningMetric: 'packetLoss' | 'jitter' | null;
+    latencyMs: number | null;
+    networkWarningMetric: 'packetLoss' | 'jitter' | 'latency' | null;
     connectionState: 'connected' | 'interrupted';
     interruptionDeadline: string | null;
     isCameraEnabled: boolean;
@@ -198,6 +206,7 @@ retained only for non-joined projections that still consume this component.
         networkHealth: p.networkHealth,
         packetLossPercent: p.packetLossPercent,
         jitterMs: p.jitterMs,
+        latencyMs: p.latencyMs,
         networkWarningMetric: p.networkWarningMetric,
         connectionState: p.connectionState,
         interruptionDeadline: p.interruptionDeadline,
@@ -233,6 +242,7 @@ retained only for non-joined projections that still consume this component.
       networkHealth: 'unknown',
       packetLossPercent: null,
       jitterMs: null,
+      latencyMs: null,
       networkWarningMetric: null,
       connectionState: p.connectionState,
       interruptionDeadline: p.interruptionDeadline,
@@ -479,7 +489,59 @@ retained only for non-joined projections that still consume this component.
         milliseconds: formatNetworkMetric(participant.jitterMs)
       });
     }
+    if (participant.networkWarningMetric === 'latency' && participant.latencyMs !== null) {
+      return m['voice.participant_high_latency']({
+        milliseconds: formatNetworkMetric(participant.latencyMs)
+      });
+    }
     return m['voice.poor_connection']();
+  }
+
+  function participantConnectionMetrics(participant: DisplayParticipant): string {
+    const unavailable = m['voice.connection_metric_unavailable']();
+    return m['voice.participant_connection_metrics']({
+      latency:
+        participant.latencyMs === null
+          ? unavailable
+          : `${formatNetworkMetric(participant.latencyMs)} ms`,
+      packetLoss:
+        participant.packetLossPercent === null
+          ? unavailable
+          : `${formatNetworkMetric(participant.packetLossPercent)}%`,
+      jitter:
+        participant.jitterMs === null
+          ? unavailable
+          : `${formatNetworkMetric(participant.jitterMs)} ms`
+    });
+  }
+
+  function participantConnectionTooltipId(participant: DisplayParticipant): string {
+    return `call-connection-tooltip-${encodeURIComponent(participant.key)}`;
+  }
+
+  function showConnectionTooltip(
+    participant: DisplayParticipant,
+    event: MouseEvent | FocusEvent,
+    source: 'pointer' | 'focus'
+  ) {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const previous = connectionTooltip?.key === participant.key ? connectionTooltip : null;
+    connectionTooltip = {
+      key: participant.key,
+      anchor: { top: rect.top, bottom: rect.bottom, left: rect.left },
+      pointer: source === 'pointer' || Boolean(previous?.pointer),
+      focus: source === 'focus' || Boolean(previous?.focus)
+    };
+  }
+
+  function hideConnectionTooltip(participant: DisplayParticipant, source: 'pointer' | 'focus') {
+    if (connectionTooltip?.key !== participant.key) return;
+    const next = {
+      ...connectionTooltip,
+      pointer: source === 'pointer' ? false : connectionTooltip.pointer,
+      focus: source === 'focus' ? false : connectionTooltip.focus
+    };
+    connectionTooltip = next.pointer || next.focus ? next : null;
   }
 
   function participantConnectionLabel(participant: DisplayParticipant): string {
@@ -513,7 +575,6 @@ retained only for non-joined projections that still consume this component.
   }
 
   const speakingCards: Array<{ identity: string; node: HTMLElement }> = [];
-  let speakingIndicatorInterval: ReturnType<typeof setInterval> | null = null;
 
   function updateSpeakingIndicators() {
     for (const { identity, node } of speakingCards) {
@@ -530,30 +591,17 @@ retained only for non-joined projections that still consume this component.
     }
   }
 
-  function startSpeakingIndicatorLoop() {
-    if (speakingIndicatorInterval) return;
-
-    speakingIndicatorInterval = setInterval(updateSpeakingIndicators, 60);
-  }
-
-  function stopSpeakingIndicatorLoopIfIdle() {
-    if (speakingCards.length > 0 || !speakingIndicatorInterval) return;
-
-    clearInterval(speakingIndicatorInterval);
-    speakingIndicatorInterval = null;
-  }
+  $effect(() => voiceCallState.subscribeAudioLevels(updateSpeakingIndicators));
 
   function speakingCard(identity: string): Attachment<HTMLElement> {
     return (node) => {
       const entry = { identity, node };
       speakingCards.push(entry);
       updateSpeakingIndicators();
-      startSpeakingIndicatorLoop();
 
       return () => {
         const index = speakingCards.indexOf(entry);
         if (index !== -1) speakingCards.splice(index, 1);
-        stopSpeakingIndicatorLoopIfIdle();
       };
     };
   }
@@ -871,13 +919,23 @@ retained only for non-joined projections that still consume this component.
         data-testid="call-output-muted-indicator"
       ></span>
     {/if}
-    <span
-      class="inline-flex min-w-4 shrink-0 items-center justify-center"
+    <button
+      type="button"
+      class="inline-flex min-w-4 shrink-0 cursor-help items-center justify-center border-0 bg-transparent p-0"
       aria-label={participantConnectionLabel(participant)}
+      aria-describedby={connectionTooltip?.key === participant.key
+        ? participantConnectionTooltipId(participant)
+        : undefined}
+      onmouseenter={(event) => showConnectionTooltip(participant, event, 'pointer')}
+      onmouseleave={() => hideConnectionTooltip(participant, 'pointer')}
+      onfocus={(event) => showConnectionTooltip(participant, event, 'focus')}
+      onblur={() => hideConnectionTooltip(participant, 'focus')}
       data-testid="call-connection-quality-indicator"
       data-connection-quality={participant.connectionState === 'interrupted'
         ? 'interrupted'
         : participant.connectionQuality}
+      data-network-health={participant.networkHealth}
+      data-network-warning-metric={participant.networkWarningMetric ?? undefined}
     >
       {#if participant.connectionState === 'interrupted'}
         <span
@@ -889,7 +947,9 @@ retained only for non-joined projections that still consume this component.
         <span
           class={[
             'inline-flex max-w-full items-center gap-1 overflow-hidden rounded-full px-1.5 py-0.5 text-[0.6875rem] font-semibold tabular-nums',
-            participant.connectionQuality === 'lost' || participant.networkHealth === 'poor'
+            participant.connectionQuality === 'poor' ||
+            participant.connectionQuality === 'lost' ||
+            participant.networkHealth === 'poor'
               ? 'bg-danger/10 text-danger'
               : 'bg-warning/10 text-warning'
           ]}
@@ -898,7 +958,9 @@ retained only for non-joined projections that still consume this component.
             ? 'call-packet-loss-indicator'
             : participant.networkWarningMetric === 'jitter'
               ? 'call-jitter-indicator'
-              : 'call-connection-warning-indicator'}
+              : participant.networkWarningMetric === 'latency'
+                ? 'call-latency-indicator'
+                : 'call-connection-warning-indicator'}
         >
           <span class="iconify shrink-0 uil--exclamation-triangle" aria-hidden="true"></span>
           {#if participant.networkWarningMetric === 'packetLoss' && participant.packetLossPercent !== null}
@@ -911,18 +973,39 @@ retained only for non-joined projections that still consume this component.
                 milliseconds: formatNetworkMetric(participant.jitterMs)
               })}</span
             >
+          {:else if participant.networkWarningMetric === 'latency' && participant.latencyMs !== null}
+            <span class="call-network-metric-value truncate"
+              >{m['voice.jitter_value']({
+                milliseconds: formatNetworkMetric(participant.latencyMs)
+              })}</span
+            >
           {/if}
         </span>
       {:else}
         <span
           class={[
             'iconify shrink-0 uil--signal-alt-3',
-            participant.connectionQuality === 'excellent' ? 'text-presence-online' : 'text-muted'
+            participant.networkHealth === 'excellent' ||
+            participant.networkHealth === 'good' ||
+            participant.connectionQuality === 'excellent' ||
+            participant.connectionQuality === 'good'
+              ? 'text-presence-online'
+              : 'text-muted'
           ]}
           aria-hidden="true"
         ></span>
       {/if}
-    </span>
+    </button>
+    <FloatingTooltip
+      open={connectionTooltip?.key === participant.key}
+      anchor={connectionTooltip?.key === participant.key ? connectionTooltip.anchor : null}
+      placement="top"
+      id={participantConnectionTooltipId(participant)}
+    >
+      <span class="block max-w-[min(28rem,calc(100vw-1rem))] text-left whitespace-normal">
+        {participantConnectionMetrics(participant)}
+      </span>
+    </FloatingTooltip>
   </span>
 {/snippet}
 
@@ -1660,15 +1743,24 @@ retained only for non-joined projections that still consume this component.
 
   :global(.call-speaking-card)::after {
     position: absolute;
-    inset: 0;
+    z-index: 20;
+    inset: 1px;
     border: 2px solid var(--color-accent);
     border-radius: inherit;
-    box-shadow: 0 0 0.75rem color-mix(in srgb, var(--color-accent) 30%, transparent);
+    box-shadow:
+      inset 0 0 0.65rem color-mix(in srgb, var(--color-accent) 24%, transparent),
+      0 0 0.8rem color-mix(in srgb, var(--color-accent) 34%, transparent);
     content: '';
     opacity: var(--call-speaking-ring-opacity);
     pointer-events: none;
-    transition: opacity 80ms linear;
-    animation: call-speaking-ring-pulse 1.25s ease-in-out infinite;
+    transition: opacity 160ms ease-in;
+  }
+
+  :global(.call-speaking-card[data-call-speaking='true'])::after {
+    animation: call-speaking-ring-pulse 1.15s ease-in-out infinite;
+    transition-duration: 45ms;
+    transition-timing-function: ease-out;
+    will-change: transform, opacity;
   }
 
   @keyframes call-speaking-ring-pulse {
@@ -1678,7 +1770,13 @@ retained only for non-joined projections that still consume this component.
     }
 
     50% {
-      transform: scale(1.012);
+      transform: scale(0.994);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(.call-speaking-card[data-call-speaking='true'])::after {
+      animation: none;
     }
   }
 </style>

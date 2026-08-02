@@ -3,7 +3,7 @@ title: Video Processing
 description: How to enable and configure video processing in Towk.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 Towk can transcode uploaded videos into multiple quality variants for adaptive playback. When processing is enabled and a user uploads a video, the server generates optimized MP4 variants (H.264/AAC), a thumbnail, and then serves them through a built-in video player. Without processing, Towk still stores the original video, but browser playback then depends on the original container and codec being supported by the viewer's browser and operating system.
 
@@ -52,37 +52,39 @@ CHATTO_VIDEO_ENABLED=true
 That's it. Towk will auto-detect `ffmpeg` and `ffprobe` from your `PATH`.
 
 <Aside>
-  When video processing is disabled (the default), original videos remain shareable under the general attachment limit. Enabling processing adds transcoding, adaptive playback, thumbnail generation, and the separate video upload limit.
+  When video processing is disabled (the default), original videos remain
+  shareable under the general attachment limit. Enabling processing adds
+  transcoding, adaptive playback, thumbnail generation, and the separate video
+  upload limit.
 </Aside>
 
 ## Configuration Options
 
 All settings live under the `[video]` section in `towk.toml`. See the [Environment Variables](/reference/environment-variables/#video-processing) reference for the full list.
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `enabled` | `false` | Enable video processing |
-| `ffmpeg_path` | auto-detect | Path to `ffmpeg` binary |
-| `ffprobe_path` | auto-detect | Path to `ffprobe` binary |
-| `max_concurrent` | `2` | Legacy compatibility setting. Current media admission is governed by the runtime performance profile and the shared media-transcode worker pool. |
-| `max_upload_size` | `100 MB` | Max upload size for video files while processing is enabled |
-| `max_duration` | `20m` | Max source video/GIF duration accepted for server-side processing |
-| `max_pixels` | `8294400` | Max source display pixel area accepted for server-side processing. The default is 3840×2160. |
-| `temp_dir` | system temp | Directory for temporary transcoding files |
+| Setting           | Default     | Description                                                                                        |
+| ----------------- | ----------- | -------------------------------------------------------------------------------------------------- |
+| `enabled`         | `false`     | Enable video processing                                                                            |
+| `ffmpeg_path`     | auto-detect | Path to `ffmpeg` binary                                                                            |
+| `ffprobe_path`    | auto-detect | Path to `ffprobe` binary                                                                           |
+| `max_concurrent`  | ignored     | Deprecated compatibility setting. Adaptive scheduling uses the shared media-transcode worker pool. |
+| `max_upload_size` | `100 MB`    | Max upload size for video files while processing is enabled                                        |
+| `max_duration`    | `20m`       | Max source video/GIF duration accepted for server-side processing                                  |
+| `max_pixels`      | `8294400`   | Max source display pixel area accepted for server-side processing. The default is 3840×2160.       |
+| `temp_dir`        | system temp | Directory for temporary transcoding files                                                          |
 
 ### Tuning Concurrency
 
-Each video/GIF transcoding job and each non-MP4 voice-message normalization uses CPU and temporary disk space. The active concurrency control is the runtime performance profile selected by a server owner in **Server administration → System**, bounded by the detected CPU/memory envelope and any operator caps from the deployment configuration.
+Each video/GIF transcoding job and each non-MP4 voice-message normalization uses CPU and temporary disk space. Towk derives active concurrency from the detected CPU/memory envelope and any operator caps from the deployment configuration. **Server administration → System** reports the resulting target and effective limit but does not mutate the host.
 
 Use these layers together:
 
-- choose **Economy**, **Balanced**, **Performance**, or a bounded **Custom** profile in the admin UI for newly admitted work;
+- let adaptive scheduling use the resources visible to the Towk process;
 - set `CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS` / `performance.max_video_workers` when the operator needs a hard per-process ceiling for video variants, animated-GIF optimization, and voice-message normalization;
-- keep `video.max_concurrent` only for compatibility with older configuration files. It is not the primary tuning lever for the current shared media-transcode pool.
+- keep `video.max_concurrent` only when an older binary must read the same configuration. Current releases ignore it; use `performance.max_video_workers` only when an explicit operator ceiling is required.
 
 ```toml
 [performance]
-default_profile = "balanced"
 max_video_workers = 4
 [video]
 enabled = true
@@ -128,11 +130,11 @@ Phones and browsers do not always agree on upload metadata. For example, a mobil
 
 Towk treats the browser-provided MIME type as a hint, not as the only authority. Common mobile video extensions are normalized during upload when the declared type is missing or generic:
 
-| Extension | Normalized content type |
-| --------- | ----------------------- |
-| `.mov`, `.qt` | `video/quicktime` |
-| `.m4v`, `.mp4` | `video/mp4` |
-| `.webm` | `video/webm` |
+| Extension      | Normalized content type |
+| -------------- | ----------------------- |
+| `.mov`, `.qt`  | `video/quicktime`       |
+| `.m4v`, `.mp4` | `video/mp4`             |
+| `.webm`        | `video/webm`            |
 
 The web client uses the same narrow extension list for pre-upload size feedback,
 local previews, and the upload metadata it sends when the browser reports an

@@ -63,6 +63,45 @@ describe('call scene container layout', () => {
     expect(computeSceneGrid(1_600, 900, 20)).toMatchObject({ columns: 5, rows: 4 });
   });
 
+  it('keeps two participants side by side in near-square desktop call regions', () => {
+    expect(computeSceneGrid(752, 776, 2)).toEqual({
+      capacity: 2,
+      columns: 2,
+      rows: 1,
+      tileSize: 370
+    });
+    expect(computeSceneGrid(700, 760, 2)).toEqual({
+      capacity: 2,
+      columns: 2,
+      rows: 1,
+      tileSize: 344
+    });
+    expect(computeSceneGrid(752, 840, 2)).toEqual({
+      capacity: 2,
+      columns: 2,
+      rows: 1,
+      tileSize: 370
+    });
+  });
+
+  it('preserves a vertical two-participant stack when portrait space materially improves readability', () => {
+    expect(computeSceneGrid(390, 700, 2)).toEqual({
+      capacity: 2,
+      columns: 1,
+      rows: 2,
+      tileSize: 344
+    });
+  });
+
+  it('keeps both dense two-device cards visible when only the vertical shape is readable', () => {
+    expect(computeSceneGrid(400, 460, 2, 220)).toEqual({
+      capacity: 2,
+      columns: 1,
+      rows: 2,
+      tileSize: 224
+    });
+  });
+
   it('keeps every adaptive grid inside representative viewport bounds', () => {
     for (const width of [280, 320, 390, 640, 844, 1_280, 1_920, 3_840]) {
       for (const height of [219, 300, 360, 568, 720, 1_080, 2_160]) {
@@ -165,6 +204,9 @@ describe('call scene container layout', () => {
 
   it('uses the available filmstrip width without producing oversized companion cards', () => {
     expect(computeFilmstripTileWidth(360, 2)).toBe(174);
+    expect(computeFilmstripTileWidth(1_920, 2)).toBe(560);
+    expect(computeFilmstripTileWidth(2_560, 2)).toBe(720);
+    expect(computeFilmstripTileWidth(3_840, 2)).toBe(960);
     expect(computeFilmstripTileWidth(1_200, 4)).toBe(291);
     expect(computeFilmstripTileWidth(1_920, 4)).toBe(420);
     expect(computeFilmstripTileWidth(2_560, 3)).toBe(560);
