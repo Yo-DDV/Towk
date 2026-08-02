@@ -1,0 +1,20 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "upload_progress": {
+    "preparing": "Preparando {filename}",
+    "uploading": "Subiendo {filename}",
+    "finalizing": "Validando el archivo subido",
+    "sending": "Publicando el mensaje",
+    "confirming": "Confirmándolo en la conversación",
+    "confirmed": "Enviado",
+    "upload_interrupted": "Carga interrumpida",
+    "message_unconfirmed": "Mensaje sin confirmar",
+    "file_position": "{filename} · {current}/{total}",
+    "transferred": "{committed} de {total}",
+    "elapsed": "Han pasado {time}",
+    "remaining": "Quedan {time}",
+    "progress_label": "Progreso de carga del mensaje",
+    "retry": "Reintentar la carga",
+    "dismiss": "Ocultar el estado de carga"
+  }
+}

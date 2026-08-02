@@ -1,10 +1,11 @@
 package core
 
 import (
+	"context"
 	"errors"
-	"slices"
-	"sync"
+	"strings"
 	"testing"
+	"time"
 
 	"hmans.de/chatto/internal/config"
 	configv1 "hmans.de/chatto/internal/pb/chatto/config/v1"
@@ -12,204 +13,177 @@ import (
 	"hmans.de/chatto/internal/runtimecap"
 )
 
-func TestPerformanceManagerResolvesProfilesAgainstProcessEnvelope(t *testing.T) {
-	projection := NewConfigProjection()
-	manager := newPerformanceManager(config.PerformanceConfig{DefaultProfile: config.PerformanceProfilePerformance}, projection, func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 2, MemoryBytes: 2 << 30, CPUSource: "test", MemorySource: "test"}
-	})
+func TestPerformanceManagerAdaptsToEveryVisibleCore(t *testing.T) {
+	for _, cpus := range []int{1, 2, 4, 6, 16} {
+		t.Run(string(rune('A'+cpus)), func(t *testing.T) {
+			manager := newPerformanceManager(config.PerformanceConfig{}, nil, func() runtimecap.Capacity {
+				return runtimecap.Capacity{
+					CPUs: cpus, MemoryBytes: 64 << 30,
+					CPUSource: "test", MemorySource: "test",
+				}
+			})
 
-	status := manager.Status()
-	if status.Source != performanceSourceOperatorDefault || status.RequestedProfile != config.PerformanceProfilePerformance {
-		t.Fatalf("profile status = %#v", status)
-	}
-	if status.Effective.ImageTransformWorkers != 2 || status.Effective.VideoWorkers != 2 {
-		t.Fatalf("CPU-heavy limits = %#v, want 2", status.Effective)
-	}
-	if status.Effective.AssetUploadWorkers != 4 {
-		t.Fatalf("upload workers = %d, want CPU-derived 4", status.Effective.AssetUploadWorkers)
-	}
-	if len(status.CapReasons["image_transform_workers"]) == 0 {
-		t.Fatal("missing cap reason for image transforms")
+			status := manager.Status()
+			want := PerformanceLimits{
+				ImageTransformWorkers:    cpus,
+				ImageTransformAdmissions: cpus * 8,
+				AssetUploadWorkers:       cpus * 2,
+				LinkPreviewWorkers:       cpus,
+				VideoWorkers:             cpus,
+			}
+			if status.RequestedProfile != config.PerformanceProfileAdaptive ||
+				status.EffectiveProfile != config.PerformanceProfileAdaptive ||
+				status.Source != performanceSourceAdaptive ||
+				status.SchemaVersion != performanceSettingsSchemaVersion {
+				t.Fatalf("adaptive status metadata = %#v", status)
+			}
+			if status.Requested != want || status.Effective != want {
+				t.Fatalf("limits for %d CPUs = requested %#v effective %#v, want %#v", cpus, status.Requested, status.Effective, want)
+			}
+			if len(status.CapReasons) != 0 {
+				t.Fatalf("unexpected cap reasons for %d CPUs: %v", cpus, status.CapReasons)
+			}
+		})
 	}
 }
 
-func TestPerformanceManagerOwnerPolicyAndOperatorCap(t *testing.T) {
-	projection := NewConfigProjection()
-	applyPerformancePolicy(t, projection, &configv1.ServerPerformancePolicy{SchemaVersion: 1, Profile: config.PerformanceProfilePerformance, Revision: 7})
-	manager := newPerformanceManager(config.PerformanceConfig{MaxVideoWorkers: 1}, projection, func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 16, MemoryBytes: 16 << 30}
+func TestPerformanceManagerUsesMemoryToKeepSmallHostsSafe(t *testing.T) {
+	manager := newPerformanceManager(config.PerformanceConfig{}, nil, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 6, MemoryBytes: 1 << 30}
 	})
 
 	status := manager.Status()
-	if status.Source != performanceSourceOwner || status.Revision != 7 {
-		t.Fatalf("owner policy status = %#v", status)
+	want := PerformanceLimits{
+		ImageTransformWorkers:    1,
+		ImageTransformAdmissions: 8,
+		AssetUploadWorkers:       12,
+		LinkPreviewWorkers:       6,
+		VideoWorkers:             1,
 	}
-	if status.Requested.VideoWorkers != 4 || status.Effective.VideoWorkers != 1 {
-		t.Fatalf("video limits = requested %d effective %d", status.Requested.VideoWorkers, status.Effective.VideoWorkers)
+	if status.Effective != want {
+		t.Fatalf("low-memory limits = %#v, want %#v", status.Effective, want)
 	}
-	if got := status.CapReasons["video_workers"]; len(got) != 1 || got[0] != capReasonOperator {
-		t.Fatalf("video cap reasons = %v", got)
+	for _, field := range []string{"image_transform_workers", "image_transform_admissions", "video_workers"} {
+		if got := status.CapReasons[field]; len(got) != 1 || got[0] != capReasonMemory {
+			t.Fatalf("%s cap reasons = %v, want memory", field, got)
+		}
 	}
 }
 
-func TestPerformanceManagerAppliesEveryEnvelopeInPrecedenceOrder(t *testing.T) {
-	projection := NewConfigProjection()
-	applyPerformancePolicy(t, projection, &configv1.ServerPerformancePolicy{
-		SchemaVersion: 1,
-		Profile:       config.PerformanceProfileCustom,
-		CustomLimits:  performanceLimitsToProto(PerformanceLimits{12, 32, 12, 12, 12}),
-		Revision:      3,
-	})
+func TestMemorySlotsKeepsAReserveOnLargeHosts(t *testing.T) {
+	if got, want := memorySlots(16<<30, 512<<20, 512<<20), 28; got != want {
+		t.Fatalf("large-host memory slots = %d, want %d after proportional reserve", got, want)
+	}
+	if got := memorySlots(1<<30, 512<<20, 512<<20); got != 1 {
+		t.Fatalf("small-host memory slots = %d, want fail-safe one slot", got)
+	}
+}
+
+func TestPerformanceManagerAppliesOptionalOperatorCapsAfterAdaptiveSizing(t *testing.T) {
 	manager := newPerformanceManager(config.PerformanceConfig{
-		MaxImageTransformWorkers:    8,
-		MaxImageTransformAdmissions: 24,
-		MaxAssetUploadWorkers:       8,
-		MaxLinkPreviewWorkers:       8,
-		MaxVideoWorkers:             8,
-	}, projection, func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 4, MemoryBytes: 1 << 30}
+		MaxImageTransformWorkers:    3,
+		MaxImageTransformAdmissions: 7,
+		MaxAssetUploadWorkers:       5,
+		MaxLinkPreviewWorkers:       2,
+		MaxVideoWorkers:             1,
+	}, nil, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 8, MemoryBytes: 32 << 30}
 	})
 
 	status := manager.Status()
-	if status.Effective.ImageTransformWorkers != 1 || status.Effective.VideoWorkers != 1 {
-		t.Fatalf("memory-heavy limits = %#v, want 1", status.Effective)
+	want := PerformanceLimits{3, 7, 5, 2, 1}
+	if status.Effective != want {
+		t.Fatalf("operator-capped limits = %#v, want %#v", status.Effective, want)
 	}
-	if got, want := status.CapReasons["image_transform_workers"], []string{capReasonOperator, capReasonCPU, capReasonMemory}; !slices.Equal(got, want) {
-		t.Fatalf("image transform cap reasons = %v, want %v", got, want)
-	}
-	if got, want := status.CapReasons["link_preview_workers"], []string{capReasonOperator, capReasonCPU}; !slices.Equal(got, want) {
-		t.Fatalf("link preview cap reasons = %v, want %v", got, want)
+	for _, field := range []string{"image_transform_workers", "image_transform_admissions", "asset_upload_workers", "link_preview_workers", "video_workers"} {
+		if got := status.CapReasons[field]; len(got) != 1 || got[0] != capReasonOperator {
+			t.Fatalf("%s cap reasons = %v, want operator", field, got)
+		}
 	}
 }
 
-func TestPerformanceManagerAdmissionOperatorCapAlsoBoundsWorkers(t *testing.T) {
-	projection := NewConfigProjection()
-	applyPerformancePolicy(t, projection, &configv1.ServerPerformancePolicy{
-		SchemaVersion: 1,
-		Profile:       config.PerformanceProfilePerformance,
-		Revision:      4,
-	})
+func TestPerformanceManagerAdmissionCapAlsoBoundsWorkers(t *testing.T) {
 	manager := newPerformanceManager(config.PerformanceConfig{
 		MaxImageTransformAdmissions: 1,
-	}, projection, func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 16, MemoryBytes: 16 << 30}
+	}, nil, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 8, MemoryBytes: 32 << 30}
 	})
 
 	status := manager.Status()
 	if status.Effective.ImageTransformWorkers != 1 || status.Effective.ImageTransformAdmissions != 1 {
 		t.Fatalf("image transform limits = %#v, want workers and admissions bounded to 1", status.Effective)
 	}
-	if !slices.Contains(status.CapReasons["image_transform_workers"], capReasonOperator) {
-		t.Fatalf("worker cap reasons = %v, want inherited operator admission cap", status.CapReasons["image_transform_workers"])
-	}
-	if status.EffectiveProfile != config.PerformanceProfileCustom {
-		t.Fatalf("effective profile = %q, want custom after partial caps", status.EffectiveProfile)
+	if got := status.CapReasons["image_transform_workers"]; len(got) != 1 || got[0] != capReasonOperator {
+		t.Fatalf("worker cap reasons = %v, want inherited operator admission cap", got)
 	}
 }
 
-func TestPerformanceManagerPreservesHistoricalUpgradeAndUsesBalancedForNewConfig(t *testing.T) {
+func TestPerformanceManagerIgnoresHistoricalOwnerProfiles(t *testing.T) {
 	projection := NewConfigProjection()
-	detect := func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 8, MemoryBytes: 8 << 30}
-	}
-
-	historical := newPerformanceManager(config.PerformanceConfig{}, projection, detect).Status()
-	if historical.Source != performanceSourceHistorical || historical.RequestedProfile != config.PerformanceProfileLegacy {
-		t.Fatalf("historical status = %#v", historical)
-	}
-	if historical.Effective != performancePreset(config.PerformanceProfileBalanced) {
-		t.Fatalf("historical limits = %#v, want balanced-compatible limits", historical.Effective)
-	}
-	if historical.EffectiveProfile != config.PerformanceProfileBalanced {
-		t.Fatalf("historical effective profile = %q, want balanced", historical.EffectiveProfile)
-	}
-
-	newConfig := newPerformanceManager(config.PerformanceConfig{DefaultProfile: config.PerformanceProfileBalanced}, projection, detect).Status()
-	if newConfig.Source != performanceSourceOperatorDefault || newConfig.RequestedProfile != config.PerformanceProfileBalanced {
-		t.Fatalf("new-config status = %#v", newConfig)
-	}
-}
-
-func TestPerformanceManagerReplicasSharePolicyAndDeriveLocalEnvelopeAfterRestart(t *testing.T) {
-	policy := &configv1.ServerPerformancePolicy{
-		SchemaVersion: 1,
-		Profile:       config.PerformanceProfilePerformance,
-		Revision:      11,
-	}
-	projection := NewConfigProjection()
-	applyPerformancePolicy(t, projection, policy)
-	replayedProjection := NewConfigProjection()
-	applyPerformancePolicy(t, replayedProjection, policy)
-
-	large := newPerformanceManager(config.PerformanceConfig{}, projection, func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 8, MemoryBytes: 8 << 30}
-	}).Status()
-	small := newPerformanceManager(config.PerformanceConfig{}, replayedProjection, func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 1, MemoryBytes: 768 << 20}
-	}).Status()
-
-	if large.Revision != 11 || small.Revision != 11 || large.RequestedProfile != small.RequestedProfile {
-		t.Fatalf("replica policy mismatch: large=%#v small=%#v", large, small)
-	}
-	if large.Effective.ImageTransformWorkers != 4 || small.Effective.ImageTransformWorkers != 1 {
-		t.Fatalf("replica effective limits: large=%#v small=%#v", large.Effective, small.Effective)
-	}
-	if len(small.CapReasons["image_transform_workers"]) == 0 {
-		t.Fatal("small replica did not explain its local cap")
-	}
-}
-
-func TestPerformanceManagerCustomPolicy(t *testing.T) {
-	projection := NewConfigProjection()
-	want := PerformanceLimits{3, 12, 5, 2, 2}
 	applyPerformancePolicy(t, projection, &configv1.ServerPerformancePolicy{
 		SchemaVersion: 1,
-		Profile:       config.PerformanceProfileCustom,
-		CustomLimits:  performanceLimitsToProto(want),
-		Revision:      2,
+		Profile:       config.PerformanceProfileEconomy,
+		Revision:      7,
 	})
-	manager := newPerformanceManager(config.PerformanceConfig{}, projection, func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 16, MemoryBytes: 16 << 30}
+	manager := newPerformanceManager(config.PerformanceConfig{
+		DefaultProfile: config.PerformanceProfilePerformance,
+	}, projection, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 6, MemoryBytes: 16 << 30}
 	})
+
 	status := manager.Status()
-	if status.PolicyError != "" || status.Requested != want || status.Effective != want {
-		t.Fatalf("custom policy status = %#v", status)
+	if status.RequestedProfile != config.PerformanceProfileAdaptive || status.Source != performanceSourceAdaptive {
+		t.Fatalf("historical policy affected adaptive metadata: %#v", status)
+	}
+	if status.Revision != 0 || status.Requested.ImageTransformWorkers != 6 || status.Requested.VideoWorkers != 6 {
+		t.Fatalf("historical policy affected adaptive capacity: %#v", status)
 	}
 }
 
-func TestPerformanceManagerUnknownSchemaFallsBackSafely(t *testing.T) {
-	projection := NewConfigProjection()
-	applyPerformancePolicy(t, projection, &configv1.ServerPerformancePolicy{SchemaVersion: 99, Profile: config.PerformanceProfilePerformance, Revision: 8})
-	manager := newPerformanceManager(config.PerformanceConfig{}, projection, func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 32, MemoryBytes: 32 << 30}
+func TestPerformanceManagerFallsBackToOneCPUWhenDetectorIsInvalid(t *testing.T) {
+	manager := newPerformanceManager(config.PerformanceConfig{}, nil, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 0, MemoryBytes: 0}
 	})
+
 	status := manager.Status()
-	if status.PolicyError == "" || status.EffectiveProfile != config.PerformanceProfileEconomy {
-		t.Fatalf("unknown-schema status = %#v", status)
-	}
-	if status.Effective != performancePreset(config.PerformanceProfileEconomy) {
-		t.Fatalf("fallback limits = %#v", status.Effective)
+	want := PerformanceLimits{1, 8, 2, 1, 1}
+	if status.Requested != want || status.Effective != want {
+		t.Fatalf("fallback limits = requested %#v effective %#v, want %#v", status.Requested, status.Effective, want)
 	}
 }
 
-func TestValidatePerformancePolicyRejectsUnsafeCustomLimits(t *testing.T) {
-	err := validatePerformancePolicy(&configv1.ServerPerformancePolicy{
-		SchemaVersion: 1,
-		Profile:       config.PerformanceProfileCustom,
-		CustomLimits: &configv1.PerformanceLimits{
-			ImageTransformWorkers:    4,
-			ImageTransformAdmissions: 2,
-			AssetUploadWorkers:       1,
-			LinkPreviewWorkers:       1,
-			VideoWorkers:             1,
-		},
+func TestAdaptivePerformanceLimitsStayWithinWorkPoolMaximums(t *testing.T) {
+	got := adaptivePerformanceLimits(runtimecap.Capacity{CPUs: maxPerformanceValue})
+	want := PerformanceLimits{
+		ImageTransformWorkers:    config.MaxPerformanceWorkers,
+		ImageTransformAdmissions: config.MaxPerformanceAdmissions,
+		AssetUploadWorkers:       config.MaxPerformanceWorkers,
+		LinkPreviewWorkers:       config.MaxPerformanceWorkers,
+		VideoWorkers:             config.MaxPerformanceWorkers,
+	}
+	if got != want {
+		t.Fatalf("saturated adaptive limits = %#v, want %#v", got, want)
+	}
+}
+
+func TestPerformanceManagerRefreshesTheVisibleEnvelope(t *testing.T) {
+	cpus := 2
+	manager := newPerformanceManager(config.PerformanceConfig{}, nil, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: cpus, MemoryBytes: 16 << 30}
 	})
-	if err == nil {
-		t.Fatal("unsafe custom limits were accepted")
+	if got := manager.Status().Effective.ImageTransformWorkers; got != 2 {
+		t.Fatalf("initial workers = %d, want 2", got)
+	}
+
+	cpus = 6
+	manager.detectedAt = time.Now().Add(-performanceEnvelopeCacheTTL)
+	status := manager.Status()
+	if status.Envelope.CPUs != 6 || status.Effective.ImageTransformWorkers != 6 || status.Effective.VideoWorkers != 6 {
+		t.Fatalf("refreshed status = %#v, want 6 CPUs", status)
 	}
 }
 
-func TestUpdatePerformanceSettingsRequiresOwnerAndRejectsStaleRevision(t *testing.T) {
+func TestPerformanceSettingsRequireOwnerAndRejectRetiredWrites(t *testing.T) {
 	chattoCore, _ := setupTestCore(t)
 	ctx := testContext(t)
 	member, err := chattoCore.CreateUser(ctx, SystemActorID, "performance-member", "Performance Member", "password")
@@ -227,129 +201,68 @@ func TestUpdatePerformanceSettingsRequiresOwnerAndRejectsStaleRevision(t *testin
 		t.Fatal(err)
 	}
 
-	initial, err := chattoCore.GetPerformanceSettings(ctx, owner.Id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if initial.Revision != 0 || initial.Source != performanceSourceHistorical {
-		t.Fatalf("initial status = %#v", initial)
-	}
-	updated, err := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, 0, config.PerformanceProfileBalanced, PerformanceLimits{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Revision != 1 || updated.Source != performanceSourceOwner {
-		t.Fatalf("updated status = %#v", updated)
-	}
-	if _, err := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, 0, config.PerformanceProfileEconomy, PerformanceLimits{}); !errors.Is(err, ErrConfigConflict) {
-		t.Fatalf("stale update error = %v, want config conflict", err)
-	}
-	current, err := chattoCore.GetPerformanceSettings(ctx, owner.Id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if current.Revision != 1 || current.RequestedProfile != config.PerformanceProfileBalanced {
-		t.Fatalf("stale update changed policy: %#v", current)
-	}
-}
-
-func TestMediaTranscodeAdmissionFollowsLivePerformancePolicy(t *testing.T) {
-	chattoCore, _ := setupTestCore(t)
-	chattoCore.performance = newPerformanceManager(config.PerformanceConfig{}, chattoCore.ServerConfig, func() runtimecap.Capacity {
-		return runtimecap.Capacity{CPUs: 16, MemoryBytes: 16 << 30, CPUSource: "test", MemorySource: "test"}
-	})
-	ctx := testContext(t)
-	owner, err := chattoCore.CreateUser(ctx, SystemActorID, "voice-performance-owner", "Voice Performance Owner", "password")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := chattoCore.AssignServerRole(ctx, SystemActorID, owner.Id, RoleOwner); err != nil {
-		t.Fatal(err)
-	}
-
-	economy, err := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, 0, config.PerformanceProfileEconomy, PerformanceLimits{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if economy.Effective.VideoWorkers != 1 {
-		t.Fatalf("economy video workers = %d, want 1", economy.Effective.VideoWorkers)
-	}
-	if !chattoCore.mediaTranscodeLimiter.TryAcquire() {
-		t.Fatal("economy profile rejected its first voice transcode")
-	}
-	if chattoCore.mediaTranscodeLimiter.TryAcquire() {
-		chattoCore.mediaTranscodeLimiter.Release()
-		t.Fatal("economy profile admitted a second concurrent voice transcode")
-	}
-	chattoCore.mediaTranscodeLimiter.Release()
-
-	performance, err := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, economy.Revision, config.PerformanceProfilePerformance, PerformanceLimits{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if performance.Effective.VideoWorkers != 4 {
-		t.Fatalf("performance video workers = %d, want 4", performance.Effective.VideoWorkers)
-	}
-	for range 4 {
-		if !chattoCore.mediaTranscodeLimiter.TryAcquire() {
-			t.Fatal("performance profile rejected one of four voice transcodes")
-		}
-	}
-	if chattoCore.mediaTranscodeLimiter.TryAcquire() {
-		chattoCore.mediaTranscodeLimiter.Release()
-		t.Fatal("performance profile admitted a fifth concurrent voice transcode")
-	}
-	for range 4 {
-		chattoCore.mediaTranscodeLimiter.Release()
-	}
-}
-
-func TestUpdatePerformanceSettingsRejectsOneOfTwoConcurrentOwnerWrites(t *testing.T) {
-	chattoCore, _ := setupTestCore(t)
-	ctx := testContext(t)
-	owner, err := chattoCore.CreateUser(ctx, SystemActorID, "concurrent-performance-owner", "Concurrent Performance Owner", "password")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := chattoCore.AssignServerRole(ctx, SystemActorID, owner.Id, RoleOwner); err != nil {
-		t.Fatal(err)
-	}
-
-	start := make(chan struct{})
-	errs := make(chan error, 2)
-	var ready sync.WaitGroup
-	ready.Add(2)
-	for _, profile := range []string{config.PerformanceProfileEconomy, config.PerformanceProfilePerformance} {
-		go func() {
-			ready.Done()
-			<-start
-			_, updateErr := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, 0, profile, PerformanceLimits{})
-			errs <- updateErr
-		}()
-	}
-	ready.Wait()
-	close(start)
-
-	successes, conflicts := 0, 0
-	for range 2 {
-		switch updateErr := <-errs; {
-		case updateErr == nil:
-			successes++
-		case errors.Is(updateErr, ErrConfigConflict):
-			conflicts++
-		default:
-			t.Fatalf("concurrent update error = %v", updateErr)
-		}
-	}
-	if successes != 1 || conflicts != 1 {
-		t.Fatalf("concurrent results = %d successes, %d conflicts; want one of each", successes, conflicts)
-	}
 	status, err := chattoCore.GetPerformanceSettings(ctx, owner.Id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Revision != 1 || status.Source != performanceSourceOwner {
-		t.Fatalf("concurrent final status = %#v", status)
+	if status.Source != performanceSourceAdaptive || status.RequestedProfile != config.PerformanceProfileAdaptive {
+		t.Fatalf("owner status = %#v", status)
+	}
+	if _, err := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, 0, config.PerformanceProfilePerformance, PerformanceLimits{}); err == nil || !strings.Contains(err.Error(), "adaptive") {
+		t.Fatalf("retired update error = %v, want adaptive scheduling error", err)
+	}
+	if chattoCore.ServerConfig.PerformancePolicy() != nil {
+		t.Fatal("retired update persisted a performance policy")
+	}
+}
+
+func TestMediaTranscodeAdmissionFollowsTheAdaptiveEnvelope(t *testing.T) {
+	chattoCore, _ := setupTestCore(t)
+	cpus := 2
+	chattoCore.performance = newPerformanceManager(config.PerformanceConfig{}, chattoCore.ServerConfig, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: cpus, MemoryBytes: 16 << 30}
+	})
+
+	for range 2 {
+		if !chattoCore.mediaTranscodeLimiter.TryAcquire() {
+			t.Fatal("two-CPU envelope rejected an available transcode slot")
+		}
+	}
+	if chattoCore.mediaTranscodeLimiter.TryAcquire() {
+		chattoCore.mediaTranscodeLimiter.Release()
+		t.Fatal("two-CPU envelope admitted a third transcode")
+	}
+
+	cpus = 4
+	chattoCore.performance.detectedAt = time.Time{}
+	for range 2 {
+		if !chattoCore.mediaTranscodeLimiter.TryAcquire() {
+			t.Fatal("four-CPU envelope did not expose its additional transcode slots")
+		}
+	}
+	if chattoCore.mediaTranscodeLimiter.TryAcquire() {
+		chattoCore.mediaTranscodeLimiter.Release()
+		t.Fatal("four-CPU envelope admitted a fifth transcode")
+	}
+	for range 4 {
+		chattoCore.mediaTranscodeLimiter.Release()
+	}
+}
+
+func TestAcquireMediaTranscodeHonorsContextWhenAdaptiveCapacityIsFull(t *testing.T) {
+	chattoCore, _ := setupTestCore(t)
+	chattoCore.performance = newPerformanceManager(config.PerformanceConfig{}, chattoCore.ServerConfig, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 1, MemoryBytes: 4 << 30}
+	})
+	if err := chattoCore.AcquireMediaTranscode(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer chattoCore.ReleaseMediaTranscode()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := chattoCore.AcquireMediaTranscode(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("blocked acquire error = %v, want context canceled", err)
 	}
 }
 

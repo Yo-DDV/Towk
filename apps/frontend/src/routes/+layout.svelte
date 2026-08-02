@@ -15,6 +15,7 @@
   import PwaLaunchHandler from '$lib/components/PwaLaunchHandler.svelte';
   import ServiceWorkerRegistrar from '$lib/components/ServiceWorkerRegistrar.svelte';
   import UpdateNotifier from '$lib/components/UpdateNotifier.svelte';
+  import UploadProgressOverlay from '$lib/components/UploadProgressOverlay.svelte';
   import {
     useAutoHideScrollbars,
     usePageTitle,
@@ -91,6 +92,7 @@
 <ServiceWorkerRegistrar />
 <UpdateNotifier />
 <PwaLaunchHandler />
+<UploadProgressOverlay />
 
 <svelte:head>
   <title>{fullTitle}</title>

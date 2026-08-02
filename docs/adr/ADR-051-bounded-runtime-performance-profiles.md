@@ -2,6 +2,8 @@
 
 **Date:** 2026-07-17
 
+**Status:** Superseded by [ADR-057](ADR-057-adaptive-shared-resource-envelope.md).
+
 ## Context
 
 Towk runs on hosts that range from small community VPS instances to larger

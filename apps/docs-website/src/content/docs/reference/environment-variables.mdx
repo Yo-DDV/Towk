@@ -147,14 +147,15 @@ The exporter exposes deployment-wide Towk metrics. Run it as `towk exporter` aga
 
 ## Performance
 
-The operator-owned settings below are hard per-process ceilings. A server owner
-can request Economy, Balanced, Performance, or bounded Custom concurrency in
-the System administration page, but effective values always remain below these
-caps and the CPU/memory envelope detected by the process. Zero or an omitted cap
-means “derive a bounded value”; it never means unlimited.
+The operator-owned settings below are optional hard per-process ceilings. Towk
+automatically derives concurrency from the CPU/memory envelope detected by the
+process. The runtime refreshes CPU quotas, affinity, cgroup memory headroom, and
+host `MemAvailable` while it is running; a safety reserve prevents a temporary
+burst from consuming the whole observed budget. Zero or an omitted cap means
+“derive a bounded value”; it never means unbounded work admission.
 
 <EnvVar name="CHATTO_PERFORMANCE_DEFAULT_PROFILE" toml="performance.default_profile">
-  Runtime profile used when no owner policy exists. `towk init` and the deployment examples set `balanced` for new configurations. An upgraded configuration that omits this value retains the historical bounded preset until an owner saves a policy.
+  Deprecated compatibility field. Current Towk releases always use adaptive scheduling; old values remain accepted so existing configuration files continue to parse.
 </EnvVar>
 
 <EnvVar name="CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_WORKERS" toml="performance.max_image_transform_workers">
@@ -515,8 +516,8 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
   Path to the `ffprobe` binary. If not set, Towk looks for `ffprobe` in `PATH`.
 </EnvVar>
 
-<EnvVar name="CHATTO_VIDEO_MAX_CONCURRENT" toml="video.max_concurrent" default="2">
-  Legacy compatibility setting for older video-processing configurations. Current deployments should tune concurrent media transcoding through `CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS` and the runtime performance profile selected in Server administration.
+<EnvVar name="CHATTO_VIDEO_MAX_CONCURRENT" toml="video.max_concurrent">
+  Legacy compatibility setting for older video-processing configurations. Current releases ignore it, use adaptive media admission, and can impose a hard ceiling with `CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS`.
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_MAX_UPLOAD_SIZE" toml="video.max_upload_size" default="100 MB">

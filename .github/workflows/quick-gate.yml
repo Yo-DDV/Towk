@@ -5,7 +5,7 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     branches:
       - main
-      - 'release-[0-9]*'
+      - "release-[0-9]*"
 
 concurrency:
   group: quick-gate-${{ github.event.pull_request.number }}
@@ -74,6 +74,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
+          bash -n tools/verify-compose-project-name.sh tools/verify-compose-resource-envelope.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
           bash tools/verify-compose-project-name.sh
+          bash tools/verify-compose-resource-envelope.sh
           bash tools/runtime-image-process_test.sh

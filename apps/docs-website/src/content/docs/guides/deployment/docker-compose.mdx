@@ -241,6 +241,32 @@ compression pass at the reverse proxy. Resource-constrained source builders
 can set `CHATTO_FRONTEND_PRECOMPRESS=0` before `mise build-frontend`, accepting
 larger transfers in exchange for lower build-time CPU and disk use.
 
+### Shared VPS Resources
+
+The example leaves `cpus` and `mem_limit` at zero, which makes Docker omit hard
+per-service ceilings. NATS, LiveKit, Towk, and Caddy can therefore burst across
+the whole VPS resource pool. Relative CPU shares apply only during contention:
+
+| Service | CPU shares |
+| ------- | ---------: |
+| LiveKit |       2048 |
+| Towk    |       1024 |
+| NATS    |        512 |
+| Caddy   |        512 |
+
+This favors real-time calls while allowing unused CPU to serve uploads,
+previews, transforms, or transcodes. Shares do not reserve CPU and do not prove
+a participant capacity. Set non-zero `*_CPU_LIMIT` or `*_MEMORY_LIMIT` values
+only when the stack shares its host with unrelated workloads. Existing `.env`
+files retain their explicit old limits during upgrades; change and qualify all
+services deliberately.
+
+The administration broker card's **maximum NATS message size** is a protocol
+limit for one control or persistence message (1 MiB with the standard NATS
+default), not a CPU or RAM allocation. Call audio, video, and screen-sharing
+frames use LiveKit's WebRTC media path; Towk and NATS carry the small call
+control, admission, and durable state events around that media path.
+
 The generated configuration uses `rtc.use_external_ip: true`; keep that default
 when the single LiveKit host has a public address. If a custom topology instead
 sets `use_external_ip: false` with a private `rtc.node_ip`, allow embedded TURN
@@ -293,9 +319,10 @@ CHATTO_VIDEO_ENABLED=true
 # CHATTO_VIDEO_TEMP_DIR=/tmp
 ```
 
-Use **Server administration → System** to choose the live runtime profile. The
-environment variable above is only a hard operator ceiling; it does not replace
-the owner-selected profile.
+Towk derives the live media-worker target from the CPU and memory visible to its
+process. Use **Server administration → System** to inspect the target and
+effective limit. The environment variable above is an optional hard operator
+ceiling.
 
 <LinkCard
   title="Video Processing"
@@ -307,11 +334,11 @@ the owner-selected profile.
 
 <Aside type="caution">
   Keep `COMPOSE_PROJECT_NAME` unchanged after the first start. It selects the
-  whole Compose namespace, including containers, the network, and named
-  volumes. New installations use `towk`; an older `.env` without this setting
-  should keep it absent during a routine application update so Compose retains
-  its existing directory-derived namespace. Do not overwrite an existing
-  `.env` with `env.example` or rerun `init-env.sh --force` during that update.
+  whole Compose namespace, including containers, the network, and named volumes.
+  New installations use `towk`; an older `.env` without this setting should keep
+  it absent during a routine application update so Compose retains its existing
+  directory-derived namespace. Do not overwrite an existing `.env` with
+  `env.example` or rerun `init-env.sh --force` during that update.
 </Aside>
 
 ### Change the project name intentionally
@@ -389,8 +416,8 @@ docker compose ps
 After the update, verify the web endpoint, sign in, send a text message, upload
 an image, upload or play a video when video processing is enabled, and join a
 call if LiveKit is configured. Check **Server administration → System** to
-confirm that the requested performance profile and effective limits match the
-host envelope you intended.
+confirm that the detected adaptive envelope and effective limits match the host
+resources you intended.
 
 To roll back application code, restore the previous immutable `TOWK_IMAGE`
 value in `.env`, render the Compose configuration again, and recreate `towk`:
@@ -402,8 +429,8 @@ docker compose up -d towk
 ```
 
 Only run `towk restore` when you intentionally need to restore application
-data. The owner-selected performance profile is stored in Towk's event stream
-and is included in Towk backups; `.env`, Compose resource ceilings, certificates
+data. Historical owner-profile events remain in Towk backups for rollback
+compatibility but no longer affect current scheduling; `.env`, Compose resource ceilings, certificates
 and external S3 buckets remain operator-managed and must be backed up
 separately.
 
