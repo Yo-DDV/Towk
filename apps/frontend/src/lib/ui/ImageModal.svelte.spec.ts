@@ -97,7 +97,7 @@ describe('ImageModal', () => {
     dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(onclose).toHaveBeenCalledOnce();
-    expect(closeButton.disabled).toBe(true);
+    await vi.waitFor(() => expect(closeButton.disabled).toBe(true));
   });
 
   it('closes through dialog cancellation and prevents native document navigation', async () => {
@@ -202,7 +202,7 @@ describe('ImageModal', () => {
       src: `${previewTwo}#fresh-second`,
       originalSrc: `${originalTwo}#fresh-second`
     };
-    await rerender({ items: refreshed, index: 0 });
+    await rerender({ items: refreshed, index: 0, onclose: () => {} });
 
     await vi.waitFor(() =>
       expect(container.querySelector('.image-modal-counter')?.textContent?.trim()).toBe('2 / 2')
@@ -258,9 +258,13 @@ describe('ImageModal', () => {
     const stage = container.querySelector<HTMLElement>('[data-testid="image-modal-stage"]')!;
 
     stage.dispatchEvent(new WheelEvent('wheel', { deltaY: -40, bubbles: true, cancelable: true }));
-    expect(stage.classList.contains('viewer-is-interacting')).toBe(true);
+    await vi.waitFor(() =>
+      expect(stage.classList.contains('viewer-is-interacting')).toBe(true)
+    );
     await new Promise((resolve) => window.setTimeout(resolve, 180));
-    expect(stage.classList.contains('viewer-is-interacting')).toBe(false);
+    await vi.waitFor(() =>
+      expect(stage.classList.contains('viewer-is-interacting')).toBe(false)
+    );
   });
 
   it('pans a zoomed image through pointer dragging and keeps it in the viewer', async () => {
@@ -434,7 +438,8 @@ describe('ImageModal', () => {
     const refreshedOriginal = `${originalOne}#fresh-ticket`;
     await rerender({
       items: [{ ...items[0]!, originalSrc: refreshedOriginal }],
-      index: 0
+      index: 0,
+      onclose: () => {}
     });
     const freshDetail = await vi.waitFor(() => {
       const detail = container.querySelector<HTMLImageElement>(
