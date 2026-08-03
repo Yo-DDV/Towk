@@ -87,9 +87,9 @@
 .image-modal-stage {
   position: absolute;
   top: calc(max(0.75rem, env(safe-area-inset-top, 0px)) + 4.25rem);
-  right: 0;
+  right: env(safe-area-inset-right, 0px);
   bottom: calc(max(0.75rem, env(safe-area-inset-bottom, 0px)) + 4rem);
-  left: 0;
+  left: env(safe-area-inset-left, 0px);
   overflow: hidden;
   touch-action: none;
   user-select: none;
