@@ -144,6 +144,34 @@ jobs:
           )
           tests = tests[:start] + block + tests[end:]
           test_path.write_text(tests, encoding="utf-8")
+
+          panel_test_path = Path("apps/frontend/src/lib/components/voice/VoiceCallPanel.svelte.spec.ts")
+          panel_tests = panel_test_path.read_text(encoding="utf-8")
+          camera_start_marker = "  it('offers a one-touch camera switch when several phone lenses are available'"
+          camera_end_marker = "  it('keeps unavailable web screen sharing compact and explains it only on tap'"
+          camera_start = panel_tests.find(camera_start_marker)
+          camera_end = panel_tests.find(camera_end_marker, camera_start)
+          if camera_start < 0 or camera_end < 0:
+              raise SystemExit("camera switch component test block not found")
+          camera_test = """  it('offers a one-touch camera switch when several phone lenses are available', async () => {
+            const { container } = render(VoiceCallPanelStoryHarness, {
+              props: { layout: 'sidebar', scenario: 'mobile-camera' }
+            });
+
+            const control = await vi.waitFor(() => {
+              const value = container.querySelector<HTMLButtonElement>(
+                '[data-testid=\"call-switch-camera-button\"]'
+              );
+              expect(value).not.toBeNull();
+              return value!;
+            });
+            expect(control.getAttribute('aria-label')).toBe('Switch camera');
+            expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(32);
+          });
+
+"""
+          panel_tests = panel_tests[:camera_start] + camera_test + panel_tests[camera_end:]
+          panel_test_path.write_text(panel_tests, encoding="utf-8")
           PY
 
           rm -rf tools/.telemetry-materializer
@@ -168,6 +196,7 @@ jobs:
             src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte \
             src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte.spec.ts \
             src/lib/components/voice/VoiceCallPanel.svelte \
+            src/lib/components/voice/VoiceCallPanel.svelte.spec.ts \
             src/lib/state/server/voiceCall.svelte.ts \
             src/lib/state/server/voiceCall.svelte.spec.ts \
             messages/en/voice.json \
@@ -193,6 +222,7 @@ jobs:
             src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte \
             src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte.spec.ts \
             src/lib/components/voice/VoiceCallPanel.svelte \
+            src/lib/components/voice/VoiceCallPanel.svelte.spec.ts \
             src/lib/state/server/voiceCall.svelte.ts \
             src/lib/state/server/voiceCall.svelte.spec.ts
           popd >/dev/null
