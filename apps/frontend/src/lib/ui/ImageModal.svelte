@@ -280,6 +280,7 @@
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (event.target instanceof Element && event.target.closest('button')) return;
     event.preventDefault();
+    stageNode?.focus({ preventScroll: true });
     try {
       stageNode?.setPointerCapture(event.pointerId);
     } catch {
@@ -458,7 +459,12 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.target instanceof HTMLButtonElement && event.key !== 'Escape') return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
+      return;
+    }
+    if (event.target instanceof HTMLButtonElement) return;
 
     if (event.key === '+' || event.key === '=') {
       event.preventDefault();
@@ -565,7 +571,7 @@
       class:viewer-can-pan={transform.scale > MIN_IMAGE_SCALE}
       class:viewer-is-panning={gestureActive && transform.scale > MIN_IMAGE_SCALE}
       class="image-modal-stage"
-      role="region"
+      role="application"
       tabindex="0"
       aria-label={imageAlt}
       data-testid="image-modal-stage"
