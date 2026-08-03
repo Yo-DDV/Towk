@@ -117,6 +117,14 @@ jobs:
               + text[closing_index + len("</section>"):]
           )
           path.write_text(text, encoding="utf-8")
+
+          catalog_path = Path("apps/frontend/messages/de/voice.json")
+          catalog = catalog_path.read_text(encoding="utf-8")
+          source = '"voice.media_telemetry_bitrate": "Bitrate"'
+          target = '"voice.media_telemetry_bitrate": "Datenrate"'
+          if catalog.count(source) != 1:
+              raise SystemExit("unexpected German telemetry bitrate translation")
+          catalog_path.write_text(catalog.replace(source, target, 1), encoding="utf-8")
           PY
           rm -rf tools/.telemetry-materializer
           rm -f \
