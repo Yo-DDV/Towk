@@ -46,22 +46,23 @@ jobs:
           import hashlib
           from pathlib import Path
 
-          source = Path('.github/profile-banner-source.b64')
-          raw = source.read_text(encoding='ascii')
-          alphabet = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')
-          clean = ''.join(character for character in raw if character in alphabet)
-          print(f'profile banner source bytes: raw={len(raw)} base64={len(clean)} remainder={len(clean) % 4}')
-          if len(clean) != 27088:
+          parts = sorted(Path('.github/profile-banner-source-parts').glob('part-*'))
+          if [part.name for part in parts] != ['part-00', 'part-01', 'part-02']:
+              raise SystemExit(f'unexpected profile banner source parts: {[part.name for part in parts]}')
+          clean = ''.join(part.read_text(encoding='ascii') for part in parts)
+          print(f'profile banner source base64={len(clean)} remainder={len(clean) % 4}')
+          if len(clean) != 26816:
               raise SystemExit(f'unexpected profile banner base64 length: {len(clean)}')
           archive = base64.b64decode(clean, validate=True)
           digest = hashlib.sha256(archive).hexdigest()
-          if digest != '1af6de9f87ce526c51801a1819a5f869bae998fedb67ec972f8ddf4f8cc0ebb9':
+          if digest != 'c9b03adbbf09c1d063d61f2b2aafd8c9db8a2dd82e27e4a4e7dc23744821b30e':
               raise SystemExit(f'unexpected profile banner archive digest: {digest}')
           Path('.github/profile-banner-source.tar.gz').write_bytes(archive)
           PY
           tar -xzf .github/profile-banner-source.tar.gz
           rm .github/profile-banner-source.tar.gz
           python3 .github/profile-banner-materialize.py
+          rm -rf .github/profile-banner-source-parts
 
       - name: Format source
         shell: bash
@@ -135,6 +136,7 @@ jobs:
           set -euo pipefail
           git diff --check
           test ! -e .github/profile-banner-source.b64
+          test ! -d .github/profile-banner-source-parts
           test ! -e .github/profile-banner-materialize.py
           git status --short
           git add -A
