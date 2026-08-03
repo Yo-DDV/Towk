@@ -70,14 +70,19 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   let historyArmed = false;
   let previousPageState: App.PageState = {};
   let profile = $state<DetailedUserProfile | null>(null);
+  let profileKey = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state('');
 
+  const targetProfileKey = $derived(JSON.stringify([serverId, user.id]));
+  const currentProfile = $derived(
+    !loading && profileKey === targetProfileKey ? profile : null
+  );
   const displayName = $derived(getLiveDisplayName(user.id, user.displayName || user.login));
   const login = $derived(getLiveLogin(user.id, user.login));
   const customStatus = $derived(getLiveCustomStatus(user.id, user.customStatus));
   const profileUser = $derived(
-    profile?.user ?? {
+    currentProfile?.user ?? {
       id: user.id,
       login,
       displayName,
@@ -88,10 +93,12 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     }
   );
   const mayMessage = $derived(
-    !profileUser.deleted && (profile?.viewerCanMessage ?? canSendMessage)
+    !profileUser.deleted && (currentProfile?.viewerCanMessage ?? canSendMessage)
   );
-  const mayCall = $derived(!profileUser.deleted && (profile?.viewerCanCall ?? false));
-  const mayEditProfile = $derived(Boolean(profile?.viewerIsSelf));
+  const mayCall = $derived(
+    !profileUser.deleted && (currentProfile?.viewerCanCall ?? false)
+  );
+  const mayEditProfile = $derived(Boolean(currentProfile?.viewerIsSelf));
   const profileRevision = $derived(getDetailedUserProfileRevision(serverId, user.id));
 
   $effect(() => {
@@ -110,6 +117,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   $effect(() => {
     const targetUserId = user.id;
     const targetServerId = serverId;
+    const targetKey = targetProfileKey;
     void profileRevision;
 
     let cancelled = false;
@@ -128,12 +136,20 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     )
       .then((result) => {
         if (cancelled) return;
+        if (result && result.user.id !== targetUserId) {
+          profile = null;
+          profileKey = targetKey;
+          loadError = m['profile.load_failed']();
+          return;
+        }
         profile = result;
+        profileKey = targetKey;
         if (!result) loadError = m['profile.load_not_found']();
       })
       .catch(() => {
         if (cancelled) return;
         profile = null;
+        profileKey = targetKey;
         loadError = m['profile.load_failed']();
       })
       .finally(() => {
@@ -197,7 +213,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
 >
   <UserProfileSurface
     user={profileUser}
-    {profile}
+    profile={currentProfile}
     {loading}
     {loadError}
     anchored={Boolean(anchorRect)}
