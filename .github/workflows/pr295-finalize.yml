@@ -36,6 +36,13 @@ jobs:
       - name: Setup pinned Towk toolchain
         uses: ./.github/actions/setup
 
+      - name: Generate API types
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise codegen-proto
+          mise build-api-types
+
       - name: Apply final profile security and quality remediation
         shell: bash
         run: |
