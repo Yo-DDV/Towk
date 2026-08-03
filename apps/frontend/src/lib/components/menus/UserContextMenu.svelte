@@ -15,9 +15,9 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   } from '$lib/api-client/memberDirectory';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
-  import { getPresenceCache } from '$lib/state/presenceCache.svelte';
   import { startCallWith, startDMWith } from '$lib/dm/startDM';
   import { getCallJoinController } from '$lib/state/callJoinController.svelte';
+  import { getPresenceCache } from '$lib/state/presenceCache.svelte';
   import { goto, pushState, replaceState } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
@@ -62,8 +62,8 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   } = $props();
 
   const connection = useConnection();
-  const presenceCache = getPresenceCache();
   const callJoinController = getCallJoinController();
+  const presenceCache = getPresenceCache();
   const componentId = $props.id();
   const historyMarker = `profile:${componentId}`;
   const serverId = $derived(getActiveServer());
@@ -75,12 +75,14 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   let profileKey = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state('');
+  let loadRetryable = $state(false);
+  let reloadRevision = $state(0);
 
   const profileRevision = $derived(getDetailedUserProfileRevision(serverId, user.id));
-  const targetProfileKey = $derived(JSON.stringify([serverId, user.id, profileRevision]));
-  const currentProfile = $derived(
-    !loading && profileKey === targetProfileKey ? profile : null
+  const targetProfileKey = $derived(
+    JSON.stringify([serverId, user.id, profileRevision, reloadRevision])
   );
+  const currentProfile = $derived(!loading && profileKey === targetProfileKey ? profile : null);
   const snapshotUser = $derived(
     currentProfile?.user ?? {
       id: user.id,
@@ -115,10 +117,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   const presenceStatus = $derived(
     snapshotUser.deleted
       ? PresenceStatus.Offline
-      : presenceCache.get(
-          { serverId, userId: user.id },
-          snapshotUser.presenceStatus
-        )
+      : presenceCache.get({ serverId, userId: user.id }, snapshotUser.presenceStatus)
   );
   const profileUser = $derived({
     ...snapshotUser,
@@ -137,7 +136,9 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     !profileUser.deleted && !viewerIsSelf && (currentProfile?.viewerCanCall ?? false)
   );
   const mayEditProfile = $derived(viewerIsSelf);
-  const mayBanFromRoom = $derived(canBanFromRoom && Boolean(onBanFromRoom));
+  const mayBanFromRoom = $derived(
+    !profileUser.deleted && !viewerIsSelf && canBanFromRoom && Boolean(onBanFromRoom)
+  );
 
   $effect(() => {
     if (!browser || !visible) return;
@@ -161,6 +162,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     let cancelled = false;
     loading = true;
     loadError = '';
+    loadRetryable = false;
 
     const conn = connection();
     const api = createMemberDirectoryAPI({
@@ -180,10 +182,12 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
           profile = null;
           profileKey = targetKey;
           loadError = m['profile.load_failed']();
+          loadRetryable = false;
           return;
         }
         profile = result;
         profileKey = targetKey;
+        loadRetryable = false;
         if (!result) loadError = m['profile.load_not_found']();
       })
       .catch(() => {
@@ -191,6 +195,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
         profile = null;
         profileKey = targetKey;
         loadError = m['profile.load_failed']();
+        loadRetryable = true;
       })
       .finally(() => {
         if (!cancelled) loading = false;
@@ -232,9 +237,17 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   }
 
   async function handleBanFromRoom() {
-    if (!onBanFromRoom) return;
+    if (banningFromRoom || !onBanFromRoom) return;
     clearHistoryMarkerForAction();
     await onBanFromRoom();
+  }
+
+  function handleRetry() {
+    if (loading || !loadRetryable) return;
+    loadRetryable = false;
+    loading = true;
+    loadError = '';
+    reloadRevision += 1;
   }
 
   async function handleEditProfile() {
@@ -263,10 +276,12 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     canCall={mayCall}
     canBanFromRoom={mayBanFromRoom}
     {banningFromRoom}
+    canRetry={loadRetryable}
     onEditProfile={handleEditProfile}
     onSendMessage={handleSendMessage}
     onCall={handleCall}
     onBanFromRoom={handleBanFromRoom}
+    onRetry={handleRetry}
   />
 </Dialog>
 
@@ -349,7 +364,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     transform: translateX(-50%);
   }
 
-  @media (any-pointer: coarse) {
+  @media (any-pointer: coarse), (max-width: 640px) {
     :global(dialog:has(.user-profile-dialog) .dialog-swipe-handle) {
       display: grid;
     }
@@ -413,7 +428,8 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   @media (prefers-reduced-motion: reduce) {
     :global(dialog:has(.user-profile-dialog) .dialog-header button),
     :global(dialog:has(.user-profile-dialog) .profile-action),
-    :global(dialog:has(.user-profile-dialog) .profile-biography-toggle) {
+    :global(dialog:has(.user-profile-dialog) .profile-biography-toggle),
+    :global(dialog:has(.user-profile-dialog) .profile-retry) {
       transition: none;
     }
 
