@@ -322,6 +322,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
 
     :global(dialog:has(.user-profile-dialog) .dialog-swipe-handle) {
       top: max(0.15rem, env(safe-area-inset-top));
+      display: grid;
     }
 
     :global(dialog:has(.user-profile-dialog) .dialog-body) {
