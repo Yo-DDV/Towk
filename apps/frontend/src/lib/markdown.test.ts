@@ -21,6 +21,13 @@ describe('renderMarkdown', () => {
     });
   });
 
+  describe('automatic links', () => {
+    it('auto-links bare domains after the linkify-it 6 upgrade', async () => {
+      const html = await renderMarkdown('Visit www.hmans.dev/docs');
+      expect(html).toContain('href="http://www.hmans.dev/docs"');
+    });
+  });
+
   describe('emphasis at word boundaries', () => {
     it('renders `*italic*` as italic', async () => {
       const html = await renderMarkdown('*italic*');
