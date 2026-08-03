@@ -34,6 +34,7 @@ func (s *HTTPServer) setupAssetRoutes() {
 	s.router.GET("/assets/files/:assetID", s.serveStableAttachment)
 	s.router.HEAD("/assets/files/:assetID", s.serveStableAttachment)
 	s.router.GET("/assets/files/:assetID/image/:dimensions/:fit", s.serveStableTransformedAttachment)
+	s.setupProfileBannerRoutes()
 }
 
 // transformRequest holds the parameters for a transformed asset request.

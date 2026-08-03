@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import profilePolishCss from './UserProfileSurface.polish.css?raw';
+
+const profilePolishCss = readFileSync(
+  new URL('./UserProfileSurface.polish.css', import.meta.url),
+  'utf8'
+);
 
 function rule(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -29,19 +34,13 @@ describe('UserProfileSurface polished layout contract', () => {
   });
 
   it('bounds identity, status, and role copy without awkward mid-word wrapping', () => {
-    const displayName = rule(
-      '.user-profile-dialog .profile-name-block .profile-display-name'
-    );
+    const displayName = rule('.user-profile-dialog .profile-name-block .profile-display-name');
     const login = rule('.user-profile-dialog .profile-name-block .profile-login');
     const statusText = rule(
       '.user-profile-dialog .profile-status-row > .profile-custom-status > span:last-child'
     );
-    const roleChip = rule(
-      '.user-profile-dialog .profile-role-list > .profile-role-chip'
-    );
-    const roleLabel = rule(
-      '.user-profile-dialog .profile-role-chip > .profile-role-label'
-    );
+    const roleChip = rule('.user-profile-dialog .profile-role-list > .profile-role-chip');
+    const roleLabel = rule('.user-profile-dialog .profile-role-chip > .profile-role-label');
 
     expect(displayName).toContain('max-height: none');
     expect(displayName).toContain('-webkit-line-clamp: 3');
@@ -64,9 +63,7 @@ describe('UserProfileSurface polished layout contract', () => {
     expect(profilePolishCss).toContain('@container user-profile (min-width: 54rem)');
     expect(profilePolishCss).toContain('@container user-profile (max-width: 27rem)');
     expect(profilePolishCss).toContain('@container user-profile (max-width: 23rem)');
-    expect(profilePolishCss).toContain(
-      '@media (max-height: 620px) and (min-width: 46rem)'
-    );
+    expect(profilePolishCss).toContain('@media (max-height: 620px) and (min-width: 46rem)');
     expect(profilePolishCss).toContain(
       'grid-template-columns: minmax(20.5rem, 22rem) minmax(0, 1fr)'
     );
@@ -80,9 +77,7 @@ describe('UserProfileSurface polished layout contract', () => {
   });
 
   it('uses selectors strong enough to override the component baseline deterministically', () => {
-    expect(profilePolishCss).toContain(
-      '.user-profile-dialog .profile-actions > .profile-action'
-    );
+    expect(profilePolishCss).toContain('.user-profile-dialog .profile-actions > .profile-action');
     expect(profilePolishCss).toContain(
       '.user-profile-dialog .profile-actions > .profile-action .profile-action-icon'
     );
@@ -94,6 +89,18 @@ describe('UserProfileSurface polished layout contract', () => {
     );
     expect(profilePolishCss).not.toContain('.profile-error-copy');
     expect(profilePolishCss).not.toContain('.profile-retry');
+  });
+
+  it('keeps uploaded banners layered safely and fact icons legible', () => {
+    const banner = rule('.user-profile-dialog .profile-cover > .profile-banner-image');
+    const bannerAction = rule('.user-profile-dialog .profile-cover > .profile-banner-edit');
+    const factIcon = rule('.user-profile-dialog .profile-fact-term > .profile-fact-icon');
+
+    expect(banner).toContain('object-fit: cover');
+    expect(bannerAction).toContain('min-height: 2.75rem');
+    expect(bannerAction).toContain('color: white');
+    expect(factIcon).toContain('var(--color-text-top) 86%');
+    expect(factIcon).toContain('opacity: 1');
   });
 
   it('preserves reduced-motion and forced-colors fallbacks', () => {

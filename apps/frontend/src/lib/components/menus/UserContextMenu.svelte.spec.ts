@@ -16,7 +16,9 @@ const mocks = vi.hoisted(() => ({
   pushState: vi.fn(),
   replaceState: vi.fn(),
   callJoinController: { request: vi.fn() },
-  pageState: {} as Record<string, unknown>
+  pageState: {} as Record<string, unknown>,
+  supportsProfileBanners: vi.fn(),
+  loadProfileBanner: vi.fn()
 }));
 
 vi.mock('$app/environment', () => ({ browser: true }));
@@ -87,6 +89,15 @@ vi.mock('$lib/state/presenceCache.svelte', () => ({
   getPresenceCache: () => ({ get: mocks.getPresence })
 }));
 
+vi.mock('$lib/profileBanner', async () => {
+  const actual = await vi.importActual<typeof import('$lib/profileBanner')>('$lib/profileBanner');
+  return {
+    ...actual,
+    supportsProfileBanners: mocks.supportsProfileBanners,
+    loadProfileBanner: mocks.loadProfileBanner
+  };
+});
+
 const user = {
   id: 'user-1',
   login: 'alice',
@@ -138,6 +149,8 @@ beforeEach(() => {
   mocks.goto.mockReset();
   mocks.pushState.mockReset();
   mocks.replaceState.mockReset();
+  mocks.supportsProfileBanners.mockReset();
+  mocks.loadProfileBanner.mockReset();
   for (const key of Object.keys(mocks.pageState)) delete mocks.pageState[key];
   mocks.getLiveDisplayName.mockImplementation((_userId: string, fallback: string) => fallback);
   mocks.getLiveLogin.mockImplementation((_userId: string, fallback: string) => fallback);
@@ -146,6 +159,8 @@ beforeEach(() => {
     (_scope: { serverId: string; userId: string }, fallback: PresenceStatus) => fallback
   );
   mocks.getUserProfile.mockResolvedValue(profile);
+  mocks.supportsProfileBanners.mockResolvedValue(false);
+  mocks.loadProfileBanner.mockResolvedValue(null);
 });
 
 describe('UserContextMenu', () => {
@@ -203,6 +218,14 @@ describe('UserContextMenu', () => {
     const actions = container.querySelector<HTMLElement>('[role="group"].profile-actions');
     if (!actions) throw new Error('Expected capability-filtered profile actions.');
     expect(actions.getAttribute('aria-label')).toBe('Profile actions');
+
+    const dialogContent = container.querySelector<HTMLElement>('.dialog-content');
+    if (!dialogContent) throw new Error('Expected the dialog content surface.');
+    const contentRect = dialogContent.getBoundingClientRect();
+    const shellRect = shell.getBoundingClientRect();
+    const leftInset = shellRect.left - contentRect.left;
+    const rightInset = contentRect.right - shellRect.right;
+    expect(Math.abs(leftInset - rightInset)).toBeLessThan(2);
   });
 
   it('keeps detailed identity and presence synchronized with the live caches', async () => {
@@ -274,8 +297,11 @@ describe('UserContextMenu', () => {
       throw new Error('Expected long-content profile affordances.');
     }
 
-    expect(getComputedStyle(nameHeading).overflowWrap).toBe('anywhere');
-    expect(getComputedStyle(roleLabel).overflowWrap).toBe('anywhere');
+    expect(getComputedStyle(nameHeading).overflowWrap).toBe('break-word');
+    const roleStyle = getComputedStyle(roleLabel);
+    expect(roleStyle.whiteSpace).toBe('nowrap');
+    expect(roleStyle.overflow).toBe('hidden');
+    expect(roleStyle.textOverflow).toBe('ellipsis');
     expect(getComputedStyle(customStatus).maxWidth).toBe('100%');
   });
 
@@ -307,9 +333,7 @@ describe('UserContextMenu', () => {
     const nextProfile = {
       ...profile,
       user: { ...nextUser, deleted: false },
-      roles: [
-        { name: 'helper', displayName: 'Helper', position: 5, moderation: false }
-      ],
+      roles: [{ name: 'helper', displayName: 'Helper', position: 5, moderation: false }],
       biographyMarkdown: 'Bob profile details.'
     };
     let resolveNextProfile!: (value: typeof nextProfile) => void;
@@ -397,9 +421,7 @@ describe('UserContextMenu', () => {
 
     await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
 
-    const action = container.querySelector<HTMLButtonElement>(
-      '.profile-action[aria-busy="true"]'
-    );
+    const action = container.querySelector<HTMLButtonElement>('.profile-action[aria-busy="true"]');
     if (!action) throw new Error('Expected the busy room-ban action to be rendered.');
 
     expect(action.disabled).toBe(true);

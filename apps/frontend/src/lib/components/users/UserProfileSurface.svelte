@@ -12,6 +12,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
   import MessageContent from '$lib/components/MessageContent.svelte';
   import { PresenceStatus } from '$lib/render/types';
   import * as m from '$lib/i18n/messages';
+  import { profileBannerMessage } from '$lib/i18n/profileBanner';
 
   let {
     user,
@@ -19,11 +20,14 @@ UserContextMenu so every existing identity entry point keeps the same contract.
     loading,
     loadError,
     anchored = false,
+    bannerUrl = null,
+    canEditBanner = false,
     canEditProfile = false,
     canSendMessage = false,
     canCall = false,
     canBanFromRoom = false,
     banningFromRoom = false,
+    onEditBanner,
     onEditProfile,
     onSendMessage,
     onCall,
@@ -34,11 +38,14 @@ UserContextMenu so every existing identity entry point keeps the same contract.
     loading: boolean;
     loadError: string;
     anchored?: boolean;
+    bannerUrl?: string | null;
+    canEditBanner?: boolean;
     canEditProfile?: boolean;
     canSendMessage?: boolean;
     canCall?: boolean;
     canBanFromRoom?: boolean;
     banningFromRoom?: boolean;
+    onEditBanner?: () => void | Promise<void>;
     onEditProfile: () => void | Promise<void>;
     onSendMessage: () => void | Promise<void>;
     onCall: () => void | Promise<void>;
@@ -53,6 +60,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
   const biographyContentId = `${componentId}-biography-content`;
 
   let biographyExpanded = $state(false);
+  let bannerVisible = $derived(Boolean(bannerUrl));
 
   const roles = $derived(profile?.roles ?? []);
   const displayName = $derived(user.displayName || user.login);
@@ -64,9 +72,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
   const biographyCollapsible = $derived(
     Boolean(profile && (biographyCharacterCount > 720 || biographyLineCount > 14))
   );
-  const showActions = $derived(
-    canEditProfile || canSendMessage || canCall || canBanFromRoom
-  );
+  const showActions = $derived(canEditProfile || canSendMessage || canCall || canBanFromRoom);
 
   $effect(() => {
     void biography;
@@ -132,14 +138,38 @@ UserContextMenu so every existing identity entry point keeps the same contract.
       aria-labelledby={identityHeadingId}
       data-testid="profile-identity-panel"
     >
-      <div class="profile-cover" aria-hidden="true">
-        <span class="profile-cover-orbit profile-cover-orbit-large"></span>
-        <span class="profile-cover-orbit profile-cover-orbit-small"></span>
+      <div class="profile-cover">
+        {#if bannerUrl && bannerVisible}
+          <img
+            src={bannerUrl}
+            alt=""
+            class="profile-banner-image"
+            aria-hidden="true"
+            onerror={() => (bannerVisible = false)}
+          />
+          <span class="profile-banner-scrim" aria-hidden="true"></span>
+        {/if}
+        <span class="profile-cover-orbit profile-cover-orbit-large" aria-hidden="true"></span>
+        <span class="profile-cover-orbit profile-cover-orbit-small" aria-hidden="true"></span>
+        {#if canEditBanner && onEditBanner}
+          <button
+            type="button"
+            class="profile-banner-edit"
+            onclick={onEditBanner}
+            aria-label={profileBannerMessage('edit')}
+            title={profileBannerMessage('edit')}
+          >
+            <span class="iconify uil--edit" aria-hidden="true"></span>
+            <span class="profile-banner-edit-label">
+              {profileBannerMessage('edit')}
+            </span>
+          </button>
+        {/if}
       </div>
 
       <div class="profile-identity-body">
         <div class="profile-avatar-shell" data-testid="profile-avatar-shell">
-          <UserAvatar user={user} size="xl" showPresence class="profile-avatar" />
+          <UserAvatar {user} size="xl" showPresence class="profile-avatar" />
         </div>
 
         <div class="profile-name-block">
@@ -155,10 +185,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
 
         <div class="profile-status-row">
           <span class="profile-presence-pill">
-            <span
-              class={['profile-presence-dot', presenceDotClass]}
-              aria-hidden="true"
-            ></span>
+            <span class={['profile-presence-dot', presenceDotClass]} aria-hidden="true"></span>
             <span>{presenceLabel}</span>
           </span>
           <UserCustomStatusBadge
@@ -171,11 +198,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
         {#if showActions}
           <div class="profile-actions" role="group" aria-label={m['profile.actions']()}>
             {#if canEditProfile}
-              <button
-                type="button"
-                class="profile-action btn-secondary"
-                onclick={onEditProfile}
-              >
+              <button type="button" class="profile-action btn-secondary" onclick={onEditProfile}>
                 <span class="profile-action-icon" aria-hidden="true">
                   <span class="iconify uil--edit"></span>
                 </span>
@@ -183,11 +206,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
               </button>
             {/if}
             {#if canSendMessage}
-              <button
-                type="button"
-                class="profile-action btn-primary"
-                onclick={onSendMessage}
-              >
+              <button type="button" class="profile-action btn-primary" onclick={onSendMessage}>
                 <span class="profile-action-icon" aria-hidden="true">
                   <span class="iconify uil--comment-alt-message"></span>
                 </span>
@@ -197,11 +216,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
               </button>
             {/if}
             {#if canCall}
-              <button
-                type="button"
-                class="profile-action btn-secondary"
-                onclick={onCall}
-              >
+              <button type="button" class="profile-action btn-secondary" onclick={onCall}>
                 <span class="profile-action-icon" aria-hidden="true">
                   <span class="iconify uil--phone"></span>
                 </span>
@@ -243,9 +258,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
 
           <div class="profile-role-list" role="list">
             {#if loading}
-              <span
-                class="profile-role-skeleton profile-role-skeleton-wide"
-                aria-hidden="true"
+              <span class="profile-role-skeleton profile-role-skeleton-wide" aria-hidden="true"
               ></span>
               <span class="profile-role-skeleton" aria-hidden="true"></span>
             {:else if profile}
@@ -256,10 +269,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
               {:else}
                 {#each roles as role (role.name)}
                   <span
-                    class={[
-                      'profile-role-chip',
-                      role.moderation && 'profile-role-chip-moderation'
-                    ]}
+                    class={['profile-role-chip', role.moderation && 'profile-role-chip-moderation']}
                     role="listitem"
                     title={role.displayName || role.name}
                   >
@@ -280,11 +290,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
       </div>
     </section>
 
-    <div
-      class="profile-content-panel"
-      data-testid="profile-content-panel"
-      aria-busy={loading}
-    >
+    <div class="profile-content-panel" data-testid="profile-content-panel" aria-busy={loading}>
       {#if loading}
         <section
           class="profile-loading-state"
@@ -303,18 +309,11 @@ UserContextMenu so every existing identity entry point keeps the same contract.
             <div class="profile-skeleton profile-skeleton-fact"></div>
             <div class="profile-skeleton profile-skeleton-fact"></div>
           </div>
-          <div
-            class="profile-skeleton profile-skeleton-biography"
-            aria-hidden="true"
-          ></div>
+          <div class="profile-skeleton profile-skeleton-biography" aria-hidden="true"></div>
         </section>
       {:else if loadError}
         <section class="profile-error-section">
-          <div
-            class="profile-error-state"
-            role="alert"
-            data-testid="user-profile-error"
-          >
+          <div class="profile-error-state" role="alert" data-testid="user-profile-error">
             <span class="profile-error-icon" aria-hidden="true">
               <span class="iconify uil--exclamation-octagon"></span>
             </span>
@@ -333,10 +332,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
           <dl class="profile-facts-grid">
             <div class="profile-fact">
               <dt class="profile-fact-term">
-                <span
-                  class="profile-fact-icon iconify uil--calendar-alt"
-                  aria-hidden="true"
-                ></span>
+                <span class="profile-fact-icon iconify uil--calendar-alt" aria-hidden="true"></span>
                 <span class="profile-fact-label">{m['profile.joined']()}</span>
               </dt>
               <dd class="profile-fact-value">{formatDate(profile.joinedAt)}</dd>
@@ -344,10 +340,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
 
             <div class="profile-fact">
               <dt class="profile-fact-term">
-                <span
-                  class="profile-fact-icon iconify uil--clock"
-                  aria-hidden="true"
-                ></span>
+                <span class="profile-fact-icon iconify uil--clock" aria-hidden="true"></span>
                 <span class="profile-fact-label">
                   {m['profile.last_activity']()}
                 </span>
@@ -383,14 +376,12 @@ UserContextMenu so every existing identity entry point keeps the same contract.
 
           <div
             class="profile-biography-shell"
-            class:profile-biography-shell-collapsed={biographyCollapsible &&
-              !biographyExpanded}
+            class:profile-biography-shell-collapsed={biographyCollapsible && !biographyExpanded}
           >
             <div
               id={biographyContentId}
               class="profile-biography"
-              class:profile-biography-content-collapsed={biographyCollapsible &&
-                !biographyExpanded}
+              class:profile-biography-content-collapsed={biographyCollapsible && !biographyExpanded}
               data-testid="profile-biography-content"
               onfocusin={handleBiographyFocusIn}
             >
@@ -417,10 +408,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
               onclick={() => (biographyExpanded = !biographyExpanded)}
             >
               <span
-                class={[
-                  'iconify',
-                  biographyExpanded ? 'uil--angle-up' : 'uil--angle-down'
-                ]}
+                class={['iconify', biographyExpanded ? 'uil--angle-up' : 'uil--angle-down']}
                 aria-hidden="true"
               ></span>
               <span>
@@ -497,10 +485,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
     position: absolute;
     inset: 0;
     background-image:
-      linear-gradient(
-        color-mix(in srgb, var(--color-text) 5%, transparent) 1px,
-        transparent 1px
-      ),
+      linear-gradient(color-mix(in srgb, var(--color-text) 5%, transparent) 1px, transparent 1px),
       linear-gradient(
         90deg,
         color-mix(in srgb, var(--color-text) 5%, transparent) 1px,

@@ -107,6 +107,9 @@
     lastActivity: null
   };
 
+  const bannerStoryUrl =
+    'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221536%22 height=%22512%22 viewBox=%220 0 1536 512%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop stop-color=%22%234d5157%22/%3E%3Cstop offset=%221%22 stop-color=%22%231d1f22%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%221536%22 height=%22512%22 fill=%22url(%23g)%22/%3E%3Ccircle cx=%221160%22 cy=%22120%22 r=%22240%22 fill=%22none%22 stroke=%22%23ffffff%22 stroke-opacity=%22.18%22 stroke-width=%2212%22/%3E%3C/svg%3E';
+
   const noop = () => {};
 </script>
 
@@ -138,6 +141,36 @@
       loadError=""
       canSendMessage
       canCall
+      onEditProfile={noop}
+      onSendMessage={noop}
+      onCall={noop}
+      onBanFromRoom={noop}
+    />
+  </div>
+</Story>
+
+<Story
+  name="Custom banner"
+  asChild
+  parameters={{
+    docs: {
+      description: {
+        story:
+          'Authenticated self-profile with a wide custom banner and its accessible edit affordance.'
+      }
+    }
+  }}
+>
+  <div class="mx-auto w-full max-w-4xl bg-surface-100 p-4 sm:p-8">
+    <UserProfileSurface
+      user={baseProfile.user}
+      profile={{ ...baseProfile, viewerIsSelf: true }}
+      loading={false}
+      loadError=""
+      bannerUrl={bannerStoryUrl}
+      canEditBanner
+      canEditProfile
+      onEditBanner={noop}
       onEditProfile={noop}
       onSendMessage={noop}
       onCall={noop}

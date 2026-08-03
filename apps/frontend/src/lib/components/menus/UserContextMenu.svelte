@@ -8,6 +8,8 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
 <script lang="ts">
   import Dialog from '$lib/ui/Dialog.svelte';
   import UserProfileSurface from '$lib/components/users/UserProfileSurface.svelte';
+  import ProfileBannerEditor from '$lib/components/users/ProfileBannerEditor.svelte';
+  import { loadProfileBanner, supportsProfileBanners } from '$lib/profileBanner';
   import '$lib/components/users/UserProfileSurface.polish.css';
   import { PresenceStatus } from '$lib/render/types';
   import {
@@ -76,6 +78,10 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   let profileKey = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state('');
+  let bannerEditorOpen = $state(false);
+  let bannerSupported = $state(false);
+  let bannerObjectURL = $state<string | null>(null);
+  let bannerRevision = $state(0);
 
   const profileRevision = $derived(getDetailedUserProfileRevision(serverId, user.id));
   const targetProfileKey = $derived(JSON.stringify([serverId, user.id, profileRevision]));
@@ -125,9 +131,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   });
   const viewerIsSelf = $derived(Boolean(currentProfile?.viewerIsSelf));
   const mayMessage = $derived(
-    !profileUser.deleted &&
-      !viewerIsSelf &&
-      (currentProfile?.viewerCanMessage ?? canSendMessage)
+    !profileUser.deleted && !viewerIsSelf && (currentProfile?.viewerCanMessage ?? canSendMessage)
   );
   const mayCall = $derived(
     !profileUser.deleted && !viewerIsSelf && (currentProfile?.viewerCanCall ?? false)
@@ -136,6 +140,14 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   const mayBanFromRoom = $derived(
     !profileUser.deleted && !viewerIsSelf && canBanFromRoom && Boolean(onBanFromRoom)
   );
+  const bannerConfig = $derived.by(() => {
+    const conn = connection();
+    return {
+      serverId,
+      baseUrl: conn.connectBaseUrl,
+      bearerToken: conn.bearerToken
+    };
+  });
 
   $effect(() => {
     if (!browser || !visible) return;
@@ -148,6 +160,55 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     }
 
     if (page.state.profileDialog !== historyMarker) visible = false;
+  });
+
+  $effect(() => {
+    const config = bannerConfig;
+    let cancelled = false;
+    bannerSupported = false;
+
+    void supportsProfileBanners(config).then((supported) => {
+      if (!cancelled) bannerSupported = supported;
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  $effect(() => {
+    const config = bannerConfig;
+    const targetUserId = user.id;
+    const supported = bannerSupported;
+    void bannerRevision;
+
+    const controller = new AbortController();
+    let ownedObjectURL: string | null = null;
+    bannerObjectURL = null;
+
+    if (supported) {
+      void loadProfileBanner(config, targetUserId, controller.signal)
+        .then((blob) => {
+          if (controller.signal.aborted || !blob) return;
+          ownedObjectURL = URL.createObjectURL(blob);
+          bannerObjectURL = ownedObjectURL;
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) bannerObjectURL = null;
+        });
+    }
+
+    return () => {
+      controller.abort();
+      if (ownedObjectURL) URL.revokeObjectURL(ownedObjectURL);
+      if (bannerObjectURL === ownedObjectURL) bannerObjectURL = null;
+    };
+  });
+
+  $effect(() => {
+    void user.id;
+    bannerEditorOpen = false;
+    bannerRevision = 0;
   });
 
   $effect(() => {
@@ -235,6 +296,20 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     await onBanFromRoom();
   }
 
+  function handleEditBanner() {
+    if (!mayEditProfile || !bannerSupported) return;
+    bannerEditorOpen = true;
+  }
+
+  function handleBannerEditorClose() {
+    bannerEditorOpen = false;
+  }
+
+  function handleBannerChanged(_bannerUrl: string | null) {
+    bannerRevision += 1;
+    bannerEditorOpen = false;
+  }
+
   async function handleEditProfile() {
     clearHistoryMarkerForAction();
     await goto(resolve('/chat/[serverId]/settings', { serverId: serverIdToSegment(serverId) }));
@@ -250,22 +325,34 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   swipeToClose
   onclose={handleDialogClose}
 >
-  <UserProfileSurface
-    user={profileUser}
-    profile={currentProfile}
-    {loading}
-    {loadError}
-    anchored={Boolean(anchorRect)}
-    canEditProfile={mayEditProfile}
-    canSendMessage={mayMessage}
-    canCall={mayCall}
-    canBanFromRoom={mayBanFromRoom}
-    {banningFromRoom}
-    onEditProfile={handleEditProfile}
-    onSendMessage={handleSendMessage}
-    onCall={handleCall}
-    onBanFromRoom={handleBanFromRoom}
-  />
+  {#if bannerEditorOpen && mayEditProfile && bannerSupported}
+    <ProfileBannerEditor
+      config={bannerConfig}
+      currentBannerUrl={bannerObjectURL}
+      onClose={handleBannerEditorClose}
+      onChanged={handleBannerChanged}
+    />
+  {:else}
+    <UserProfileSurface
+      user={profileUser}
+      profile={currentProfile}
+      {loading}
+      {loadError}
+      anchored={Boolean(anchorRect)}
+      bannerUrl={bannerObjectURL}
+      canEditBanner={mayEditProfile && bannerSupported}
+      canEditProfile={mayEditProfile}
+      canSendMessage={mayMessage}
+      canCall={mayCall}
+      canBanFromRoom={mayBanFromRoom}
+      {banningFromRoom}
+      onEditBanner={handleEditBanner}
+      onEditProfile={handleEditProfile}
+      onSendMessage={handleSendMessage}
+      onCall={handleCall}
+      onBanFromRoom={handleBanFromRoom}
+    />
+  {/if}
 </Dialog>
 
 <style>
@@ -329,7 +416,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   :global(dialog:has(.user-profile-dialog) .dialog-body) {
     min-width: 0;
     padding: 0;
-    scrollbar-gutter: stable;
+    scrollbar-gutter: auto;
   }
 
   :global(dialog:has(.user-profile-dialog) .profile-biography-content-collapsed) {
