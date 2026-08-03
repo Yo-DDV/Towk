@@ -332,22 +332,22 @@
     padding: 0.25rem;
   }
 
-  .image-modal-zoom-level {
-    width: 100%;
-    min-width: 0;
-    grid-column: 1 / -1;
-    grid-row: 1;
-  }
-
   .image-modal-zoom-out {
     width: 100%;
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 1;
+  }
+
+  .image-modal-zoom-level {
+    width: 100%;
+    min-width: 0;
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .image-modal-zoom-in {
     width: 100%;
-    grid-column: 2;
+    grid-column: 1 / -1;
     grid-row: 2;
   }
 }
