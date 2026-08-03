@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  audioDeviceIdForRouteKind,
   audioDeviceMayUseBluetooth,
   audioDeviceRouteKind,
   friendlyAudioDeviceNames,
@@ -141,6 +142,18 @@ describe('friendlyAudioDeviceNames', () => {
 });
 
 describe('audioDeviceRouteKind', () => {
+  it('finds Chromium Android communication devices by semantic route', () => {
+    const devices = [
+      device('default', 'Default'),
+      device('speakerphone', 'Speakerphone'),
+      device('earpiece', 'Headset earpiece')
+    ];
+
+    expect(audioDeviceIdForRouteKind(devices, 'speakerphone')).toBe('speakerphone');
+    expect(audioDeviceIdForRouteKind(devices, 'earpiece')).toBe('earpiece');
+    expect(audioDeviceIdForRouteKind(devices, 'bluetooth')).toBeNull();
+  });
+
   it('recognizes Bluetooth hardware behind a stable system route id', () => {
     expect(audioDeviceRouteKind(device('default', 'Default - Pixel Bluetooth headset'))).toBe(
       'bluetooth'

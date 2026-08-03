@@ -1342,6 +1342,8 @@ const msg_voice_headset_microphone = (): LocalizedString => messages().voice_hea
 const msg_voice_bluetooth_microphone = (): LocalizedString => messages().voice_bluetooth_microphone(empty());
 const msg_voice_phone_speaker = (): LocalizedString => messages().voice_phone_speaker(empty());
 const msg_voice_headset_speaker = (): LocalizedString => messages().voice_headset_speaker(empty());
+const msg_voice_android_speakerphone_description = (): LocalizedString => messages().voice_android_speakerphone_description(empty());
+const msg_voice_android_earpiece_description = (): LocalizedString => messages().voice_android_earpiece_description(empty());
 const msg_voice_bluetooth_speaker = (): LocalizedString => messages().voice_bluetooth_speaker(empty());
 const msg_voice_camera = (): LocalizedString => messages().voice_camera(empty());
 const msg_voice_camera_front = (): LocalizedString => messages().voice_camera_front(empty());
@@ -3378,6 +3380,8 @@ export { msg_voice_headset_microphone as 'voice.headset_microphone' };
 export { msg_voice_bluetooth_microphone as 'voice.bluetooth_microphone' };
 export { msg_voice_phone_speaker as 'voice.phone_speaker' };
 export { msg_voice_headset_speaker as 'voice.headset_speaker' };
+export { msg_voice_android_speakerphone_description as 'voice.android_speakerphone_description' };
+export { msg_voice_android_earpiece_description as 'voice.android_earpiece_description' };
 export { msg_voice_bluetooth_speaker as 'voice.bluetooth_speaker' };
 export { msg_voice_camera as 'voice.camera' };
 export { msg_voice_camera_front as 'voice.camera_front' };
