@@ -248,6 +248,9 @@
     "media_telemetry_limited_by": "Codificador limitado por",
     "media_telemetry_unavailable": "La telemetría de origen no está disponible. Las métricas de recepción local no la sustituyen.",
     "media_telemetry_privacy": "Solo se intercambian métricas agregadas y limitadas. Se excluyen direcciones IP, candidatos ICE, nombres de dispositivos y contenido multimedia.",
-    "media_telemetry_sample_age": "antigüedad de la muestra: {seconds} s"
+    "media_telemetry_sample_age": "antigüedad de la muestra: {seconds} s",
+    "media_telemetry_limit_bandwidth": "Ancho de banda",
+    "media_telemetry_limit_cpu": "Procesador",
+    "media_telemetry_limit_other": "Otro"
   }
 }

@@ -248,6 +248,9 @@
     "media_telemetry_limited_by": "Encodeur limité par",
     "media_telemetry_unavailable": "La télémétrie source est indisponible. Les mesures de réception locale ne la remplacent pas.",
     "media_telemetry_privacy": "Seules des mesures agrégées et bornées sont échangées. Les adresses IP, candidats ICE, libellés de périphérique et contenus média sont exclus.",
-    "media_telemetry_sample_age": "âge de la mesure : {seconds} s"
+    "media_telemetry_sample_age": "âge de la mesure : {seconds} s",
+    "media_telemetry_limit_bandwidth": "Bande passante",
+    "media_telemetry_limit_cpu": "Processeur",
+    "media_telemetry_limit_other": "Autre"
   }
 }

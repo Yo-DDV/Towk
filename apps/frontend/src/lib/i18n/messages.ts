@@ -1571,6 +1571,9 @@ const msg_voice_media_telemetry_privacy = (): LocalizedString => messages().voic
 const msg_voice_media_telemetry_sample_age = (
   inputs: Parameters<LocaleMessages['voice_media_telemetry_sample_age']>[0]
 ): LocalizedString => messages().voice_media_telemetry_sample_age(inputs);
+const msg_voice_media_telemetry_limit_bandwidth = (): LocalizedString => messages().voice_media_telemetry_limit_bandwidth(empty());
+const msg_voice_media_telemetry_limit_cpu = (): LocalizedString => messages().voice_media_telemetry_limit_cpu(empty());
+const msg_voice_media_telemetry_limit_other = (): LocalizedString => messages().voice_media_telemetry_limit_other(empty());
 const msg_composer_attach_file = (): LocalizedString => messages().composer_attach_file(empty());
 const msg_composer_send = (): LocalizedString => messages().composer_send(empty());
 const msg_composer_send_enter = (): LocalizedString => messages().composer_send_enter(empty());
@@ -3606,6 +3609,9 @@ export { msg_voice_media_telemetry_limited_by as 'voice.media_telemetry_limited_
 export { msg_voice_media_telemetry_unavailable as 'voice.media_telemetry_unavailable' };
 export { msg_voice_media_telemetry_privacy as 'voice.media_telemetry_privacy' };
 export { msg_voice_media_telemetry_sample_age as 'voice.media_telemetry_sample_age' };
+export { msg_voice_media_telemetry_limit_bandwidth as 'voice.media_telemetry_limit_bandwidth' };
+export { msg_voice_media_telemetry_limit_cpu as 'voice.media_telemetry_limit_cpu' };
+export { msg_voice_media_telemetry_limit_other as 'voice.media_telemetry_limit_other' };
 export { msg_composer_attach_file as 'composer.attach_file' };
 export { msg_composer_send as 'composer.send' };
 export { msg_composer_send_enter as 'composer.send_enter' };

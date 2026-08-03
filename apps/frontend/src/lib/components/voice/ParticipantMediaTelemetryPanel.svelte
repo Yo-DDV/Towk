@@ -79,6 +79,28 @@
       : `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}${unit}`;
   }
 
+  function healthLabel(health: ParticipantMediaMetric['health']): string {
+    return health === 'excellent'
+      ? m['voice.screen_stats_health_excellent']()
+      : health === 'good'
+        ? m['voice.screen_stats_health_good']()
+        : health === 'degraded'
+          ? m['voice.screen_stats_health_degraded']()
+          : health === 'poor'
+            ? m['voice.screen_stats_health_poor']()
+            : m['voice.screen_stats_health_unknown']();
+  }
+
+  function limitationLabel(
+    limitation: Exclude<ParticipantMediaMetric['qualityLimitationReason'], null>
+  ): string {
+    return limitation === 'bandwidth'
+      ? m['voice.media_telemetry_limit_bandwidth']()
+      : limitation === 'cpu'
+        ? m['voice.media_telemetry_limit_cpu']()
+        : m['voice.media_telemetry_limit_other']();
+  }
+
   function aggregateRows(aggregate: ParticipantMediaAggregate | null) {
     return [
       [m['voice.media_telemetry_latency'](), format(aggregate?.latencyMs ?? null, ' ms')],
@@ -222,7 +244,7 @@
                 <h4 class="text-sm font-semibold">{metricLabel(metric.kind)}</h4>
                 <span
                   class="ml-auto rounded-full bg-surface-300 px-2 py-0.5 text-[0.6875rem] font-medium"
-                  >{metric.health}</span
+                  >{healthLabel(metric.health)}</span
                 >
               </header>
               <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
@@ -246,7 +268,7 @@
                 {/if}
                 {#if metric.qualityLimitationReason}
                   <dt class="text-muted">{m['voice.media_telemetry_limited_by']()}</dt>
-                  <dd class="text-right">{metric.qualityLimitationReason}</dd>
+                  <dd class="text-right">{limitationLabel(metric.qualityLimitationReason)}</dd>
                 {/if}
               </dl>
             </article>

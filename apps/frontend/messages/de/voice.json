@@ -248,6 +248,9 @@
     "media_telemetry_limited_by": "Encoder begrenzt durch",
     "media_telemetry_unavailable": "Quelltelemetrie ist nicht verfügbar. Lokale Empfangswerte ersetzen sie nicht.",
     "media_telemetry_privacy": "Nur begrenzte aggregierte Messwerte werden ausgetauscht. IP-Adressen, ICE-Kandidaten, Gerätenamen und Medieninhalte sind ausgeschlossen.",
-    "media_telemetry_sample_age": "Alter der Messung: {seconds} s"
+    "media_telemetry_sample_age": "Alter der Messung: {seconds} s",
+    "media_telemetry_limit_bandwidth": "Bandbreite",
+    "media_telemetry_limit_cpu": "Prozessor",
+    "media_telemetry_limit_other": "Sonstiges"
   }
 }

@@ -248,6 +248,9 @@
     "media_telemetry_limited_by": "Encoder limited by",
     "media_telemetry_unavailable": "Source telemetry is unavailable. Local reception metrics are not substituted for it.",
     "media_telemetry_privacy": "Only bounded aggregate metrics are exchanged. IP addresses, ICE candidates, device labels and media content are excluded.",
-    "media_telemetry_sample_age": "sample age: {seconds} s"
+    "media_telemetry_sample_age": "sample age: {seconds} s",
+    "media_telemetry_limit_bandwidth": "Bandwidth",
+    "media_telemetry_limit_cpu": "Processor",
+    "media_telemetry_limit_other": "Other"
   }
 }
