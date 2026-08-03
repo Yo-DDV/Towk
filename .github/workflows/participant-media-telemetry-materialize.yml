@@ -133,17 +133,29 @@ jobs:
             src/lib/state/server/voiceCall.svelte.ts
           popd >/dev/null
 
-      - name: Test telemetry protocol and call integration
+      - name: Test telemetry protocol
         shell: bash
         run: |
           set -euo pipefail
-          pushd apps/frontend >/dev/null
-          pnpm exec vitest run \
-            src/lib/voice/participantMediaTelemetry.spec.ts \
-            src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte.spec.ts \
-            src/lib/state/server/voiceCall.svelte.spec.ts \
-            src/lib/components/voice/VoiceCallPanel.svelte.spec.ts
-          popd >/dev/null
+          pnpm --dir apps/frontend exec vitest run src/lib/voice/participantMediaTelemetry.spec.ts
+
+      - name: Test telemetry detail panel
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend exec vitest run src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte.spec.ts
+
+      - name: Test telemetry call state integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend exec vitest run src/lib/state/server/voiceCall.svelte.spec.ts
+
+      - name: Test telemetry call panel integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend exec vitest run src/lib/components/voice/VoiceCallPanel.svelte.spec.ts
 
       - name: Check telemetry types and locales
         run: pnpm --dir apps/frontend run check
