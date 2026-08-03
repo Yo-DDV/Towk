@@ -19,11 +19,23 @@ import (
 // until the new avatar event has been committed, so a rejected or failed
 // replacement cannot leave the profile pointing at a deleted asset.
 func (c *ChattoCore) ReplaceUserAvatarFromUpload(ctx context.Context, userID string, reader io.Reader) (*corev1.AssetRecord, error) {
+	return c.ReplaceUserAvatarFromUploadWithFraming(ctx, userID, reader, nil)
+}
+
+// ReplaceUserAvatarFromUploadWithFraming applies optional, validated display
+// framing before canonical avatar encoding. A nil value preserves the behavior
+// and wire compatibility of existing clients.
+func (c *ChattoCore) ReplaceUserAvatarFromUploadWithFraming(
+	ctx context.Context,
+	userID string,
+	reader io.Reader,
+	framing *assets.AvatarFraming,
+) (*corev1.AssetRecord, error) {
 	if _, err := c.GetUser(ctx, userID); err != nil {
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
 
-	processed, err := assets.ProcessAvatarAssetWithConfig(reader, c.AssetsConfig())
+	processed, err := assets.ProcessAvatarAssetWithConfigAndFraming(reader, c.AssetsConfig(), framing)
 	if err != nil {
 		return nil, invalidArgument(fmt.Sprintf("invalid avatar image: %v", err))
 	}
@@ -78,8 +90,16 @@ func (c *ChattoCore) ReplaceUserAvatarFromUpload(ctx context.Context, userID str
 		"asset_id", assetID,
 		"size", len(processed.Data),
 		"animated", processed.Animated,
+		"framing_mode", avatarFramingMode(framing),
 	)
 	return asset, nil
+}
+
+func avatarFramingMode(framing *assets.AvatarFraming) string {
+	if framing == nil {
+		return "legacy"
+	}
+	return string(framing.Mode)
 }
 
 // GetUserAvatarDisplayURL returns the best URL for a rendered avatar. Animated
