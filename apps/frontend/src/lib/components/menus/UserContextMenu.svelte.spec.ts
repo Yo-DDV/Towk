@@ -159,6 +159,9 @@ describe('UserContextMenu', () => {
 
     expect(identityPanel.querySelector('.profile-cover')).not.toBeNull();
     expect(identityPanel.querySelector('[data-testid="profile-hero-roles"]')).not.toBeNull();
+    expect(
+      identityPanel.querySelector('.profile-role-chip-moderation')?.getAttribute('title')
+    ).toBe('Moderator');
     expect(contentPanel.querySelectorAll('.profile-fact')).toHaveLength(2);
     expect(nameHeading.tagName).toBe('H2');
     expect(nameHeading.textContent).toContain('Alice Example');
@@ -268,6 +271,27 @@ describe('UserContextMenu', () => {
         mocks.callJoinController
       )
     );
+  });
+
+  it('exposes a disabled busy state while a room ban is in progress', async () => {
+    const onBanFromRoom = vi.fn();
+    const { container } = renderMenu({
+      canBanFromRoom: true,
+      banningFromRoom: true,
+      onBanFromRoom
+    });
+
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
+
+    const action = container.querySelector<HTMLButtonElement>(
+      '.profile-action[aria-busy="true"]'
+    );
+    if (!action) throw new Error('Expected the busy room-ban action to be rendered.');
+
+    expect(action.disabled).toBe(true);
+    expect(action.getAttribute('aria-busy')).toBe('true');
+    action.click();
+    expect(onBanFromRoom).not.toHaveBeenCalled();
   });
 
   it('uses a member fallback when no explicit role is assigned', async () => {
