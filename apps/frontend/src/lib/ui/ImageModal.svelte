@@ -31,6 +31,7 @@
     startY: number;
     pointerType: string;
     moved: boolean;
+    startedOnStage: boolean;
   };
 
   type PinchSnapshot = {
@@ -53,7 +54,9 @@
   const DOUBLE_TAP_DELAY_MS = 320;
   const DOUBLE_TAP_DISTANCE = 28;
   const POINTER_MOVE_THRESHOLD = 6;
-  const SYNTHETIC_CLICK_GUARD_MS = 250;
+  const SYNTHETIC_CLICK_GUARD_MS = 350;
+  const TOUCH_DOUBLE_CLICK_GUARD_MS = 500;
+  const WHEEL_IDLE_MS = 140;
 
   let stageNode: HTMLDivElement | null = null;
   let transform = $state<ImageViewerTransform>({ scale: MIN_IMAGE_SCALE, x: 0, y: 0 });
@@ -63,18 +66,36 @@
   let detailFailed = $state(false);
   let previewFailed = $state(false);
   let gestureActive = $state(false);
+  let wheelActive = $state(false);
+  let closing = $state(false);
+  let selectedIndex = $state(clampItemIndex(index, items.length));
+  let selectedId = $state<string | null>(items[selectedIndex]?.id ?? null);
 
-  let current = $derived(items[index] ?? items[0]);
+  let currentIndex = $derived(clampItemIndex(selectedIndex, items.length));
+  let current = $derived(items[currentIndex]);
   let hasMultiple = $derived(items.length > 1);
-  let detailSrc = $derived(
-    current?.originalSrc && current.originalSrc !== current.src ? current.originalSrc : null
-  );
+  let previewSrc = $derived(usableSource(current?.src));
+  let detailSrc = $derived.by(() => {
+    const original = usableSource(current?.originalSrc);
+    return original && original !== previewSrc ? original : null;
+  });
   let imageAlt = $derived(
     current?.alt ?? current?.filename ?? m['ui.image_modal.fallback_alt']()
   );
   let measurementSrc = $derived(
-    previewFailed && detailSrc && !detailFailed ? detailSrc : current?.src
+    previewSrc && !previewFailed
+      ? previewSrc
+      : detailSrc && !detailFailed
+        ? detailSrc
+        : null
   );
+  let mediaUnavailable = $derived(
+    (!previewSrc || previewFailed) && (!detailSrc || detailFailed)
+  );
+  let currentIdentity = $derived(
+    `${currentIndex}:${current?.id ?? current?.filename ?? current?.alt ?? ''}`
+  );
+  let currentSourceKey = $derived(`${previewSrc ?? ''}\u0000${detailSrc ?? ''}`);
   let zoomPercent = $derived(Math.round(transform.scale * 100));
   let mediaStyle = $derived(
     [
@@ -91,11 +112,53 @@
   let resizeFrame: number | null = null;
   let lastTapAt = 0;
   let lastTapPoint: ImageViewerPoint | null = null;
+  let suppressMouseDoubleClickUntil = 0;
   let suppressNextStageClick = false;
   let suppressClickResetTimer: number | null = null;
+  let wheelIdleTimer: number | null = null;
+  let previousItems = items;
+  let previousPropIndex = index;
 
+  // Signed-URL refreshes replace the items array and may replay the original
+  // history index. Preserve the currently selected attachment by stable ID
+  // when it still exists; honor a true external index change otherwise.
   $effect(() => {
-    const itemKey = `${index}:${current?.id ?? current?.src ?? ''}`;
+    const length = items.length;
+    const requestedIndex = clampItemIndex(index, length);
+    const itemsChanged = items !== previousItems;
+    const propIndexChanged = index !== previousPropIndex;
+    previousItems = items;
+    previousPropIndex = index;
+
+    if (length === 0) {
+      selectedIndex = 0;
+      selectedId = null;
+      return;
+    }
+
+    const identityIndex = selectedId
+      ? items.findIndex((item) => item.id === selectedId)
+      : -1;
+    const nextIndex =
+      itemsChanged && identityIndex >= 0
+        ? identityIndex
+        : propIndexChanged
+          ? requestedIndex
+          : identityIndex >= 0
+            ? identityIndex
+            : clampItemIndex(selectedIndex, length);
+    const nextId = items[nextIndex]?.id ?? null;
+
+    if (selectedIndex !== nextIndex) selectedIndex = nextIndex;
+    if (selectedId !== nextId) selectedId = nextId;
+    if (index !== nextIndex) index = nextIndex;
+  });
+
+  // A different gallery item starts fitted and centered. Signed URL refreshes
+  // for the same attachment are handled by the source effect below so a ticket
+  // renewal can retry without discarding the user's zoom and pan position.
+  $effect(() => {
+    const itemKey = currentIdentity;
     void itemKey;
     detailReady = false;
     detailFailed = false;
@@ -103,10 +166,31 @@
     naturalSize = { width: 0, height: 0 };
     fittedSize = { width: 0, height: 0 };
     resetTransform();
-    resetPointerState();
+    resetInteractionState();
 
-    return resetPointerState;
+    return resetInteractionState;
   });
+
+  // A refreshed source URL for the same item must retry a previous load error.
+  // Keep the measured geometry and transform because the underlying asset is
+  // immutable and only its access ticket changed.
+  $effect(() => {
+    const sourceKey = currentSourceKey;
+    void sourceKey;
+    detailReady = false;
+    detailFailed = false;
+    previewFailed = false;
+  });
+
+  function usableSource(value: string | null | undefined): string | null {
+    return typeof value === 'string' && value.trim() ? value : null;
+  }
+
+  function clampItemIndex(value: number, length: number): number {
+    if (length <= 0) return 0;
+    const integer = Number.isFinite(value) ? Math.trunc(value) : 0;
+    return Math.min(Math.max(integer, 0), length - 1);
+  }
 
   function showDialog(node: HTMLDialogElement) {
     const previousFocus =
@@ -120,12 +204,23 @@
   }
 
   function close() {
-    onclose();
+    if (closing) return;
+    closing = true;
+    resetInteractionState();
+    try {
+      onclose();
+    } catch (error) {
+      closing = false;
+      throw error;
+    }
   }
 
   function navigate(direction: -1 | 1) {
-    if (items.length === 0) return;
-    index = (index + direction + items.length) % items.length;
+    if (items.length === 0 || closing) return;
+    const nextIndex = (currentIndex + direction + items.length) % items.length;
+    selectedIndex = nextIndex;
+    selectedId = items[nextIndex]?.id ?? null;
+    index = nextIndex;
   }
 
   function resetTransform() {
@@ -158,18 +253,29 @@
 
   function observeStage(node: HTMLDivElement) {
     stageNode = node;
-    const observer = new ResizeObserver(scheduleMeasure);
-    observer.observe(node);
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleMeasure);
+    observer?.observe(node);
+    window.addEventListener('resize', scheduleMeasure);
     window.visualViewport?.addEventListener('resize', scheduleMeasure);
     scheduleMeasure();
 
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
       window.visualViewport?.removeEventListener('resize', scheduleMeasure);
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
       resizeFrame = null;
       if (stageNode === node) stageNode = null;
     };
+  }
+
+  function sourceEventIsCurrent(
+    image: HTMLImageElement,
+    expected: string | null,
+    active: string | null
+  ): expected is string {
+    return Boolean(expected && expected === active && image.dataset.viewerSource === expected);
   }
 
   function setNaturalSize(image: HTMLImageElement, prefer: boolean) {
@@ -179,26 +285,55 @@
     scheduleMeasure();
   }
 
-  function handlePreviewLoad(event: Event) {
+  function handlePreviewLoad(event: Event, expected: string | null) {
     if (!(event.currentTarget instanceof HTMLImageElement)) return;
+    if (!sourceEventIsCurrent(event.currentTarget, expected, previewSrc)) return;
     previewFailed = false;
     setNaturalSize(event.currentTarget, !detailReady);
   }
 
-  function handlePreviewError() {
+  function handlePreviewError(event: Event, expected: string | null) {
+    if (!(event.currentTarget instanceof HTMLImageElement)) return;
+    if (!sourceEventIsCurrent(event.currentTarget, expected, previewSrc)) return;
     previewFailed = true;
   }
 
-  function handleDetailLoad(event: Event) {
+  function handleDetailLoad(event: Event, expected: string | null) {
     if (!(event.currentTarget instanceof HTMLImageElement)) return;
+    if (!sourceEventIsCurrent(event.currentTarget, expected, detailSrc)) return;
     detailReady = true;
     detailFailed = false;
     setNaturalSize(event.currentTarget, true);
   }
 
-  function handleDetailError() {
+  function handleDetailError(event: Event, expected: string | null) {
+    if (!(event.currentTarget instanceof HTMLImageElement)) return;
+    if (!sourceEventIsCurrent(event.currentTarget, expected, detailSrc)) return;
     detailReady = false;
     detailFailed = true;
+  }
+
+  function handleMeasurementLoad(event: Event, expected: string | null) {
+    if (!(event.currentTarget instanceof HTMLImageElement)) return;
+    if (!sourceEventIsCurrent(event.currentTarget, expected, measurementSrc)) return;
+    if (event.currentTarget.dataset.viewerRole === 'detail') {
+      detailReady = true;
+      detailFailed = false;
+    } else {
+      previewFailed = false;
+    }
+    setNaturalSize(event.currentTarget, true);
+  }
+
+  function handleMeasurementError(event: Event, expected: string | null) {
+    if (!(event.currentTarget instanceof HTMLImageElement)) return;
+    if (!sourceEventIsCurrent(event.currentTarget, expected, measurementSrc)) return;
+    if (event.currentTarget.dataset.viewerRole === 'detail') {
+      detailReady = false;
+      detailFailed = true;
+    } else {
+      previewFailed = true;
+    }
   }
 
   function focalPoint(clientX: number, clientY: number): ImageViewerPoint {
@@ -232,8 +367,25 @@
     changeZoom(2, focalPoint(clientX, clientY));
   }
 
+  function beginWheelInteraction() {
+    wheelActive = true;
+    if (wheelIdleTimer !== null) window.clearTimeout(wheelIdleTimer);
+    wheelIdleTimer = window.setTimeout(() => {
+      wheelIdleTimer = null;
+      wheelActive = false;
+    }, WHEEL_IDLE_MS);
+  }
+
+  function clearWheelInteraction() {
+    if (wheelIdleTimer !== null) window.clearTimeout(wheelIdleTimer);
+    wheelIdleTimer = null;
+    wheelActive = false;
+  }
+
   function handleWheel(event: WheelEvent) {
+    if (closing) return;
     event.preventDefault();
+    beginWheelInteraction();
     const viewport = viewportSize();
     const normalizedDelta =
       event.deltaMode === 1
@@ -246,6 +398,7 @@
   }
 
   function handleDoubleClick(event: MouseEvent) {
+    if (closing || performance.now() < suppressMouseDoubleClickUntil) return;
     if (event.target instanceof Element && event.target.closest('button')) return;
     event.preventDefault();
     toggleZoomAt(event.clientX, event.clientY);
@@ -277,9 +430,11 @@
   }
 
   function handlePointerDown(event: PointerEvent) {
+    if (closing || activePointers.size >= 2) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     if (event.target instanceof Element && event.target.closest('button')) return;
     event.preventDefault();
+    clearWheelInteraction();
     stageNode?.focus({ preventScroll: true });
     try {
       stageNode?.setPointerCapture(event.pointerId);
@@ -294,15 +449,16 @@
       startX: event.clientX,
       startY: event.clientY,
       pointerType: event.pointerType,
-      moved: false
+      moved: false,
+      startedOnStage: event.target === event.currentTarget
     });
     gestureActive = true;
-    if (activePointers.size >= 2) beginPinch();
+    if (activePointers.size === 2) beginPinch();
   }
 
   function handlePointerMove(event: PointerEvent) {
     const sample = activePointers.get(event.pointerId);
-    if (!sample) return;
+    if (!sample || closing) return;
     event.preventDefault();
 
     sample.lastX = sample.x;
@@ -315,7 +471,7 @@
       sample.moved = true;
     }
 
-    if (activePointers.size >= 2) {
+    if (activePointers.size === 2) {
       const [first, second] = Array.from(activePointers.values());
       if (!first || !second) return;
       if (!pinchSnapshot) beginPinch();
@@ -385,20 +541,23 @@
       // The browser may have already released capture during cancellation.
     }
 
-    if (activePointers.size >= 2) {
-      beginPinch();
-    } else {
-      pinchSnapshot = null;
-      const remaining = Array.from(activePointers.values())[0];
-      if (remaining) {
-        remaining.lastX = remaining.x;
-        remaining.lastY = remaining.y;
-      }
+    pinchSnapshot = null;
+    const remaining = Array.from(activePointers.values())[0];
+    if (remaining) {
+      remaining.lastX = remaining.x;
+      remaining.lastY = remaining.y;
     }
 
     if (sample.moved) armSyntheticClickGuard();
 
     if (allowTap && sample.pointerType === 'touch' && !sample.moved && activePointers.size === 0) {
+      if (sample.startedOnStage && transform.scale === MIN_IMAGE_SCALE) {
+        lastTapAt = 0;
+        lastTapPoint = null;
+        close();
+        return;
+      }
+
       const now = performance.now();
       const point = { x: sample.x, y: sample.y };
       if (
@@ -407,6 +566,7 @@
         Math.hypot(point.x - lastTapPoint.x, point.y - lastTapPoint.y) <= DOUBLE_TAP_DISTANCE
       ) {
         toggleZoomAt(point.x, point.y);
+        suppressMouseDoubleClickUntil = now + TOUCH_DOUBLE_CLICK_GUARD_MS;
         lastTapAt = 0;
         lastTapPoint = null;
       } else {
@@ -426,7 +586,7 @@
     finishPointer(event, false);
   }
 
-  function resetPointerState() {
+  function resetInteractionState() {
     for (const pointerId of activePointers.keys()) {
       try {
         if (stageNode?.hasPointerCapture(pointerId)) {
@@ -441,10 +601,13 @@
     gestureActive = false;
     lastTapAt = 0;
     lastTapPoint = null;
+    suppressMouseDoubleClickUntil = 0;
     clearSyntheticClickGuard();
+    clearWheelInteraction();
   }
 
   function handleStageClick(event: MouseEvent) {
+    if (closing) return;
     if (suppressNextStageClick) {
       clearSyntheticClickGuard();
       return;
@@ -464,7 +627,7 @@
       close();
       return;
     }
-    if (event.target instanceof HTMLButtonElement) return;
+    if (closing || event.target instanceof HTMLButtonElement) return;
 
     if (event.key === '+' || event.key === '=') {
       event.preventDefault();
@@ -531,165 +694,171 @@
   onclick={(event) => {
     if (event.target === event.currentTarget) close();
   }}
-  class="image-modal-dialog fixed inset-0 m-0 overflow-hidden border-none p-0 backdrop:bg-transparent"
+  class="image-modal-dialog fixed inset-0 m-0 overflow-hidden border-none backdrop:bg-transparent"
   aria-label={current?.filename ?? imageAlt}
+  aria-busy={closing}
   data-mobile-navigation-swipe="ignore"
 >
-  {#if current}
-    <header class="image-modal-header">
-      <div class="min-w-0 flex-1">
-        {#if current.filename}
-          <div class="image-modal-filename" title={current.filename}>{current.filename}</div>
-        {:else}
-          <div class="image-modal-filename">{imageAlt}</div>
-        {/if}
-        {#if hasMultiple}
-          <div class="image-modal-counter">{index + 1} / {items.length}</div>
-        {/if}
+  <header class="image-modal-header">
+    <div class="min-w-0 flex-1">
+      <div class="image-modal-filename" title={current?.filename ?? imageAlt}>
+        {current?.filename ?? imageAlt}
       </div>
-
-      {#if detailSrc && !detailReady && !detailFailed}
-        <div class="image-modal-loading" aria-live="polite">
-          <span class="image-modal-spinner" aria-hidden="true"></span>
-          <span class="sr-only">{m['common.loading']()}</span>
+      {#if hasMultiple}
+        <div class="image-modal-counter" aria-live="polite">
+          {currentIndex + 1} / {items.length}
         </div>
       {/if}
+    </div>
 
-      <button
-        type="button"
-        onclick={close}
-        class="image-modal-control image-modal-close"
-        aria-label={m['ui.close']()}
-        title={m['ui.close']()}
-      >
-        <span class="iconify text-2xl uil--times" aria-hidden="true"></span>
-      </button>
-    </header>
+    {#if detailSrc && !detailReady && !detailFailed}
+      <div class="image-modal-loading" aria-live="polite">
+        <span class="image-modal-spinner" aria-hidden="true"></span>
+        <span class="sr-only">{m['common.loading']()}</span>
+      </div>
+    {/if}
 
-    <div
-      {@attach observeStage}
-      class:viewer-can-pan={transform.scale > MIN_IMAGE_SCALE}
-      class:viewer-is-panning={gestureActive && transform.scale > MIN_IMAGE_SCALE}
-      class="image-modal-stage"
-      role="application"
-      tabindex="0"
-      aria-label={imageAlt}
-      data-testid="image-modal-stage"
-      onwheel={handleWheel}
-      ondblclick={handleDoubleClick}
-      onpointerdown={handlePointerDown}
-      onpointermove={handlePointerMove}
-      onpointerup={handlePointerUp}
-      onpointercancel={handlePointerCancel}
-      onlostpointercapture={handlePointerCancel}
-      onclick={handleStageClick}
-      onkeydown={(event) => {
-        if (event.target instanceof HTMLButtonElement) return;
-        event.stopPropagation();
-        handleKeydown(event);
-      }}
-      oncontextmenu={(event) => event.preventDefault()}
+    <button
+      type="button"
+      onclick={close}
+      class="image-modal-control image-modal-close"
+      aria-label={m['ui.close']()}
+      title={m['ui.close']()}
+      disabled={closing}
     >
-      {#if fittedSize.width > 0 && fittedSize.height > 0}
-        <div
-          class="image-modal-media"
-          style={mediaStyle}
-          data-testid="image-modal-media"
-          aria-busy={Boolean(detailSrc) && !detailReady && !detailFailed}
-        >
-          {#if !previewFailed}
+      <span class="iconify text-2xl uil--times" aria-hidden="true"></span>
+    </button>
+  </header>
+
+  <div
+    {@attach observeStage}
+    class:viewer-can-pan={transform.scale > MIN_IMAGE_SCALE}
+    class:viewer-is-interacting={gestureActive || wheelActive}
+    class="image-modal-stage"
+    role="application"
+    tabindex="0"
+    aria-label={imageAlt}
+    aria-roledescription={m['ui.image_modal.fallback_alt']()}
+    data-testid="image-modal-stage"
+    onwheel={handleWheel}
+    ondblclick={handleDoubleClick}
+    onpointerdown={handlePointerDown}
+    onpointermove={handlePointerMove}
+    onpointerup={handlePointerUp}
+    onpointercancel={handlePointerCancel}
+    onlostpointercapture={handlePointerCancel}
+    onclick={handleStageClick}
+    onkeydown={(event) => {
+      if (event.target instanceof HTMLButtonElement) return;
+      event.stopPropagation();
+      handleKeydown(event);
+    }}
+    oncontextmenu={(event) => event.preventDefault()}
+  >
+    {#if mediaUnavailable}
+      <div class="image-modal-empty-fallback" aria-hidden="true">
+        <span class="iconify text-4xl mdi--file-image-outline" aria-hidden="true"></span>
+      </div>
+    {:else if fittedSize.width > 0 && fittedSize.height > 0}
+      <div
+        class="image-modal-media"
+        style={mediaStyle}
+        data-testid="image-modal-media"
+        aria-busy={Boolean(detailSrc) && !detailReady && !detailFailed}
+      >
+        {#if previewSrc && !previewFailed}
+          {#key previewSrc}
             <img
-              src={current.src}
-              alt={imageAlt}
+              src={previewSrc}
+              alt=""
+              aria-hidden="true"
               draggable="false"
+              decoding="async"
+              fetchpriority="high"
+              data-viewer-source={previewSrc}
               class="image-modal-image image-modal-preview"
               class:image-modal-preview-hidden={detailReady}
               data-testid="image-modal-preview-image"
-              onload={handlePreviewLoad}
-              onerror={handlePreviewError}
+              onload={(event) => handlePreviewLoad(event, previewSrc)}
+              onerror={(event) => handlePreviewError(event, previewSrc)}
             />
-          {/if}
+          {/key}
+        {/if}
 
-          {#if detailSrc && !detailFailed}
+        {#if detailSrc && !detailFailed}
+          {#key detailSrc}
             <img
               src={detailSrc}
               alt=""
               aria-hidden="true"
               draggable="false"
+              decoding="async"
+              fetchpriority="low"
+              data-viewer-source={detailSrc}
               class="image-modal-image image-modal-detail"
               class:image-modal-detail-ready={detailReady}
               data-testid="image-modal-detail-image"
-              onload={handleDetailLoad}
-              onerror={handleDetailError}
+              onload={(event) => handleDetailLoad(event, detailSrc)}
+              onerror={(event) => handleDetailError(event, detailSrc)}
             />
-          {/if}
-
-          {#if previewFailed && (!detailSrc || detailFailed)}
-            <div class="image-modal-fallback" role="img" aria-label={imageAlt}>
-              <span class="iconify text-4xl mdi--file-image-outline" aria-hidden="true"></span>
-            </div>
-          {/if}
-        </div>
-      {:else if previewFailed && (!detailSrc || detailFailed)}
-        <div class="image-modal-empty-fallback" role="img" aria-label={imageAlt}>
-          <span class="iconify text-4xl mdi--file-image-outline" aria-hidden="true"></span>
-        </div>
-      {:else}
+          {/key}
+        {/if}
+      </div>
+    {:else if measurementSrc}
+      {#key measurementSrc}
         <img
           src={measurementSrc}
-          alt={imageAlt}
+          alt=""
+          aria-hidden="true"
           draggable="false"
+          decoding="async"
+          fetchpriority={measurementSrc === previewSrc ? 'high' : 'low'}
+          data-viewer-source={measurementSrc}
+          data-viewer-role={measurementSrc === detailSrc ? 'detail' : 'preview'}
           class="image-modal-measurement"
           data-testid="image-modal-measurement-image"
-          onload={(event) => {
-            if (event.currentTarget instanceof HTMLImageElement) {
-              if (measurementSrc === detailSrc) detailReady = true;
-              setNaturalSize(event.currentTarget, true);
-            }
-          }}
-          onerror={() => {
-            if (measurementSrc === detailSrc) {
-              detailFailed = true;
-            } else {
-              previewFailed = true;
-            }
-          }}
+          onload={(event) => handleMeasurementLoad(event, measurementSrc)}
+          onerror={(event) => handleMeasurementError(event, measurementSrc)}
         />
-        <div class="image-modal-stage-loading" aria-hidden="true">
-          <span class="image-modal-spinner"></span>
-        </div>
-      {/if}
+      {/key}
+      <div class="image-modal-stage-loading" aria-hidden="true">
+        <span class="image-modal-spinner"></span>
+      </div>
+    {/if}
 
-      {#if hasMultiple}
-        <button
-          type="button"
-          onclick={() => navigate(-1)}
-          class="image-modal-control image-modal-nav image-modal-nav-previous"
-          aria-label={m['ui.image_modal.previous']()}
-          title={m['ui.image_modal.previous']()}
-        >
-          <span class="iconify text-2xl uil--angle-left-b" aria-hidden="true"></span>
-        </button>
-        <button
-          type="button"
-          onclick={() => navigate(1)}
-          class="image-modal-control image-modal-nav image-modal-nav-next"
-          aria-label={m['ui.image_modal.next']()}
-          title={m['ui.image_modal.next']()}
-        >
-          <span class="iconify text-2xl uil--angle-right-b" aria-hidden="true"></span>
-        </button>
-      {/if}
-    </div>
+    {#if hasMultiple}
+      <button
+        type="button"
+        onclick={() => navigate(-1)}
+        class="image-modal-control image-modal-nav image-modal-nav-previous"
+        aria-label={m['ui.image_modal.previous']()}
+        title={m['ui.image_modal.previous']()}
+        disabled={closing}
+      >
+        <span class="iconify text-2xl uil--angle-left-b" aria-hidden="true"></span>
+      </button>
+      <button
+        type="button"
+        onclick={() => navigate(1)}
+        class="image-modal-control image-modal-nav image-modal-nav-next"
+        aria-label={m['ui.image_modal.next']()}
+        title={m['ui.image_modal.next']()}
+        disabled={closing}
+      >
+        <span class="iconify text-2xl uil--angle-right-b" aria-hidden="true"></span>
+      </button>
+    {/if}
+  </div>
 
+  {#if current}
     <div class="image-modal-zoom" role="group" aria-label={`${imageAlt} ${zoomPercent}%`}>
       <button
         type="button"
         onclick={() => zoomBy(-IMAGE_ZOOM_STEP)}
-        class="image-modal-control image-modal-zoom-button"
-        aria-label="-25%"
-        title="-25%"
-        disabled={transform.scale <= MIN_IMAGE_SCALE}
+        class="image-modal-control image-modal-zoom-button image-modal-zoom-out"
+        aria-label={`−${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
+        title={`−${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
+        disabled={closing || transform.scale <= MIN_IMAGE_SCALE}
         data-testid="image-modal-zoom-out"
       >
         <span class="iconify text-xl uil--minus" aria-hidden="true"></span>
@@ -698,20 +867,23 @@
         type="button"
         onclick={resetTransform}
         class="image-modal-zoom-level"
-        aria-label={`${m['settings.notifications.sound.reset']()} ${zoomPercent}%`}
-        title={m['settings.notifications.sound.reset']()}
-        disabled={transform.scale === MIN_IMAGE_SCALE && transform.x === 0 && transform.y === 0}
+        aria-label="100%"
+        title="100%"
+        disabled={
+          closing ||
+          (transform.scale === MIN_IMAGE_SCALE && transform.x === 0 && transform.y === 0)
+        }
         data-testid="image-modal-zoom-reset"
       >
-        {zoomPercent}%
+        <output aria-live="polite">{zoomPercent}%</output>
       </button>
       <button
         type="button"
         onclick={() => zoomBy(IMAGE_ZOOM_STEP)}
-        class="image-modal-control image-modal-zoom-button"
-        aria-label="+25%"
-        title="+25%"
-        disabled={transform.scale >= MAX_IMAGE_SCALE}
+        class="image-modal-control image-modal-zoom-button image-modal-zoom-in"
+        aria-label={`+${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
+        title={`+${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
+        disabled={closing || transform.scale >= MAX_IMAGE_SCALE}
         data-testid="image-modal-zoom-in"
       >
         <span class="iconify text-xl uil--plus" aria-hidden="true"></span>
