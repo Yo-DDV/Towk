@@ -3,6 +3,7 @@
   import type { DetailedUserProfile } from '$lib/api-client/memberDirectory';
   import { PresenceStatus } from '$lib/render/types';
   import UserProfileSurface from './UserProfileSurface.svelte';
+  import './UserProfileSurface.polish.css';
 
   const { Story } = defineMeta({
     title: 'Components/Users/UserProfileSurface',
