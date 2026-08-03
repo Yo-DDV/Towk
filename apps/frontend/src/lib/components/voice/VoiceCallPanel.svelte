@@ -25,6 +25,12 @@ retained only for non-joined projections that still consume this component.
   import CallTileActionButton from './CallTileActionButton.svelte';
   import CallTileActionToolbar from './CallTileActionToolbar.svelte';
   import ScreenShareDiagnostics from './ScreenShareDiagnostics.svelte';
+  import ParticipantMediaTelemetryPanel from './ParticipantMediaTelemetryPanel.svelte';
+  import type {
+    ParticipantMediaDiagnosis,
+    ParticipantMediaMetric,
+    ParticipantMediaTelemetryHistoryPoint
+  } from '$lib/voice/participantMediaTelemetry';
   import FloatingTooltip from '$lib/ui/FloatingTooltip.svelte';
   import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
   import type { Track } from 'livekit-client';
@@ -61,6 +67,7 @@ retained only for non-joined projections that still consume this component.
   let hasActiveCall = $derived(activeCallRooms.has(roomId));
   let isStageLayout = $derived(layout === 'stage');
   let diagnosticsParticipantKey = $state<string | null>(null);
+  let telemetryParticipantKey = $state<string | null>(null);
   let connectionTooltip = $state<{
     key: string;
     anchor: { top: number; bottom: number; left: number };
@@ -171,6 +178,14 @@ retained only for non-joined projections that still consume this component.
     jitterMs: number | null;
     latencyMs: number | null;
     networkWarningMetric: 'packetLoss' | 'jitter' | 'latency' | null;
+    receptionNetworkHealth: 'excellent' | 'good' | 'degraded' | 'poor' | 'unknown';
+    receptionPacketLossPercent: number | null;
+    receptionJitterMs: number | null;
+    receptionLatencyMs: number | null;
+    sourceMediaTelemetry: ParticipantMediaMetric[];
+    sourceTelemetryUpdatedAt: number | null;
+    mediaTelemetryHistory: ParticipantMediaTelemetryHistoryPoint[];
+    mediaTelemetryDiagnosis: ParticipantMediaDiagnosis;
     connectionState: 'connected' | 'interrupted';
     interruptionDeadline: string | null;
     isCameraEnabled: boolean;
@@ -208,6 +223,14 @@ retained only for non-joined projections that still consume this component.
         jitterMs: p.jitterMs,
         latencyMs: p.latencyMs,
         networkWarningMetric: p.networkWarningMetric,
+        receptionNetworkHealth: p.receptionNetworkHealth ?? 'unknown',
+        receptionPacketLossPercent: p.receptionPacketLossPercent ?? null,
+        receptionJitterMs: p.receptionJitterMs ?? null,
+        receptionLatencyMs: p.receptionLatencyMs ?? null,
+        sourceMediaTelemetry: p.sourceMediaTelemetry ?? [],
+        sourceTelemetryUpdatedAt: p.sourceTelemetryUpdatedAt ?? null,
+        mediaTelemetryHistory: p.mediaTelemetryHistory ?? [],
+        mediaTelemetryDiagnosis: p.mediaTelemetryDiagnosis ?? 'unknown',
         connectionState: p.connectionState,
         interruptionDeadline: p.interruptionDeadline,
         isCameraEnabled: p.isCameraEnabled,
@@ -244,6 +267,14 @@ retained only for non-joined projections that still consume this component.
       jitterMs: null,
       latencyMs: null,
       networkWarningMetric: null,
+      receptionNetworkHealth: 'unknown',
+      receptionPacketLossPercent: null,
+      receptionJitterMs: null,
+      receptionLatencyMs: null,
+      sourceMediaTelemetry: [],
+      sourceTelemetryUpdatedAt: null,
+      mediaTelemetryHistory: [],
+      mediaTelemetryDiagnosis: 'unknown',
       connectionState: p.connectionState,
       interruptionDeadline: p.interruptionDeadline,
       isCameraEnabled: false,
@@ -413,6 +444,15 @@ retained only for non-joined projections that still consume this component.
 
   $effect(() => {
     if (
+      telemetryParticipantKey &&
+      !participants.some((participant) => participant.key === telemetryParticipantKey)
+    ) {
+      telemetryParticipantKey = null;
+    }
+  });
+
+  $effect(() => {
+    if (
       diagnosticsParticipantKey &&
       !screenShareParticipants.some(
         (participant) =>
@@ -442,8 +482,8 @@ retained only for non-joined projections that still consume this component.
   function hasConnectionWarning(participant: DisplayParticipant) {
     return (
       participant.connectionState === 'interrupted' ||
-      participant.connectionQuality === 'poor' ||
-      participant.connectionQuality === 'lost' ||
+      (participant.isLocal &&
+        (participant.connectionQuality === 'poor' || participant.connectionQuality === 'lost')) ||
       participant.networkHealth === 'degraded' ||
       participant.networkHealth === 'poor'
     );
@@ -499,20 +539,38 @@ retained only for non-joined projections that still consume this component.
 
   function participantConnectionMetrics(participant: DisplayParticipant): string {
     const unavailable = m['voice.connection_metric_unavailable']();
-    return m['voice.participant_connection_metrics']({
-      latency:
-        participant.latencyMs === null
-          ? unavailable
-          : `${formatNetworkMetric(participant.latencyMs)} ms`,
-      packetLoss:
-        participant.packetLossPercent === null
-          ? unavailable
-          : `${formatNetworkMetric(participant.packetLossPercent)}%`,
-      jitter:
-        participant.jitterMs === null
-          ? unavailable
-          : `${formatNetworkMetric(participant.jitterMs)} ms`
+    const formatValue = (value: number | null, suffix: string) =>
+      value === null ? unavailable : `${formatNetworkMetric(value)}${suffix}`;
+    return `${m['voice.media_telemetry_source']()}: ${m['voice.participant_connection_metrics']({
+      latency: formatValue(participant.latencyMs, ' ms'),
+      packetLoss: formatValue(participant.packetLossPercent, '%'),
+      jitter: formatValue(participant.jitterMs, ' ms')
+    })} · ${m['voice.media_telemetry_reception']()}: ${m['voice.participant_connection_metrics']({
+      latency: formatValue(participant.receptionLatencyMs, ' ms'),
+      packetLoss: formatValue(participant.receptionPacketLossPercent, '%'),
+      jitter: formatValue(participant.receptionJitterMs, ' ms')
+    })}`;
+  }
+
+  function participantTelemetryPanelId(participant: DisplayParticipant): string {
+    return `call-participant-telemetry-${encodeURIComponent(participant.key)}`;
+  }
+
+  function participantTelemetryButtonId(participant: DisplayParticipant): string {
+    return `call-participant-telemetry-button-${encodeURIComponent(participant.key)}`;
+  }
+
+  function closeParticipantTelemetry(participant: DisplayParticipant): void {
+    telemetryParticipantKey = null;
+    requestAnimationFrame(() => {
+      document.getElementById(participantTelemetryButtonId(participant))?.focus();
     });
+  }
+
+  function toggleParticipantTelemetry(participant: DisplayParticipant, event: MouseEvent): void {
+    event.stopPropagation();
+    connectionTooltip = null;
+    telemetryParticipantKey = telemetryParticipantKey === participant.key ? null : participant.key;
   }
 
   function participantConnectionTooltipId(participant: DisplayParticipant): string {
@@ -549,6 +607,13 @@ retained only for non-joined projections that still consume this component.
       return m['voice.participant_reconnecting']();
     }
     if (hasConnectionWarning(participant)) return participantNetworkWarning(participant);
+    if (!participant.isLocal) {
+      return participant.networkHealth === 'excellent' || participant.networkHealth === 'good'
+        ? participant.networkHealth === 'excellent'
+          ? m['voice.connection_quality_excellent']()
+          : m['voice.connection_quality_good']()
+        : m['voice.connection_quality_unknown']();
+    }
 
     switch (participant.connectionQuality) {
       case 'excellent':
@@ -920,9 +985,12 @@ retained only for non-joined projections that still consume this component.
       ></span>
     {/if}
     <button
+      id={participantTelemetryButtonId(participant)}
       type="button"
-      class="inline-flex min-w-4 shrink-0 cursor-help items-center justify-center border-0 bg-transparent p-0"
-      aria-label={participantConnectionLabel(participant)}
+      class="inline-flex min-h-[44px] min-w-[44px] shrink-0 cursor-help items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+      aria-label={`${participantConnectionLabel(participant)} — ${m['voice.media_telemetry_open']()}`}
+      aria-expanded={telemetryParticipantKey === participant.key}
+      aria-controls={participantTelemetryPanelId(participant)}
       aria-describedby={connectionTooltip?.key === participant.key
         ? participantConnectionTooltipId(participant)
         : undefined}
@@ -930,6 +998,7 @@ retained only for non-joined projections that still consume this component.
       onmouseleave={() => hideConnectionTooltip(participant, 'pointer')}
       onfocus={(event) => showConnectionTooltip(participant, event, 'focus')}
       onblur={() => hideConnectionTooltip(participant, 'focus')}
+      onclick={(event) => toggleParticipantTelemetry(participant, event)}
       data-testid="call-connection-quality-indicator"
       data-connection-quality={participant.connectionState === 'interrupted'
         ? 'interrupted'
@@ -1128,6 +1197,34 @@ retained only for non-joined projections that still consume this component.
         false,
         mode === 'gallery' || mode === 'filmstrip' || mode === 'filmstrip-video'
       )}
+
+      {#if telemetryParticipantKey === participant.key}
+        <ParticipantMediaTelemetryPanel
+          panelId={participantTelemetryPanelId(participant)}
+          participantName={participant.displayName}
+          sourceMetrics={participant.sourceMediaTelemetry}
+          sourceAggregate={participant.networkHealth === 'unknown'
+            ? null
+            : {
+                health: participant.networkHealth,
+                packetLossPercent: participant.packetLossPercent,
+                jitterMs: participant.jitterMs,
+                latencyMs: participant.latencyMs
+              }}
+          receptionAggregate={participant.receptionNetworkHealth === 'unknown'
+            ? null
+            : {
+                health: participant.receptionNetworkHealth,
+                packetLossPercent: participant.receptionPacketLossPercent,
+                jitterMs: participant.receptionJitterMs,
+                latencyMs: participant.receptionLatencyMs
+              }}
+          diagnosis={participant.mediaTelemetryDiagnosis}
+          history={participant.mediaTelemetryHistory}
+          updatedAt={participant.sourceTelemetryUpdatedAt}
+          onclose={() => closeParticipantTelemetry(participant)}
+        />
+      {/if}
 
       {#if showVideo}
         <button

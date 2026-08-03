@@ -501,16 +501,8 @@ describe('VoiceCallPanel screen-share audio', () => {
   });
 
   it('offers a one-touch camera switch when several phone lenses are available', async () => {
-    const devices = [
-      mediaDevice('audioinput', 'mobile-microphone', 'Phone microphone'),
-      mediaDevice('videoinput', 'mobile-front', 'camera2 1, facing front'),
-      mediaDevice('videoinput', 'mobile-rear', 'camera2 0, facing back')
-    ];
-    const enumerateDevices = vi
-      .spyOn(navigator.mediaDevices, 'enumerateDevices')
-      .mockResolvedValue(devices);
     const { container } = render(VoiceCallPanelStoryHarness, {
-      props: { layout: 'sidebar', scenario: 'camera' }
+      props: { layout: 'sidebar', scenario: 'mobile-camera' }
     });
 
     const control = await vi.waitFor(() => {
@@ -522,8 +514,6 @@ describe('VoiceCallPanel screen-share audio', () => {
     });
     expect(control.getAttribute('aria-label')).toBe('Switch camera');
     expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(32);
-
-    enumerateDevices.mockRestore();
   });
 
   it('keeps unavailable web screen sharing compact and explains it only on tap', async () => {
