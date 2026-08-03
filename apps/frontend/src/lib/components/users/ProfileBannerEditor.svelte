@@ -305,7 +305,7 @@
   .profile-banner-back {
     display: inline-flex;
     width: fit-content;
-    min-height: 2.75rem;
+    min-height: 44px;
     align-items: center;
     gap: 0.55rem;
     padding: 0.45rem 0.75rem;
@@ -527,6 +527,10 @@
     border-top: 1px solid var(--color-border);
     background: var(--color-surface-100);
     padding: 1rem 1.25rem;
+  }
+
+  .profile-banner-editor-actions :global(button) {
+    min-height: 44px;
   }
 
   @media (max-width: 640px), (max-height: 620px) {

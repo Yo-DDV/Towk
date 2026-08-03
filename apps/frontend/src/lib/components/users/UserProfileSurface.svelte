@@ -942,7 +942,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
 
   .profile-biography-toggle {
     display: inline-flex;
-    min-height: 2.75rem;
+    min-height: 44px;
     align-items: center;
     justify-content: center;
     gap: 0.45rem;

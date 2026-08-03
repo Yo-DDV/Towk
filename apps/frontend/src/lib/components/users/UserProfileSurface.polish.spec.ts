@@ -94,10 +94,13 @@ describe('UserProfileSurface polished layout contract', () => {
   it('keeps uploaded banners layered safely and fact icons legible', () => {
     const banner = rule('.user-profile-dialog .profile-cover > .profile-banner-image');
     const bannerAction = rule('.user-profile-dialog .profile-cover > .profile-banner-edit');
+    const biographyToggle = rule('.user-profile-dialog .profile-biography-toggle');
     const factIcon = rule('.user-profile-dialog .profile-fact-term > .profile-fact-icon');
 
     expect(banner).toContain('object-fit: cover');
-    expect(bannerAction).toContain('min-height: 2.75rem');
+    expect(bannerAction).toContain('min-width: 44px');
+    expect(bannerAction).toContain('min-height: 44px');
+    expect(biographyToggle).toContain('min-height: 44px');
     expect(bannerAction).toContain('color: white');
     expect(factIcon).toContain('var(--color-text-top) 86%');
     expect(factIcon).toContain('opacity: 1');
