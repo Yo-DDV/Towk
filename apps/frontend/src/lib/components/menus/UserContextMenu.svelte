@@ -373,12 +373,17 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
       padding: 0;
     }
 
-    :global(dialog:has(.user-profile-dialog) .dialog-content),
-    :global(dialog:has(.user-profile-dialog) .profile-shell) {
+    :global(dialog:has(.user-profile-dialog) .dialog-content) {
       min-height: 100vh;
       min-height: 100dvh;
       max-height: 100vh;
       max-height: 100dvh;
+      border-radius: 0;
+    }
+
+    :global(dialog:has(.user-profile-dialog) .profile-shell) {
+      min-height: 100vh;
+      min-height: 100dvh;
       border-radius: 0;
     }
 
