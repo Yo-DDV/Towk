@@ -41,9 +41,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s  %s\n' "1af6de9f87ce526c51801a1819a5f869bae998fedb67ec972f8ddf4f8cc0ebb9" ".github/profile-banner-source.tar.gz" > /tmp/profile-banner.sha256
-          base64 --decode .github/profile-banner-source.b64 > .github/profile-banner-source.tar.gz
-          sha256sum --check /tmp/profile-banner.sha256
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          from pathlib import Path
+
+          source = Path('.github/profile-banner-source.b64')
+          raw = source.read_text(encoding='ascii')
+          alphabet = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')
+          clean = ''.join(character for character in raw if character in alphabet)
+          print(f'profile banner source bytes: raw={len(raw)} base64={len(clean)} remainder={len(clean) % 4}')
+          if len(clean) != 27088:
+              raise SystemExit(f'unexpected profile banner base64 length: {len(clean)}')
+          archive = base64.b64decode(clean, validate=True)
+          digest = hashlib.sha256(archive).hexdigest()
+          if digest != '1af6de9f87ce526c51801a1819a5f869bae998fedb67ec972f8ddf4f8cc0ebb9':
+              raise SystemExit(f'unexpected profile banner archive digest: {digest}')
+          Path('.github/profile-banner-source.tar.gz').write_bytes(archive)
+          PY
           tar -xzf .github/profile-banner-source.tar.gz
           rm .github/profile-banner-source.tar.gz
           python3 .github/profile-banner-materialize.py
