@@ -134,9 +134,12 @@ body {
 }
 
 /* EventList reserves 0.5rem below its scroll region before the composer.
- * Extend the cue through that breathing room without moving its original top
- * edge so the final stroke lands on the same footer boundary as the user bar. */
-#room-messages-surface [data-ui='scroll-edge-cue'][data-edge='bottom'] {
+ * Target only the cue emitted beside the primary messages container, then
+ * extend it without moving its original top edge. Nested or future scroll
+ * surfaces inside the room keep their default geometry. */
+#room-messages-surface
+  [data-testid='messages-container']
+  ~ [data-ui='scroll-edge-cue'][data-edge='bottom'] {
   bottom: -0.5rem;
   height: calc(2rem + 0.5rem);
 }
