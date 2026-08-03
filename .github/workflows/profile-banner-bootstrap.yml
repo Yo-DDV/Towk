@@ -104,6 +104,15 @@ jobs:
               1,
           )
           editor_spec_path.write_text(editor_spec, encoding='utf-8')
+
+          polish_spec_path = Path('apps/frontend/src/lib/components/users/UserProfileSurface.polish.spec.ts')
+          polish_spec = polish_spec_path.read_text(encoding='utf-8')
+          polish_spec = polish_spec.replace(
+              "import { describe, expect, it } from 'vitest';\nimport profilePolishCss from './UserProfileSurface.polish.css?raw';\n",
+              "import { readFileSync } from 'node:fs';\nimport { describe, expect, it } from 'vitest';\n\nconst profilePolishCss = readFileSync(\n  new URL('./UserProfileSurface.polish.css', import.meta.url),\n  'utf8'\n);\n",
+              1,
+          )
+          polish_spec_path.write_text(polish_spec, encoding='utf-8')
           PY
           rm -rf \
             .github/profile-banner-source-parts \
