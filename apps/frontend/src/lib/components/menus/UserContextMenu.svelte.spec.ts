@@ -137,7 +137,7 @@ beforeEach(() => {
 });
 
 describe('UserContextMenu', () => {
-  it('loads and renders the canonical detailed profile', async () => {
+  it('loads the canonical detailed profile into the responsive identity and content composition', async () => {
     const { container } = renderMenu();
 
     await expect.element(q(container, '[data-testid="user-profile-dialog"]')).toBeInTheDocument();
@@ -145,8 +145,23 @@ describe('UserContextMenu', () => {
     if (!dialog) throw new Error('Expected the profile dialog to be rendered.');
     expect(dialog.getAttribute('aria-label')).toBe('User profile');
     expect(dialog.querySelector('header h2')).toBeNull();
+
     await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
-    expect(container.textContent).toContain('Alice Example');
+
+    const shell = q(container, '.profile-shell');
+    const identityPanel = q(container, '[data-testid="profile-identity-panel"]');
+    const contentPanel = q(container, '[data-testid="profile-content-panel"]');
+    const nameHeading = q(container, '[data-testid="profile-display-name"]');
+
+    if (!shell || !identityPanel || !contentPanel || !nameHeading) {
+      throw new Error('Expected the complete profile composition to be rendered.');
+    }
+
+    expect(identityPanel.querySelector('.profile-cover')).not.toBeNull();
+    expect(identityPanel.querySelector('[data-testid="profile-hero-roles"]')).not.toBeNull();
+    expect(contentPanel.querySelectorAll('.profile-fact')).toHaveLength(2);
+    expect(nameHeading.tagName).toBe('H2');
+    expect(nameHeading.textContent).toContain('Alice Example');
     expect(container.textContent).toContain('@alice');
     expect(container.textContent).toContain('Hello');
     expect(container.textContent).toContain('Last activity');
@@ -159,14 +174,55 @@ describe('UserContextMenu', () => {
     expect(Math.abs(avatarRect.width - avatarRect.height)).toBeLessThan(1);
     expect(getComputedStyle(avatarShell).borderRadius).not.toBe('0px');
 
-    const heroRoles = q(container, '[data-testid="profile-hero-roles"]');
-    if (!heroRoles) throw new Error('Expected the profile hero roles to be rendered.');
-    expect(heroRoles.textContent).toContain('Moderator');
-    expect(heroRoles.closest('.profile-hero')).not.toBeNull();
-    expect(container.querySelectorAll('.profile-section-icon').length).toBeGreaterThanOrEqual(3);
+    const actions = container.querySelector<HTMLElement>('nav.profile-actions');
+    if (!actions) throw new Error('Expected capability-filtered profile actions.');
+    expect(actions.getAttribute('aria-label')).toBe('Profile actions');
   });
 
-  it('keeps a polished loading state visible until the detailed profile resolves', async () => {
+  it('keeps long identity, status, and role content bounded by the profile surface', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      ...profile,
+      user: {
+        ...profile.user,
+        login: 'alice-with-a-deliberately-long-login-for-responsive-qualification',
+        displayName:
+          'Alice Example With a Deliberately Long Display Name for Responsive Qualification',
+        customStatus: {
+          emoji: '🧭',
+          text: 'Reviewing a very long localized status without clipping the surrounding profile',
+          expiresAt: null
+        }
+      },
+      roles: [
+        ...profile.roles,
+        {
+          name: 'very-long-configured-role-name',
+          displayName: 'Very long configured role name that must remain bounded',
+          position: 5,
+          moderation: false
+        }
+      ]
+    });
+
+    const { container } = renderMenu();
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain('Very long configured role name')
+    );
+
+    const nameHeading = q(container, '[data-testid="profile-display-name"]');
+    const roleLabel = container.querySelector<HTMLElement>('.profile-role-label');
+    const customStatus = container.querySelector<HTMLElement>('.profile-custom-status');
+
+    if (!nameHeading || !roleLabel || !customStatus) {
+      throw new Error('Expected long-content profile affordances.');
+    }
+
+    expect(getComputedStyle(nameHeading).overflowWrap).toBe('anywhere');
+    expect(getComputedStyle(roleLabel).overflowWrap).toBe('anywhere');
+    expect(getComputedStyle(customStatus).maxWidth).toBe('100%');
+  });
+
+  it('keeps a stable loading state visible until the detailed profile resolves', async () => {
     let resolveProfile!: (value: typeof profile) => void;
     mocks.getUserProfile.mockReturnValue(
       new Promise((resolve) => {
@@ -178,12 +234,13 @@ describe('UserContextMenu', () => {
 
     await expect.element(q(container, '[data-testid="user-profile-loading"]')).toBeVisible();
     expect(container.textContent).toContain('Alice Example');
+    expect(container.querySelectorAll('.profile-skeleton')).toHaveLength(3);
 
     resolveProfile(profile);
     await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
   });
 
-  it('renders a bounded error state when profile details cannot be loaded', async () => {
+  it('renders a bounded error state while preserving fallback identity', async () => {
     mocks.getUserProfile.mockRejectedValue(new Error('network'));
 
     const { container } = renderMenu();
@@ -191,6 +248,7 @@ describe('UserContextMenu', () => {
     await vi.waitFor(() => expect(container.textContent).toContain('Could not load this profile.'));
     expect(q(container, '[data-testid="user-profile-error"]')).toBeTruthy();
     expect(container.textContent).toContain('Alice Example');
+    expect(container.querySelector('[data-testid="profile-identity-panel"]')).not.toBeNull();
   });
 
   it('opens direct messages and calls from capability-filtered actions', async () => {
