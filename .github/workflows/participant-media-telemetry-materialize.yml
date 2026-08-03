@@ -16,7 +16,7 @@ jobs:
   diagnose-panel:
     if: github.event.pull_request.head.ref == 'feat/participant-media-telemetry'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Checkout bootstrap branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,15 +57,18 @@ jobs:
         shell: bash
         run: |
           set +e
-          pnpm --dir apps/frontend exec vitest run \
-            src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte.spec.ts \
+          timeout --signal=TERM --kill-after=15s 180s \
+            pnpm --dir apps/frontend exec vitest run \
+              src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte.spec.ts \
             > /tmp/panel-test.log 2>&1
           rc=$?
-          tail -n 180 /tmp/panel-test.log
+          echo "vitest exit code: $rc"
+          tail -n 220 /tmp/panel-test.log
           {
             echo '## Participant telemetry panel test'
             echo '```text'
-            tail -n 120 /tmp/panel-test.log
+            echo "vitest exit code: $rc"
+            tail -n 160 /tmp/panel-test.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
