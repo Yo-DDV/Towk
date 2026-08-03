@@ -97,6 +97,15 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   );
   const login = $derived(getLiveLogin(user.id, snapshotUser.login));
   const customStatus = $derived(getLiveCustomStatus(user.id, snapshotUser.customStatus));
+  const normalizedCustomStatus = $derived(
+    customStatus
+      ? {
+          emoji: customStatus.emoji,
+          text: customStatus.text,
+          expiresAt: customStatus.expiresAt ?? null
+        }
+      : null
+  );
   const presenceStatus = $derived(
     snapshotUser.deleted
       ? PresenceStatus.Offline
@@ -109,7 +118,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     ...snapshotUser,
     login,
     displayName,
-    customStatus,
+    customStatus: normalizedCustomStatus,
     presenceStatus
   });
   const mayMessage = $derived(
