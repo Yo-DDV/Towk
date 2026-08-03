@@ -184,10 +184,12 @@
 
   .user-profile-dialog .profile-display-name {
     font-size: clamp(1.75rem, 2.8cqi, 2.05rem);
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 }
 
-@container user-profile (max-width: 23rem) {
+@container user-profile (max-width: 27rem) {
   .user-profile-dialog .profile-status-row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -195,7 +197,9 @@
   .user-profile-dialog .profile-presence-pill {
     width: fit-content;
   }
+}
 
+@container user-profile (max-width: 23rem) {
   .user-profile-dialog .profile-actions,
   .user-profile-dialog .profile-facts-grid {
     grid-template-columns: minmax(0, 1fr);
