@@ -42,6 +42,42 @@ jobs:
           fi
           git status --short
 
+      - name: Apply deterministic typecheck remediations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          for filename in (
+              'apps/frontend/src/lib/avatarFraming.spec.ts',
+              'apps/frontend/src/lib/components/settings/AvatarFramingDialog.svelte.spec.ts',
+          ):
+              path = Path(filename)
+              text = path.read_text()
+              text, count = re.subn(
+                  r'new File\(\[pngHeader\(([^)]*)\)\]',
+                  r'new File([pngHeader(\1).slice().buffer as ArrayBuffer]',
+                  text,
+              )
+              if count == 0:
+                  raise SystemExit(f'expected File fixture was not found in {filename}')
+              path.write_text(text)
+
+          component = Path('apps/frontend/src/lib/components/settings/AvatarFramingDialog.svelte')
+          text = component.read_text()
+          old_timer = 'let interactionTimer: ReturnType<typeof setTimeout> | null = null;'
+          if old_timer not in text:
+              raise SystemExit('expected interaction timer declaration was not found')
+          text = text.replace(old_timer, 'let interactionTimer: number | null = null;', 1)
+          old_role = 'role="group"\n          aria-label={copy.stage_label}'
+          if old_role not in text:
+              raise SystemExit('expected framing stage role was not found')
+          text = text.replace(old_role, 'role="application"\n          aria-label={copy.stage_label}', 1)
+          component.write_text(text)
+          PY
+
       - name: Setup environment
         uses: ./.github/actions/setup
 
@@ -137,6 +173,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -f .github/workflows/avatar-framing-bootstrap.yml
           git add -A
           if git diff --cached --quiet; then
             echo 'Validated head is already formatted and committed.'
