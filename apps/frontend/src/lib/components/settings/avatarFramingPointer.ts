@@ -1,3 +1,4 @@
+import { SvelteMap } from 'svelte/reactivity';
 import {
   panAvatarFrame,
   zoomAvatarFrameAt,
@@ -18,7 +19,7 @@ type AvatarPointerAccess = {
 
 export class AvatarFramingPointerController {
   readonly #access: AvatarPointerAccess;
-  readonly #pointers = new Map<number, Point>();
+  readonly #pointers = new SvelteMap<number, Point>();
   #lastSingle: Point | null = null;
   #pinchDistance = 0;
   #pinchMidpoint: Point = { x: 0, y: 0 };
@@ -37,12 +38,16 @@ export class AvatarFramingPointerController {
   begin = (event: PointerEvent): void => {
     const source = this.#access.source();
     if (!source || this.#access.frame().mode === 'contain' || this.#access.disabled()) return;
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.button !== 0) return;
 
     const target = event.currentTarget as HTMLElement;
     const point = localPoint(target, event.clientX, event.clientY);
     this.#pointers.set(event.pointerId, point);
-    target.setPointerCapture(event.pointerId);
+    try {
+      target.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic events and older engines may not expose an active native pointer.
+    }
     this.#access.setInteracting(true);
     if (this.#pointers.size === 1) this.#lastSingle = point;
     else if (this.#pointers.size === 2) this.#beginPinch();
@@ -99,7 +104,13 @@ export class AvatarFramingPointerController {
   finish = (event: PointerEvent): void => {
     const target = event.currentTarget as HTMLElement;
     this.#pointers.delete(event.pointerId);
-    if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+    if (target.hasPointerCapture(event.pointerId)) {
+      try {
+        target.releasePointerCapture(event.pointerId);
+      } catch {
+        // The browser may have already released capture during cancellation.
+      }
+    }
     this.#syncPointerState();
     event.preventDefault();
   };
@@ -144,7 +155,13 @@ export class AvatarFramingPointerController {
     this.#wheelTimer = null;
     if (this.#stage) {
       for (const pointerId of this.#pointers.keys()) {
-        if (this.#stage.hasPointerCapture(pointerId)) this.#stage.releasePointerCapture(pointerId);
+        if (this.#stage.hasPointerCapture(pointerId)) {
+          try {
+            this.#stage.releasePointerCapture(pointerId);
+          } catch {
+            // Capture can disappear between the guard and cleanup.
+          }
+        }
       }
     }
     this.#pointers.clear();
