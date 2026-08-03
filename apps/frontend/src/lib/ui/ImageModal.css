@@ -252,11 +252,11 @@
 }
 
 .image-modal-nav-previous {
-  left: max(0.75rem, env(safe-area-inset-left, 0px));
+  left: 0.75rem;
 }
 
 .image-modal-nav-next {
-  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  right: 0.75rem;
 }
 
 .image-modal-zoom {
@@ -310,11 +310,11 @@
   }
 
   .image-modal-nav-previous {
-    left: max(0.75rem, env(safe-area-inset-left, 0px));
+    left: 0.75rem;
   }
 
   .image-modal-nav-next {
-    right: max(0.75rem, env(safe-area-inset-right, 0px));
+    right: 0.75rem;
   }
 }
 
