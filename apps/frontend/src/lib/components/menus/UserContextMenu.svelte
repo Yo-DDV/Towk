@@ -161,9 +161,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
 
     void loadDetailedUserProfile(targetServerId, targetUserId, async () => {
       const result = await api.getUserProfile(targetUserId);
-      if (result && result.user.id !== targetUserId) {
-        throw new Error('Detailed profile identity mismatch');
-      }
+      if (result && result.user.id !== targetUserId) throw new Error();
       return result;
     })
       .then((result) => {
@@ -345,12 +343,14 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     :global(dialog:has(.user-profile-dialog)) {
       width: 100vw !important;
       max-width: none !important;
+      height: 100vh;
       height: 100dvh;
       max-height: none;
       margin: 0;
     }
 
     :global(dialog:has(.user-profile-dialog) > .dialog-tray) {
+      min-height: 100vh;
       min-height: 100dvh;
       border: 0;
       border-radius: 0;
@@ -358,7 +358,9 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     }
 
     :global(dialog:has(.user-profile-dialog) .dialog-content) {
+      min-height: 100vh;
       min-height: 100dvh;
+      max-height: 100vh;
       max-height: 100dvh;
       border-radius: 0;
     }
@@ -374,7 +376,9 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     }
 
     :global(dialog:has(.user-profile-dialog) .dialog-body) {
+      min-height: 100vh;
       min-height: 100dvh;
+      max-height: 100vh;
       max-height: 100dvh;
     }
   }
@@ -382,6 +386,10 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   @media (prefers-reduced-motion: reduce) {
     :global(dialog:has(.user-profile-dialog) .dialog-header button) {
       transition: none;
+    }
+
+    :global(dialog:has(.user-profile-dialog) .animate-spin) {
+      animation: none;
     }
   }
 
