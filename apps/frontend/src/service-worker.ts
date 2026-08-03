@@ -702,7 +702,7 @@ self.addEventListener('notificationclick', (event) => {
           )) === 'client';
       } finally {
         if (notificationId && !consumedByClient) {
-          await persistNativeNotificationDismissal(notificationId);
+          await persistNativeNotificationDismissal(notificationId, true);
         }
         await badgeCoordinator.reconcileAfterNotificationClick().catch(() => {});
       }

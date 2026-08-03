@@ -1112,6 +1112,45 @@ describe('service worker badge orchestration', () => {
     expect(worker.registration.pushManager.getSubscription).not.toHaveBeenCalled();
   });
 
+  it('queues and replays a click when the open client could only route it', async () => {
+    const worker = await importServiceWorker();
+    const client = {
+      focus: vi.fn(async () => client),
+      postMessage: vi.fn((message: unknown, transfer?: unknown[]) => {
+        if (
+          typeof message === 'object' &&
+          message !== null &&
+          'type' in message &&
+          message.type === 'notification-click'
+        ) {
+          const ackPort = transfer?.[0] as { postMessage?: (value: unknown) => void } | undefined;
+          ackPort?.postMessage?.({
+            type: 'notification-click-ack',
+            notificationConsumed: false
+          });
+        }
+      })
+    };
+    worker.clients.matchAll.mockResolvedValue([client]);
+
+    await worker.dispatch('notificationclick', {
+      notification: {
+        close: vi.fn(),
+        data: {
+          notificationId: 'notification-3',
+          url: 'https://towk.example/chat/-/room-3'
+        }
+      }
+    });
+
+    expect(client.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-closed',
+      notificationId: 'notification-3',
+      source: 'native-close'
+    });
+    expect(worker.clients.openWindow).not.toHaveBeenCalled();
+  });
+
   it('preserves the join action destination while consuming a call notification', async () => {
     const worker = await importServiceWorker();
 

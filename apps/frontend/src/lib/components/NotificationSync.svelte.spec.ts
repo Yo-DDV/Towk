@@ -317,6 +317,7 @@ describe('NotificationSync', () => {
     fetch.resolve();
     await vi.waitFor(() => expect(mocks.store.notifications.fetch).toHaveBeenCalledTimes(2));
     expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledTimes(2);
+    expect(mocks.drainNativeNotificationCloseOutbox).toHaveBeenCalledTimes(2);
   });
 
   it('coalesces count refreshes for a burst and performs one final authoritative pass', async () => {

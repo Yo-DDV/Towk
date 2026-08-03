@@ -368,7 +368,10 @@ Include this component once in the chat layout (unconditionally).
     drainNativeNotificationCloseOutbox();
 
     const handleVisibleResume = () => refreshVisibleAuthenticatedNotificationState();
-    const handleOnline = () => refreshAllAuthenticatedNotificationState();
+    const handleOnline = () => {
+      refreshAllAuthenticatedNotificationState();
+      drainNativeNotificationCloseOutbox();
+    };
     const stopNativeNotificationClose = onNativeNotificationClose((notificationId) => {
       const originServer = serverRegistry.originServer;
       if (!originServer) return;
