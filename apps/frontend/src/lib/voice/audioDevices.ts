@@ -67,6 +67,18 @@ export function audioDeviceRouteKind(device: MediaDeviceInfo): AudioDeviceRouteK
 }
 
 /**
+ * Resolve Chromium's synthetic Android communication devices without relying
+ * on their opaque device IDs. Selecting one of these audio inputs selects the
+ * matching input/output communication pair inside Chromium.
+ */
+export function audioDeviceIdForRouteKind(
+  devices: MediaDeviceInfo[],
+  routeKind: AudioDeviceRouteKind
+): string | null {
+  return devices.find((device) => audioDeviceRouteKind(device) === routeKind)?.deviceId ?? null;
+}
+
+/**
  * Classify the label on the captured source track itself.
  *
  * WebKit can return a valid microphone track whose deviceId does not correlate

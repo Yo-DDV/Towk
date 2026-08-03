@@ -51,6 +51,12 @@ Reads available devices and current selection from `voiceCallState`.
     enabled: boolean;
     status: string;
   };
+  type AndroidAudioRouteControl = {
+    route: 'speakerphone' | 'earpiece';
+    icon: string;
+    label: string;
+    description: string;
+  };
 
   const sections = $derived<DeviceSection[]>([
     {
@@ -159,6 +165,21 @@ Reads available devices and current selection from `voiceCallState`.
       label: m['voice.microphone_echo_cancellation'](),
       enabled: voiceCallState.microphoneProcessingPreferences.echoCancellation,
       status: microphoneProcessingStatusLabel('echoCancellation')
+    }
+  ]);
+
+  const androidAudioRouteControls = $derived<AndroidAudioRouteControl[]>([
+    {
+      route: 'speakerphone',
+      icon: 'uil--volume-up',
+      label: m['voice.phone_speaker'](),
+      description: m['voice.android_speakerphone_description']()
+    },
+    {
+      route: 'earpiece',
+      icon: 'uil--phone',
+      label: m['voice.headset_speaker'](),
+      description: m['voice.android_earpiece_description']()
     }
   ]);
 
@@ -293,7 +314,8 @@ Reads available devices and current selection from `voiceCallState`.
       microphoneProcessingControls.length +
       (voiceCallState.canShareScreen ? 1 : 0) +
       sections.reduce((total, section) => total + section.devices.length, 0) +
-      (voiceCallState.canRequestAudioOutputDevice ? 1 : 0);
+      (voiceCallState.canRequestAudioOutputDevice ? 1 : 0) +
+      (voiceCallState.isAndroidAudioRouteSelectionSupported ? androidAudioRouteControls.length : 0);
     if (initialFocusApplied || deviceCount === 0) return;
     initialFocusApplied = true;
     initialFocusFrame = requestAnimationFrame(() => {
@@ -434,6 +456,32 @@ Reads available devices and current selection from `voiceCallState`.
           {section.label}
         </div>
         <div class="sidebar-nav">
+          {#if section.kind === 'audiooutput' && voiceCallState.isAndroidAudioRouteSelectionSupported}
+            {#each androidAudioRouteControls as control (control.route)}
+              <button
+                class="sidebar-item min-h-[56px] gap-3 rounded-lg px-3"
+                role="menuitemradio"
+                aria-checked={voiceCallState.activeAndroidAudioRoute === control.route}
+                tabindex="-1"
+                data-testid="android-audio-route"
+                onclick={async () => {
+                  if (await voiceCallState.setAndroidAudioRoute(control.route)) onclose();
+                }}
+              >
+                <span class={['sidebar-icon iconify text-muted', control.icon]} aria-hidden="true"
+                ></span>
+                <span class="min-w-0 flex-1 text-left">
+                  <span class="block truncate">{control.label}</span>
+                  <span class="block truncate text-xs text-muted">{control.description}</span>
+                </span>
+                {#if voiceCallState.activeAndroidAudioRoute === control.route}
+                  <span class="iconify shrink-0 text-base text-accent uil--check" aria-hidden="true"
+                  ></span>
+                {/if}
+              </button>
+            {/each}
+          {/if}
+
           {#each section.devices as device (device.deviceId)}
             <button
               class="sidebar-item min-h-[52px] gap-3 rounded-lg px-3"
@@ -470,7 +518,7 @@ Reads available devices and current selection from `voiceCallState`.
             </button>
           {/if}
 
-          {#if section.devices.length === 0 && !(section.kind === 'audiooutput' && voiceCallState.canRequestAudioOutputDevice)}
+          {#if section.devices.length === 0 && !(section.kind === 'audiooutput' && (voiceCallState.canRequestAudioOutputDevice || voiceCallState.isAndroidAudioRouteSelectionSupported))}
             <div class="px-3 py-2 text-sm text-muted">{section.emptyMessage}</div>
           {/if}
         </div>

@@ -1,5 +1,8 @@
-import MarkdownIt from 'markdown-it';
-import type StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs';
+import MarkdownIt, {
+  type MarkdownIt as MarkdownItInstance,
+  type RendererRule,
+  type StateInline
+} from 'markdown-it';
 import tlds from 'tlds';
 import { classifyMessageBodyChatLink } from '$lib/messageLinks';
 
@@ -90,7 +93,7 @@ function wordBoundaryEmphasis(state: StateInline, silent: boolean): boolean {
   return false;
 }
 
-let md: MarkdownIt | null = null;
+let md: MarkdownItInstance | null = null;
 let codeHighlighting: CodeHighlightingModule | null = null;
 
 type LowlightText = {
@@ -269,6 +272,8 @@ function initialize(): void {
   // Update linkify-it's TLD list so bare-domain URLs with newer TLDs
   // (.dev, .app, .io, etc.) are auto-linked
   md.linkify.tlds(tlds);
+  // linkify-it 6 disables bare-domain matching by default.
+  md.linkify.set({ fuzzyLink: true });
 
   // Disable unwanted syntax - only keep what we explicitly want
   md.disable([...DISABLED_RULES]);
@@ -281,7 +286,7 @@ function initialize(): void {
   md.inline.ruler.before('emphasis', 'word_boundary_emphasis', wordBoundaryEmphasis);
 
   // Customize link rendering for security
-  const defaultLinkRender =
+  const defaultLinkRender: RendererRule =
     md.renderer.rules.link_open ||
     function (tokens, idx, options, _env, self) {
       return self.renderToken(tokens, idx, options);
@@ -296,7 +301,10 @@ function initialize(): void {
       const href = token.attrs![hrefIndex][1];
 
       // Only allow http and https URLs
-      if (!href.startsWith('http://') && !href.startsWith('https://')) {
+      if (
+        typeof href !== 'string' ||
+        (!href.startsWith('http://') && !href.startsWith('https://'))
+      ) {
         // Replace dangerous URLs with empty href
         token.attrs![hrefIndex][1] = '#';
       } else {
