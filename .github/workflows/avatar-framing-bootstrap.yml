@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feat/avatar-framing
+  pull_request:
+    branches:
+      - main
 
 concurrency:
   group: avatar-framing-bootstrap-${{ github.ref }}
@@ -14,7 +17,9 @@ permissions:
 
 jobs:
   materialize-and-validate:
-    if: github.event.head_commit.message == 'chore(ci): stage avatar framing validation'
+    if: >-
+      (github.event_name == 'push' && github.event.head_commit.message == 'chore(ci): stage avatar framing validation') ||
+      (github.event_name == 'pull_request' && github.head_ref == 'feat/avatar-framing')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
