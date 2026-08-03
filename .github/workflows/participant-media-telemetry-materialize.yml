@@ -95,12 +95,27 @@ jobs:
           python3 tools/materialize-participant-media-telemetry.py
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path("apps/frontend/src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte")
           text = path.read_text(encoding="utf-8")
-          if text.count("<section") != 1 or text.count("</section>") != 1:
-              raise SystemExit("unexpected telemetry panel dialog structure")
-          text = text.replace("<section", "<div", 1).replace("</section>", "</div>", 1)
+          text, count = re.subn(
+              r'<section(?=[^>]*\brole="dialog")',
+              '<div',
+              text,
+              count=1,
+              flags=re.DOTALL,
+          )
+          if count != 1:
+              raise SystemExit("telemetry dialog opening tag not found")
+          closing_index = text.rfind("</section>")
+          if closing_index < 0:
+              raise SystemExit("telemetry dialog closing tag not found")
+          text = (
+              text[:closing_index]
+              + "</div>"
+              + text[closing_index + len("</section>"):]
+          )
           path.write_text(text, encoding="utf-8")
           PY
           rm -rf tools/.telemetry-materializer
