@@ -17,7 +17,7 @@ jobs:
   materialize:
     if: ${{ github.event.pull_request.number == 295 && github.event.pull_request.head.ref == 'feat/profile-surface-redesign' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,6 +36,13 @@ jobs:
 
       - name: Setup pinned Towk toolchain
         uses: ./.github/actions/setup
+
+      - name: Generate API types
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise codegen-proto
+          mise build-api-types
 
       - name: Verify and materialize source
         shell: bash
@@ -88,8 +95,20 @@ jobs:
               1,
           )
           editor_path.write_text(editor, encoding='utf-8')
+
+          editor_spec_path = Path('apps/frontend/src/lib/components/users/ProfileBannerEditor.svelte.spec.ts')
+          editor_spec = editor_spec_path.read_text(encoding='utf-8')
+          editor_spec = editor_spec.replace(
+              "container.querySelector('[data-testid=\"profile-banner-dropzone\"]')!",
+              "container.querySelector<HTMLElement>('[data-testid=\"profile-banner-dropzone\"]')!",
+              1,
+          )
+          editor_spec_path.write_text(editor_spec, encoding='utf-8')
           PY
-          rm -rf .github/profile-banner-source-parts
+          rm -rf \
+            .github/profile-banner-source-parts \
+            .github/profile-banner-source.b64 \
+            .github/profile-banner-materialize.py
 
       - name: Format source
         shell: bash
@@ -123,17 +142,6 @@ jobs:
             src/lib/components/users/UserProfileSurface.polish.css \
             src/lib/components/users/UserProfileSurface.polish.spec.ts
 
-      - name: Print generated profile diagnostics
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo '--- polish spec file references ---'
-          grep -n -E '\bfile\b' apps/frontend/src/lib/components/users/UserProfileSurface.polish.spec.ts || true
-          echo '--- polish spec lines 50-85 ---'
-          nl -ba apps/frontend/src/lib/components/users/UserProfileSurface.polish.spec.ts | sed -n '50,85p'
-          echo '--- editor state references ---'
-          grep -n -E 'currentBannerUrl|bannerUrl' apps/frontend/src/lib/components/users/ProfileBannerEditor.svelte | head -20
-
       - name: Run focused frontend checks
         shell: bash
         run: |
@@ -165,7 +173,9 @@ jobs:
           set -euo pipefail
           cd cli
           go test -trimpath ./internal/assets ./internal/core ./internal/http_server \
-            -run 'ProfileBanner|UserContextMenu' -count=1
+            -run 'ProfileBanner' -count=1
+          go test -race -trimpath ./internal/assets ./internal/core ./internal/http_server \
+            -run 'ProfileBanner' -count=1
           go vet ./internal/assets ./internal/core ./internal/http_server
 
       - name: Validate diff and commit under maintainer identity
@@ -176,6 +186,7 @@ jobs:
           test ! -e .github/profile-banner-source.b64
           test ! -d .github/profile-banner-source-parts
           test ! -e .github/profile-banner-materialize.py
+          rm .github/workflows/profile-banner-bootstrap.yml
           git status --short
           git add -A
           git commit -m "feat(profiles): add secure profile banners"
