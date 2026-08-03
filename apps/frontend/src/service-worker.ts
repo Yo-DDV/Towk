@@ -685,17 +685,25 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const rawUrl = callNotificationClickUrl(event.notification.data, event.action);
+  const rawData = event.notification.data;
+  const data = notificationData(rawData);
+  const rawUrl = callNotificationClickUrl(rawData, event.action);
+  const notificationId = data?.notificationId;
   event.waitUntil(
     (async () => {
+      let consumedByClient = false;
       try {
-        await routeNotificationClick(
-          rawUrl,
-          self.location.origin,
-          self.clients as unknown as NotificationClickClients,
-          { logger: console }
-        );
+        consumedByClient =
+          (await routeNotificationClick(
+            rawUrl,
+            self.location.origin,
+            self.clients as unknown as NotificationClickClients,
+            { logger: console, notificationId }
+          )) === 'client';
       } finally {
+        if (notificationId && !consumedByClient) {
+          await persistNativeNotificationDismissal(notificationId);
+        }
         await badgeCoordinator.reconcileAfterNotificationClick().catch(() => {});
       }
     })().catch((err) => {
@@ -717,15 +725,24 @@ self.addEventListener('notificationclose', (event) => {
     (async () => {
       await badgeCoordinator.reconcileAfterNotificationClick().catch(() => {});
       if (!notificationId) return;
-      if (await acknowledgeNativeNotificationCloseWithPushSubscription(notificationId)) {
-        await removeNativeNotificationCloseOutboxIds([notificationId]);
-        return;
-      }
-      await addNativeNotificationCloseOutboxId(notificationId);
-      await dispatchNativeNotificationCloseIds([notificationId], 'native-close');
+      await persistNativeNotificationDismissal(notificationId, true);
     })()
   );
 });
+
+async function persistNativeNotificationDismissal(
+  notificationId: string,
+  dispatchToOpenClients = false
+): Promise<void> {
+  if (await acknowledgeNativeNotificationCloseWithPushSubscription(notificationId)) {
+    await removeNativeNotificationCloseOutboxIds([notificationId]);
+    return;
+  }
+  await addNativeNotificationCloseOutboxId(notificationId);
+  if (dispatchToOpenClients) {
+    await dispatchNativeNotificationCloseIds([notificationId], 'native-close');
+  }
+}
 
 async function acknowledgeNativeNotificationCloseWithPushSubscription(
   notificationId: string

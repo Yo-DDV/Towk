@@ -292,6 +292,18 @@ describe('NotificationSync', () => {
     expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
   });
 
+  it('reconciles authoritative notification state after a room-read event', async () => {
+    await renderAndWaitForSubscription();
+
+    dispatch({
+      kind: RoomEventKind.RoomMarkedAsRead,
+      roomId: 'room-1'
+    });
+
+    await vi.waitFor(() => expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce());
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+  });
+
   it('coalesces focus and online refreshes into one active pass and one final dirty pass', async () => {
     const fetch = deferred<void>();
     mocks.store.notifications.fetch.mockReturnValue(fetch.promise);

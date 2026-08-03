@@ -488,7 +488,12 @@ function originPushAPI() {
  * The SW posts these instead of calling `WindowClient.navigate()` so the
  * SPA can route via `goto()` (client-side navigation, no full reload).
  */
-export function onNotificationClick(callback: (url: string) => void | Promise<void>): () => void {
+export function onNotificationClick(
+  callback: (
+    url: string,
+    notificationId?: string
+  ) => boolean | void | Promise<boolean | void>
+): () => void {
   if (!('serviceWorker' in navigator)) {
     return () => {};
   }
@@ -501,8 +506,19 @@ export function onNotificationClick(callback: (url: string) => void | Promise<vo
       const responsePort = event.ports[0];
       void (async () => {
         try {
-          await callback(event.data.url);
-          responsePort?.postMessage({ type: NOTIFICATION_CLICK_ACK_MESSAGE_TYPE });
+          const notificationId =
+            typeof event.data.notificationId === 'string' &&
+            event.data.notificationId.trim() !== ''
+              ? event.data.notificationId
+              : undefined;
+          const notificationConsumed = await callback(
+            event.data.url,
+            notificationId
+          );
+          responsePort?.postMessage({
+            type: NOTIFICATION_CLICK_ACK_MESSAGE_TYPE,
+            notificationConsumed: notificationId ? notificationConsumed === true : true
+          });
         } catch {
           // Leave the service worker unacknowledged so it can fall back to
           // WindowClient.navigate() after its timeout.
