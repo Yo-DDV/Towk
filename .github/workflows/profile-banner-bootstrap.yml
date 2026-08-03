@@ -63,6 +63,23 @@ jobs:
           tar -xzf .github/profile-banner-source.tar.gz
           rm .github/profile-banner-source.tar.gz
           python3 .github/profile-banner-materialize.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/frontend/src/lib/components/users/UserProfileSurface.svelte')
+          source = path.read_text(encoding='utf-8')
+          source = source.replace(
+              '  let bannerVisible = $state(Boolean(bannerUrl));\n',
+              '  let bannerVisible = $derived(Boolean(bannerUrl));\n',
+              1,
+          )
+          source = source.replace(
+              "\n  $effect(() => {\n    bannerVisible = Boolean(bannerUrl);\n  });\n",
+              '',
+              1,
+          )
+          path.write_text(source, encoding='utf-8')
+          PY
           rm -rf .github/profile-banner-source-parts
 
       - name: Format source
