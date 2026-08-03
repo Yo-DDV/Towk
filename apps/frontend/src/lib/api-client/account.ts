@@ -3,6 +3,11 @@ import * as m from '$lib/i18n/messages';
 import { MyAccountService } from '@towk/api-types/api/v1/account_pb';
 import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 import {
+  AVATAR_FRAMING_HEADER,
+  encodeAvatarFramingHeader,
+  type AvatarFramingSelection
+} from '$lib/avatarFraming';
+import {
   TimeFormat as APITimeFormat,
   type UserSettings as APIUserSettings
 } from '@towk/api-types/api/v1/viewer_pb';
@@ -58,7 +63,7 @@ export function createAccountAPI(config: AccountAPIConfig) {
       return accountUser(response.user);
     },
 
-    async uploadAvatar(file: File): Promise<AccountUser> {
+    async uploadAvatar(file: File, framing?: AvatarFramingSelection | null): Promise<AccountUser> {
       const response = await client.uploadAvatar(
         {
           image: {
@@ -67,7 +72,7 @@ export function createAccountAPI(config: AccountAPIConfig) {
             contentType: file.type
           }
         },
-        { headers: headers() }
+        { headers: avatarUploadHeaders(config, framing) }
       );
       return accountUser(response.user);
     },
@@ -121,6 +126,19 @@ export function createAccountAPI(config: AccountAPIConfig) {
 }
 
 export type AccountAPI = ReturnType<typeof createAccountAPI>;
+
+export function avatarUploadHeaders(
+  config: Pick<AccountAPIConfig, 'bearerToken'>,
+  framing?: AvatarFramingSelection | null
+): HeadersInit | undefined {
+  const authorization = authHeaders(config);
+  if (!framing) return authorization;
+
+  return {
+    ...(authorization as Record<string, string> | undefined),
+    [AVATAR_FRAMING_HEADER]: encodeAvatarFramingHeader(framing)
+  };
+}
 
 function accountUser(user: APIUser | undefined): AccountUser {
   if (!user) {

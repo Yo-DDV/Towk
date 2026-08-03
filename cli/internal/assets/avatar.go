@@ -52,6 +52,17 @@ func ProcessAvatarAsset(input io.Reader) (*ProcessedAvatar, error) {
 // The configured upload limit can tighten the avatar limit but can never raise
 // it above MaxAvatarUploadSize.
 func ProcessAvatarAssetWithConfig(input io.Reader, cfg Config) (*ProcessedAvatar, error) {
+	return ProcessAvatarAssetWithConfigAndFraming(input, cfg, nil)
+}
+
+// ProcessAvatarAssetWithConfigAndFraming validates and canonicalizes an uploaded
+// avatar while optionally applying display-oriented framing to every frame.
+// A nil framing value preserves the legacy behavior for existing clients.
+func ProcessAvatarAssetWithConfigAndFraming(
+	input io.Reader,
+	cfg Config,
+	framing *AvatarFraming,
+) (*ProcessedAvatar, error) {
 	maxUploadSize := cfg.MaxUploadSize
 	if maxUploadSize <= 0 || maxUploadSize > MaxAvatarUploadSize {
 		maxUploadSize = MaxAvatarUploadSize
@@ -102,7 +113,12 @@ func ProcessAvatarAssetWithConfig(input io.Reader, cfg Config) (*ProcessedAvatar
 	}
 
 	if animated {
-		result, err := transformAnimatedGIF(data, MaxAvatarDim, MaxAvatarDim, FitContain)
+		var result *TransformResult
+		if framing == nil {
+			result, err = transformAnimatedGIF(data, MaxAvatarDim, MaxAvatarDim, FitContain)
+		} else {
+			result, err = transformAnimatedGIFFraming(data, framing)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -121,13 +137,24 @@ func ProcessAvatarAssetWithConfig(input io.Reader, cfg Config) (*ProcessedAvatar
 		}, nil
 	}
 
-	staticReader, err := ProcessAvatarImageWithConfig(bytes.NewReader(data), Config{MaxUploadSize: maxUploadSize})
-	if err != nil {
-		return nil, err
-	}
-	processed, err := readBoundedAvatarOutput(staticReader)
-	if err != nil {
-		return nil, err
+	var processed []byte
+	if framing == nil {
+		staticReader, err := ProcessAvatarImageWithConfig(bytes.NewReader(data), Config{MaxUploadSize: maxUploadSize})
+		if err != nil {
+			return nil, err
+		}
+		processed, err = readBoundedAvatarOutput(staticReader)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		processed, err = processStaticAvatarFraming(data, framing)
+		if err != nil {
+			return nil, err
+		}
+		if int64(len(processed)) > MaxAvatarProcessedSize {
+			return nil, fmt.Errorf("processed avatar exceeds maximum size of %d bytes", MaxAvatarProcessedSize)
+		}
 	}
 	return &ProcessedAvatar{
 		Data:        processed,

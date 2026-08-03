@@ -8,7 +8,16 @@
   import { toast } from '$lib/ui/toast';
   import { dropZone } from '$lib/attachments/dropZone.svelte';
   import DropZoneOverlay from '$lib/attachments/DropZoneOverlay.svelte';
+  import AvatarFramingDialog from '$lib/components/settings/AvatarFramingDialog.svelte';
   import ProfileDetailsSettings from '$lib/components/settings/ProfileDetailsSettings.svelte';
+  import {
+    AVATAR_FRAMING_CAPABILITY,
+    MAX_AVATAR_UPLOAD_BYTES,
+    inspectAvatarFile,
+    AvatarFileError,
+    type AvatarFramingSelection
+  } from '$lib/avatarFraming';
+  import { avatarFramingMessages } from '$lib/i18n/avatarFraming';
   import {
     validateAndNormalizeDisplayName,
     validateAndNormalizeLogin,
@@ -27,8 +36,15 @@
   // `loading` are `$state`), so subsequent profile updates flow through.
   // The connection getter resolves to the active server's API client,
   // so profile/avatar mutations land on the right backend.
-  const currentUser = serverRegistry.getStore(getActiveServer()).currentUser;
+  const activeServerId = getActiveServer();
+  const activeStore = serverRegistry.getStore(activeServerId);
+  const currentUser = activeStore.currentUser;
   const connection = useConnection();
+  const avatarCapabilityLoading = $derived(activeStore.serverInfo.loading);
+  const supportsAvatarFraming = $derived(
+    !activeStore.serverInfo.error &&
+      activeStore.serverInfo.supportsCapability(AVATAR_FRAMING_CAPABILITY)
+  );
 
   function accountAPI() {
     const conn = connection();
@@ -50,11 +66,14 @@
   let error = $state('');
   let successMessage = $state('');
 
-  // Avatar state
+  // Avatar state. A selected file remains local until framing is confirmed;
+  // the current server avatar is not replaced by selection or cancellation.
   let uploadingAvatar = $state(false);
   let deletingAvatar = $state(false);
   let avatarFileInput = $state<HTMLInputElement>();
   let isDraggingAvatar = $state(false);
+  let pendingAvatarFile = $state<File | null>(null);
+  let showAvatarFraming = $state(false);
 
   // Cooldown state
   let localLastLoginChange = $state<Date | null>(null);
@@ -86,68 +105,121 @@
     successMessage = '';
   }
 
-  async function uploadAvatarFile(file: File) {
-    if (!file.type.startsWith('image/')) {
+  function avatarFileErrorMessage(error: unknown): string | null {
+    if (!(error instanceof AvatarFileError)) return null;
+    const copy = avatarFramingMessages();
+    switch (error.code) {
+      case 'type':
+        return m['settings.profile.avatar.invalid_type']();
+      case 'size':
+        return m['settings.profile.avatar.too_large']();
+      case 'dimensions':
+        return copy.dimensions_too_large;
+      case 'animation':
+        return copy.animation_too_large;
+      case 'decode':
+      default:
+        return copy.decode_failed;
+    }
+  }
+
+  function applyUploadedAvatar(nextAvatarUrl: string | null | undefined) {
+    avatarUrl = nextAvatarUrl ?? null;
+    if (currentUser.user) {
+      currentUser.user = {
+        ...currentUser.user,
+        avatarUrl: nextAvatarUrl ?? null
+      };
+    }
+  }
+
+  async function queueAvatarFile(file: File | undefined) {
+    if (!file || uploadingAvatar || deletingAvatar || pendingAvatarFile) return;
+    if (avatarCapabilityLoading) {
+      toast.error(avatarFramingMessages().capability_loading);
+      clearPendingAvatar();
+      return;
+    }
+    if (file.size <= 0) {
       toast.error(m['settings.profile.avatar.invalid_type']());
+      clearPendingAvatar();
       return;
     }
-
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_AVATAR_UPLOAD_BYTES) {
       toast.error(m['settings.profile.avatar.too_large']());
+      clearPendingAvatar();
       return;
     }
 
+    if (supportsAvatarFraming) {
+      pendingAvatarFile = file;
+      showAvatarFraming = true;
+      return;
+    }
+
+    // Mixed-version fallback: older servers do not understand framing metadata.
+    // Validate authoritative bytes locally, then preserve their existing full-image upload path.
     uploadingAvatar = true;
-
     try {
+      await inspectAvatarFile(file);
       const updated = await accountAPI().uploadAvatar(file);
-      avatarUrl = updated.avatarUrl ?? null;
-
-      // Update the current user state
-      if (currentUser.user) {
-        currentUser.user = {
-          ...currentUser.user,
-          avatarUrl: updated.avatarUrl ?? null
-        };
-      }
-
-      toast.success(m['settings.profile.avatar.uploaded']());
-    } catch (e) {
-      toast.error(localizedErrorMessage(e, m['settings.profile.avatar.upload_failed']()));
+      applyUploadedAvatar(updated.avatarUrl);
+      toast.success(avatarFramingMessages().legacy_server_uploaded);
+    } catch (uploadError) {
+      toast.error(
+        avatarFileErrorMessage(uploadError) ??
+          localizedErrorMessage(uploadError, m['settings.profile.avatar.upload_failed']())
+      );
     } finally {
       uploadingAvatar = false;
-      if (avatarFileInput) avatarFileInput.value = '';
+      clearPendingAvatar();
     }
+  }
+
+  async function submitAvatarFraming(selection: AvatarFramingSelection): Promise<boolean> {
+    const file = pendingAvatarFile;
+    if (!file || uploadingAvatar) return false;
+
+    uploadingAvatar = true;
+    try {
+      const updated = await accountAPI().uploadAvatar(file, selection);
+      applyUploadedAvatar(updated.avatarUrl);
+
+      toast.success(m['settings.profile.avatar.uploaded']());
+      return true;
+    } catch (e) {
+      toast.error(localizedErrorMessage(e, m['settings.profile.avatar.upload_failed']()));
+      return false;
+    } finally {
+      uploadingAvatar = false;
+    }
+  }
+
+  function clearPendingAvatar() {
+    showAvatarFraming = false;
+    pendingAvatarFile = null;
+    if (avatarFileInput) avatarFileInput.value = '';
   }
 
   function handleAvatarUpload(event: Event) {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (file) uploadAvatarFile(file);
+    void queueAvatarFile(input.files?.[0]);
   }
 
   const avatarDropZone = dropZone({
-    onDrop: (files) => uploadAvatarFile(files[0]),
+    onDrop: (files) => void queueAvatarFile(files[0]),
     onDragStateChange: (dragging) => (isDraggingAvatar = dragging),
-    acceptedTypes: ['image/*']
+    acceptedTypes: ['*/*']
   });
 
   async function handleAvatarDelete() {
-    if (!avatarUrl) return;
+    if (!avatarUrl || uploadingAvatar || pendingAvatarFile) return;
 
     deletingAvatar = true;
 
     try {
       const updated = await accountAPI().deleteAvatar();
-      avatarUrl = updated.avatarUrl ?? null;
-
-      // Update the current user state
-      if (currentUser.user) {
-        currentUser.user = {
-          ...currentUser.user,
-          avatarUrl: updated.avatarUrl ?? null
-        };
-      }
+      applyUploadedAvatar(updated.avatarUrl);
 
       toast.success(m['settings.profile.avatar.removed']());
     } catch (e) {
@@ -269,12 +341,18 @@
   <!-- Avatar Section -->
   <FormSection title={m['settings.profile.avatar.title']()} maxWidth="max-w-md">
     <div
-      class="relative flex items-start gap-6"
+      class="relative flex flex-col items-start gap-4 sm:flex-row sm:gap-6"
       data-testid="avatar-drop-zone"
       {@attach avatarDropZone}
     >
       <DropZoneOverlay
-        visible={isDraggingAvatar}
+        visible={
+          isDraggingAvatar &&
+          !avatarCapabilityLoading &&
+          !uploadingAvatar &&
+          !deletingAvatar &&
+          !pendingAvatarFile
+        }
         title={m['settings.profile.avatar.drop_title']()}
         subtitle={m['settings.profile.avatar.drop_subtitle']()}
       />
@@ -286,7 +364,7 @@
           <img
             src={avatarUrl}
             alt={m['settings.profile.avatar.alt']()}
-            class="h-full w-full object-cover"
+            class="h-full w-full object-cover motion-reduce:[image-animation:paused]"
           />
         {:else}
           {initials}
@@ -294,14 +372,14 @@
       </div>
 
       <!-- Upload Controls -->
-      <div class="flex flex-col gap-3">
+      <div class="flex min-w-0 flex-col gap-3">
         <p class="text-sm text-muted">
           {m['settings.profile.avatar.description']()}
         </p>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <input
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
             class="hidden"
             bind:this={avatarFileInput}
             onchange={handleAvatarUpload}
@@ -309,11 +387,12 @@
           <Button
             variant="secondary"
             onclick={() => avatarFileInput?.click()}
+            disabled={avatarCapabilityLoading || deletingAvatar || !!pendingAvatarFile}
             loading={uploadingAvatar}
             loadingText={m['settings.profile.avatar.uploading']()}
           >
             <span class="inline-flex items-center gap-2">
-              <span class="iconify uil--image-upload"></span>
+              <span class="iconify uil--image-upload" aria-hidden="true"></span>
               {avatarUrl
                 ? m['settings.profile.avatar.change']()
                 : m['settings.profile.avatar.upload']()}
@@ -323,11 +402,12 @@
             <Button
               variant="ghost"
               onclick={handleAvatarDelete}
+              disabled={uploadingAvatar || !!pendingAvatarFile}
               loading={deletingAvatar}
               loadingText={m['settings.profile.avatar.removing']()}
             >
               <span class="inline-flex items-center gap-2 text-error">
-                <span class="iconify uil--trash-alt"></span>
+                <span class="iconify uil--trash-alt" aria-hidden="true"></span>
                 {m['settings.profile.avatar.remove']()}
               </span>
             </Button>
@@ -370,7 +450,7 @@
 
     {#snippet footer()}
       <Button type="submit" disabled={!isModified || isSaving} loading={isSaving}>
-        <span class="iconify uil--check"></span>
+        <span class="iconify uil--check" aria-hidden="true"></span>
         {m['settings.profile.save_button']()}
       </Button>
     {/snippet}
@@ -378,6 +458,17 @@
 
   <ProfileDetailsSettings />
 </div>
+
+{#if pendingAvatarFile}
+  <AvatarFramingDialog
+    file={pendingAvatarFile}
+    bind:visible={showAvatarFraming}
+    busy={uploadingAvatar}
+    onsubmit={submitAvatarFraming}
+    oncancel={clearPendingAvatar}
+    oncomplete={clearPendingAvatar}
+  />
+{/if}
 
 <Dialog
   bind:visible={showLoginConfirm}
@@ -391,11 +482,11 @@
 
   {#snippet footer()}
     <Button variant="secondary" onclick={() => (showLoginConfirm = false)}>
-      <span class="iconify uil--times"></span>
+      <span class="iconify uil--times" aria-hidden="true"></span>
       {m['common.cancel']()}
     </Button>
     <Button onclick={confirmLoginChange}>
-      <span class="iconify uil--check"></span>
+      <span class="iconify uil--check" aria-hidden="true"></span>
       {m['settings.profile.username.confirm_button']()}
     </Button>
   {/snippet}
