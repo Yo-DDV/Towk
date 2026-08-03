@@ -128,6 +128,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     !profileUser.deleted && (currentProfile?.viewerCanCall ?? false)
   );
   const mayEditProfile = $derived(Boolean(currentProfile?.viewerIsSelf));
+  const mayBanFromRoom = $derived(canBanFromRoom && Boolean(onBanFromRoom));
 
   $effect(() => {
     if (!browser || !visible) return;
@@ -222,8 +223,9 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   }
 
   async function handleBanFromRoom() {
+    if (!onBanFromRoom) return;
     clearHistoryMarkerForAction();
-    await onBanFromRoom?.();
+    await onBanFromRoom();
   }
 
   async function handleEditProfile() {
@@ -250,7 +252,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     canEditProfile={mayEditProfile}
     canSendMessage={mayMessage}
     canCall={mayCall}
-    {canBanFromRoom}
+    canBanFromRoom={mayBanFromRoom}
     {banningFromRoom}
     onEditProfile={handleEditProfile}
     onSendMessage={handleSendMessage}
