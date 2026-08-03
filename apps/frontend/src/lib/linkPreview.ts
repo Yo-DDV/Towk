@@ -73,7 +73,7 @@ export function extractURLs(text: string, maxURLs = 1): string[] {
       if (child.type !== 'link_open') continue;
 
       const href = child.attrGet('href');
-      if (!href) continue;
+      if (typeof href !== 'string' || !href) continue;
 
       const rawText = child.markup === 'linkify' ? (children[i + 1]?.content ?? '') : '';
       addURL(href, rawText);
