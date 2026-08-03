@@ -184,6 +184,36 @@
 </Story>
 
 <Story
+  name="Moderation action busy"
+  asChild
+  parameters={{
+    docs: {
+      description: {
+        story:
+          'The destructive room action keeps stable geometry, disables repeated activation, and exposes its busy state while the request is pending.'
+      }
+    }
+  }}
+>
+  <div class="mx-auto w-full max-w-4xl bg-surface-100 p-4 sm:p-8">
+    <UserProfileSurface
+      user={baseProfile.user}
+      profile={baseProfile}
+      loading={false}
+      loadError=""
+      canSendMessage
+      canCall
+      canBanFromRoom
+      banningFromRoom
+      onEditProfile={noop}
+      onSendMessage={noop}
+      onCall={noop}
+      onBanFromRoom={noop}
+    />
+  </div>
+</Story>
+
+<Story
   name="Unavailable"
   asChild
   parameters={{
