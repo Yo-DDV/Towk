@@ -40,6 +40,11 @@ function pngHeader(width: number, height: number): Uint8Array {
   return bytes;
 }
 
+function pngFile(width: number, height: number, name: string): File {
+  const bytes = pngHeader(width, height);
+  return new File([bytes.slice().buffer as ArrayBuffer], name, { type: 'image/png' });
+}
+
 function buttonByText(container: HTMLElement, text: string): HTMLButtonElement {
   const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find((candidate) =>
     candidate.textContent?.includes(text)
@@ -94,7 +99,7 @@ describe('AvatarFramingDialog', () => {
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(true);
     const completed = vi.fn();
-    const file = new File([pngHeader(1200, 800)], 'wide.png', { type: 'image/png' });
+    const file = pngFile(1200, 800, 'wide.png');
 
     const { container } = render(AvatarFramingDialog, {
       props: {
@@ -156,7 +161,7 @@ describe('AvatarFramingDialog', () => {
 
   it('exposes real disabled states and refuses dismissal during upload', async () => {
     const cancelled = vi.fn();
-    const file = new File([pngHeader(640, 640)], 'square.png', { type: 'image/png' });
+    const file = pngFile(640, 640, 'square.png');
     const { container } = render(AvatarFramingDialog, {
       props: {
         file,
@@ -182,7 +187,7 @@ describe('AvatarFramingDialog', () => {
 
   it('maps cancellation to browser Back and releases the local preview', async () => {
     const cancelled = vi.fn();
-    const file = new File([pngHeader(640, 320)], 'wide.png', { type: 'image/png' });
+    const file = pngFile(640, 320, 'wide.png');
     const { container } = render(AvatarFramingDialog, {
       props: {
         file,
@@ -201,7 +206,7 @@ describe('AvatarFramingDialog', () => {
   });
 
   it('supports mouse-wheel and two-pointer pinch zoom without losing the selected file', async () => {
-    const file = new File([pngHeader(1200, 800)], 'wide.png', { type: 'image/png' });
+    const file = pngFile(1200, 800, 'wide.png');
     const { container } = render(AvatarFramingDialog, {
       props: { file, visible: true, onsubmit: vi.fn(async () => false) }
     });
@@ -251,7 +256,7 @@ describe('AvatarFramingDialog', () => {
   });
 
   it('keeps the composition controls keyboard-operable', async () => {
-    const file = new File([pngHeader(1200, 800)], 'wide.png', { type: 'image/png' });
+    const file = pngFile(1200, 800, 'wide.png');
     const { container } = render(AvatarFramingDialog, {
       props: { file, visible: true, onsubmit: vi.fn(async () => false) }
     });
