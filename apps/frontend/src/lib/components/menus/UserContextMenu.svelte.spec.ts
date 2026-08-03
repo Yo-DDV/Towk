@@ -408,6 +408,13 @@ describe('UserContextMenu', () => {
     expect(onBanFromRoom).not.toHaveBeenCalled();
   });
 
+  it('does not expose a moderation action without an executable callback', async () => {
+    const { container } = renderMenu({ canBanFromRoom: true });
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
+
+    expect(container.textContent).not.toContain('Ban from room');
+  });
+
   it('uses a member fallback when no explicit role is assigned', async () => {
     mocks.getUserProfile.mockResolvedValue({ ...profile, roles: [] });
     const { container } = renderMenu();
@@ -466,25 +473,54 @@ describe('UserContextMenu', () => {
     expect(container.textContent).toContain('Collapse biography');
   });
 
-  it('does not expose message or call actions for deleted users', async () => {
+  it('keeps deleted users on their tombstone identity and hides live metadata and actions', async () => {
     mocks.getUserProfile.mockResolvedValue({
       ...profile,
-      user: { ...profile.user, deleted: true },
+      user: {
+        ...profile.user,
+        deleted: true,
+        login: 'deleted-user',
+        displayName: 'Deleted account',
+        customStatus: null
+      },
       viewerCanMessage: true,
       viewerCanCall: true
     });
+    mocks.getLiveDisplayName.mockReturnValue('Stale live identity');
+    mocks.getLiveLogin.mockReturnValue('stale-live-login');
+    mocks.getLiveCustomStatus.mockReturnValue({
+      emoji: '⚠️',
+      text: 'Stale live status',
+      expiresAt: null
+    });
+    mocks.getPresence.mockReturnValue(PresenceStatus.Away);
+
     const { container } = renderMenu();
     await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
 
+    expect(container.textContent).toContain('Deleted account');
+    expect(container.textContent).toContain('@deleted-user');
+    expect(container.textContent).toContain('Offline');
+    expect(container.textContent).not.toContain('Stale live identity');
+    expect(container.textContent).not.toContain('stale-live-login');
+    expect(container.textContent).not.toContain('Stale live status');
+    expect(container.textContent).not.toContain('Away');
     expect(container.textContent).not.toContain('Send Message');
     expect(buttonByText.bind(null, container, 'Call')).toThrow();
   });
 
-  it('offers profile editing only for the authenticated user', async () => {
-    mocks.getUserProfile.mockResolvedValue({ ...profile, viewerIsSelf: true });
-    const { container } = renderMenu();
+  it('offers only profile editing for the authenticated user even if capabilities are inconsistent', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      ...profile,
+      viewerIsSelf: true,
+      viewerCanMessage: true,
+      viewerCanCall: true
+    });
+    const { container } = renderMenu({ canSendMessage: true });
     await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
 
+    expect(container.textContent).not.toContain('Send Message');
+    expect(buttonByText.bind(null, container, 'Call')).toThrow();
     buttonByText(container, 'Edit profile').click();
     await vi.waitFor(() => expect(mocks.goto).toHaveBeenCalledWith('/chat/server-1/settings'));
   });
