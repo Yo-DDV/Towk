@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/cross-browser-noise-suppression
+  pull_request:
+    branches:
+      - main
 
 concurrency:
   group: pr290-additive-integration
@@ -14,13 +17,14 @@ permissions:
 
 jobs:
   integrate:
-    if: ${{ github.sha != '0c97950e8802d21f4e4b7985c422734ec446db80' }}
+    if: github.event_name == 'pull_request' || github.sha != '0c97950e8802d21f4e4b7985c422734ec446db80'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - name: Checkout integration branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: fix/cross-browser-noise-suppression
           fetch-depth: 0
 
       - name: Setup frontend toolchain
@@ -39,7 +43,7 @@ jobs:
           GIT_COMMITTER_EMAIL: 116607353+Yo-DDV@users.noreply.github.com
         run: |
           set -euo pipefail
-          branch_head="$GITHUB_SHA"
+          branch_head="$(git rev-parse HEAD)"
           cp tools/pr290-integrate.py /tmp/pr290-integrate.py
           git fetch --no-tags origin main
           main_sha="$(git rev-parse origin/main)"
@@ -73,5 +77,3 @@ jobs:
           tree_sha="$(git write-tree)"
           commit_sha="$(printf '%s\n' 'fix(calls): reconcile WebKit audio routing with current main' | git commit-tree "$tree_sha" -p "$branch_head" -p "$main_sha")"
           git push origin "$commit_sha:refs/heads/$TARGET_BRANCH"
-
-# retriggered after owner merge authorization
