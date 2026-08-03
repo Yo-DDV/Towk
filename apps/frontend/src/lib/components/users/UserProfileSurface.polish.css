@@ -184,8 +184,6 @@
 
   .user-profile-dialog .profile-display-name {
     font-size: clamp(1.75rem, 2.8cqi, 2.05rem);
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
   }
 }
 
