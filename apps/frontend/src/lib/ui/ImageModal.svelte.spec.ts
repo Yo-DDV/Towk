@@ -78,6 +78,24 @@ describe('ImageModal', () => {
     expect(onclose).toHaveBeenCalledTimes(2);
   });
 
+  it('closes through Escape from the focused media canvas', async () => {
+    const onclose = vi.fn();
+    const { container } = renderViewer({ onclose });
+    await waitForMedia(container);
+    const stage = container.querySelector<HTMLElement>('[data-testid="image-modal-stage"]')!;
+    stage.focus();
+
+    const escape = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true
+    });
+    stage.dispatchEvent(escape);
+
+    expect(escape.defaultPrevented).toBe(true);
+    expect(onclose).toHaveBeenCalledOnce();
+  });
+
   it('keeps original media inspection inside Towk without an external link', async () => {
     const { container } = renderViewer();
     await waitForMedia(container);
@@ -86,7 +104,7 @@ describe('ImageModal', () => {
     expect(container.querySelector('dialog')?.dataset.mobileNavigationSwipe).toBe('ignore');
     expect(
       container.querySelector('[data-testid="image-modal-stage"]')?.getAttribute('role')
-    ).toBe('region');
+    ).toBe('application');
     const detail = await vi.waitFor(() => {
       const image = container.querySelector<HTMLImageElement>(
         '[data-testid="image-modal-detail-image"]'
