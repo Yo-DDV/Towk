@@ -15,6 +15,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   } from '$lib/api-client/memberDirectory';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
+  import { getPresenceCache } from '$lib/state/presenceCache.svelte';
   import { startCallWith, startDMWith } from '$lib/dm/startDM';
   import { getCallJoinController } from '$lib/state/callJoinController.svelte';
   import { goto, pushState, replaceState } from '$app/navigation';
@@ -61,6 +62,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   } = $props();
 
   const connection = useConnection();
+  const presenceCache = getPresenceCache();
   const callJoinController = getCallJoinController();
   const componentId = $props.id();
   const historyMarker = `profile:${componentId}`;
@@ -78,20 +80,37 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   const currentProfile = $derived(
     !loading && profileKey === targetProfileKey ? profile : null
   );
-  const displayName = $derived(getLiveDisplayName(user.id, user.displayName || user.login));
-  const login = $derived(getLiveLogin(user.id, user.login));
-  const customStatus = $derived(getLiveCustomStatus(user.id, user.customStatus));
-  const profileUser = $derived(
+  const snapshotUser = $derived(
     currentProfile?.user ?? {
       id: user.id,
-      login,
-      displayName,
+      login: user.login,
+      displayName: user.displayName || user.login,
       deleted: user.deleted ?? false,
       avatarUrl: user.avatarUrl ?? null,
       presenceStatus: user.presenceStatus,
-      customStatus
+      customStatus: user.customStatus ?? null
     }
   );
+  const displayName = $derived(
+    getLiveDisplayName(user.id, snapshotUser.displayName || snapshotUser.login)
+  );
+  const login = $derived(getLiveLogin(user.id, snapshotUser.login));
+  const customStatus = $derived(getLiveCustomStatus(user.id, snapshotUser.customStatus));
+  const presenceStatus = $derived(
+    snapshotUser.deleted
+      ? PresenceStatus.Offline
+      : presenceCache.get(
+          { serverId, userId: user.id },
+          snapshotUser.presenceStatus
+        )
+  );
+  const profileUser = $derived({
+    ...snapshotUser,
+    login,
+    displayName,
+    customStatus,
+    presenceStatus
+  });
   const mayMessage = $derived(
     !profileUser.deleted && (currentProfile?.viewerCanMessage ?? canSendMessage)
   );
@@ -131,9 +150,13 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
       bearerToken: conn.bearerToken
     });
 
-    void loadDetailedUserProfile(targetServerId, targetUserId, () =>
-      api.getUserProfile(targetUserId)
-    )
+    void loadDetailedUserProfile(targetServerId, targetUserId, async () => {
+      const result = await api.getUserProfile(targetUserId);
+      if (result && result.user.id !== targetUserId) {
+        throw new Error('Detailed profile identity mismatch');
+      }
+      return result;
+    })
       .then((result) => {
         if (cancelled) return;
         if (result && result.user.id !== targetUserId) {
