@@ -156,7 +156,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
         </div>
 
         {#if showActions}
-          <nav class="profile-actions" aria-label={m['profile.actions']()}>
+          <div class="profile-actions" role="group" aria-label={m['profile.actions']()}>
             {#if canEditProfile}
               <button
                 type="button"
@@ -212,7 +212,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
                 </span>
               </button>
             {/if}
-          </nav>
+          </div>
         {/if}
 
         <section
@@ -1089,6 +1089,19 @@ UserContextMenu so every existing identity entry point keeps the same contract.
 
     .profile-display-name {
       font-size: clamp(1.8rem, 3.2cqi, 2.35rem);
+    }
+
+    .profile-action {
+      gap: 0.4rem;
+      padding-inline: 0.5rem;
+      white-space: nowrap;
+    }
+
+    .profile-action-icon {
+      width: 1.55rem;
+      height: 1.55rem;
+      border-radius: 0.5rem;
+      font-size: 0.9rem;
     }
   }
 
