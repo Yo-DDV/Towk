@@ -29,6 +29,9 @@ jobs:
         with:
           install-cli-deps: "false"
 
+      - name: Build generated API types
+        run: pnpm --filter @towk/api-types build
+
       - name: Install Chromium for browser component tests
         run: pnpm --dir apps/frontend exec playwright install --with-deps chromium
 
