@@ -171,6 +171,7 @@ jobs:
           find .github/profile-banner-hardening-parts -maxdepth 1 -type f -name 'part-*' -delete
           rmdir .github/profile-banner-hardening-parts
           rm .github/workflows/profile-banner-hardening.yml
+          rm -f .github/pr295-finalize.py .github/workflows/pr295-finalize.yml
           rm -f /tmp/profile-banner-hardening.py.gz.b64 /tmp/profile-banner-hardening.py.gz /tmp/profile-banner-hardening.py
 
           git diff --check
@@ -180,6 +181,8 @@ jobs:
           test ! -d .github/profile-banner-source-parts
           test ! -e .github/profile-banner-materialize.py
           test ! -e .github/workflows/profile-banner-bootstrap.yml
+          test ! -e .github/pr295-finalize.py
+          test ! -e .github/workflows/pr295-finalize.yml
 
           git status --short
           git add -A
