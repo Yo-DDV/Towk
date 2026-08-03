@@ -174,7 +174,7 @@ describe('UserContextMenu', () => {
     expect(Math.abs(avatarRect.width - avatarRect.height)).toBeLessThan(1);
     expect(getComputedStyle(avatarShell).borderRadius).not.toBe('0px');
 
-    const actions = container.querySelector<HTMLElement>('nav.profile-actions');
+    const actions = container.querySelector<HTMLElement>('[role="group"].profile-actions');
     if (!actions) throw new Error('Expected capability-filtered profile actions.');
     expect(actions.getAttribute('aria-label')).toBe('Profile actions');
   });
