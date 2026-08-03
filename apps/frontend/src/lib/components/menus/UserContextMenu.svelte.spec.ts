@@ -6,6 +6,10 @@ import UserContextMenu from './UserContextMenu.svelte';
 
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
+  getLiveDisplayName: vi.fn(),
+  getLiveLogin: vi.fn(),
+  getLiveCustomStatus: vi.fn(),
+  getPresence: vi.fn(),
   startDMWith: vi.fn(),
   startCallWith: vi.fn(),
   goto: vi.fn(),
@@ -70,19 +74,17 @@ vi.mock('$lib/dm/startDM', () => ({
 }));
 
 vi.mock('$lib/state/userProfiles.svelte', () => ({
-  getLiveDisplayName: (_userId: string, fallback: string) => fallback,
-  getLiveLogin: (_userId: string, fallback: string) => fallback,
+  getLiveDisplayName: mocks.getLiveDisplayName,
+  getLiveLogin: mocks.getLiveLogin,
   getLiveAvatarUrl: (_userId: string, fallback: string | null) => fallback,
-  getLiveCustomStatus: (_userId: string, fallback: unknown) => fallback,
+  getLiveCustomStatus: mocks.getLiveCustomStatus,
   getDetailedUserProfileRevision: () => 0,
   loadDetailedUserProfile: (_serverId: string, _userId: string, load: () => Promise<unknown>) =>
     load()
 }));
 
 vi.mock('$lib/state/presenceCache.svelte', () => ({
-  getPresenceCache: () => ({
-    get: (_scope: { serverId: string; userId: string }, fallback: string) => fallback
-  })
+  getPresenceCache: () => ({ get: mocks.getPresence })
 }));
 
 const user = {
@@ -127,12 +129,22 @@ function buttonByText(container: HTMLElement, text: string): HTMLButtonElement {
 
 beforeEach(() => {
   mocks.getUserProfile.mockReset();
+  mocks.getLiveDisplayName.mockReset();
+  mocks.getLiveLogin.mockReset();
+  mocks.getLiveCustomStatus.mockReset();
+  mocks.getPresence.mockReset();
   mocks.startDMWith.mockReset();
   mocks.startCallWith.mockReset();
   mocks.goto.mockReset();
   mocks.pushState.mockReset();
   mocks.replaceState.mockReset();
   for (const key of Object.keys(mocks.pageState)) delete mocks.pageState[key];
+  mocks.getLiveDisplayName.mockImplementation((_userId: string, fallback: string) => fallback);
+  mocks.getLiveLogin.mockImplementation((_userId: string, fallback: string) => fallback);
+  mocks.getLiveCustomStatus.mockImplementation((_userId: string, fallback: unknown) => fallback);
+  mocks.getPresence.mockImplementation(
+    (_scope: { serverId: string; userId: string }, fallback: PresenceStatus) => fallback
+  );
   mocks.getUserProfile.mockResolvedValue(profile);
 });
 
@@ -157,11 +169,22 @@ describe('UserContextMenu', () => {
       throw new Error('Expected the complete profile composition to be rendered.');
     }
 
+    expect(identityPanel.tagName).toBe('SECTION');
+    expect(identityPanel.getAttribute('aria-labelledby')).toBe(nameHeading.id);
     expect(identityPanel.querySelector('.profile-cover')).not.toBeNull();
     expect(identityPanel.querySelector('[data-testid="profile-hero-roles"]')).not.toBeNull();
     expect(
       identityPanel.querySelector('.profile-role-chip-moderation')?.getAttribute('title')
     ).toBe('Moderator');
+
+    const roleList = identityPanel.querySelector<HTMLElement>('[role="list"].profile-role-list');
+    if (!roleList) throw new Error('Expected an accessible role list.');
+    expect(roleList.querySelectorAll('[role="listitem"]')).toHaveLength(1);
+
+    const facts = contentPanel.querySelector<HTMLDListElement>('dl.profile-facts-grid');
+    if (!facts) throw new Error('Expected account facts to use a description list.');
+    expect(facts.querySelectorAll('dt')).toHaveLength(2);
+    expect(facts.querySelectorAll('dd')).toHaveLength(2);
     expect(contentPanel.querySelectorAll('.profile-fact')).toHaveLength(2);
     expect(nameHeading.tagName).toBe('H2');
     expect(nameHeading.textContent).toContain('Alice Example');
@@ -180,6 +203,37 @@ describe('UserContextMenu', () => {
     const actions = container.querySelector<HTMLElement>('[role="group"].profile-actions');
     if (!actions) throw new Error('Expected capability-filtered profile actions.');
     expect(actions.getAttribute('aria-label')).toBe('Profile actions');
+  });
+
+  it('keeps detailed identity and presence synchronized with the live caches', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      ...profile,
+      user: {
+        ...profile.user,
+        login: 'snapshot-login',
+        displayName: 'Snapshot Identity',
+        presenceStatus: PresenceStatus.Offline,
+        customStatus: null
+      }
+    });
+    mocks.getLiveDisplayName.mockReturnValue('Alice Live');
+    mocks.getLiveLogin.mockReturnValue('alice-live');
+    mocks.getLiveCustomStatus.mockReturnValue({
+      emoji: '🧭',
+      text: 'Live status',
+      expiresAt: null
+    });
+    mocks.getPresence.mockReturnValue(PresenceStatus.Away);
+
+    const { container } = renderMenu();
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
+
+    expect(container.textContent).toContain('Alice Live');
+    expect(container.textContent).toContain('@alice-live');
+    expect(container.textContent).toContain('Away');
+    expect(container.textContent).toContain('Live status');
+    expect(container.textContent).not.toContain('Snapshot Identity');
+    expect(container.textContent).not.toContain('@snapshot-login');
   });
 
   it('keeps long identity, status, and role content bounded by the profile surface', async () => {
@@ -241,6 +295,66 @@ describe('UserContextMenu', () => {
 
     resolveProfile(profile);
     await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
+  });
+
+  it('drops stale profile data immediately when the target user changes', async () => {
+    const nextUser = {
+      ...user,
+      id: 'user-2',
+      login: 'bob',
+      displayName: 'Bob Fallback'
+    };
+    const nextProfile = {
+      ...profile,
+      user: { ...nextUser, deleted: false },
+      roles: [
+        { name: 'helper', displayName: 'Helper', position: 5, moderation: false }
+      ],
+      biographyMarkdown: 'Bob profile details.'
+    };
+    let resolveNextProfile!: (value: typeof nextProfile) => void;
+
+    mocks.getUserProfile.mockImplementation((userId: string) => {
+      if (userId === user.id) return Promise.resolve(profile);
+      return new Promise((resolve) => {
+        resolveNextProfile = resolve;
+      });
+    });
+
+    const { container, rerender } = renderMenu();
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
+
+    await rerender({ user: nextUser });
+    await vi.waitFor(() => expect(mocks.getUserProfile).toHaveBeenCalledWith('user-2'));
+
+    expect(container.textContent).toContain('Bob Fallback');
+    expect(container.textContent).not.toContain('Alice Example');
+    expect(container.textContent).not.toContain('Moderator');
+    expect(q(container, '[data-testid="user-profile-loading"]')).toBeTruthy();
+
+    resolveNextProfile(nextProfile);
+    await vi.waitFor(() => expect(container.textContent).toContain('Helper'));
+    expect(container.textContent).toContain('Bob profile details.');
+  });
+
+  it('fails closed when the detailed response identity does not match the requested user', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      ...profile,
+      user: {
+        ...profile.user,
+        id: 'unexpected-user',
+        login: 'unexpected',
+        displayName: 'Unexpected Identity'
+      }
+    });
+
+    const { container } = renderMenu();
+
+    await vi.waitFor(() => expect(container.textContent).toContain('Could not load this profile.'));
+    expect(container.textContent).toContain('Alice Example');
+    expect(container.textContent).not.toContain('Unexpected Identity');
+    expect(container.textContent).not.toContain('Moderator');
+    expect(q(container, '[data-testid="user-profile-error"]')).toBeTruthy();
   });
 
   it('renders a bounded error state while preserving fallback identity', async () => {
