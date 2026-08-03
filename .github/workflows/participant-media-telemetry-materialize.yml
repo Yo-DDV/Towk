@@ -118,7 +118,7 @@ jobs:
           expected_packet_loss_count = block.count("packetLossPercent:")
           expected_jitter_count = block.count("jitterMs:")
           expected_warning_count = block.count("networkWarningMetric:")
-          if (expected_network_health_count, expected_packet_loss_count, expected_jitter_count, expected_warning_count) != (12, 4, 4, 4):
+          if (expected_network_health_count, expected_packet_loss_count, expected_jitter_count, expected_warning_count) != (13, 5, 5, 5):
               raise SystemExit(
                   "unexpected legacy reception assertion shape: "
                   f"{expected_network_health_count}/"
