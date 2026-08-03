@@ -13,6 +13,7 @@
     inspectProfileBannerDimensions,
     isProfileBannerBelowRecommendation,
     uploadProfileBanner,
+    validateProfileBannerDimensions,
     validateProfileBannerFile
   } from '$lib/profileBanner';
 
@@ -36,13 +37,15 @@
   let isDragging = $state(false);
   let saving = $state(false);
   let removing = $state(false);
+  let selectionGeneration = 0;
+  let destroyed = false;
 
   const displayedBannerUrl = $derived(previewUrl ?? currentBannerUrl);
   const belowRecommendation = $derived(
     dimensions ? isProfileBannerBelowRecommendation(dimensions) : false
   );
 
-  function clearPreview() {
+  function resetPreview() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = null;
     selectedFile = null;
@@ -51,10 +54,22 @@
     if (fileInput) fileInput.value = '';
   }
 
-  onDestroy(clearPreview);
+  function invalidateSelection() {
+    selectionGeneration += 1;
+    resetPreview();
+  }
+
+  onDestroy(() => {
+    destroyed = true;
+    invalidateSelection();
+  });
 
   async function selectFile(file: File | undefined) {
     if (!file || saving || removing) return;
+
+    const generation = ++selectionGeneration;
+    resetPreview();
+
     const validation = validateProfileBannerFile(file);
     if (validation) {
       validationMessage = profileBannerMessage(validation);
@@ -65,11 +80,19 @@
     try {
       decoded = await inspectProfileBannerDimensions(file);
     } catch {
-      validationMessage = profileBannerMessage('decode_failed');
+      if (!destroyed && generation === selectionGeneration) {
+        validationMessage = profileBannerMessage('decode_failed');
+      }
       return;
     }
 
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (destroyed || generation !== selectionGeneration) return;
+    const dimensionValidation = validateProfileBannerDimensions(decoded);
+    if (dimensionValidation) {
+      validationMessage = profileBannerMessage(dimensionValidation);
+      return;
+    }
+
     selectedFile = file;
     previewUrl = URL.createObjectURL(file);
     dimensions = decoded;
@@ -99,7 +122,7 @@
     try {
       await uploadProfileBanner(config, selectedFile);
       toast.success(profileBannerMessage('saved'));
-      clearPreview();
+      invalidateSelection();
       onChanged(null);
     } catch (error) {
       toast.error(localizedErrorMessage(error, profileBannerMessage('save_failed')));
@@ -115,7 +138,7 @@
     try {
       await deleteProfileBanner(config);
       toast.success(profileBannerMessage('removed'));
-      clearPreview();
+      invalidateSelection();
       onChanged(null);
     } catch (error) {
       toast.error(localizedErrorMessage(error, profileBannerMessage('delete_failed')));

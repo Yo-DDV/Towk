@@ -22,5 +22,7 @@
   "delete_failed": "La bannière n’a pas pu être supprimée.",
   "saved": "Bannière mise à jour.",
   "removed": "Bannière supprimée.",
-  "no_banner": "Aucune bannière personnalisée"
+  "no_banner": "Aucune bannière personnalisée",
+  "too_small": "Choisissez une image d’au moins 600 × 200 px.",
+  "dimensions_too_large": "Cette image est trop grande pour être traitée en sécurité. Utilisez au maximum 8192 px par côté et 24 mégapixels."
 }

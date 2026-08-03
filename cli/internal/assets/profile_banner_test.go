@@ -2,6 +2,7 @@ package assets
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image"
 	"image/color"
 	"image/gif"
@@ -89,6 +90,17 @@ func TestProcessProfileBannerAssetPreservesTransparencyAsWebP(t *testing.T) {
 	}
 }
 
+func animatedProfileBannerWebPFixture() []byte {
+	data := make([]byte, 30)
+	copy(data[:4], "RIFF")
+	binary.LittleEndian.PutUint32(data[4:8], uint32(len(data)-8))
+	copy(data[8:12], "WEBP")
+	copy(data[12:16], "VP8X")
+	binary.LittleEndian.PutUint32(data[16:20], 10)
+	data[20] = 0x02
+	return data
+}
+
 func TestProcessProfileBannerAssetRejectsUnsupportedAndAnimatedInputs(t *testing.T) {
 	var gifData bytes.Buffer
 	palette := color.Palette{color.Black, color.White}
@@ -101,9 +113,10 @@ func TestProcessProfileBannerAssetRejectsUnsupportedAndAnimatedInputs(t *testing
 	}
 
 	for name, source := range map[string][]byte{
-		"gif":  gifData.Bytes(),
-		"svg":  []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`),
-		"html": []byte(`<html><script>alert(1)</script></html>`),
+		"animated-webp": animatedProfileBannerWebPFixture(),
+		"gif":           gifData.Bytes(),
+		"svg":           []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`),
+		"html":          []byte(`<html><script>alert(1)</script></html>`),
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := ProcessProfileBannerAsset(bytes.NewReader(source))

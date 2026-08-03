@@ -22,5 +22,7 @@
   "delete_failed": "Das Banner konnte nicht entfernt werden.",
   "saved": "Banner aktualisiert.",
   "removed": "Banner entfernt.",
-  "no_banner": "Kein benutzerdefiniertes Banner"
+  "no_banner": "Kein benutzerdefiniertes Banner",
+  "too_small": "Wähle ein Bild mit mindestens 600 × 200 px.",
+  "dimensions_too_large": "Dieses Bild ist für eine sichere Verarbeitung zu groß. Verwende höchstens 8192 px pro Seite und 24 Megapixel."
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -17,6 +18,10 @@ import (
 )
 
 const profileBannerAssetPrefix = "profile-banner-v1-"
+
+func IsProfileBannerAssetID(assetID string) bool {
+	return strings.HasPrefix(assetID, profileBannerAssetPrefix)
+}
 
 func ProfileBannerAssetID(userID string) string {
 	sum := sha256.Sum256([]byte(userID))

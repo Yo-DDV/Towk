@@ -124,4 +124,86 @@ describe('ProfileBannerEditor', () => {
     await vi.waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce());
     expect(onChanged).toHaveBeenCalledOnce();
   });
+
+  it('clears a previous valid selection when the replacement is invalid', async () => {
+    const { container } = render(ProfileBannerEditor, {
+      props: { config, currentBannerUrl: null, onClose: vi.fn(), onChanged: vi.fn() }
+    });
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error('Expected banner file input.');
+
+    const valid = new File(['image'], 'valid.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', { configurable: true, value: [valid] });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(mocks.inspect).toHaveBeenCalledWith(valid));
+
+    const save = [...container.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
+      button.textContent?.includes('Save banner')
+    );
+    if (!save) throw new Error('Expected save banner button.');
+    await vi.waitFor(() => expect(save.disabled).toBe(false));
+
+    const invalid = new File(['svg'], 'invalid.svg', { type: 'image/svg+xml' });
+    Object.defineProperty(input, 'files', { configurable: true, value: [invalid] });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await vi.waitFor(() => expect(save.disabled).toBe(true));
+    expect(container.textContent).toContain('JPEG, PNG or WebP');
+  });
+
+  it('keeps only the latest asynchronous selection result', async () => {
+    let resolveFirst!: (dimensions: { width: number; height: number }) => void;
+    const firstResult = new Promise<{ width: number; height: number }>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const first = new File(['first'], 'first.png', { type: 'image/png' });
+    const second = new File(['second'], 'second.png', { type: 'image/png' });
+    const createObjectURL = vi.mocked(URL.createObjectURL);
+    createObjectURL.mockClear();
+    mocks.inspect.mockImplementation((file: File) =>
+      file === first ? firstResult : Promise.resolve({ width: 1800, height: 600 })
+    );
+
+    const { container } = render(ProfileBannerEditor, {
+      props: { config, currentBannerUrl: null, onClose: vi.fn(), onChanged: vi.fn() }
+    });
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error('Expected banner file input.');
+
+    Object.defineProperty(input, 'files', { configurable: true, value: [first] });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    Object.defineProperty(input, 'files', { configurable: true, value: [second] });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await vi.waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1));
+    expect(createObjectURL.mock.calls[0]?.[0]).toBe(second);
+    resolveFirst({ width: 1536, height: 512 });
+    await Promise.resolve();
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const save = [...container.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
+      button.textContent?.includes('Save banner')
+    );
+    if (!save) throw new Error('Expected save banner button.');
+    save.click();
+    await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalledWith(config, second));
+  });
+
+  it('rejects decoded dimensions below the server minimum', async () => {
+    mocks.inspect.mockResolvedValue({ width: 599, height: 200 });
+    const { container } = render(ProfileBannerEditor, {
+      props: { config, currentBannerUrl: null, onClose: vi.fn(), onChanged: vi.fn() }
+    });
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error('Expected banner file input.');
+    const file = new File(['image'], 'small.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await vi.waitFor(() => expect(container.textContent).toContain('600'));
+    const save = [...container.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
+      button.textContent?.includes('Save banner')
+    );
+    if (!save) throw new Error('Expected save banner button.');
+    expect(save.disabled).toBe(true);
+  });
 });

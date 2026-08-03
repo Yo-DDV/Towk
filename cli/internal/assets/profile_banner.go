@@ -2,6 +2,7 @@ package assets
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"io"
@@ -20,6 +21,28 @@ const (
 	MaxProfileBannerSourcePixels    int64 = 24_000_000
 	ProfileBannerJPEGQuality              = 82
 )
+
+func isAnimatedProfileBannerWebP(data []byte) bool {
+	if len(data) < 20 || string(data[:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		return false
+	}
+	for offset := 12; offset+8 <= len(data); {
+		chunkType := string(data[offset : offset+4])
+		chunkSize := int64(binary.LittleEndian.Uint32(data[offset+4 : offset+8]))
+		if chunkType == "ANIM" || chunkType == "ANMF" {
+			return true
+		}
+		if chunkType == "VP8X" && chunkSize >= 10 && offset+9 <= len(data) && data[offset+8]&0x02 != 0 {
+			return true
+		}
+		advance := int64(8) + chunkSize + chunkSize%2
+		if advance <= 0 || advance > int64(len(data)-offset) {
+			return false
+		}
+		offset += int(advance)
+	}
+	return false
+}
 
 type ProcessedProfileBanner struct {
 	Data        []byte
@@ -50,6 +73,9 @@ func ProcessProfileBannerAssetWithConfig(
 	contentType := DetectImageContentType(data)
 	switch contentType {
 	case "image/jpeg", "image/png", "image/webp":
+		if contentType == "image/webp" && isAnimatedProfileBannerWebP(data) {
+			return nil, fmt.Errorf("animated WebP profile banners are not supported")
+		}
 	default:
 		return nil, fmt.Errorf("unsupported profile banner image type")
 	}

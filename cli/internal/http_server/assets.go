@@ -104,6 +104,15 @@ func (s *HTTPServer) serveServerAsset(c *gin.Context) {
 		path = path[1:]
 	}
 
+	canonicalAssetID := path
+	if transformIndex := strings.Index(canonicalAssetID, "/t/"); transformIndex >= 0 {
+		canonicalAssetID = canonicalAssetID[:transformIndex]
+	}
+	if core.IsProfileBannerAssetID(canonicalAssetID) {
+		writeLocalizedError(c, http.StatusNotFound, "asset.not_found")
+		return
+	}
+
 	// Check if this is a transform request: path ends with /t/{signedPath}
 	// Pattern: {key}/t/{signedPath}
 	if idx := strings.LastIndex(path, "/t/"); idx != -1 {

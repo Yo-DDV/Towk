@@ -8,6 +8,8 @@ export const PROFILE_BANNER_RECOMMENDED_WIDTH = 1536;
 export const PROFILE_BANNER_RECOMMENDED_HEIGHT = 512;
 export const PROFILE_BANNER_MIN_WIDTH = 600;
 export const PROFILE_BANNER_MIN_HEIGHT = 200;
+export const PROFILE_BANNER_MAX_DIMENSION = 8192;
+export const PROFILE_BANNER_MAX_PIXELS = 24_000_000;
 
 export type ProfileBannerAPIConfig = {
   serverId: string;
@@ -15,7 +17,8 @@ export type ProfileBannerAPIConfig = {
   bearerToken: string | null;
 };
 
-export type ProfileBannerValidationCode = 'invalid_type' | 'too_large';
+export type ProfileBannerValidationCode =
+  'invalid_type' | 'too_large' | 'too_small' | 'dimensions_too_large';
 
 export type ProfileBannerDimensions = {
   width: number;
@@ -93,6 +96,27 @@ export function validateProfileBannerFile(
   }
   if (file.size <= 0 || file.size > PROFILE_BANNER_MAX_UPLOAD_BYTES) {
     return 'too_large';
+  }
+  return null;
+}
+
+export function validateProfileBannerDimensions(
+  dimensions: ProfileBannerDimensions
+): Extract<ProfileBannerValidationCode, 'too_small' | 'dimensions_too_large'> | null {
+  if (
+    !Number.isSafeInteger(dimensions.width) ||
+    !Number.isSafeInteger(dimensions.height) ||
+    dimensions.width < PROFILE_BANNER_MIN_WIDTH ||
+    dimensions.height < PROFILE_BANNER_MIN_HEIGHT
+  ) {
+    return 'too_small';
+  }
+  if (
+    dimensions.width > PROFILE_BANNER_MAX_DIMENSION ||
+    dimensions.height > PROFILE_BANNER_MAX_DIMENSION ||
+    dimensions.width * dimensions.height > PROFILE_BANNER_MAX_PIXELS
+  ) {
+    return 'dimensions_too_large';
   }
   return null;
 }

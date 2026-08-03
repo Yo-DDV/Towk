@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  PROFILE_BANNER_MAX_DIMENSION,
+  PROFILE_BANNER_MAX_PIXELS,
   PROFILE_BANNER_MAX_UPLOAD_BYTES,
+  PROFILE_BANNER_MIN_HEIGHT,
+  PROFILE_BANNER_MIN_WIDTH,
   PROFILE_BANNER_RECOMMENDED_HEIGHT,
   PROFILE_BANNER_RECOMMENDED_WIDTH,
   clearProfileBannerCapabilityCache,
   isProfileBannerBelowRecommendation,
   supportsProfileBanners,
+  validateProfileBannerDimensions,
   validateProfileBannerFile
 } from './profileBanner';
 
@@ -36,6 +41,33 @@ describe('profile banner client contract', () => {
       validateProfileBannerFile({
         type: 'image/jpeg',
         size: PROFILE_BANNER_MAX_UPLOAD_BYTES
+      })
+    ).toBeNull();
+  });
+
+  it('rejects dimensions outside the server-side decoding envelope', () => {
+    expect(
+      validateProfileBannerDimensions({
+        width: PROFILE_BANNER_MIN_WIDTH - 1,
+        height: PROFILE_BANNER_MIN_HEIGHT
+      })
+    ).toBe('too_small');
+    expect(
+      validateProfileBannerDimensions({
+        width: PROFILE_BANNER_MAX_DIMENSION + 1,
+        height: PROFILE_BANNER_MIN_HEIGHT
+      })
+    ).toBe('dimensions_too_large');
+    expect(
+      validateProfileBannerDimensions({
+        width: PROFILE_BANNER_MAX_DIMENSION,
+        height: Math.floor(PROFILE_BANNER_MAX_PIXELS / PROFILE_BANNER_MAX_DIMENSION) + 1
+      })
+    ).toBe('dimensions_too_large');
+    expect(
+      validateProfileBannerDimensions({
+        width: PROFILE_BANNER_RECOMMENDED_WIDTH,
+        height: PROFILE_BANNER_RECOMMENDED_HEIGHT
       })
     ).toBeNull();
   });

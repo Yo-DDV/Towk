@@ -22,5 +22,7 @@
   "delete_failed": "No se ha podido eliminar el banner.",
   "saved": "Banner actualizado.",
   "removed": "Banner eliminado.",
-  "no_banner": "Sin banner personalizado"
+  "no_banner": "Sin banner personalizado",
+  "too_small": "Elige una imagen de al menos 600 × 200 px.",
+  "dimensions_too_large": "Esta imagen es demasiado grande para procesarla de forma segura. Usa como máximo 8192 px por lado y 24 megapíxeles."
 }
