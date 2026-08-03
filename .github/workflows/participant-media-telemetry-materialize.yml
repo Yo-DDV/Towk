@@ -53,6 +53,8 @@ jobs:
             > /tmp/materialize-telemetry.py
           test "$(sha256sum /tmp/materialize-telemetry.py | cut -d' ' -f1)" = "bd7d51398518cdee9c235d5236611ff573c1235a63077d921ff4f6d9ac67a472"
           python3 -m py_compile /tmp/materialize-telemetry.py
+          cp tools/telemetry-finalize.py /tmp/telemetry-finalize.py
+          python3 -m py_compile /tmp/telemetry-finalize.py
 
           git fetch --no-tags origin main "$PR290_BRANCH"
           main_sha="$(git rev-parse origin/main)"
@@ -63,164 +65,8 @@ jobs:
 
           cp /tmp/materialize-telemetry.py tools/materialize-participant-media-telemetry.py
           python3 tools/materialize-participant-media-telemetry.py
-          python3 - <<'PY'
-          from pathlib import Path
-          import json
-          import re
-
-          panel_path = Path("apps/frontend/src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte")
-          panel = panel_path.read_text(encoding="utf-8")
-          panel, count = re.subn(
-              r'<section(?=[^>]*\brole="dialog")',
-              '<div',
-              panel,
-              count=1,
-              flags=re.DOTALL,
-          )
-          if count != 1:
-              raise SystemExit("telemetry dialog opening tag not found")
-          closing_index = panel.rfind("</section>")
-          if closing_index < 0:
-              raise SystemExit("telemetry dialog closing tag not found")
-          panel = panel[:closing_index] + "</div>" + panel[closing_index + len("</section>"):]
-          panel_path.write_text(panel, encoding="utf-8")
-
-          catalog_path = Path("apps/frontend/messages/de/voice.json")
-          catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-          flat_key = "voice.media_telemetry_bitrate"
-          if flat_key in catalog:
-              if catalog[flat_key] != "Bitrate":
-                  raise SystemExit("unexpected flat German telemetry bitrate value")
-              catalog[flat_key] = "Datenrate"
-          elif isinstance(catalog.get("voice"), dict):
-              voice = catalog["voice"]
-              if voice.get("media_telemetry_bitrate") != "Bitrate":
-                  raise SystemExit("unexpected nested German telemetry bitrate value")
-              voice["media_telemetry_bitrate"] = "Datenrate"
-          else:
-              raise SystemExit("German telemetry bitrate key not found")
-          catalog_path.write_text(
-              json.dumps(catalog, ensure_ascii=False, indent=2) + "\n",
-              encoding="utf-8",
-          )
-
-          state_test_path = Path("apps/frontend/src/lib/state/server/voiceCall.svelte.spec.ts")
-          state_tests = state_test_path.read_text(encoding="utf-8")
-          start_marker = "  it('reports the worst current quality across microphone and screen-share tracks'"
-          end_marker = "  it('does not remove an interrupted participant only because its recovery deadline elapsed'"
-          start = state_tests.find(start_marker)
-          end = state_tests.find(end_marker, start)
-          if start < 0 or end < 0:
-              raise SystemExit("legacy reception quality test block not found")
-          block = state_tests[start:end]
-          shape = (
-              block.count("networkHealth:"),
-              block.count("packetLossPercent:"),
-              block.count("jitterMs:"),
-              block.count("networkWarningMetric:"),
-          )
-          if shape != (13, 5, 5, 5):
-              raise SystemExit(f"unexpected legacy reception assertion shape: {shape}")
-          block = block.replace("networkHealth:", "receptionNetworkHealth:")
-          block = block.replace("packetLossPercent:", "receptionPacketLossPercent:")
-          block = block.replace("jitterMs:", "receptionJitterMs:")
-          block = re.sub(r"^\s*networkWarningMetric:.*\n", "", block, flags=re.MULTILINE)
-          block = block.replace(
-              "reports the worst current quality across microphone and screen-share tracks",
-              "reports the worst current reception quality across microphone and screen-share tracks",
-          )
-          block = block.replace(
-              "clears a participant quality sample when every active track stops reporting stats",
-              "clears a participant reception quality sample when every active track stops reporting stats",
-          )
-          block = block.replace(
-              "expires a participant quality sample when a WebRTC stats read never settles",
-              "expires a participant reception quality sample when a WebRTC stats read never settles",
-          )
-          state_tests = state_tests[:start] + block + state_tests[end:]
-          state_test_path.write_text(state_tests, encoding="utf-8")
-
-          panel_test_path = Path("apps/frontend/src/lib/components/voice/VoiceCallPanel.svelte.spec.ts")
-          panel_tests = panel_test_path.read_text(encoding="utf-8")
-          camera_start_marker = "  it('offers a one-touch camera switch when several phone lenses are available'"
-          camera_end_marker = "  it('keeps unavailable web screen sharing compact and explains it only on tap'"
-          camera_start = panel_tests.find(camera_start_marker)
-          camera_end = panel_tests.find(camera_end_marker, camera_start)
-          if camera_start < 0 or camera_end < 0:
-              raise SystemExit("camera switch component test block not found")
-          camera_test = """  it('offers a one-touch camera switch when several phone lenses are available', async () => {
-            const { container } = render(VoiceCallPanelStoryHarness, {
-              props: { layout: 'sidebar', scenario: 'mobile-camera' }
-            });
-
-            const control = await vi.waitFor(() => {
-              const value = container.querySelector<HTMLButtonElement>(
-                '[data-testid=\"call-switch-camera-button\"]'
-              );
-              expect(value).not.toBeNull();
-              return value!;
-            });
-            expect(control.getAttribute('aria-label')).toBe('Switch camera');
-            expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(32);
-          });
-
-          """
-          panel_tests = panel_tests[:camera_start] + camera_test + panel_tests[camera_end:]
-          panel_test_path.write_text(panel_tests, encoding="utf-8")
-
-          telemetry_path = Path("apps/frontend/src/lib/voice/participantMediaTelemetry.ts")
-          telemetry = telemetry_path.read_text(encoding="utf-8")
-          old_return = """  return {
-            kind,
-            health,
-            latencyMs,
-            jitterMs,
-            packetLossPercent,
-            bitrateKbps,
-            framesPerSecond,
-            width,
-            height,
-            qualityLimitationReason: limitation
-          };"""
-          new_return = """  return {
-            kind,
-            health,
-            latencyMs: latencyMs ?? null,
-            jitterMs: jitterMs ?? null,
-            packetLossPercent: packetLossPercent ?? null,
-            bitrateKbps: bitrateKbps ?? null,
-            framesPerSecond: framesPerSecond ?? null,
-            width: width ?? null,
-            height: height ?? null,
-            qualityLimitationReason: limitation
-          };"""
-          if telemetry.count(old_return) != 1:
-              raise SystemExit("telemetry wire metric return block not found exactly once")
-          telemetry_path.write_text(telemetry.replace(old_return, new_return, 1), encoding="utf-8")
-
-          telemetry_test_path = Path("apps/frontend/src/lib/voice/participantMediaTelemetry.spec.ts")
-          telemetry_tests = telemetry_test_path.read_text(encoding="utf-8")
-          if telemetry_tests.count("entry as RTCStats") != 1:
-              raise SystemExit("RTCStats test cast not found exactly once")
-          telemetry_tests = telemetry_tests.replace(
-              "entry as RTCStats",
-              "entry as unknown as RTCStats",
-              1,
-          )
-          if telemetry_tests.count("new TextDecoder().decode(payload);") != 1:
-              raise SystemExit("nullable telemetry payload decode not found exactly once")
-          telemetry_tests = telemetry_tests.replace(
-              "new TextDecoder().decode(payload);",
-              "new TextDecoder().decode(payload!);",
-              1,
-          )
-          telemetry_test_path.write_text(telemetry_tests, encoding="utf-8")
-          PY
-
-          rm -rf tools/.telemetry-materializer
-          rm -f \
-            tools/materialize-participant-media-telemetry.py \
-            .github/workflows/participant-media-telemetry-materialize.yml
+          python3 /tmp/telemetry-finalize.py
+          rm -f tools/materialize-participant-media-telemetry.py
 
           {
             echo "BOOTSTRAP_HEAD=$bootstrap_head"
@@ -291,7 +137,7 @@ jobs:
           git add -A
           git diff --cached --check
           node tools/check-public-surface.mjs
-          test -z "$(git diff --cached --name-only | grep -E '^(\.github/workflows/participant-media-telemetry-materialize\.yml|tools/\.telemetry-materializer/|tools/materialize-participant-media-telemetry\.py)$' || true)"
+          test -z "$(git diff --cached --name-only | grep -E '^(\.github/workflows/participant-media-telemetry-materialize\.yml|tools/\.telemetry-materializer/|tools/telemetry-finalize\.py|tools/materialize-participant-media-telemetry\.py)$' || true)"
 
       - name: Publish clean telemetry head
         shell: bash
