@@ -2,37 +2,37 @@
   "version": 3,
   "repository": "Yo-DDV/Towk",
   "branch": "main",
-  "sourceCommit": "39d6e620f076774a713b310351053b6977a50aa7",
-  "generatedAt": "2026-08-03T08:32:59.112Z",
+  "sourceCommit": "2a25b17ac41c5ca9e304dc717defd1d110844574",
+  "generatedAt": "2026-08-03T09:00:44.527Z",
   "window": {
     "kind": "rolling-30-utc-days",
     "days": 30,
     "start": "2026-07-05T00:00:00.000Z",
-    "end": "2026-08-03T08:32:59.112Z",
+    "end": "2026-08-03T09:00:44.527Z",
     "currentDayPartial": true
   },
   "baselineCommit": "205e91fe1ae5e5c23420974f7e04cf82456eeab3",
   "baselineAt": "2026-07-12T10:20:05.000Z",
   "effectiveWindowStart": "2026-07-12T10:20:05.000Z",
   "headline": {
-    "commits": 164,
-    "mergedPullRequests": 146,
-    "issuesClosed": 103,
+    "commits": 165,
+    "mergedPullRequests": 147,
+    "issuesClosed": 102,
     "activeHumanContributors": 2
   },
   "flow": {
-    "medianPrLeadTimeHours": 6.190138888888889,
+    "medianPrLeadTimeHours": 6.094722222222222,
     "medianFirstReviewHours": null,
     "reviewedPullRequests": 0
   },
   "codeMovement": {
-    "additions": 182227,
-    "deletions": 49780,
-    "filesChanged": 3455
+    "additions": 182648,
+    "deletions": 50209,
+    "filesChanged": 3461
   },
   "automation": {
-    "commits": 22,
-    "mergedPullRequests": 22
+    "commits": 23,
+    "mergedPullRequests": 23
   },
   "daily": [
     {
@@ -348,7 +348,7 @@
       "label": "2",
       "commits": 18,
       "mergedPullRequests": 18,
-      "issuesClosed": 17,
+      "issuesClosed": 16,
       "additions": 12822,
       "deletions": 2768,
       "filesChanged": 328,
@@ -357,13 +357,13 @@
     {
       "date": "2026-08-03",
       "label": "3",
-      "commits": 2,
-      "mergedPullRequests": 2,
+      "commits": 3,
+      "mergedPullRequests": 3,
       "issuesClosed": 0,
-      "additions": 160,
-      "deletions": 84,
-      "filesChanged": 4,
-      "medianPrLeadTimeHours": 4.875138888888889
+      "additions": 581,
+      "deletions": 513,
+      "filesChanged": 10,
+      "medianPrLeadTimeHours": 5.1066666666666665
     }
   ]
 }
