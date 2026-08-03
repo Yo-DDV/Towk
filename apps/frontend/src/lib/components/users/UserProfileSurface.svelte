@@ -1094,7 +1094,6 @@ UserContextMenu so every existing identity entry point keeps the same contract.
     .profile-action {
       gap: 0.4rem;
       padding-inline: 0.5rem;
-      white-space: nowrap;
     }
 
     .profile-action-icon {
