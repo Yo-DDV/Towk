@@ -103,7 +103,26 @@ jobs:
               "container.querySelector<HTMLElement>('[data-testid=\"profile-banner-dropzone\"]')!",
               1,
           )
+          editor_spec = editor_spec.replace(
+              "    await vi.waitFor(() => expect(container.textContent).toContain('1536 × 512'));\n",
+              "    await vi.waitFor(() => expect(mocks.inspect).toHaveBeenCalledWith(file));\n",
+              1,
+          )
+          editor_spec = editor_spec.replace(
+              "    if (!save) throw new Error('Expected save banner button.');\n    save.click();\n\n    await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalledWith(config, file));\n    expect(onChanged).toHaveBeenCalledOnce();\n",
+              "    if (!save) throw new Error('Expected save banner button.');\n    await vi.waitFor(() => expect(save.disabled).toBe(false));\n    expect(URL.createObjectURL).toHaveBeenCalledWith(file);\n    save.click();\n\n    await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalledWith(config, file));\n    expect(mocks.upload).toHaveBeenCalledOnce();\n    expect(onChanged).toHaveBeenCalledOnce();\n",
+              1,
+          )
           editor_spec_path.write_text(editor_spec, encoding='utf-8')
+
+          menu_spec_path = Path('apps/frontend/src/lib/components/menus/UserContextMenu.svelte.spec.ts')
+          menu_spec = menu_spec_path.read_text(encoding='utf-8')
+          menu_spec = menu_spec.replace(
+              "    expect(getComputedStyle(nameHeading).overflowWrap).toBe('anywhere');\n    expect(getComputedStyle(roleLabel).overflowWrap).toBe('anywhere');\n    expect(getComputedStyle(customStatus).maxWidth).toBe('100%');\n",
+              "    expect(getComputedStyle(nameHeading).overflowWrap).toBe('break-word');\n    const roleStyle = getComputedStyle(roleLabel);\n    expect(roleStyle.whiteSpace).toBe('nowrap');\n    expect(roleStyle.overflow).toBe('hidden');\n    expect(roleStyle.textOverflow).toBe('ellipsis');\n    expect(getComputedStyle(customStatus).maxWidth).toBe('100%');\n",
+              1,
+          )
+          menu_spec_path.write_text(menu_spec, encoding='utf-8')
 
           polish_spec_path = Path('apps/frontend/src/lib/components/users/UserProfileSurface.polish.spec.ts')
           polish_spec = polish_spec_path.read_text(encoding='utf-8')
@@ -113,33 +132,11 @@ jobs:
               1,
           )
           polish_spec_path.write_text(polish_spec, encoding='utf-8')
-
-          polish_css_path = Path('apps/frontend/src/lib/components/users/UserProfileSurface.polish.css')
-          polish_css = polish_css_path.read_text(encoding='utf-8')
-          old_wrap = '  overflow-wrap: break-word;\n  text-wrap: balance;'
-          new_wrap = '  overflow-wrap: anywhere;\n  text-wrap: balance;'
-          if old_wrap not in polish_css:
-              raise SystemExit('profile display-name wrap rule not found')
-          polish_css = polish_css.replace(old_wrap, new_wrap, 1)
-          polish_css_path.write_text(polish_css, encoding='utf-8')
           PY
           rm -rf \
             .github/profile-banner-source-parts \
             .github/profile-banner-source.b64 \
             .github/profile-banner-materialize.py
-
-      - name: Print banner editor diagnostics
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo '--- ProfileBannerEditor.svelte ---'
-          nl -ba apps/frontend/src/lib/components/users/ProfileBannerEditor.svelte | sed -n '1,360p'
-          echo '--- ProfileBannerEditor.svelte.spec.ts ---'
-          nl -ba apps/frontend/src/lib/components/users/ProfileBannerEditor.svelte.spec.ts | sed -n '1,220p'
-          echo '--- profileBanner.ts ---'
-          nl -ba apps/frontend/src/lib/profileBanner.ts | sed -n '1,360p'
-          echo '--- profileBanner.spec.ts ---'
-          nl -ba apps/frontend/src/lib/profileBanner.spec.ts | sed -n '1,260p'
 
       - name: Format source
         shell: bash
