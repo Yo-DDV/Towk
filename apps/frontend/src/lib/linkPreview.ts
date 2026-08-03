@@ -10,7 +10,7 @@ import MarkdownIt from 'markdown-it';
 import tlds from 'tlds';
 
 /** Shared linkify-it instance configured with the full IANA TLD list. */
-export const linkify = new LinkifyIt();
+export const linkify = new LinkifyIt({ fuzzyLink: true });
 linkify.tlds(tlds);
 
 const markdown = new MarkdownIt({
@@ -19,6 +19,8 @@ const markdown = new MarkdownIt({
   breaks: true
 });
 markdown.linkify.tlds(tlds);
+// linkify-it 6 disables bare-domain matching by default.
+markdown.linkify.set({ fuzzyLink: true });
 markdown.disable(['escape']);
 
 /**
@@ -71,7 +73,7 @@ export function extractURLs(text: string, maxURLs = 1): string[] {
       if (child.type !== 'link_open') continue;
 
       const href = child.attrGet('href');
-      if (!href) continue;
+      if (typeof href !== 'string' || !href) continue;
 
       const rawText = child.markup === 'linkify' ? (children[i + 1]?.content ?? '') : '';
       addURL(href, rawText);
