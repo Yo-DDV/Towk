@@ -96,7 +96,8 @@ jobs:
           git add -A
           git diff --cached --check
           node tools/check-public-surface.mjs
-          test -z "$(git diff --cached --name-only | grep -E '^(\.github/workflows/participant-media-telemetry-localize\.yml|tools/telemetry-localize\.py)$' || true)"
+          test ! -e .github/workflows/participant-media-telemetry-localize.yml
+          test ! -e tools/telemetry-localize.py
 
       - name: Publish clean localized head
         shell: bash
