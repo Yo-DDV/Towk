@@ -73,3 +73,5 @@ jobs:
           tree_sha="$(git write-tree)"
           commit_sha="$(printf '%s\n' 'fix(calls): reconcile WebKit audio routing with current main' | git commit-tree "$tree_sha" -p "$branch_head" -p "$main_sha")"
           git push origin "$commit_sha:refs/heads/$TARGET_BRANCH"
+
+# retriggered after owner merge authorization
