@@ -54,6 +54,8 @@
     "bluetooth_microphone": "Bluetooth microphone",
     "phone_speaker": "Speakerphone",
     "headset_speaker": "Phone earpiece",
+    "android_speakerphone_description": "Call speaker and paired microphone",
+    "android_earpiece_description": "Earpiece and paired microphone",
     "bluetooth_speaker": "Bluetooth audio",
     "camera": "Camera",
     "camera_front": "Front camera",

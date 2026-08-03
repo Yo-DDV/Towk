@@ -54,6 +54,8 @@
     "bluetooth_microphone": "Microfone Bluetooth",
     "phone_speaker": "Alto-falante viva-voz",
     "headset_speaker": "Fone de ouvido do telefone",
+    "android_speakerphone_description": "Alto-falante de chamada e microfone associado",
+    "android_earpiece_description": "Fone e microfone associado",
     "bluetooth_speaker": "Áudio Bluetooth",
     "camera": "Câmera",
     "camera_front": "Câmera frontal",
