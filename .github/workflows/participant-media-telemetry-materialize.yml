@@ -169,7 +169,7 @@ jobs:
             expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(32);
           });
 
-"""
+          """
           panel_tests = panel_tests[:camera_start] + camera_test + panel_tests[camera_end:]
           panel_test_path.write_text(panel_tests, encoding="utf-8")
           PY
