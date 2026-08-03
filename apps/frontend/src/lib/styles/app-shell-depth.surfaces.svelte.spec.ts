@@ -387,23 +387,26 @@ describe('room footer boundary alignment', () => {
     30_000
   );
 
-  it('keeps the room cue bounded on phone layouts where the desktop user bar is hidden', async () => {
-    const handles = createLayoutFixture();
+  it(
+    'keeps the room cue bounded on phone layouts where the desktop user bar is hidden',
+    async () => {
+      const handles = createLayoutFixture();
 
-    for (const [width, height] of mobileViewports) {
-      await page.viewport(width, height);
+      for (const [width, height] of mobileViewports) {
+        await page.viewport(width, height);
 
-      for (const rootFontSize of rootFontSizes) {
-        document.documentElement.style.fontSize = `${rootFontSize}px`;
+        for (const rootFontSize of rootFontSizes) {
+          document.documentElement.style.fontSize = `${rootFontSize}px`;
 
-        for (const direction of directions) {
-          document.documentElement.dir = direction;
-          expect(getComputedStyle(handles.currentUserBar).display).toBe('none');
-          assertPrimaryCueGeometry(handles, false);
+          for (const direction of directions) {
+            document.documentElement.dir = direction;
+            expect(getComputedStyle(handles.currentUserBar).display).toBe('none');
+            assertPrimaryCueGeometry(handles, false);
+          }
         }
       }
     }
-  });
+  );
 
   it('does not leak the room correction into nested, thread-like, or external bottom cues', () => {
     const handles = createLayoutFixture();
@@ -421,32 +424,37 @@ describe('room footer boundary alignment', () => {
     }
   });
 
-  it('tracks expanded composer and locked-room surfaces without overlap or document overflow', async () => {
-    const handles = createLayoutFixture();
-    await page.viewport(1440, 900);
+  it(
+    'tracks expanded composer and locked-room surfaces without overlap or document overflow',
+    async () => {
+      const handles = createLayoutFixture();
+      await page.viewport(1440, 900);
 
-    fixture!.dataset.composerExpanded = 'true';
-    assertPrimaryCueGeometry(handles, false);
+      fixture!.dataset.composerExpanded = 'true';
+      assertPrimaryCueGeometry(handles, false);
 
-    const expandedCueBottom = handles.primaryCue.getBoundingClientRect().bottom;
-    const userBarBounds = handles.currentUserBar.getBoundingClientRect();
-    const userBarBorder = Number.parseFloat(getComputedStyle(handles.currentUserBar).borderTopWidth);
-    expect(userBarBounds.top + userBarBorder - expandedCueBottom).toBeGreaterThan(1);
+      const expandedCueBottom = handles.primaryCue.getBoundingClientRect().bottom;
+      const userBarBounds = handles.currentUserBar.getBoundingClientRect();
+      const userBarBorder = Number.parseFloat(
+        getComputedStyle(handles.currentUserBar).borderTopWidth
+      );
+      expect(userBarBounds.top + userBarBorder - expandedCueBottom).toBeGreaterThan(1);
 
-    fixture!.dataset.composerExpanded = 'false';
-    fixture!.dataset.roomLocked = 'true';
+      fixture!.dataset.composerExpanded = 'false';
+      fixture!.dataset.roomLocked = 'true';
 
-    const eventListBounds = handles.eventList.getBoundingClientRect();
-    const cueBounds = handles.primaryCue.getBoundingClientRect();
-    const noticeBounds = handles.lockedNotice.getBoundingClientRect();
-    const composerBounds = handles.composer.getBoundingClientRect();
+      const eventListBounds = handles.eventList.getBoundingClientRect();
+      const cueBounds = handles.primaryCue.getBoundingClientRect();
+      const noticeBounds = handles.lockedNotice.getBoundingClientRect();
+      const composerBounds = handles.composer.getBoundingClientRect();
 
-    expectNear(cueBounds.bottom, eventListBounds.bottom);
-    expectNear(cueBounds.bottom, noticeBounds.top);
-    expectNear(noticeBounds.bottom, composerBounds.top);
-    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
-    expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(window.innerHeight);
-  });
+      expectNear(cueBounds.bottom, eventListBounds.bottom);
+      expectNear(cueBounds.bottom, noticeBounds.top);
+      expectNear(noticeBounds.bottom, composerBounds.top);
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+      expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(window.innerHeight);
+    }
+  );
 
   it('keeps the room stable when the current-user call surface expands independently', async () => {
     const handles = createLayoutFixture();
