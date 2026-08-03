@@ -30,7 +30,7 @@ jobs:
           ref: feat/profile-surface-redesign
           fetch-depth: 0
 
-      - name: Integrate current main and diagnose payload
+      - name: Inspect recovered payload without executing it
         shell: bash
         run: |
           set -euo pipefail
@@ -43,14 +43,12 @@ jobs:
           gzip_status=$?
           set -e
           echo "GZIP_EXIT=$gzip_status"
-          echo 'b5ef0d638ec6c42cfd8869b70a99e0969c987d8a1997deefa371bf73b3edbabe  /tmp/profile-banner-hardening.py' | sha256sum -c -
+          wc -c /tmp/profile-banner-hardening.py
+          sha256sum /tmp/profile-banner-hardening.py
           python3 -m py_compile /tmp/profile-banner-hardening.py
-          set +e
-          python3 -u /tmp/profile-banner-hardening.py
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ]; then
-            echo "PAYLOAD_EXIT=$status"
-            nl -ba /tmp/profile-banner-hardening.py
-            exit "$status"
-          fi
+          echo '--- imports and file operations ---'
+          grep -nE '^(from |import )|Path\(|write_text|read_text|replace\(|unlink|rmdir|subprocess|os\.' /tmp/profile-banner-hardening.py || true
+          echo '--- beginning ---'
+          sed -n '1,100p' /tmp/profile-banner-hardening.py
+          echo '--- ending ---'
+          tail -n 100 /tmp/profile-banner-hardening.py
