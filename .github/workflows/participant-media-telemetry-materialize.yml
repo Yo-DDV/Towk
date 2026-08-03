@@ -1,4 +1,4 @@
-name: Participant media telemetry state diagnostic
+name: Participant media telemetry materialization
 
 on:
   pull_request:
@@ -10,13 +10,20 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose-state:
+  materialize:
     if: github.event.pull_request.head.ref == 'feat/participant-media-telemetry'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 45
+    env:
+      TELEMETRY_BRANCH: feat/participant-media-telemetry
+      PR290_BRANCH: fix/cross-browser-noise-suppression
+      GIT_AUTHOR_NAME: Yo-DDV
+      GIT_AUTHOR_EMAIL: 116607353+Yo-DDV@users.noreply.github.com
+      GIT_COMMITTER_NAME: Yo-DDV
+      GIT_COMMITTER_EMAIL: 116607353+Yo-DDV@users.noreply.github.com
     steps:
       - name: Checkout bootstrap branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -24,28 +31,206 @@ jobs:
           ref: feat/participant-media-telemetry
           fetch-depth: 0
 
-      - name: Materialize telemetry tree
+      - name: Setup frontend toolchain
+        uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+
+      - name: Build generated API types
+        run: pnpm --filter @towk/api-types build
+
+      - name: Install Chromium for browser component tests
+        run: pnpm --dir apps/frontend exec playwright install chromium
+
+      - name: Materialize clean telemetry tree
         shell: bash
         run: |
           set -euo pipefail
+          bootstrap_head="$(git rev-parse HEAD)"
           cat tools/.telemetry-materializer/part-* \
             | base64 --decode \
             | gzip --decompress \
             > /tmp/materialize-telemetry.py
-          test "$(sha256sum /tmp/materialize-telemetry.py | cut -d' ' -f1)" = "bd7d51398518cdee9c235d5236611ff573c1235a63077d921ff4f6d9ac67a472"
-          git fetch --no-tags origin fix/cross-browser-noise-suppression
-          git checkout --detach origin/fix/cross-browser-noise-suppression
+          actual_materializer_sha="$(sha256sum /tmp/materialize-telemetry.py | cut -d' ' -f1)"
+          test "$actual_materializer_sha" = "bd7d51398518cdee9c235d5236611ff573c1235a63077d921ff4f6d9ac67a472"
+          python3 -m py_compile /tmp/materialize-telemetry.py
+
+          git fetch --no-tags origin main "$PR290_BRANCH"
+          main_sha="$(git rev-parse origin/main)"
+          pr290_head="$(git rev-parse "origin/$PR290_BRANCH")"
+          git merge-base --is-ancestor "$main_sha" "$pr290_head"
+          test -z "$(git diff --name-only "$main_sha...$pr290_head" | grep -E '^(\.github/workflows/|tools/pr290-integrate\.py$)' || true)"
+          git checkout --detach "$pr290_head"
+
           cp /tmp/materialize-telemetry.py tools/materialize-participant-media-telemetry.py
           python3 tools/materialize-participant-media-telemetry.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
 
-      - name: Print telemetry state surface
+          panel_path = Path("apps/frontend/src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte")
+          panel = panel_path.read_text(encoding="utf-8")
+          panel, count = re.subn(
+              r'<section(?=[^>]*\brole="dialog")',
+              '<div',
+              panel,
+              count=1,
+              flags=re.DOTALL,
+          )
+          if count != 1:
+              raise SystemExit("telemetry dialog opening tag not found")
+          closing_index = panel.rfind("</section>")
+          if closing_index < 0:
+              raise SystemExit("telemetry dialog closing tag not found")
+          panel = panel[:closing_index] + "</div>" + panel[closing_index + len("</section>"):]
+          panel_path.write_text(panel, encoding="utf-8")
+
+          catalog_path = Path("apps/frontend/messages/de/voice.json")
+          catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+          flat_key = "voice.media_telemetry_bitrate"
+          if flat_key in catalog:
+              if catalog[flat_key] != "Bitrate":
+                  raise SystemExit("unexpected flat German telemetry bitrate value")
+              catalog[flat_key] = "Datenrate"
+          elif isinstance(catalog.get("voice"), dict):
+              voice = catalog["voice"]
+              if voice.get("media_telemetry_bitrate") != "Bitrate":
+                  raise SystemExit("unexpected nested German telemetry bitrate value")
+              voice["media_telemetry_bitrate"] = "Datenrate"
+          else:
+              raise SystemExit("German telemetry bitrate key not found")
+          catalog_path.write_text(
+              json.dumps(catalog, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          test_path = Path("apps/frontend/src/lib/state/server/voiceCall.svelte.spec.ts")
+          tests = test_path.read_text(encoding="utf-8")
+          start_marker = "  it('reports the worst current quality across microphone and screen-share tracks'"
+          end_marker = "  it('does not remove an interrupted participant only because its recovery deadline elapsed'"
+          start = tests.find(start_marker)
+          end = tests.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit("legacy reception quality test block not found")
+          block = tests[start:end]
+          expected_network_health_count = block.count("networkHealth:")
+          expected_packet_loss_count = block.count("packetLossPercent:")
+          expected_jitter_count = block.count("jitterMs:")
+          expected_warning_count = block.count("networkWarningMetric:")
+          if (expected_network_health_count, expected_packet_loss_count, expected_jitter_count, expected_warning_count) != (12, 4, 4, 4):
+              raise SystemExit(
+                  "unexpected legacy reception assertion shape: "
+                  f"{expected_network_health_count}/"
+                  f"{expected_packet_loss_count}/"
+                  f"{expected_jitter_count}/"
+                  f"{expected_warning_count}"
+              )
+          block = block.replace("networkHealth:", "receptionNetworkHealth:")
+          block = block.replace("packetLossPercent:", "receptionPacketLossPercent:")
+          block = block.replace("jitterMs:", "receptionJitterMs:")
+          block = re.sub(r"^\s*networkWarningMetric:.*\n", "", block, flags=re.MULTILINE)
+          block = block.replace(
+              "reports the worst current quality across microphone and screen-share tracks",
+              "reports the worst current reception quality across microphone and screen-share tracks",
+          )
+          block = block.replace(
+              "clears a participant quality sample when every active track stops reporting stats",
+              "clears a participant reception quality sample when every active track stops reporting stats",
+          )
+          block = block.replace(
+              "expires a participant quality sample when a WebRTC stats read never settles",
+              "expires a participant reception quality sample when a WebRTC stats read never settles",
+          )
+          tests = tests[:start] + block + tests[end:]
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+
+          rm -rf tools/.telemetry-materializer
+          rm -f \
+            tools/materialize-participant-media-telemetry.py \
+            .github/workflows/participant-media-telemetry-materialize.yml
+
+          {
+            echo "BOOTSTRAP_HEAD=$bootstrap_head"
+            echo "MAIN_SHA=$main_sha"
+            echo "PR290_HEAD=$pr290_head"
+          } >> "$GITHUB_ENV"
+
+      - name: Format telemetry product files
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== participant telemetry fields ==='
-          grep -n -C 4 -E 'reception|Reception|mediaTelemetry|MediaTelemetry|networkHealth|packetLossPercent|jitterMs|latencyMs' \
-            apps/frontend/src/lib/state/server/voiceCall.svelte.ts \
-            | head -n 700
-          echo '=== legacy quality test block ==='
-          sed -n '5200,5555p' apps/frontend/src/lib/state/server/voiceCall.svelte.spec.ts
-          exit 1
+          pushd apps/frontend >/dev/null
+          pnpm exec prettier --write \
+            src/lib/voice/participantMediaTelemetry.ts \
+            src/lib/voice/participantMediaTelemetry.spec.ts \
+            src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte \
+            src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte.spec.ts \
+            src/lib/components/voice/VoiceCallPanel.svelte \
+            src/lib/state/server/voiceCall.svelte.ts \
+            src/lib/state/server/voiceCall.svelte.spec.ts \
+            messages/en/voice.json \
+            messages/fr/voice.json \
+            messages/de/voice.json \
+            messages/es/voice.json \
+            messages/pt/voice.json \
+            ../../docs/fdr/FDR-016-voice-calls.md
+          popd >/dev/null
+          git diff --check
+
+      - name: Generate and audit localization
+        run: pnpm --dir apps/frontend run paraglide
+
+      - name: Lint telemetry product files
+        shell: bash
+        run: |
+          set -euo pipefail
+          pushd apps/frontend >/dev/null
+          pnpm exec eslint \
+            src/lib/voice/participantMediaTelemetry.ts \
+            src/lib/voice/participantMediaTelemetry.spec.ts \
+            src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte \
+            src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte.spec.ts \
+            src/lib/components/voice/VoiceCallPanel.svelte \
+            src/lib/state/server/voiceCall.svelte.ts \
+            src/lib/state/server/voiceCall.svelte.spec.ts
+          popd >/dev/null
+
+      - name: Test telemetry protocol
+        run: pnpm --dir apps/frontend exec vitest run src/lib/voice/participantMediaTelemetry.spec.ts
+
+      - name: Test telemetry detail panel
+        run: pnpm --dir apps/frontend exec vitest run src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte.spec.ts
+
+      - name: Test telemetry call state integration
+        run: pnpm --dir apps/frontend exec vitest run src/lib/state/server/voiceCall.svelte.spec.ts
+
+      - name: Test telemetry call panel integration
+        run: pnpm --dir apps/frontend exec vitest run src/lib/components/voice/VoiceCallPanel.svelte.spec.ts
+
+      - name: Check telemetry types and locales
+        run: pnpm --dir apps/frontend run check
+
+      - name: Build telemetry frontend
+        run: pnpm --dir apps/frontend run build
+
+      - name: Verify telemetry public surface and cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git diff --cached --check
+          node tools/check-public-surface.mjs
+          test -z "$(git diff --cached --name-only | grep -E '^(\.github/workflows/participant-media-telemetry-materialize\.yml|tools/\.telemetry-materializer/|tools/materialize-participant-media-telemetry\.py)$' || true)"
+
+      - name: Publish clean telemetry head
+        shell: bash
+        run: |
+          set -euo pipefail
+          telemetry_tree="$(git write-tree)"
+          telemetry_commit="$(
+            printf '%s\n' 'feat(calls): attribute media telemetry to participants' \
+              | git commit-tree "$telemetry_tree" -p "$BOOTSTRAP_HEAD" -p "$PR290_HEAD"
+          )"
+          git push origin "$telemetry_commit:refs/heads/$TELEMETRY_BRANCH"
