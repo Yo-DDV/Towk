@@ -48,15 +48,17 @@ async function waitForMedia(container: HTMLElement): Promise<HTMLElement> {
 }
 
 describe('ImageModal', () => {
-  it('exposes a safe overlay close button and calls the close callback', () => {
+  it('exposes a safe overlay close button and calls the close callback', async () => {
     const onclose = vi.fn();
     const { container } = renderViewer({ onclose });
     const closeButton = container.querySelector<HTMLButtonElement>('.image-modal-close');
 
     expect(closeButton).not.toBeNull();
     expect(closeButton?.getAttribute('aria-label')).toBe('Close');
-    expect(closeButton?.getBoundingClientRect().width).toBeGreaterThanOrEqual(44);
-    expect(closeButton?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    await vi.waitFor(() => {
+      expect(closeButton?.getBoundingClientRect().width).toBeGreaterThanOrEqual(44);
+      expect(closeButton?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    });
 
     closeButton?.click();
     expect(onclose).toHaveBeenCalledOnce();
@@ -343,7 +345,7 @@ describe('ImageModal', () => {
           {
             id: 'fallback',
             src: previewOne,
-            originalSrc: 'https://invalid.example.invalid/original.png',
+            originalSrc: 'data:image/png;base64,invalid',
             filename: 'fallback.png'
           }
         ],
