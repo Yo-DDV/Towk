@@ -69,26 +69,29 @@ afterEach(async () => {
 });
 
 describe('room footer boundary alignment', () => {
-  it('extends the room bottom cue through the reserved composer spacing at every target viewport', async () => {
-    const { surface, timeline, cue } = createCueFixture(true);
+  it(
+    'extends the room bottom cue through the reserved composer spacing at every target viewport',
+    async () => {
+      const { surface, timeline, cue } = createCueFixture(true);
 
-    for (const [width, height] of representativeViewports) {
-      await page.viewport(width, height);
+      for (const [width, height] of representativeViewports) {
+        await page.viewport(width, height);
 
-      const surfaceBounds = surface.getBoundingClientRect();
-      const timelineBounds = timeline.getBoundingClientRect();
-      const cueBounds = cue.getBoundingClientRect();
-      const cueStyle = getComputedStyle(cue);
+        const surfaceBounds = surface.getBoundingClientRect();
+        const timelineBounds = timeline.getBoundingClientRect();
+        const cueBounds = cue.getBoundingClientRect();
+        const cueStyle = getComputedStyle(cue);
 
-      expect(cueStyle.bottom).toBe('-8px');
-      expect(cueStyle.height).toBe('40px');
-      expect(Math.abs(cueBounds.top - (timelineBounds.bottom - 32))).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(cueBounds.bottom - surfaceBounds.bottom)).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(cueBounds.left - surfaceBounds.left)).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(cueBounds.right - surfaceBounds.right)).toBeLessThanOrEqual(0.5);
-      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+        expect(cueStyle.bottom).toBe('-8px');
+        expect(cueStyle.height).toBe('40px');
+        expect(Math.abs(cueBounds.top - (timelineBounds.bottom - 32))).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(cueBounds.bottom - surfaceBounds.bottom)).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(cueBounds.left - surfaceBounds.left)).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(cueBounds.right - surfaceBounds.right)).toBeLessThanOrEqual(0.5);
+        expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+      }
     }
-  });
+  );
 
   it('leaves bottom cues outside the main room surface unchanged', () => {
     const { timeline, cue } = createCueFixture(false);
