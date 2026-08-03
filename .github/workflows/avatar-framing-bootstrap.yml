@@ -30,12 +30,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Materialize prepared source tree
+      - name: Materialize prepared source tree when needed
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/avatar-framing-source/part-* | base64 --decode | tar -xz
-          rm -r .github/avatar-framing-source
+          if compgen -G '.github/avatar-framing-source/part-*' >/dev/null; then
+            cat .github/avatar-framing-source/part-* | base64 --decode | tar -xz
+            rm -r .github/avatar-framing-source
+          else
+            echo 'Prepared source is already materialized on this head.'
+          fi
           git status --short
 
       - name: Setup environment
@@ -64,8 +68,9 @@ jobs:
             src/lib/components/settings/AvatarFramingDialog.svelte.spec.ts \
             src/lib/i18n/avatarFraming.spec.ts \
             src/lib/i18n/avatarFraming.ts \
-            'src/routes/chat/[serverId]/settings/+page.svelte'
-          pnpm exec prettier --write docs/fdr/FDR-022-user-profile.md docs/fdr/INDEX.md
+            'src/routes/chat/[serverId]/settings/+page.svelte' \
+            ../../docs/fdr/FDR-022-user-profile.md \
+            ../../docs/fdr/INDEX.md
           gofmt -w \
             cli/internal/assets/avatar.go \
             cli/internal/assets/avatar_framing.go \
@@ -133,6 +138,10 @@ jobs:
         run: |
           set -euo pipefail
           git add -A
+          if git diff --cached --quiet; then
+            echo 'Validated head is already formatted and committed.'
+            exit 0
+          fi
           git -c user.name='Yo-DDV' -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
             commit -m 'feat(profiles): add responsive avatar framing'
           git push origin HEAD:feat/avatar-framing
