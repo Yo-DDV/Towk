@@ -269,6 +269,8 @@ function initialize(): void {
   // Update linkify-it's TLD list so bare-domain URLs with newer TLDs
   // (.dev, .app, .io, etc.) are auto-linked
   md.linkify.tlds(tlds);
+  // linkify-it 6 disables bare-domain matching by default.
+  md.linkify.set({ fuzzyLink: true });
 
   // Disable unwanted syntax - only keep what we explicitly want
   md.disable([...DISABLED_RULES]);
