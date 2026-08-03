@@ -56,6 +56,25 @@
     viewerCanCall: true
   };
 
+  const minimalProfile: DetailedUserProfile = {
+    ...baseProfile,
+    user: {
+      ...baseProfile.user,
+      id: 'story-minimal-user',
+      login: 'sam',
+      displayName: 'Sam',
+      presenceStatus: PresenceStatus.Offline,
+      customStatus: null
+    },
+    roles: [],
+    biographyMarkdown: '',
+    lastActivity: null,
+    lastActivityVisible: true,
+    viewerIsSelf: false,
+    viewerCanMessage: false,
+    viewerCanCall: false
+  };
+
   const longContentProfile: DetailedUserProfile = {
     ...baseProfile,
     user: {
@@ -139,6 +158,62 @@
   }}
 >
   <div class="mx-auto w-full max-w-4xl bg-surface-100 p-4 sm:p-8">
+    <UserProfileSurface
+      user={longContentProfile.user}
+      profile={longContentProfile}
+      loading={false}
+      loadError=""
+      canEditProfile
+      canSendMessage
+      canCall
+      canBanFromRoom
+      onEditProfile={noop}
+      onSendMessage={noop}
+      onCall={noop}
+      onBanFromRoom={noop}
+    />
+  </div>
+</Story>
+
+<Story
+  name="Minimal profile"
+  asChild
+  parameters={{
+    docs: {
+      description: {
+        story:
+          'Offline identity with no custom status, no explicit role, no recent activity, no biography, and no available action.'
+      }
+    }
+  }}
+>
+  <div class="mx-auto w-full max-w-4xl bg-surface-100 p-4 sm:p-8">
+    <UserProfileSurface
+      user={minimalProfile.user}
+      profile={minimalProfile}
+      loading={false}
+      loadError=""
+      onEditProfile={noop}
+      onSendMessage={noop}
+      onCall={noop}
+      onBanFromRoom={noop}
+    />
+  </div>
+</Story>
+
+<Story
+  name="Compact phone width"
+  asChild
+  parameters={{
+    docs: {
+      description: {
+        story:
+          'A 20rem qualification frame exercises the narrow container query with long identity, roles, status, and every capability-filtered action.'
+      }
+    }
+  }}
+>
+  <div class="mx-auto w-80 max-w-full bg-surface-100 p-0">
     <UserProfileSurface
       user={longContentProfile.user}
       profile={longContentProfile}
