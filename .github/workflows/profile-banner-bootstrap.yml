@@ -113,11 +113,33 @@ jobs:
               1,
           )
           polish_spec_path.write_text(polish_spec, encoding='utf-8')
+
+          polish_css_path = Path('apps/frontend/src/lib/components/users/UserProfileSurface.polish.css')
+          polish_css = polish_css_path.read_text(encoding='utf-8')
+          old_wrap = '  overflow-wrap: break-word;\n  text-wrap: balance;'
+          new_wrap = '  overflow-wrap: anywhere;\n  text-wrap: balance;'
+          if old_wrap not in polish_css:
+              raise SystemExit('profile display-name wrap rule not found')
+          polish_css = polish_css.replace(old_wrap, new_wrap, 1)
+          polish_css_path.write_text(polish_css, encoding='utf-8')
           PY
           rm -rf \
             .github/profile-banner-source-parts \
             .github/profile-banner-source.b64 \
             .github/profile-banner-materialize.py
+
+      - name: Print banner editor diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '--- ProfileBannerEditor.svelte ---'
+          nl -ba apps/frontend/src/lib/components/users/ProfileBannerEditor.svelte | sed -n '1,360p'
+          echo '--- ProfileBannerEditor.svelte.spec.ts ---'
+          nl -ba apps/frontend/src/lib/components/users/ProfileBannerEditor.svelte.spec.ts | sed -n '1,220p'
+          echo '--- profileBanner.ts ---'
+          nl -ba apps/frontend/src/lib/profileBanner.ts | sed -n '1,360p'
+          echo '--- profileBanner.spec.ts ---'
+          nl -ba apps/frontend/src/lib/profileBanner.spec.ts | sed -n '1,260p'
 
       - name: Format source
         shell: bash
