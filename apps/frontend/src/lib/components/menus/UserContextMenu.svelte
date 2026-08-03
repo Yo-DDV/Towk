@@ -76,7 +76,8 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   let loading = $state(true);
   let loadError = $state('');
 
-  const targetProfileKey = $derived(JSON.stringify([serverId, user.id]));
+  const profileRevision = $derived(getDetailedUserProfileRevision(serverId, user.id));
+  const targetProfileKey = $derived(JSON.stringify([serverId, user.id, profileRevision]));
   const currentProfile = $derived(
     !loading && profileKey === targetProfileKey ? profile : null
   );
@@ -118,7 +119,6 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     !profileUser.deleted && (currentProfile?.viewerCanCall ?? false)
   );
   const mayEditProfile = $derived(Boolean(currentProfile?.viewerIsSelf));
-  const profileRevision = $derived(getDetailedUserProfileRevision(serverId, user.id));
 
   $effect(() => {
     if (!browser || !visible) return;
