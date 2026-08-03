@@ -16,7 +16,7 @@ jobs:
   materialize:
     if: github.event.pull_request.head.ref == 'feat/participant-media-telemetry'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     env:
       TELEMETRY_BRANCH: feat/participant-media-telemetry
       PR290_BRANCH: fix/cross-browser-noise-suppression
@@ -42,7 +42,7 @@ jobs:
       - name: Install Chromium for browser component tests
         run: pnpm --dir apps/frontend exec playwright install chromium
 
-      - name: Verify materializer and clean WebKit base
+      - name: Materialize clean telemetry tree
         shell: bash
         run: |
           set -euo pipefail
@@ -60,76 +60,62 @@ jobs:
           pr290_head="$(git rev-parse "origin/$PR290_BRANCH")"
           git merge-base --is-ancestor "$main_sha" "$pr290_head"
           test -z "$(git diff --name-only "$main_sha...$pr290_head" | grep -E '^(\.github/workflows/|tools/pr290-integrate\.py$)' || true)"
+          git checkout --detach "$pr290_head"
+
+          cp /tmp/materialize-telemetry.py tools/materialize-participant-media-telemetry.py
+          python3 tools/materialize-participant-media-telemetry.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          panel_path = Path("apps/frontend/src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte")
+          panel = panel_path.read_text(encoding="utf-8")
+          panel, count = re.subn(
+              r'<section(?=[^>]*\brole="dialog")',
+              '<div',
+              panel,
+              count=1,
+              flags=re.DOTALL,
+          )
+          if count != 1:
+              raise SystemExit("telemetry dialog opening tag not found")
+          closing_index = panel.rfind("</section>")
+          if closing_index < 0:
+              raise SystemExit("telemetry dialog closing tag not found")
+          panel = panel[:closing_index] + "</div>" + panel[closing_index + len("</section>"):]
+          panel_path.write_text(panel, encoding="utf-8")
+
+          catalog_path = Path("apps/frontend/messages/de/voice.json")
+          catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+          flat_key = "voice.media_telemetry_bitrate"
+          if flat_key in catalog:
+              if catalog[flat_key] != "Bitrate":
+                  raise SystemExit("unexpected flat German telemetry bitrate value")
+              catalog[flat_key] = "Datenrate"
+          elif isinstance(catalog.get("voice"), dict):
+              voice = catalog["voice"]
+              if voice.get("media_telemetry_bitrate") != "Bitrate":
+                  raise SystemExit("unexpected nested German telemetry bitrate value")
+              voice["media_telemetry_bitrate"] = "Datenrate"
+          else:
+              raise SystemExit("German telemetry bitrate key not found")
+          catalog_path.write_text(
+              json.dumps(catalog, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          rm -rf tools/.telemetry-materializer
+          rm -f \
+            tools/materialize-participant-media-telemetry.py \
+            .github/workflows/participant-media-telemetry-materialize.yml
 
           {
             echo "BOOTSTRAP_HEAD=$bootstrap_head"
             echo "MAIN_SHA=$main_sha"
             echo "PR290_HEAD=$pr290_head"
           } >> "$GITHUB_ENV"
-
-      - name: Revalidate clean PR 290 head
-        shell: bash
-        run: |
-          set -euo pipefail
-          git checkout --detach "$PR290_HEAD"
-          pushd apps/frontend >/dev/null
-          pnpm exec eslint \
-            src/lib/state/server/voiceCall.svelte.ts \
-            src/lib/state/server/voiceCall.svelte.spec.ts \
-            src/lib/voice/audioDevices.ts \
-            src/lib/voice/audioDevices.spec.ts
-          pnpm exec vitest run \
-            src/lib/voice/audioDevices.spec.ts \
-            src/lib/state/server/voiceCall.svelte.spec.ts
-          pnpm run check
-          pnpm run build
-          popd >/dev/null
-          git diff --check "$MAIN_SHA...$PR290_HEAD"
-
-      - name: Materialize telemetry product tree
-        shell: bash
-        run: |
-          set -euo pipefail
-          git checkout --detach "$PR290_HEAD"
-          cp /tmp/materialize-telemetry.py tools/materialize-participant-media-telemetry.py
-          python3 tools/materialize-participant-media-telemetry.py
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          path = Path("apps/frontend/src/lib/components/voice/ParticipantMediaTelemetryPanel.svelte")
-          text = path.read_text(encoding="utf-8")
-          text, count = re.subn(
-              r'<section(?=[^>]*\brole="dialog")',
-              '<div',
-              text,
-              count=1,
-              flags=re.DOTALL,
-          )
-          if count != 1:
-              raise SystemExit("telemetry dialog opening tag not found")
-          closing_index = text.rfind("</section>")
-          if closing_index < 0:
-              raise SystemExit("telemetry dialog closing tag not found")
-          text = (
-              text[:closing_index]
-              + "</div>"
-              + text[closing_index + len("</section>"):]
-          )
-          path.write_text(text, encoding="utf-8")
-
-          catalog_path = Path("apps/frontend/messages/de/voice.json")
-          catalog = catalog_path.read_text(encoding="utf-8")
-          source = '"voice.media_telemetry_bitrate": "Bitrate"'
-          target = '"voice.media_telemetry_bitrate": "Datenrate"'
-          if catalog.count(source) != 1:
-              raise SystemExit("unexpected German telemetry bitrate translation")
-          catalog_path.write_text(catalog.replace(source, target, 1), encoding="utf-8")
-          PY
-          rm -rf tools/.telemetry-materializer
-          rm -f \
-            tools/materialize-participant-media-telemetry.py \
-            .github/workflows/participant-media-telemetry-materialize.yml
 
       - name: Format telemetry product files
         shell: bash
@@ -152,7 +138,7 @@ jobs:
           popd >/dev/null
           git diff --check
 
-      - name: Generate telemetry localization facade
+      - name: Generate and audit localization
         run: pnpm --dir apps/frontend run paraglide
 
       - name: Lint telemetry product files
