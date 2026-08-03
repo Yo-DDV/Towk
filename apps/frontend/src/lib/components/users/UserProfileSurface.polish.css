@@ -6,36 +6,40 @@
  * It intentionally stays dependency-free and uses Towk semantic tokens only.
  */
 
-.user-profile-dialog .profile-display-name {
+.user-profile-dialog .profile-name-block .profile-display-name {
   display: -webkit-box;
   max-width: 100%;
+  max-height: none;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   line-clamp: 3;
   text-overflow: ellipsis;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+  word-break: normal;
 }
 
-.user-profile-dialog .profile-login {
+.user-profile-dialog .profile-name-block .profile-login {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.user-profile-dialog .profile-status-row {
+.user-profile-dialog .profile-identity-body .profile-status-row {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   align-items: start;
   gap: 0.625rem;
 }
 
-.user-profile-dialog .profile-presence-pill {
+.user-profile-dialog .profile-status-row > .profile-presence-pill {
   align-self: start;
   white-space: nowrap;
 }
 
-.user-profile-dialog .profile-custom-status {
+.user-profile-dialog .profile-status-row > .profile-custom-status {
   display: grid;
   min-height: 2.25rem;
   grid-template-columns: auto minmax(0, 1fr);
@@ -46,11 +50,11 @@
   line-height: 1.35;
 }
 
-.user-profile-dialog .profile-custom-status > span:first-child {
+.user-profile-dialog .profile-status-row > .profile-custom-status > span:first-child {
   line-height: 1.35;
 }
 
-.user-profile-dialog .profile-custom-status > span:last-child {
+.user-profile-dialog .profile-status-row > .profile-custom-status > span:last-child {
   display: -webkit-box;
   min-width: 0;
   overflow: hidden;
@@ -59,16 +63,17 @@
   line-clamp: 2;
   text-overflow: ellipsis;
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
-.user-profile-dialog .profile-actions {
+.user-profile-dialog .profile-identity-body .profile-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
 }
 
-.user-profile-dialog .profile-action {
+.user-profile-dialog .profile-actions > .profile-action {
   display: grid;
   min-width: 0;
   min-height: 3.25rem;
@@ -83,7 +88,7 @@
   touch-action: manipulation;
 }
 
-.user-profile-dialog .profile-action-icon {
+.user-profile-dialog .profile-actions > .profile-action .profile-action-icon {
   width: 2rem;
   height: 2rem;
   min-width: 2rem;
@@ -91,21 +96,21 @@
   border-radius: 0.625rem;
 }
 
-.user-profile-dialog .profile-action-label {
+.user-profile-dialog .profile-actions > .profile-action .profile-action-label {
   min-width: 0;
   line-height: 1.35;
-  hyphens: auto;
-  overflow-wrap: anywhere;
+  hyphens: none;
+  overflow-wrap: break-word;
   text-align: left;
   text-wrap: pretty;
   word-break: normal;
 }
 
-.user-profile-dialog .profile-role-list {
+.user-profile-dialog .profile-roles .profile-role-list {
   align-items: center;
 }
 
-.user-profile-dialog .profile-role-chip {
+.user-profile-dialog .profile-role-list > .profile-role-chip {
   min-width: 0;
   max-width: 100%;
   flex: 0 1 auto;
@@ -113,7 +118,7 @@
   white-space: nowrap;
 }
 
-.user-profile-dialog .profile-role-label {
+.user-profile-dialog .profile-role-chip > .profile-role-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -147,63 +152,48 @@
   flex: none;
 }
 
-.user-profile-dialog .profile-error-copy {
-  display: grid;
-  min-width: 0;
-  gap: 0.75rem;
-}
-
-.user-profile-dialog .profile-retry {
-  min-height: 2.75rem;
-  width: fit-content;
-  max-width: 100%;
-  justify-self: start;
-  padding: 0.5rem 0.9rem;
-  touch-action: manipulation;
-}
-
 @container user-profile (min-width: 30rem) and (max-width: 53.999rem) {
-  .user-profile-dialog .profile-actions {
+  .user-profile-dialog .profile-identity-body .profile-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .user-profile-dialog .profile-action:only-child,
-  .user-profile-dialog .profile-action.btn-danger {
+  .user-profile-dialog .profile-actions > .profile-action:only-child,
+  .user-profile-dialog .profile-actions > .profile-action.btn-danger {
     grid-column: 1 / -1;
   }
 }
 
 @container user-profile (min-width: 54rem) {
-  .user-profile-dialog .profile-shell {
+  article.user-profile-dialog > .profile-shell {
     grid-template-columns: minmax(20.5rem, 22rem) minmax(0, 1fr);
   }
 
-  .user-profile-dialog .profile-actions {
+  .user-profile-dialog .profile-identity-body .profile-actions {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .user-profile-dialog .profile-display-name {
+  .user-profile-dialog .profile-name-block .profile-display-name {
     font-size: clamp(1.75rem, 2.8cqi, 2.05rem);
   }
 }
 
 @container user-profile (max-width: 27rem) {
-  .user-profile-dialog .profile-status-row {
+  .user-profile-dialog .profile-identity-body .profile-status-row {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .user-profile-dialog .profile-presence-pill {
+  .user-profile-dialog .profile-status-row > .profile-presence-pill {
     width: fit-content;
   }
 }
 
 @container user-profile (max-width: 23rem) {
-  .user-profile-dialog .profile-actions,
+  .user-profile-dialog .profile-identity-body .profile-actions,
   .user-profile-dialog .profile-facts-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .user-profile-dialog .profile-action {
+  .user-profile-dialog .profile-actions > .profile-action {
     min-height: 3.125rem;
   }
 
@@ -222,23 +212,86 @@
 }
 
 @media (max-height: 620px) and (min-width: 46rem) {
-  .user-profile-dialog .profile-shell {
+  article.user-profile-dialog > .profile-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
     grid-template-columns: minmax(20.5rem, 42%) minmax(0, 1fr);
   }
 
-  .user-profile-dialog .profile-actions {
-    grid-template-columns: minmax(0, 1fr);
+  .user-profile-dialog .profile-shell > .profile-identity-panel {
+    border-right: 1px solid var(--color-border);
+    border-bottom: 0;
   }
 
-  .user-profile-dialog .profile-status-row {
+  .user-profile-dialog .profile-identity-panel .profile-cover {
+    height: 7.5rem;
+  }
+
+  .user-profile-dialog .profile-identity-panel .profile-identity-body {
+    display: block;
+    padding-top: 0;
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-avatar-shell {
+    width: 6rem;
+    height: 6rem;
+    margin-top: -3.35rem;
+    border-width: 0.3rem;
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-name-block {
+    margin-top: 0.65rem;
+  }
+
+  .user-profile-dialog .profile-name-block .profile-display-name {
+    font-size: clamp(1.4rem, 3.4cqi, 1.8rem);
+    line-height: 1.08;
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-status-row {
     grid-template-columns: max-content minmax(0, 1fr);
+    margin-top: 0.65rem;
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-actions {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-roles {
+    margin-top: 0.9rem;
+    padding-top: 0.8rem;
+  }
+
+  .user-profile-dialog .profile-content-panel {
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: 1rem;
+  }
+
+  .user-profile-dialog .profile-content-section + .profile-content-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+
+  .user-profile-dialog .profile-facts-grid,
+  .user-profile-dialog .profile-biography-shell {
+    margin-top: 0.75rem;
+  }
+
+  .user-profile-dialog .profile-biography {
+    min-height: 5rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .user-profile-dialog .profile-action,
-  .user-profile-dialog .profile-biography-toggle,
-  .user-profile-dialog .profile-retry {
+  .user-profile-dialog .profile-biography-toggle {
     transition: none;
   }
 
@@ -253,8 +306,7 @@
 
 @media (forced-colors: active) {
   .user-profile-dialog .profile-action,
-  .user-profile-dialog .profile-custom-status,
-  .user-profile-dialog .profile-retry {
+  .user-profile-dialog .profile-custom-status {
     border: 1px solid CanvasText;
     box-shadow: none;
   }
