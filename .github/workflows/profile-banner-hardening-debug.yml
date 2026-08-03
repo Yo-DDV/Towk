@@ -38,7 +38,12 @@ jobs:
           git merge --no-edit origin/main
           cat .github/profile-banner-hardening-parts/part-* > /tmp/profile-banner-hardening.py.gz.b64
           base64 -d /tmp/profile-banner-hardening.py.gz.b64 > /tmp/profile-banner-hardening.py.gz
+          set +e
           gzip -dc /tmp/profile-banner-hardening.py.gz > /tmp/profile-banner-hardening.py
+          gzip_status=$?
+          set -e
+          echo "GZIP_EXIT=$gzip_status"
+          echo 'b5ef0d638ec6c42cfd8869b70a99e0969c987d8a1997deefa371bf73b3edbabe  /tmp/profile-banner-hardening.py' | sha256sum -c -
           python3 -m py_compile /tmp/profile-banner-hardening.py
           set +e
           python3 -u /tmp/profile-banner-hardening.py
