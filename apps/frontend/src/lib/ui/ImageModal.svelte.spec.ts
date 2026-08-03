@@ -48,7 +48,7 @@ async function waitForMedia(container: HTMLElement): Promise<HTMLElement> {
 }
 
 describe('ImageModal', () => {
-  it('exposes a safe overlay close button and restores the close callback', () => {
+  it('exposes a safe overlay close button and calls the close callback', () => {
     const onclose = vi.fn();
     const { container } = renderViewer({ onclose });
     const closeButton = container.querySelector<HTMLButtonElement>('.image-modal-close');
@@ -62,12 +62,29 @@ describe('ImageModal', () => {
     expect(onclose).toHaveBeenCalledOnce();
   });
 
+  it('closes through dialog cancellation and the backdrop without native navigation', () => {
+    const onclose = vi.fn();
+    const { container } = renderViewer({ onclose });
+    const dialog = container.querySelector<HTMLDialogElement>('dialog')!;
+
+    const cancel = new Event('cancel', { cancelable: true });
+    dialog.dispatchEvent(cancel);
+    expect(cancel.defaultPrevented).toBe(true);
+    expect(onclose).toHaveBeenCalledOnce();
+
+    dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onclose).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps original media inspection inside Towk without an external link', async () => {
     const { container } = renderViewer();
     await waitForMedia(container);
 
     expect(container.querySelector('a')).toBeNull();
     expect(container.querySelector('dialog')?.dataset.mobileNavigationSwipe).toBe('ignore');
+    expect(
+      container.querySelector('[data-testid="image-modal-stage"]')?.getAttribute('role')
+    ).toBe('region');
     const detail = await vi.waitFor(() => {
       const image = container.querySelector<HTMLImageElement>(
         '[data-testid="image-modal-detail-image"]'
@@ -193,6 +210,51 @@ describe('ImageModal', () => {
 
     await vi.waitFor(() => expect(media.style.left).not.toBe(initialLeft));
     expect(media.style.transform).toContain('scale(2)');
+  });
+
+  it('expires the post-drag click guard instead of swallowing a later backdrop click', async () => {
+    const onclose = vi.fn();
+    const { container } = renderViewer({ onclose });
+    await waitForMedia(container);
+    const stage = container.querySelector<HTMLElement>('[data-testid="image-modal-stage"]')!;
+
+    stage.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        pointerId: 9,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: 80,
+        clientY: 80,
+        bubbles: true,
+        cancelable: true
+      })
+    );
+    stage.dispatchEvent(
+      new PointerEvent('pointermove', {
+        pointerId: 9,
+        pointerType: 'mouse',
+        clientX: 120,
+        clientY: 80,
+        bubbles: true,
+        cancelable: true
+      })
+    );
+    stage.dispatchEvent(
+      new PointerEvent('pointerup', {
+        pointerId: 9,
+        pointerType: 'mouse',
+        clientX: 120,
+        clientY: 80,
+        bubbles: true,
+        cancelable: true
+      })
+    );
+
+    stage.click();
+    expect(onclose).not.toHaveBeenCalled();
+    await new Promise((resolve) => window.setTimeout(resolve, 275));
+    stage.click();
+    expect(onclose).toHaveBeenCalledOnce();
   });
 
   it('supports touch double-tap zoom without leaving the modal', async () => {
