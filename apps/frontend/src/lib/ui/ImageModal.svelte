@@ -607,7 +607,6 @@
               data-testid="image-modal-preview-image"
               onload={handlePreviewLoad}
               onerror={handlePreviewError}
-              ondragstart={(event) => event.preventDefault()}
             />
           {/if}
 
@@ -622,7 +621,6 @@
               data-testid="image-modal-detail-image"
               onload={handleDetailLoad}
               onerror={handleDetailError}
-              ondragstart={(event) => event.preventDefault()}
             />
           {/if}
 
