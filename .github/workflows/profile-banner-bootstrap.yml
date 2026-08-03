@@ -1,15 +1,13 @@
 name: materialize profile banner feature
 
 on:
-  push:
+  pull_request:
+    types: [synchronize]
     branches:
-      - feat/profile-surface-redesign
-    paths:
-      - .github/profile-banner-source.b64
-      - .github/workflows/profile-banner-bootstrap.yml
+      - main
 
 concurrency:
-  group: profile-banner-materialization
+  group: profile-banner-materialization-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 permissions:
@@ -17,7 +15,7 @@ permissions:
 
 jobs:
   materialize:
-    if: ${{ github.event.head_commit.message == 'chore(ci): materialize profile banner feature' }}
+    if: ${{ github.event.pull_request.number == 295 && github.event.pull_request.head.ref == 'feat/profile-surface-redesign' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -27,6 +25,15 @@ jobs:
           ref: feat/profile-surface-redesign
           fetch-depth: 0
 
+      - name: Integrate current main additively
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Yo-DDV"
+          git config user.email "116607353+Yo-DDV@users.noreply.github.com"
+          git fetch --no-tags origin main
+          git merge --no-edit origin/main
+
       - name: Setup pinned Towk toolchain
         uses: ./.github/actions/setup
 
@@ -34,7 +41,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git log -1 --pretty=%s)" = "chore(ci): materialize profile banner feature"
           printf '%s  %s\n' "1af6de9f87ce526c51801a1819a5f869bae998fedb67ec972f8ddf4f8cc0ebb9" ".github/profile-banner-source.tar.gz" > /tmp/profile-banner.sha256
           base64 --decode .github/profile-banner-source.b64 > .github/profile-banner-source.tar.gz
           sha256sum --check /tmp/profile-banner.sha256
@@ -116,8 +122,6 @@ jobs:
           test ! -e .github/profile-banner-source.b64
           test ! -e .github/profile-banner-materialize.py
           git status --short
-          git config user.name "Yo-DDV"
-          git config user.email "116607353+Yo-DDV@users.noreply.github.com"
           git add -A
           git commit -m "feat(profiles): add secure profile banners"
           git push origin HEAD:feat/profile-surface-redesign
