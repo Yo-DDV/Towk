@@ -68,10 +68,10 @@
   let gestureActive = $state(false);
   let wheelActive = $state(false);
   let closing = $state(false);
-  let selectedIndex = $state(clampItemIndex(index, items.length));
-  let selectedId = $state<string | null>(items[selectedIndex]?.id ?? null);
+  let selectedIndex = $state<number | null>(null);
+  let selectedId = $state<string | null>(null);
 
-  let currentIndex = $derived(clampItemIndex(selectedIndex, items.length));
+  let currentIndex = $derived(clampItemIndex(selectedIndex ?? index, items.length));
   let current = $derived(items[currentIndex]);
   let hasMultiple = $derived(items.length > 1);
   let previewSrc = $derived(usableSource(current?.src));
@@ -116,8 +116,8 @@
   let suppressNextStageClick = false;
   let suppressClickResetTimer: number | null = null;
   let wheelIdleTimer: number | null = null;
-  let previousItems = items;
-  let previousPropIndex = index;
+  let previousItems: ImageItem[] | null = null;
+  let previousPropIndex: number | null = null;
 
   // Signed-URL refreshes replace the items array and may replay the original
   // history index. Preserve the currently selected attachment by stable ID
@@ -131,7 +131,7 @@
     previousPropIndex = index;
 
     if (length === 0) {
-      selectedIndex = 0;
+      selectedIndex = null;
       selectedId = null;
       return;
     }
@@ -146,7 +146,7 @@
           ? requestedIndex
           : identityIndex >= 0
             ? identityIndex
-            : clampItemIndex(selectedIndex, length);
+            : clampItemIndex(selectedIndex ?? requestedIndex, length);
     const nextId = items[nextIndex]?.id ?? null;
 
     if (selectedIndex !== nextIndex) selectedIndex = nextIndex;
