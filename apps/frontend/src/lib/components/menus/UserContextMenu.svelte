@@ -334,6 +334,11 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     scrollbar-gutter: stable;
   }
 
+  :global(dialog:has(.user-profile-dialog) .profile-biography-content-collapsed) {
+    max-height: clamp(16rem, 44vh, 28rem);
+    max-height: clamp(16rem, 44dvh, 28rem);
+  }
+
   :global(dialog:has(.user-profile-dialog) .dialog-swipe-handle) {
     position: absolute;
     z-index: 35;
@@ -368,7 +373,8 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
       padding: 0;
     }
 
-    :global(dialog:has(.user-profile-dialog) .dialog-content) {
+    :global(dialog:has(.user-profile-dialog) .dialog-content),
+    :global(dialog:has(.user-profile-dialog) .profile-shell) {
       min-height: 100vh;
       min-height: 100dvh;
       max-height: 100vh;
@@ -392,11 +398,26 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
       max-height: 100vh;
       max-height: 100dvh;
     }
+
+    :global(dialog:has(.user-profile-dialog) .profile-biography-content-collapsed) {
+      max-height: min(24rem, 44vh);
+      max-height: min(24rem, 44dvh);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    :global(dialog:has(.user-profile-dialog) .dialog-header button) {
+    :global(dialog:has(.user-profile-dialog) .dialog-header button),
+    :global(dialog:has(.user-profile-dialog) .profile-action),
+    :global(dialog:has(.user-profile-dialog) .profile-biography-toggle) {
       transition: none;
+    }
+
+    :global(dialog:has(.user-profile-dialog) .profile-action:active) {
+      scale: 1;
+    }
+
+    :global(dialog:has(.user-profile-dialog) .profile-biography-toggle:active) {
+      transform: none;
     }
 
     :global(dialog:has(.user-profile-dialog) .animate-spin) {
@@ -414,6 +435,10 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     :global(dialog:has(.user-profile-dialog) .dialog-header button) {
       background: Canvas;
       color: CanvasText;
+    }
+
+    :global(dialog:has(.user-profile-dialog) .profile-biography-fade) {
+      display: none;
     }
   }
 </style>
