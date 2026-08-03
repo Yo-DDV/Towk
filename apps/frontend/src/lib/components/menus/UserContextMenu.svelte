@@ -93,10 +93,16 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     }
   );
   const displayName = $derived(
-    getLiveDisplayName(user.id, snapshotUser.displayName || snapshotUser.login)
+    snapshotUser.deleted
+      ? snapshotUser.displayName || snapshotUser.login
+      : getLiveDisplayName(user.id, snapshotUser.displayName || snapshotUser.login)
   );
-  const login = $derived(getLiveLogin(user.id, snapshotUser.login));
-  const customStatus = $derived(getLiveCustomStatus(user.id, snapshotUser.customStatus));
+  const login = $derived(
+    snapshotUser.deleted ? snapshotUser.login : getLiveLogin(user.id, snapshotUser.login)
+  );
+  const customStatus = $derived(
+    snapshotUser.deleted ? null : getLiveCustomStatus(user.id, snapshotUser.customStatus)
+  );
   const normalizedCustomStatus = $derived(
     customStatus
       ? {
@@ -121,13 +127,16 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     customStatus: normalizedCustomStatus,
     presenceStatus
   });
+  const viewerIsSelf = $derived(Boolean(currentProfile?.viewerIsSelf));
   const mayMessage = $derived(
-    !profileUser.deleted && (currentProfile?.viewerCanMessage ?? canSendMessage)
+    !profileUser.deleted &&
+      !viewerIsSelf &&
+      (currentProfile?.viewerCanMessage ?? canSendMessage)
   );
   const mayCall = $derived(
-    !profileUser.deleted && (currentProfile?.viewerCanCall ?? false)
+    !profileUser.deleted && !viewerIsSelf && (currentProfile?.viewerCanCall ?? false)
   );
-  const mayEditProfile = $derived(Boolean(currentProfile?.viewerIsSelf));
+  const mayEditProfile = $derived(viewerIsSelf);
   const mayBanFromRoom = $derived(canBanFromRoom && Boolean(onBanFromRoom));
 
   $effect(() => {
