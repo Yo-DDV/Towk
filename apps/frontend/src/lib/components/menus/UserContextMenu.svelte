@@ -8,6 +8,7 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
 <script lang="ts">
   import Dialog from '$lib/ui/Dialog.svelte';
   import UserProfileSurface from '$lib/components/users/UserProfileSurface.svelte';
+  import '$lib/components/users/UserProfileSurface.polish.css';
   import { PresenceStatus } from '$lib/render/types';
   import {
     createMemberDirectoryAPI,
@@ -75,13 +76,9 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
   let profileKey = $state<string | null>(null);
   let loading = $state(true);
   let loadError = $state('');
-  let loadRetryable = $state(false);
-  let reloadRevision = $state(0);
 
   const profileRevision = $derived(getDetailedUserProfileRevision(serverId, user.id));
-  const targetProfileKey = $derived(
-    JSON.stringify([serverId, user.id, profileRevision, reloadRevision])
-  );
+  const targetProfileKey = $derived(JSON.stringify([serverId, user.id, profileRevision]));
   const currentProfile = $derived(!loading && profileKey === targetProfileKey ? profile : null);
   const snapshotUser = $derived(
     currentProfile?.user ?? {
@@ -162,7 +159,6 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     let cancelled = false;
     loading = true;
     loadError = '';
-    loadRetryable = false;
 
     const conn = connection();
     const api = createMemberDirectoryAPI({
@@ -182,12 +178,10 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
           profile = null;
           profileKey = targetKey;
           loadError = m['profile.load_failed']();
-          loadRetryable = false;
           return;
         }
         profile = result;
         profileKey = targetKey;
-        loadRetryable = false;
         if (!result) loadError = m['profile.load_not_found']();
       })
       .catch(() => {
@@ -195,7 +189,6 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
         profile = null;
         profileKey = targetKey;
         loadError = m['profile.load_failed']();
-        loadRetryable = true;
       })
       .finally(() => {
         if (!cancelled) loading = false;
@@ -242,14 +235,6 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     await onBanFromRoom();
   }
 
-  function handleRetry() {
-    if (loading || !loadRetryable) return;
-    loadRetryable = false;
-    loading = true;
-    loadError = '';
-    reloadRevision += 1;
-  }
-
   async function handleEditProfile() {
     clearHistoryMarkerForAction();
     await goto(resolve('/chat/[serverId]/settings', { serverId: serverIdToSegment(serverId) }));
@@ -276,12 +261,10 @@ autocomplete results while delegating the visual surface to UserProfileSurface.
     canCall={mayCall}
     canBanFromRoom={mayBanFromRoom}
     {banningFromRoom}
-    canRetry={loadRetryable}
     onEditProfile={handleEditProfile}
     onSendMessage={handleSendMessage}
     onCall={handleCall}
     onBanFromRoom={handleBanFromRoom}
-    onRetry={handleRetry}
   />
 </Dialog>
 
