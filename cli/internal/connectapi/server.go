@@ -24,6 +24,7 @@ const (
 	serverCapabilityMessageCreateIdempotency = "message.create-idempotency-v1"
 	serverCapabilityReadReceipts             = "read-receipts-v1"
 	serverCapabilityExternalGIFEmbeds        = "external-gif-embeds-v1"
+	serverCapabilityAvatarFraming            = "avatar-framing-v1"
 )
 
 func (s *serverDiscoveryService) GetServer(ctx context.Context, _ *connect.Request[discoveryv1.GetServerRequest]) (*connect.Response[discoveryv1.GetServerResponse], error) {
@@ -53,6 +54,9 @@ func (a *API) effectiveServerName(ctx context.Context) string {
 
 func serverCapabilities(coreReady, externalGIFEnabled bool) []string {
 	capabilities := []string{serverCapabilityMessageCreateIdempotency}
+	if coreReady {
+		capabilities = append(capabilities, serverCapabilityAvatarFraming)
+	}
 	if coreReady && externalGIFEnabled {
 		capabilities = append(capabilities, serverCapabilityExternalGIFEmbeds)
 	}

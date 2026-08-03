@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "title": "Encuadra tu avatar",
   "description": "Elige lo que verá todo el mundo. Tu avatar actual no cambiará hasta que la carga finalice correctamente.",
+  "capability_loading": "Las funciones del avatar aún se están cargando. Inténtalo de nuevo en un momento.",
   "crop": "Llenar el marco",
   "crop_description": "Recortar al área circular del avatar",
   "contain": "Imagen completa",
@@ -27,6 +28,5 @@
   "stage_label": "Área de encuadre del avatar",
   "live_crop": "Cuadrado seleccionado: {size} por {size} píxeles, desde {x}, {y}.",
   "full_image_selected": "La imagen completa seguirá visible dentro del círculo.",
-  "capability_loading": "Las funciones del servidor todavía se están cargando. Inténtalo de nuevo en un momento.",
   "legacy_server_uploaded": "Este servidor todavía no admite el encuadre de avatares. El avatar se ha cargado con el encuadre anterior."
 }

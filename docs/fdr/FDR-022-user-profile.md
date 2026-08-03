@@ -1,7 +1,7 @@
 # FDR-022: User Profile
 
 **Status:** Active
-**Last reviewed:** 2026-08-01
+**Last reviewed:** 2026-08-03
 
 ## Overview
 
@@ -12,7 +12,7 @@ A user's profile carries the public identity they present to the rest of the ser
 - **Display name** — freely editable by the user. Shown in messages, member lists, mention autocomplete, etc.
 - **Login (username)** — editable by the user with a 30-day cooldown between changes. Each successful change records a timestamp; subsequent changes within the window are rejected with a clear error message.
 - **Case-only changes** (e.g., `alice` → `Alice`) bypass the cooldown.
-- **Avatar** — users upload JPEG, PNG, WebP, or GIF content up to 10 MiB. The server resizes every avatar to a 256×256 maximum box, stores static inputs and single-frame GIFs as lossless WebP, and stores multi-frame GIFs as animated WebP forced to loop continuously. The old avatar binary is retained until the new avatar event commits, then deleted. Users can also delete their avatar (falling back to an initial-letter placeholder).
+- **Avatar** — users upload JPEG, PNG, WebP, or GIF content up to 10 MiB. A server advertising `avatar-framing-v1` lets the user choose a square crop or keep the complete source inside the circular avatar before the upload commits. The server validates the framing against the decoded, display-oriented source and applies the same geometry to every animated frame. It then stores static inputs and single-frame GIFs as lossless WebP, and multi-frame GIFs as animated WebP forced to loop continuously. The old avatar binary is retained until the new avatar event commits, then deleted. Users can also delete their avatar (falling back to an initial-letter placeholder).
 - **Custom status** — users can set an emoji plus short text. The emoji is shown next to their name; the text is shown alongside it where space allows and as hover/accessible text in compact places.
 - **Custom status templates** — the web client offers preset statuses for lunch, vacation, and sick leave plus a custom mode. Presets store reserved text tokens in the same free-form status text field so each client can render the label in its active language. Custom mode stores the user's literal text.
 - **Custom status expiry** — users can optionally choose an expiry date and time. After that instant, projected reads and the web client hide the status automatically. Users can also clear it manually.
@@ -22,7 +22,7 @@ A user's profile carries the public identity they present to the rest of the ser
 - **Biography** — users can store up to 1,024 Unicode code points and 4 KiB of valid UTF-8 Markdown inside the existing user-PII encryption boundary. Supported clients render it through the same sanitized Markdown path used for message content; raw HTML is not trusted. Long biographies open as a bounded preview and can be expanded without truncating the stored Markdown.
 - **Latest activity** — Towk stores one encrypted, monotonic, coalesced timestamp rather than an activity history. Visibility is enabled by default for upgrade compatibility and can be disabled by the profile owner. Disabling visibility removes the stored latest value before the preference is published.
 - **Profile actions** — the server returns viewer-specific Message and Call capabilities. Message opens the direct conversation and focuses its composer. Call opens the direct conversation, exposes the call surface, and starts the existing device-aware join flow. The call action is exposed only when direct messaging is allowed and LiveKit is configured, and it does not interrupt another active room call. Deleted accounts expose neither action.
-- **Responsive dialog** — the profile is centered on wide viewports and Fold-class layouts, and becomes safe-area-aware full-screen UI on narrow or low viewports. It supports Escape, backdrop, browser/system Back, focus restoration, and a bounded touch dismissal gesture.
+- **Responsive dialog** — the profile is centered on wide viewports and Fold-class layouts, and becomes safe-area-aware full-screen UI on narrow or low viewports. It supports Escape, backdrop, browser/system Back, focus restoration, and a bounded touch dismissal gesture. Avatar framing uses the same responsive dialog contract, with a circular composition grid, drag, touch/pen pointers, pinch, wheel/trackpad, keyboard nudging, and an accessible zoom control.
 - **Admin overrides** — operators with the right permissions can update other users' profiles, bypass the login cooldown, clear the cooldown so the user can change again before the 30 days expire, and force-delete an avatar.
 
 ## Design Decisions
@@ -30,7 +30,7 @@ A user's profile carries the public identity they present to the rest of the ser
 ### 1. 30-day login change cooldown
 
 **Decision:** A user can change their login only once every 30 days.
-**Why:** Logins are the basis for `@mentions`, search results, and recognition across the server. Frequent changes are an impersonation/confusion risk — `@alice` today might be a different person tomorrow. A 30-day cooldown discourages rapid churn while still allowing occasional rename for legitimate reasons. Case-only changes are exempt because they don't change identity.
+**Why:** Logins are the basis for `@mentions`, search results, and recognition across the server. Frequent changes are an impersonation/confusion risk — `@alice` today might be a different person tomorrow. A 30-day cooldown discourages rapid churn while still allowing occasional rename for legitimate needs. Case-only changes are exempt because they don't change identity.
 **Tradeoff:** A user who legitimately needs to change twice in 30 days (e.g., picked a typo'd name) is stuck. The admin clear-cooldown affordance handles those cases.
 
 ### 2. Login uniqueness is enforced with projection catch-up and OCC
@@ -116,6 +116,14 @@ A user's profile carries the public identity they present to the rest of the ser
 **Decision:** User identities open the same detailed profile dialog. Selectors and autocomplete preserve their primary selection action and expose profile opening as a secondary affordance.
 **Why:** A canonical surface keeps desktop, mobile, accessibility, privacy, caching, and action rules consistent across messages, member lists, the current-user bar, and selection controls.
 **Tradeoff:** The dialog carries more layout logic than a small popover, including history integration and safe-area handling, but removes duplicated contextual implementations.
+
+### 16. Avatar framing is explicit, capability-negotiated, and revalidated by the server
+
+**Decision:** Servers that implement framing advertise `avatar-framing-v1`. The client then sends optional, versioned `X-Towk-Avatar-Framing` ConnectRPC metadata containing either a square crop in display-oriented source-pixel coordinates or a full-image mode. The server decodes the bytes independently, compares the declared dimensions with the actual oriented dimensions, checks the crop with overflow-safe bounds, and applies one identical crop or contain transform to every composited GIF frame. Full-image mode scales the entire rectangular source so every corner remains inside the circular avatar and pads the remaining square canvas with transparency. The metadata is transient and is not persisted.
+
+**Why:** The UI must preview the exact canonical avatar while the server remains authoritative over untrusted geometry and media bytes. Versioned metadata keeps the existing image payload and stored-event contracts compatible, makes omission preserve the old upload path, and avoids trusting a client-produced derivative. Capability discovery prevents a new client from sending metadata to an old remote server that would ignore it or reject its CORS preflight.
+
+**Tradeoff:** Framing metadata is a small ConnectRPC HTTP contract outside the protobuf message body and therefore requires an explicit CORS allow-list entry. An old server or old client cannot offer interactive framing; the client falls back to the server's legacy avatar upload and reports that framing is unavailable. The original source is still discarded, so changing the crop later requires another upload.
 
 ## Permissions
 

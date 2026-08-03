@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "title": "Enquadre seu avatar",
   "description": "Escolha o que todos verão. O avatar atual permanece inalterado até o envio ser concluído com sucesso.",
+  "capability_loading": "Os recursos de avatar ainda estão sendo carregados. Tente novamente em instantes.",
   "crop": "Preencher o enquadramento",
   "crop_description": "Recortar para a área circular do avatar",
   "contain": "Imagem inteira",
@@ -27,6 +28,5 @@
   "stage_label": "Área de enquadramento do avatar",
   "live_crop": "Quadrado selecionado: {size} por {size} pixels, a partir de {x}, {y}.",
   "full_image_selected": "A imagem inteira permanecerá visível dentro do círculo.",
-  "capability_loading": "Os recursos do servidor ainda estão carregando. Tente novamente em instantes.",
   "legacy_server_uploaded": "Este servidor ainda não oferece enquadramento de avatar. O avatar foi enviado com o enquadramento antigo."
 }

@@ -71,8 +71,17 @@ func (s *accountService) UploadAvatar(ctx context.Context, req *connect.Request[
 	if image == nil || len(image.GetImage()) == 0 {
 		return nil, invalidArgument("image is required")
 	}
+	framing, err := avatarFramingFromRequestHeader(req.Header())
+	if err != nil {
+		return nil, invalidArgument(err.Error())
+	}
 
-	if _, err := s.api.core.ReplaceUserAvatarFromUpload(ctx, caller.UserID, bytes.NewReader(image.GetImage())); err != nil {
+	if _, err := s.api.core.ReplaceUserAvatarFromUploadWithFraming(
+		ctx,
+		caller.UserID,
+		bytes.NewReader(image.GetImage()),
+		framing,
+	); err != nil {
 		return nil, connectError(err)
 	}
 	user, err := s.api.core.GetUser(ctx, caller.UserID)

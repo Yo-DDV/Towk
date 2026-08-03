@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "title": "Frame your avatar",
   "description": "Choose what everyone will see. Your current avatar stays unchanged until the upload succeeds.",
+  "capability_loading": "Avatar capabilities are still loading. Try again in a moment.",
   "crop": "Fill frame",
   "crop_description": "Crop to the circular avatar area",
   "contain": "Full image",
@@ -27,6 +28,5 @@
   "stage_label": "Avatar framing area",
   "live_crop": "Selected square: {size} by {size} pixels, starting at {x}, {y}.",
   "full_image_selected": "The complete image will remain visible inside the circle.",
-  "capability_loading": "Server capabilities are still loading. Try again in a moment.",
   "legacy_server_uploaded": "This server does not support avatar framing yet. The avatar was uploaded with its legacy framing."
 }

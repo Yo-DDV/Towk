@@ -53,7 +53,6 @@ function gifWithFrames(width: number, height: number, frames: number): Uint8Arra
   return new Uint8Array(bytes);
 }
 
-
 function vp8xWebP(width: number, height: number, chunkLength = 10): Uint8Array {
   const payloadLength = Math.max(0, chunkLength);
   const bytes = new Uint8Array(12 + 8 + payloadLength + (payloadLength & 1));
@@ -80,7 +79,6 @@ function vp8xWebP(width: number, height: number, chunkLength = 10): Uint8Array {
   }
   return bytes;
 }
-
 
 function orientedJPEGHeader(width: number, height: number, orientation: number): Uint8Array {
   const exifPayload = new Uint8Array(32);

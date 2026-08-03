@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "title": "Avatar ausrichten",
   "description": "Lege fest, was alle sehen. Dein aktueller Avatar bleibt unverändert, bis der Upload erfolgreich ist.",
+  "capability_loading": "Die Avatarfunktionen werden noch geladen. Versuche es gleich noch einmal.",
   "crop": "Rahmen füllen",
   "crop_description": "Auf den runden Avatarbereich zuschneiden",
   "contain": "Ganzes Bild",
@@ -27,6 +28,5 @@
   "stage_label": "Bereich zum Ausrichten des Avatars",
   "live_crop": "Ausgewähltes Quadrat: {size} × {size} Pixel ab {x}, {y}.",
   "full_image_selected": "Das vollständige Bild bleibt innerhalb des Kreises sichtbar.",
-  "capability_loading": "Die Serverfunktionen werden noch geladen. Versuche es gleich noch einmal.",
   "legacy_server_uploaded": "Dieser Server unterstützt das Ausrichten von Avataren noch nicht. Der Avatar wurde mit der bisherigen Ausrichtung hochgeladen."
 }

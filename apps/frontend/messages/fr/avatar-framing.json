@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "title": "Cadrez votre avatar",
   "description": "Choisissez ce que tout le monde verra. Votre avatar actuel reste inchangé tant que l’envoi n’a pas réussi.",
+  "capability_loading": "Les capacités d’avatar sont encore en cours de chargement. Réessayez dans un instant.",
   "crop": "Remplir le cadre",
   "crop_description": "Recadrer selon la zone circulaire de l’avatar",
   "contain": "Image entière",
@@ -27,6 +28,5 @@
   "stage_label": "Zone de cadrage de l’avatar",
   "live_crop": "Carré sélectionné : {size} sur {size} pixels, à partir de {x}, {y}.",
   "full_image_selected": "L’image entière restera visible à l’intérieur du cercle.",
-  "capability_loading": "Les fonctionnalités du serveur sont encore en cours de chargement. Réessayez dans un instant.",
   "legacy_server_uploaded": "Ce serveur ne prend pas encore en charge le cadrage des avatars. L’avatar a été envoyé avec son cadrage historique."
 }
