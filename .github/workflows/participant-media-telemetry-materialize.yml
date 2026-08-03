@@ -29,6 +29,9 @@ jobs:
         with:
           install-cli-deps: "false"
 
+      - name: Install Chromium for browser component tests
+        run: pnpm --dir apps/frontend exec playwright install --with-deps chromium
+
       - name: Materialize consolidated call changes
         shell: bash
         env:
