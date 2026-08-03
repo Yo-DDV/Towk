@@ -53,6 +53,7 @@
   const DOUBLE_TAP_DELAY_MS = 320;
   const DOUBLE_TAP_DISTANCE = 28;
   const POINTER_MOVE_THRESHOLD = 6;
+  const SYNTHETIC_CLICK_GUARD_MS = 250;
 
   let stageNode: HTMLDivElement | null = null;
   let transform = $state<ImageViewerTransform>({ scale: MIN_IMAGE_SCALE, x: 0, y: 0 });
@@ -91,6 +92,7 @@
   let lastTapAt = 0;
   let lastTapPoint: ImageViewerPoint | null = null;
   let suppressNextStageClick = false;
+  let suppressClickResetTimer: number | null = null;
 
   $effect(() => {
     const itemKey = `${index}:${current?.id ?? current?.src ?? ''}`;
@@ -310,7 +312,6 @@
       Math.hypot(sample.x - sample.startX, sample.y - sample.startY) > POINTER_MOVE_THRESHOLD
     ) {
       sample.moved = true;
-      suppressNextStageClick = true;
     }
 
     if (activePointers.size >= 2) {
@@ -342,7 +343,6 @@
       transform = next;
       first.moved = true;
       second.moved = true;
-      suppressNextStageClick = true;
       pinchSnapshot = { distance: nextDistance, midpoint: nextMidpoint };
       return;
     }
@@ -355,6 +355,21 @@
         viewportSize()
       );
     }
+  }
+
+  function armSyntheticClickGuard() {
+    suppressNextStageClick = true;
+    if (suppressClickResetTimer !== null) window.clearTimeout(suppressClickResetTimer);
+    suppressClickResetTimer = window.setTimeout(() => {
+      suppressClickResetTimer = null;
+      suppressNextStageClick = false;
+    }, SYNTHETIC_CLICK_GUARD_MS);
+  }
+
+  function clearSyntheticClickGuard() {
+    if (suppressClickResetTimer !== null) window.clearTimeout(suppressClickResetTimer);
+    suppressClickResetTimer = null;
+    suppressNextStageClick = false;
   }
 
   function finishPointer(event: PointerEvent, allowTap: boolean) {
@@ -379,6 +394,8 @@
         remaining.lastY = remaining.y;
       }
     }
+
+    if (sample.moved) armSyntheticClickGuard();
 
     if (allowTap && sample.pointerType === 'touch' && !sample.moved && activePointers.size === 0) {
       const now = performance.now();
@@ -423,12 +440,12 @@
     gestureActive = false;
     lastTapAt = 0;
     lastTapPoint = null;
-    suppressNextStageClick = false;
+    clearSyntheticClickGuard();
   }
 
   function handleStageClick(event: MouseEvent) {
     if (suppressNextStageClick) {
-      suppressNextStageClick = false;
+      clearSyntheticClickGuard();
       return;
     }
     if (
@@ -548,7 +565,7 @@
       class:viewer-can-pan={transform.scale > MIN_IMAGE_SCALE}
       class:viewer-is-panning={gestureActive && transform.scale > MIN_IMAGE_SCALE}
       class="image-modal-stage"
-      role="application"
+      role="region"
       tabindex="0"
       aria-label={imageAlt}
       data-testid="image-modal-stage"
@@ -661,7 +678,7 @@
       {/if}
     </div>
 
-    <div class="image-modal-zoom" role="group" aria-label={`${zoomPercent}%`}>
+    <div class="image-modal-zoom" role="group" aria-label={`${imageAlt} ${zoomPercent}%`}>
       <button
         type="button"
         onclick={() => zoomBy(-IMAGE_ZOOM_STEP)}
