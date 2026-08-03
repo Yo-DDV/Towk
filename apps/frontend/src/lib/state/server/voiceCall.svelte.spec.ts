@@ -1584,6 +1584,114 @@ describe('VoiceCallState', () => {
     expect(lastRoomOptions?.webAudioMix).toBe(false);
   });
 
+  it('keeps Android standard microphone and speaker rows on the same communication profile', async () => {
+    vi.stubGlobal('navigator', {
+      mediaDevices: navigator.mediaDevices,
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/138.0 Mobile Safari/537.36'
+    });
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audioinput') {
+        return [
+          { deviceId: 'speakerphone-input', kind, label: 'Speakerphone' },
+          { deviceId: 'earpiece-input', kind, label: 'Headset earpiece' }
+        ] as MediaDeviceInfo[];
+      }
+      if (kind === 'audiooutput') {
+        return [
+          { deviceId: 'speakerphone-output', kind, label: 'Speakerphone' },
+          { deviceId: 'earpiece-output', kind, label: 'Headset earpiece' }
+        ] as MediaDeviceInfo[];
+      }
+      return [];
+    });
+    activeDeviceIds.set('audioinput', 'speakerphone-input');
+    activeDeviceIds.set('audiooutput', 'speakerphone-output');
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    lastRoom?.switchActiveDevice.mockClear();
+
+    await state.setAudioDevice('earpiece-input');
+
+    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'earpiece-input');
+    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith('audiooutput', 'earpiece-output');
+    expect(state.selectedDeviceId).toBe('earpiece-input');
+    expect(state.selectedOutputDeviceId).toBe('earpiece-output');
+
+    lastRoom?.switchActiveDevice.mockClear();
+    await state.setAudioOutputDevice('speakerphone-output');
+
+    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'speakerphone-input');
+    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith(
+      'audiooutput',
+      'speakerphone-output'
+    );
+    expect(state.selectedDeviceId).toBe('speakerphone-input');
+    expect(state.selectedOutputDeviceId).toBe('speakerphone-output');
+
+    lastRoom?.switchActiveDevice.mockClear();
+    switchActiveDeviceFailure = new DOMException('Input route unavailable', 'NotFoundError');
+    await state.setAudioOutputDevice('earpiece-output');
+
+    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'earpiece-input');
+    expect(lastRoom?.switchActiveDevice).not.toHaveBeenCalledWith(
+      'audiooutput',
+      'earpiece-output'
+    );
+    expect(state.selectedDeviceId).toBe('speakerphone-input');
+    expect(state.selectedOutputDeviceId).toBe('speakerphone-output');
+
+    lastRoom?.switchActiveDevice.mockClear();
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audioinput', 'earpiece-input');
+    await flushPromises();
+
+    expect(lastRoom?.switchActiveDevice).not.toHaveBeenCalledWith(
+      'audiooutput',
+      'earpiece-output'
+    );
+    expect(state.selectedOutputDeviceId).toBe('speakerphone-output');
+  });
+
+  it('reasserts the requested Android speakerphone microphone before the first unmute', async () => {
+    vi.stubGlobal('navigator', {
+      mediaDevices: navigator.mediaDevices,
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/138.0 Mobile Safari/537.36'
+    });
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audioinput') {
+        return [
+          { deviceId: 'speakerphone-input', kind, label: 'Speakerphone' },
+          { deviceId: 'earpiece-input', kind, label: 'Headset earpiece' }
+        ] as MediaDeviceInfo[];
+      }
+      if (kind === 'audiooutput') {
+        return [
+          { deviceId: 'speakerphone-output', kind, label: 'Speakerphone' },
+          { deviceId: 'earpiece-output', kind, label: 'Headset earpiece' }
+        ] as MediaDeviceInfo[];
+      }
+      return [];
+    });
+    activeDeviceIds.set('audioinput', 'speakerphone-input');
+    activeDeviceIds.set('audiooutput', 'speakerphone-output');
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleMute();
+    activeDeviceIds.set('audioinput', 'earpiece-input');
+    state.selectedDeviceId = 'earpiece-input';
+    lastRoom?.localParticipant.setMicrophoneEnabled.mockClear();
+
+    await state.toggleMute();
+
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({ deviceId: { exact: 'speakerphone-input' } })
+    );
+    expect(state.selectedDeviceId).toBe('speakerphone-input');
+    expect(state.selectedOutputDeviceId).toBe('speakerphone-output');
+  });
+
   it('does not advertise Android route controls when the playback context cannot be created', async () => {
     delete (HTMLMediaElement.prototype as Partial<HTMLMediaElement>).setSinkId;
     const AudioContextMock = vi.fn(function FailingAudioContext() {

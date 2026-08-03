@@ -1311,7 +1311,16 @@ export class VoiceCallState {
           await room.localParticipant.setMicrophoneEnabled(false);
           return;
         }
-        await this.enableMicrophoneWithRouteFallback(room);
+        await this.enableMicrophoneWithRouteFallback(
+          room,
+          this.androidAudioInputDeviceIdForUnmute()
+        );
+        if (this.room === room) {
+          await this.synchronizeAndroidPlaybackForAudioInput(
+            room,
+            this.selectedDeviceId
+          ).catch(() => undefined);
+        }
       });
       if (this.room !== room) return false;
     } catch (err) {
@@ -1464,7 +1473,11 @@ export class VoiceCallState {
     setMicrophoneContentHint(track);
 
     const activeDeviceId = track.getSourceTrackSettings().deviceId;
-    if (activeDeviceId) this.selectedDeviceId = activeDeviceId;
+    if (activeDeviceId) {
+      this.selectedDeviceId = activeDeviceId;
+    } else if (deviceId) {
+      this.selectedDeviceId = deviceId;
+    }
     await this.updateMicrophoneProcessing(track);
   }
 
@@ -1895,6 +1908,13 @@ export class VoiceCallState {
       this.isAudioOutputSelectionSupported = false;
     }
 
+    if (this.room && inputResult.status === 'fulfilled' && outputResult.status === 'fulfilled') {
+      await this.synchronizeAndroidPlaybackForAudioInput(
+        this.room,
+        this.selectedDeviceId
+      ).catch(() => undefined);
+    }
+
     if (videoInputResult.status === 'fulfilled') {
       const videoInputDevices = videoInputResult.value;
       this.videoDevices = videoInputDevices;
@@ -1967,7 +1987,7 @@ export class VoiceCallState {
     const room = this.room;
     if (
       !room ||
-      !shouldUseAndroidCommunicationDeviceRouting() ||
+      !isAndroidWebClient() ||
       this.explicitAudioInputDeviceId ||
       this.explicitMediaDeviceOperationDepth > 0 ||
       devices.some((device) => audioDeviceRouteKind(device) === 'bluetooth')
@@ -2062,15 +2082,38 @@ export class VoiceCallState {
    * Switch to a different audio input device.
    */
   async setAudioDevice(deviceId: string): Promise<void> {
+    const routeKind = this.audioDeviceRouteKindForId(this.audioDevices, deviceId);
+    if (isAndroidWebClient() && isCoupledCommunicationRouteKind(routeKind)) {
+      await this.serializeAndroidAudioRouteOperation(() =>
+        this.setAudioDeviceInternal(deviceId, true)
+      );
+      return;
+    }
+    await this.setAudioDeviceInternal(deviceId);
+  }
+
+  private async setAudioDeviceInternal(
+    deviceId: string,
+    persistCoupledSelection = false,
+    rethrowOnFailure = false
+  ): Promise<void> {
     const room = this.room;
     if (!room) return;
     const previousExplicitDeviceId = this.explicitAudioInputDeviceId;
+    const previousAndroidAudioRoute = this.androidAudioRoute;
+    const routeKind = this.audioDeviceRouteKindForId(this.audioDevices, deviceId);
+    if (persistCoupledSelection && isBuiltInAndroidAudioRoute(routeKind)) {
+      this.androidAudioRoute = routeKind;
+    }
     this.explicitAudioInputDeviceId = deviceId;
     if (
       !this.microphoneRouteRecovering &&
       deviceId === this.selectedDeviceId &&
       room.getActiveDevice('audioinput') === deviceId
     ) {
+      await this.synchronizeAndroidPlaybackForAudioInput(room, deviceId, {
+        persistCoupledSelection
+      });
       return;
     }
 
@@ -2093,16 +2136,22 @@ export class VoiceCallState {
           this.updateParticipants();
           this.localAudioStateRevision += 1;
           this.broadcastLocalAudioState();
-          await this.synchronizeAndroidPlaybackForAudioInput(room, this.selectedDeviceId);
+          await this.synchronizeAndroidPlaybackForAudioInput(room, this.selectedDeviceId, {
+            persistCoupledSelection
+          });
           return;
         }
         await this.reconcileMicrophoneProcessing(room);
-        await this.synchronizeAndroidPlaybackForAudioInput(room, this.selectedDeviceId);
+        await this.synchronizeAndroidPlaybackForAudioInput(room, this.selectedDeviceId, {
+          persistCoupledSelection
+        });
       });
     } catch (err) {
       if (this.room !== room) return;
       this.explicitAudioInputDeviceId = previousExplicitDeviceId;
+      this.androidAudioRoute = previousAndroidAudioRoute;
       this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('microphone', err, 'switch'));
+      if (rethrowOnFailure) throw err;
       return;
     }
   }
@@ -2111,6 +2160,30 @@ export class VoiceCallState {
    * Switch to a different audio output device.
    */
   async setAudioOutputDevice(deviceId: string): Promise<void> {
+    const routeKind = this.audioDeviceRouteKindForId(this.audioOutputDevices, deviceId);
+    const pairedInputDeviceId =
+      isAndroidWebClient() && isCoupledCommunicationRouteKind(routeKind)
+        ? audioDeviceIdForRouteKind(this.audioDevices, routeKind)
+        : null;
+    if (pairedInputDeviceId) {
+      const previousAndroidAudioRoute = this.androidAudioRoute;
+      try {
+        await this.serializeAndroidAudioRouteOperation(async () => {
+          if (isBuiltInAndroidAudioRoute(routeKind)) this.androidAudioRoute = routeKind;
+          await this.setAudioDeviceInternal(pairedInputDeviceId, true, true);
+          await this.setAudioOutputDeviceInternal(deviceId);
+        });
+      } catch {
+        this.androidAudioRoute = previousAndroidAudioRoute;
+        // The microphone error is already surfaced by setAudioDeviceInternal.
+        // Keep the previous output instead of creating a split Android profile.
+      }
+      return;
+    }
+    await this.setAudioOutputDeviceInternal(deviceId);
+  }
+
+  private async setAudioOutputDeviceInternal(deviceId: string): Promise<void> {
     const room = this.room;
     if (!room) return;
     const previousExplicitDeviceId = this.explicitAudioOutputDeviceId;
@@ -2212,7 +2285,9 @@ export class VoiceCallState {
             await this.reconcileMicrophoneProcessing(room);
           });
           if (this.room !== room) return false;
-          await this.synchronizeAndroidPlaybackForAudioInput(room, communicationDeviceId);
+          await this.synchronizeAndroidPlaybackForAudioInput(room, communicationDeviceId, {
+            persistCoupledSelection: true
+          });
           return this.room === room && this.androidAudioRoute === route;
         } catch {
           if (this.room === room) {
@@ -3026,33 +3101,102 @@ export class VoiceCallState {
 
   private async synchronizeAndroidPlaybackForAudioInput(
     room: Room,
-    deviceId: string | null
+    deviceId: string | null,
+    options: { persistCoupledSelection?: boolean } = {}
   ): Promise<void> {
-    if (!deviceId || !shouldUseAndroidCommunicationDeviceRouting()) return;
+    if (!deviceId || !isAndroidWebClient()) return;
     const device = this.audioDevices.find((candidate) => candidate.deviceId === deviceId);
     if (!device) return;
 
     const routeKind = audioDeviceRouteKind(device);
+    const alignsRequestedBuiltInRoute =
+      !isBuiltInAndroidAudioRoute(routeKind) ||
+      routeKind === this.androidAudioRoute ||
+      options.persistCoupledSelection === true;
+    const pairedOutputDeviceId =
+      this.isAudioOutputSelectionSupported &&
+      isCoupledCommunicationRouteKind(routeKind) &&
+      alignsRequestedBuiltInRoute
+        ? audioDeviceIdForRouteKind(this.audioOutputDevices, routeKind)
+        : null;
     const usesCommunicationDevice =
-      device.deviceId !== 'default' && device.deviceId !== 'communications';
+      routeKind === 'bluetooth' ||
+      (isBuiltInAndroidAudioRoute(routeKind) &&
+        (routeKind === this.androidAudioRoute || this.explicitAudioInputDeviceId === deviceId));
 
     await this.serializeAudioOutputOperation(async () => {
       if (this.room !== room) return;
-      this.androidCommunicationInputDeviceId = usesCommunicationDevice ? device.deviceId : null;
-      if (routeKind === 'speakerphone' || routeKind === 'earpiece') {
+      if (pairedOutputDeviceId) {
+        if (room.getActiveDevice('audiooutput') !== pairedOutputDeviceId) {
+          try {
+            await this.runExplicitMediaDeviceOperation(() =>
+              room.switchActiveDevice('audiooutput', pairedOutputDeviceId)
+            );
+          } catch (error) {
+            if (options.persistCoupledSelection && this.room === room) {
+              this.notifyMediaDeviceError(
+                getVoiceCallMediaDeviceErrorMessage('speaker', error, 'switch')
+              );
+            }
+          }
+        }
+        if (this.room !== room) return;
+        this.selectedOutputDeviceId =
+          room.getActiveDevice('audiooutput') ?? pairedOutputDeviceId;
+        if (options.persistCoupledSelection) {
+          this.explicitAudioOutputDeviceId = pairedOutputDeviceId;
+        }
+      }
+      if (options.persistCoupledSelection && isBuiltInAndroidAudioRoute(routeKind)) {
         this.androidAudioRoute = routeKind;
       }
+      const usesFallbackRouting = shouldUseAndroidCommunicationDeviceRouting();
+      this.androidCommunicationInputDeviceId =
+        usesFallbackRouting && usesCommunicationDevice ? device.deviceId : null;
       this.setRemoteTracksAudioContext(
         room,
-        !usesCommunicationDevice && this.androidAudioRoute === 'speakerphone'
+        usesFallbackRouting && !usesCommunicationDevice && this.androidAudioRoute === 'speakerphone'
           ? (this.androidPlaybackAudioContext ?? undefined)
           : undefined
       );
-      this.isAndroidAudioRouteSelectionSupported =
-        usesCommunicationDevice || this.androidPlaybackAudioContext !== null;
+      this.isAndroidAudioRouteSelectionSupported = usesFallbackRouting
+        ? usesCommunicationDevice || this.androidPlaybackAudioContext !== null
+        : false;
       this.applyAllParticipantAudioVolumes();
       this.updateAudioPlaybackBlocked(room);
     });
+  }
+
+  private androidAudioInputDeviceIdForUnmute(): string | null {
+    if (!isAndroidWebClient()) return this.selectedDeviceId;
+
+    if (this.explicitAudioInputDeviceId) {
+      const explicitRouteKind = this.audioDeviceRouteKindForId(
+        this.audioDevices,
+        this.explicitAudioInputDeviceId
+      );
+      if (!isBuiltInAndroidAudioRoute(explicitRouteKind)) {
+        return this.explicitAudioInputDeviceId;
+      }
+    }
+
+    const selectedRouteKind = this.audioDeviceRouteKindForId(
+      this.audioDevices,
+      this.selectedDeviceId
+    );
+    if (selectedRouteKind === 'bluetooth') return this.selectedDeviceId;
+
+    return (
+      audioDeviceIdForRouteKind(this.audioDevices, this.androidAudioRoute) ?? this.selectedDeviceId
+    );
+  }
+
+  private audioDeviceRouteKindForId(
+    devices: MediaDeviceInfo[],
+    deviceId: string | null
+  ): ReturnType<typeof audioDeviceRouteKind> {
+    const device = devices.find((candidate) => candidate.deviceId === deviceId);
+    return device ? audioDeviceRouteKind(device) : 'unknown';
   }
 
   private usesAndroidSpeakerphoneRoute(): boolean {
@@ -4254,6 +4398,18 @@ type WebkitAudioContextGlobal = typeof globalThis & {
 
 function isAndroidWebClient(): boolean {
   return typeof navigator !== 'undefined' && /\bAndroid\b/i.test(navigator.userAgent);
+}
+
+function isBuiltInAndroidAudioRoute(
+  routeKind: ReturnType<typeof audioDeviceRouteKind>
+): routeKind is AndroidAudioRoute {
+  return routeKind === 'speakerphone' || routeKind === 'earpiece';
+}
+
+function isCoupledCommunicationRouteKind(
+  routeKind: ReturnType<typeof audioDeviceRouteKind>
+): boolean {
+  return isBuiltInAndroidAudioRoute(routeKind) || routeKind === 'bluetooth';
 }
 
 function getAudioContextConstructor(): typeof AudioContext | null {
