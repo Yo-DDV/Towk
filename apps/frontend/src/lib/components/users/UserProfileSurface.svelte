@@ -46,6 +46,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
   } = $props();
 
   const componentId = $props.id();
+  const identityHeadingId = `${componentId}-identity-heading`;
   const rolesHeadingId = `${componentId}-roles-heading`;
   const detailsHeadingId = `${componentId}-details-heading`;
   const biographyHeadingId = `${componentId}-biography-heading`;
@@ -126,7 +127,11 @@ UserContextMenu so every existing identity entry point keeps the same contract.
   data-testid="user-profile-dialog"
 >
   <div class="profile-shell">
-    <aside class="profile-identity-panel" data-testid="profile-identity-panel">
+    <section
+      class="profile-identity-panel"
+      aria-labelledby={identityHeadingId}
+      data-testid="profile-identity-panel"
+    >
       <div class="profile-cover" aria-hidden="true">
         <span class="profile-cover-orbit profile-cover-orbit-large"></span>
         <span class="profile-cover-orbit profile-cover-orbit-small"></span>
@@ -138,7 +143,11 @@ UserContextMenu so every existing identity entry point keeps the same contract.
         </div>
 
         <div class="profile-name-block">
-          <h2 class="profile-display-name" data-testid="profile-display-name">
+          <h2
+            id={identityHeadingId}
+            class="profile-display-name"
+            data-testid="profile-display-name"
+          >
             {displayName}
           </h2>
           <p class="profile-login">@{user.login}</p>
@@ -232,13 +241,16 @@ UserContextMenu so every existing identity entry point keeps the same contract.
             <h3 id={rolesHeadingId}>{m['profile.roles']()}</h3>
           </div>
 
-          <div class="profile-role-list">
+          <div class="profile-role-list" role="list">
             {#if loading}
-              <span class="profile-role-skeleton profile-role-skeleton-wide"></span>
-              <span class="profile-role-skeleton"></span>
+              <span
+                class="profile-role-skeleton profile-role-skeleton-wide"
+                aria-hidden="true"
+              ></span>
+              <span class="profile-role-skeleton" aria-hidden="true"></span>
             {:else if profile}
               {#if roles.length === 0}
-                <span class="profile-role-chip">
+                <span class="profile-role-chip" role="listitem">
                   <span class="profile-role-label">{m['profile.member_role']()}</span>
                 </span>
               {:else}
@@ -248,6 +260,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
                       'profile-role-chip',
                       role.moderation && 'profile-role-chip-moderation'
                     ]}
+                    role="listitem"
                     title={role.displayName || role.name}
                   >
                     {#if role.moderation}
@@ -265,7 +278,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
           </div>
         </section>
       </div>
-    </aside>
+    </section>
 
     <div
       class="profile-content-panel"
@@ -317,44 +330,44 @@ UserContextMenu so every existing identity entry point keeps the same contract.
             <h3 id={detailsHeadingId}>{m['profile.details']()}</h3>
           </div>
 
-          <div class="profile-facts-grid">
+          <dl class="profile-facts-grid">
             <div class="profile-fact">
-              <span
-                class="profile-fact-icon iconify uil--calendar-alt"
-                aria-hidden="true"
-              ></span>
-              <span class="profile-fact-copy">
+              <dt class="profile-fact-term">
+                <span
+                  class="profile-fact-icon iconify uil--calendar-alt"
+                  aria-hidden="true"
+                ></span>
                 <span class="profile-fact-label">{m['profile.joined']()}</span>
-                <span class="profile-fact-value">{formatDate(profile.joinedAt)}</span>
-              </span>
+              </dt>
+              <dd class="profile-fact-value">{formatDate(profile.joinedAt)}</dd>
             </div>
 
             <div class="profile-fact">
-              <span
-                class="profile-fact-icon iconify uil--clock"
-                aria-hidden="true"
-              ></span>
-              <span class="profile-fact-copy">
+              <dt class="profile-fact-term">
+                <span
+                  class="profile-fact-icon iconify uil--clock"
+                  aria-hidden="true"
+                ></span>
                 <span class="profile-fact-label">
                   {m['profile.last_activity']()}
                 </span>
-                <span class="profile-fact-value">
-                  {#if !profile.lastActivityVisible}
-                    <span class="profile-private-value">
-                      <span class="iconify uil--eye-slash" aria-hidden="true"></span>
-                      {m['profile.last_activity_hidden']()}
-                    </span>
-                  {:else if profile.lastActivity}
-                    {formatDateTime(profile.lastActivity)}
-                  {:else}
-                    <span class="profile-muted-value">
-                      {m['profile.last_activity_unavailable']()}
-                    </span>
-                  {/if}
-                </span>
-              </span>
+              </dt>
+              <dd class="profile-fact-value">
+                {#if !profile.lastActivityVisible}
+                  <span class="profile-private-value">
+                    <span class="iconify uil--eye-slash" aria-hidden="true"></span>
+                    {m['profile.last_activity_hidden']()}
+                  </span>
+                {:else if profile.lastActivity}
+                  {formatDateTime(profile.lastActivity)}
+                {:else}
+                  <span class="profile-muted-value">
+                    {m['profile.last_activity_unavailable']()}
+                  </span>
+                {/if}
+              </dd>
             </div>
-          </div>
+          </dl>
         </section>
 
         <section
@@ -828,14 +841,25 @@ UserContextMenu so every existing identity entry point keeps the same contract.
   .profile-fact {
     display: grid;
     min-width: 0;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: 2.55rem minmax(0, 1fr);
     align-items: center;
-    gap: 0.75rem;
+    column-gap: 0.75rem;
+    row-gap: 0.22rem;
     border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
     border-radius: 1rem;
     background: var(--color-surface-100);
     padding: 0.9rem;
     box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  }
+
+  .profile-fact-term {
+    display: grid;
+    min-width: 0;
+    grid-column: 1 / -1;
+    grid-template-columns: 2.55rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
   }
 
   .profile-fact-icon {
@@ -850,12 +874,6 @@ UserContextMenu so every existing identity entry point keeps the same contract.
     font-size: 1.15rem;
   }
 
-  .profile-fact-copy {
-    display: grid;
-    min-width: 0;
-    gap: 0.22rem;
-  }
-
   .profile-fact-label {
     color: var(--color-muted);
     font-size: 0.68rem;
@@ -866,6 +884,8 @@ UserContextMenu so every existing identity entry point keeps the same contract.
 
   .profile-fact-value {
     min-width: 0;
+    grid-column: 2;
+    margin: 0;
     color: var(--color-text-top);
     font-size: 0.84rem;
     font-weight: 650;
