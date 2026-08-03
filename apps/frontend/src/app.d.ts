@@ -9,6 +9,7 @@ declare global {
       notificationServerId?: string;
       notificationSidebarOpen?: boolean;
       profileDialog?: string;
+      avatarFramingDialog?: string;
       threadFilter?: 'all' | 'unread';
       welcome?: boolean;
       modal?: {

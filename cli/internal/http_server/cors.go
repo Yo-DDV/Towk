@@ -11,7 +11,7 @@ import (
 
 const (
 	serverDiscoveryConnectPath = connectAPIPrefix + "/chatto.discovery.v1.ServerDiscoveryService/GetServer"
-	corsAllowedHeaders         = "Authorization, Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, X-CSRF-Token, X-Towk-Locale, Range, If-Range, If-None-Match, If-Modified-Since"
+	corsAllowedHeaders         = "Authorization, Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms, X-CSRF-Token, X-Towk-Locale, X-Towk-Avatar-Framing, Range, If-Range, If-None-Match, If-Modified-Since"
 )
 
 // buildAllowedOrigins constructs the list of origins that are allowed for CORS
@@ -107,7 +107,6 @@ func (s *HTTPServer) corsMiddleware(allowedOrigins []string) gin.HandlerFunc {
 				// Cross-origin clients authenticate via Bearer tokens, not cookies.
 				c.Header("Access-Control-Allow-Origin", "*")
 			} else {
-				// Explicit origin: reflect the origin and allow credentials (cookies).
 				c.Header("Access-Control-Allow-Origin", origin)
 				c.Header("Access-Control-Allow-Credentials", "true")
 				c.Header("Vary", "Origin")
