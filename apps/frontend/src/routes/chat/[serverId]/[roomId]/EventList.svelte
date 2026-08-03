@@ -1168,19 +1168,17 @@
 
   useMayHaveMissedMessagesCallback((signal) => refreshAfterPossibleMiss(signal));
 
-  // Re-evaluate "are we at the bottom?" when the tab regains visibility — the
-  // browser may have throttled virtua's measurements or our auto-scroll effect
-  // while hidden, leaving shouldScrollToBottom=true even though the scroll has
-  // drifted off the bottom (which would suppress the Jump to Present button).
+  // A sticky timeline can drift while the browser throttles Virtua or refreshes
+  // expiring media in the background. The logical sticky state records the
+  // user's intent, so a resume-time measurement must repair the physical
+  // offset instead of converting that non-user drift into scrollback mode.
   useTabResumeCallback(() => {
     tombstoneClockVersion += 1;
     if (alwaysScrollToBottom || !shouldScrollToBottom || !initialScrollDone) return;
-    if (!virtualizerHandle) return;
-    const dist =
-      virtualizerHandle.getScrollSize() -
-      virtualizerHandle.getScrollOffset() -
-      virtualizerHandle.getViewportSize();
-    if (dist > 50) setShouldScrollToBottom(false);
+    const bottomDistance = distanceFromBottom();
+    if (bottomDistance !== null && bottomDistance > 20) {
+      void requestBottomScroll();
+    }
   });
 
   let forwardLoadInFlight = false;
