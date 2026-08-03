@@ -151,6 +151,12 @@ jobs:
             src/lib/components/users/UserProfileSurface.polish.css \
             src/lib/components/users/UserProfileSurface.polish.spec.ts
 
+      - name: Install Chromium for browser tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend exec playwright install --with-deps chromium
+
       - name: Run focused frontend checks
         shell: bash
         run: |
