@@ -67,7 +67,9 @@ import { nextCameraDeviceId } from '$lib/voice/cameraDevices';
 import {
   audioDeviceMayUseBluetooth,
   audioDeviceRouteKind,
-  preferredAudioDeviceId
+  audioInputTrackRouteKind,
+  preferredAudioDeviceId,
+  type AudioInputTrackRouteKind
 } from '$lib/voice/audioDevices';
 
 export type CallParticipantInfo = {
@@ -422,6 +424,7 @@ export class VoiceCallState {
   private participantNetworkQualityInterval: ReturnType<typeof setInterval> | null = null;
   private microphoneRouteReconcileInterval: ReturnType<typeof setInterval> | null = null;
   private microphoneRouteFingerprint: string | null = null;
+  private microphoneSourceRouteKind: AudioInputTrackRouteKind = 'unknown';
   private microphoneRouteRecoveryAttempts = 0;
   private nextMicrophoneRouteRecoveryAt = 0;
   private participantNetworkQualityPollRoom: Room | null = null;
@@ -1460,12 +1463,37 @@ export class VoiceCallState {
 
   private async updateMicrophoneProcessing(
     track: LocalAudioTrack,
-    environment: MicrophoneProcessingEnvironment = this.microphoneProcessingEnvironment(track)
+    environment: MicrophoneProcessingEnvironment = this.microphoneProcessingEnvironment(track),
+    probeSourceRoute = false
   ): Promise<void> {
     this.microphoneRouteFingerprint = microphoneTrackSettingsFingerprint(
       track.getSourceTrackSettings()
     );
     try {
+      if (probeSourceRoute && track.getProcessor()) {
+        // A processed LocalAudioTrack exposes the AudioWorklet destination,
+        // not the newly captured source label. Detach on the stable serialized
+        // path, then classify the real source before deciding whether to
+        // restore enhanced processing. This is also the required clock reset
+        // when the OS coupled an output change to a Bluetooth microphone.
+        const resetStatus = await ensureBackgroundNoiseSuppression(
+          track,
+          this.microphoneProcessingPreferences,
+          {
+            ...environment,
+            routeIdentityKnown: false
+          }
+        );
+        if (track.getProcessor()) {
+          // A failed LiveKit detach can reacquire native capture while keeping
+          // the old processor reference until its lifecycle settles. Do not
+          // reinterpret that stale destination as a safe source or re-enable
+          // the graph during the same route transition.
+          this.microphoneProcessing = resetStatus;
+          return;
+        }
+        environment = this.microphoneProcessingEnvironment(track);
+      }
       this.microphoneProcessing = await ensureBackgroundNoiseSuppression(
         track,
         this.microphoneProcessingPreferences,
@@ -1532,12 +1560,16 @@ export class VoiceCallState {
     }
   }
 
-  private async reconcileMicrophoneProcessing(room: Room): Promise<void> {
+  private async reconcileMicrophoneProcessing(room: Room, probeSourceRoute = false): Promise<void> {
     if (this.room !== room || this.isMuted) return;
     const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
     const track = publication?.track as LocalAudioTrack | undefined;
     if (!track) return;
-    await this.updateMicrophoneProcessing(track);
+    await this.updateMicrophoneProcessing(
+      track,
+      this.microphoneProcessingEnvironment(track),
+      probeSourceRoute
+    );
   }
 
   private async prepareBluetoothMicrophoneTransition(
@@ -1627,6 +1659,10 @@ export class VoiceCallState {
     );
     const routeKinds = routeDevices.map((device) => audioDeviceRouteKind(device));
     const availableRouteKinds = this.audioDevices.map((device) => audioDeviceRouteKind(device));
+    const sourceRouteKind = track.getProcessor()
+      ? this.microphoneSourceRouteKind
+      : audioInputTrackRouteKind(track.mediaStreamTrack.label);
+    if (!track.getProcessor()) this.microphoneSourceRouteKind = sourceRouteKind;
     const usesLogicalRoute = routeKinds.some(
       (kind) => kind === 'default' || kind === 'communications'
     );
@@ -1636,13 +1672,14 @@ export class VoiceCallState {
       // to Bluetooth while LiveKit and the device inventory still retain the
       // logical route id. A logical route is also treated as Bluetooth while
       // any enumerated Bluetooth input could be hidden behind it.
-      bluetoothRoute: routeDevices.some((device) =>
-        audioDeviceMayUseBluetooth(device, this.audioDevices)
-      ),
+      bluetoothRoute:
+        sourceRouteKind === 'bluetooth' ||
+        routeDevices.some((device) => audioDeviceMayUseBluetooth(device, this.audioDevices)),
       documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
       // A logical route is safe for enhanced processing only when the current
       // inventory contains no Bluetooth input that could replace its clock.
       routeIdentityKnown:
+        sourceRouteKind !== 'unknown' ||
         routeKinds.some((kind) => kind !== 'default' && kind !== 'communications') ||
         (usesLogicalRoute && !hasAvailableBluetoothInput)
     };
@@ -2264,10 +2301,21 @@ export class VoiceCallState {
       if (kind === 'audioinput') {
         this.selectedDeviceId = deviceId;
         if (this.explicitMediaDeviceOperationDepth === 0) {
-          void this.serializeAudioInputOperation(() => this.reconcileMicrophoneProcessing(room));
+          void this.serializeAudioInputOperation(() =>
+            this.reconcileMicrophoneProcessing(room, true)
+          );
         }
       } else if (kind === 'audiooutput') {
         this.selectedOutputDeviceId = deviceId;
+        // An OS route change can couple the output to a different microphone
+        // or communication profile even when this engine also exposes
+        // setSinkId(). Explicit Towk changes are already handled by their
+        // serialized operation; every external output change gets one probe.
+        if (this.explicitMediaDeviceOperationDepth === 0) {
+          void this.serializeAudioInputOperation(() =>
+            this.reconcileMicrophoneProcessing(room, true)
+          );
+        }
       } else if (kind === 'videoinput') {
         this.selectedVideoDeviceId = deviceId;
       }
@@ -2360,13 +2408,18 @@ export class VoiceCallState {
 
   private async handleMediaDevicesChanged(room: Room): Promise<void> {
     if (this.room !== room) return;
+    const previousAudioInputFingerprint = audioDeviceInventoryFingerprint(this.audioDevices);
     await this.refreshDevices();
     if (this.room !== room) return;
     if (this.microphoneRouteRecovering) {
       await this.attemptAutomaticMicrophoneRouteRecovery(room, true);
       return;
     }
-    await this.serializeAudioInputOperation(() => this.reconcileMicrophoneProcessing(room));
+    const audioInputChanged =
+      previousAudioInputFingerprint !== audioDeviceInventoryFingerprint(this.audioDevices);
+    await this.serializeAudioInputOperation(() =>
+      this.reconcileMicrophoneProcessing(room, audioInputChanged)
+    );
   }
 
   private async observeMicrophoneRoute(room: Room): Promise<void> {
@@ -2385,7 +2438,7 @@ export class VoiceCallState {
     if (fingerprint === this.microphoneRouteFingerprint) return;
     this.microphoneRouteFingerprint = fingerprint;
     if (settings.deviceId) this.selectedDeviceId = settings.deviceId;
-    await this.serializeAudioInputOperation(() => this.reconcileMicrophoneProcessing(room));
+    await this.serializeAudioInputOperation(() => this.reconcileMicrophoneProcessing(room, true));
   }
 
   private beginMicrophoneRouteRecovery(): void {
@@ -2921,6 +2974,7 @@ export class VoiceCallState {
     this.participantNetworkQualitySmoothing.clear();
     this.participantNetworkQualityPollRoom = null;
     this.microphoneRouteFingerprint = null;
+    this.microphoneSourceRouteKind = 'unknown';
     this.audioLevelCache.clear();
     this.notifyAudioLevelListeners();
   }
@@ -3674,7 +3728,7 @@ function createScreenSharePublishOptions(highFrameRate = false): TrackPublishOpt
 
 function setLocalCameraPublishingQuality(room: Room, quality: VideoQuality): void {
   const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
-  if (!track || !("setPublishingQuality" in track)) return;
+  if (!track || !('setPublishingQuality' in track)) return;
   const setPublishingQuality = track.setPublishingQuality;
   if (typeof setPublishingQuality !== 'function') return;
   setPublishingQuality.call(track, quality);
@@ -3744,6 +3798,14 @@ function availableDeviceId(
     return activeDeviceId;
   }
   return devices[0]?.deviceId ?? null;
+}
+
+function audioDeviceInventoryFingerprint(devices: MediaDeviceInfo[]): string {
+  return JSON.stringify(
+    devices
+      .map((device) => [device.deviceId, device.groupId, device.kind, device.label])
+      .sort(([leftDeviceId], [rightDeviceId]) => leftDeviceId.localeCompare(rightDeviceId))
+  );
 }
 
 function microphoneProcessingConstraints(

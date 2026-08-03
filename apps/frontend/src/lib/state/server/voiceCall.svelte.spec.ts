@@ -68,6 +68,8 @@ let microphoneFailure: Error | null = null;
 let microphoneFailuresRemaining: number | null = null;
 let microphoneProcessor: { name: string } | null = null;
 let microphoneTrackSettings: MediaTrackSettings;
+let microphoneSourceTrackLabel = 'Microphone';
+let microphoneProcessedTrackLabel = 'MediaStreamAudioDestinationNode';
 let microphoneSetProcessor = vi.fn(async (processor: { name: string }) => {
   microphoneProcessor = processor;
   Object.assign(processor, {
@@ -96,7 +98,7 @@ let microphonePublication: {
     source: string;
     getProcessor: () => { name: string } | null;
     getSourceTrackSettings: () => MediaTrackSettings;
-    mediaStreamTrack: { getSettings: () => MediaTrackSettings };
+    mediaStreamTrack: { readonly label: string; getSettings: () => MediaTrackSettings };
     setProcessor: typeof microphoneSetProcessor;
     stopProcessor: typeof microphoneStopProcessor;
     restartTrack: typeof microphoneRestartTrack;
@@ -191,6 +193,11 @@ vi.mock('livekit-client', () => {
               getProcessor: () => microphoneProcessor,
               getSourceTrackSettings: () => microphoneTrackSettings,
               mediaStreamTrack: {
+                get label() {
+                  return microphoneProcessor
+                    ? microphoneProcessedTrackLabel
+                    : microphoneSourceTrackLabel;
+                },
                 getSettings: () => microphoneTrackSettings
               },
               setProcessor: microphoneSetProcessor,
@@ -522,6 +529,8 @@ describe('VoiceCallState', () => {
       noiseSuppression: true,
       sampleRate: 48_000
     };
+    microphoneSourceTrackLabel = 'Microphone';
+    microphoneProcessedTrackLabel = 'MediaStreamAudioDestinationNode';
     microphoneSetProcessor = vi.fn(async (processor: { name: string }) => {
       microphoneProcessor = processor;
       Object.assign(processor, {
@@ -1318,6 +1327,154 @@ describe('VoiceCallState', () => {
 
     expect(microphoneSetProcessor).toHaveBeenCalledOnce();
     expect(state.microphoneProcessing.noiseSuppression).toBe('rnnoise');
+  });
+
+  it('uses the WebKit source label to restore suppression across opaque route changes', async () => {
+    microphoneTrackSettings = {
+      autoGainControl: true,
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 48_000
+    };
+    microphoneSourceTrackLabel = 'iPhone Microphone';
+    vi.mocked(Room.getLocalDevices).mockImplementation(async () => []);
+    activeDeviceIds.set('audioinput', 'opaque-ios-route');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('rnnoise');
+
+    microphoneSourceTrackLabel = 'AirPods Pro';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audioinput', 'opaque-airpods-route');
+    await flushPromises();
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+
+    microphoneSourceTrackLabel = 'iPhone Microphone';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audioinput', 'opaque-ios-route-2');
+    await flushPromises();
+
+    expect(microphoneSetProcessor).toHaveBeenCalledTimes(2);
+    expect(state.microphoneProcessing.noiseSuppression).toBe('rnnoise');
+  });
+
+  it('reprobes the microphone after an opaque system output change even when setSinkId exists', async () => {
+    microphoneTrackSettings = {
+      autoGainControl: true,
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 48_000
+    };
+    microphoneSourceTrackLabel = 'iPhone Microphone';
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audiooutput') {
+        return [
+          { deviceId: 'built-in-output', kind, label: 'Built-in speaker' } as MediaDeviceInfo
+        ];
+      }
+      return [];
+    });
+    activeDeviceIds.set('audioinput', 'opaque-ios-route');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    expect(state.isAudioOutputSelectionSupported).toBe(true);
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+
+    microphoneSourceTrackLabel = 'AirPods Pro';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audiooutput', 'system-bluetooth-output');
+    await flushPromises();
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+  });
+
+  it('reprobes the microphone when a named Bluetooth output becomes active', async () => {
+    microphoneTrackSettings = {
+      autoGainControl: true,
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 48_000
+    };
+    microphoneSourceTrackLabel = 'MacBook Pro Microphone';
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audioinput') return [];
+      if (kind === 'audiooutput') {
+        return [
+          {
+            deviceId: 'built-in-output',
+            kind,
+            label: 'Built-in speaker'
+          } as MediaDeviceInfo,
+          {
+            deviceId: 'airpods-output',
+            kind,
+            label: 'AirPods Pro'
+          } as MediaDeviceInfo
+        ];
+      }
+      return [];
+    });
+    activeDeviceIds.set('audioinput', 'opaque-webkit-route');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    expect(state.isAudioOutputSelectionSupported).toBe(true);
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+
+    state.selectedOutputDeviceId = 'built-in-output';
+    microphoneSourceTrackLabel = 'AirPods Pro';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audiooutput', 'airpods-output');
+    await flushPromises();
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+  });
+
+  it('does not duplicate the microphone probe inside an explicit output switch', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    lastRoom?.switchActiveDevice.mockImplementationOnce(
+      async (kind: MediaDeviceKind, deviceId: string) => {
+        activeDeviceIds.set(kind, deviceId);
+        roomEventHandlers.get('ActiveDeviceChanged')?.(kind, deviceId);
+      }
+    );
+
+    await state.setAudioOutputDevice('external-speaker');
+
+    expect(microphoneStopProcessor).not.toHaveBeenCalled();
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.selectedOutputDeviceId).toBe('external-speaker');
+  });
+
+  it('stays native when a route probe reacquires capture but the old processor is still referenced', async () => {
+    delete (HTMLMediaElement.prototype as Partial<HTMLMediaElement>).setSinkId;
+    microphoneSourceTrackLabel = 'iPhone Microphone';
+    vi.mocked(Room.getLocalDevices).mockImplementation(async () => []);
+    activeDeviceIds.set('audioinput', 'opaque-ios-route');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+
+    microphoneStopProcessor.mockRejectedValueOnce(
+      new DOMException('route changed while detaching', 'OverconstrainedError')
+    );
+    microphoneSourceTrackLabel = 'AirPods Pro';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audiooutput', 'system-bluetooth-output');
+    await flushPromises(20);
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(microphoneRestartTrack).toHaveBeenCalledOnce();
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
   });
 
   it('keeps a logical default route native when a Bluetooth input is available', async () => {
@@ -3222,6 +3379,50 @@ describe('VoiceCallState', () => {
       echoCancellation: true,
       noiseSuppression: 'native'
     });
+  });
+
+  it('does not rebuild enhanced processing when device enumeration only changes order', async () => {
+    const firstInput = {
+      deviceId: 'audio-input-1',
+      groupId: 'built-in-audio',
+      kind: 'audioinput',
+      label: 'Built-in microphone'
+    } as MediaDeviceInfo;
+    const secondInput = {
+      deviceId: 'usb-microphone',
+      groupId: 'usb-audio',
+      kind: 'audioinput',
+      label: 'USB microphone'
+    } as MediaDeviceInfo;
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audioinput') return [firstInput, secondInput];
+      if (kind === 'audiooutput') {
+        return [{ deviceId: 'audio-output-1', kind, label: 'Speaker' } as MediaDeviceInfo];
+      }
+      if (kind === 'videoinput') {
+        return [{ deviceId: 'video-input-1', kind, label: 'Camera' } as MediaDeviceInfo];
+      }
+      return [];
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audioinput') return [secondInput, firstInput];
+      if (kind === 'audiooutput') {
+        return [{ deviceId: 'audio-output-1', kind, label: 'Speaker' } as MediaDeviceInfo];
+      }
+      if (kind === 'videoinput') {
+        return [{ deviceId: 'video-input-1', kind, label: 'Camera' } as MediaDeviceInfo];
+      }
+      return [];
+    });
+    roomEventHandlers.get('MediaDevicesChanged')?.();
+    await flushPromises(20);
+
+    expect(microphoneStopProcessor).not.toHaveBeenCalled();
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
   });
 
   it('reconciles enhanced processing from LiveKit active-device changes without devicechange', async () => {

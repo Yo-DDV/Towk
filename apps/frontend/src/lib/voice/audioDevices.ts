@@ -14,6 +14,8 @@ export type FriendlyAudioDeviceLabels = {
 export type AudioDeviceRouteKind =
   'bluetooth' | 'communications' | 'default' | 'earpiece' | 'speakerphone' | 'unknown';
 
+export type AudioInputTrackRouteKind = 'bluetooth' | 'built-in' | 'wired' | 'unknown';
+
 export type PreferredAudioDeviceSelection = {
   activeDeviceId?: string | null;
   explicitDeviceId?: string | null;
@@ -61,6 +63,24 @@ export function audioDeviceRouteKind(device: MediaDeviceInfo): AudioDeviceRouteK
   if (device.deviceId === 'communications') return 'communications';
   if (isEarpieceRouteLabel(normalized)) return 'earpiece';
   if (isSpeakerphoneRouteLabel(normalized)) return 'speakerphone';
+  return 'unknown';
+}
+
+/**
+ * Classify the label on the captured source track itself.
+ *
+ * WebKit can return a valid microphone track whose deviceId does not correlate
+ * with enumerateDevices(). The source label is then the only browser-exposed
+ * evidence that distinguishes a built-in microphone from a Bluetooth route.
+ * Generic and processor-generated labels deliberately remain unknown.
+ */
+export function audioInputTrackRouteKind(label: string): AudioInputTrackRouteKind {
+  const normalized = normalizeAudioDeviceLabel(label);
+  if (!normalized || normalized === 'microphone') return 'unknown';
+  if (normalized === 'mediastreamaudiodestinationnode') return 'unknown';
+  if (isBluetoothDeviceLabel(normalized)) return 'bluetooth';
+  if (isKnownBuiltInMicrophoneLabel(normalized)) return 'built-in';
+  if (isKnownWiredMicrophoneLabel(normalized)) return 'wired';
   return 'unknown';
 }
 
@@ -151,7 +171,35 @@ function isKnownWirelessCallRouteLabel(normalized: string): boolean {
     /\bhands[- ]?free\b/.test(normalized) ||
     /\b(?:airpods?|freebuds)\b/.test(normalized) ||
     /\b(?:galaxy|pixel|oneplus) buds/.test(normalized) ||
-    /\bwireless (?:earbuds?|earphones?|headphones?|headset)\b/.test(normalized)
+    /\bwireless (?:earbuds?|earphones?|headphones?|headset)\b/.test(normalized) ||
+    /\b(?:casque|ecouteurs?|auriculares?|kopfhorer|fones?) (?:sans fil|inalambricos?|sem fio|drahtlos)\b/.test(
+      normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    ) ||
+    /\b(?:powerbeats|beats fit|quietcomfort|linkbuds|soundcore)\b/.test(normalized) ||
+    /\b(?:wh|wf)-\d{3,4}[a-z0-9-]*\b/.test(normalized)
+  );
+}
+
+function isKnownBuiltInMicrophoneLabel(normalized: string): boolean {
+  const folded = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const mentionsMicrophone = /\b(?:microphone|mic|micro|mikrofon|microfono|microfone)\b/.test(
+    folded
+  );
+  const mentionsBuiltInDevice =
+    /\b(?:iphone|ipad|macbook(?: pro| air)?|imac(?: pro)?|mac (?:mini|studio))\b/.test(folded);
+  return (
+    (mentionsMicrophone && mentionsBuiltInDevice) ||
+    /\b(?:built[- ]?in|internal|integre|integriert|integrado) (?:array )?(?:microphone|mic|mikrofon|microfono|microfone)\b/.test(
+      folded
+    ) ||
+    /\b(?:phone|handset|telephone) (?:microphone|mic|micro)\b/.test(folded)
+  );
+}
+
+function isKnownWiredMicrophoneLabel(normalized: string): boolean {
+  return (
+    /\b(?:usb|wired)\b/.test(normalized) ||
+    /\b(?:external microphone|headset microphone|headset mic)\b/.test(normalized)
   );
 }
 
