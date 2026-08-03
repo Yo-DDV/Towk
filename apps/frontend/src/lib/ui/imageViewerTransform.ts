@@ -29,7 +29,9 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export function clampImageScale(scale: number): number {
-  return clamp(finiteOr(scale, MIN_IMAGE_SCALE), MIN_IMAGE_SCALE, MAX_IMAGE_SCALE);
+  if (scale === Number.POSITIVE_INFINITY) return MAX_IMAGE_SCALE;
+  if (!Number.isFinite(scale)) return MIN_IMAGE_SCALE;
+  return clamp(scale, MIN_IMAGE_SCALE, MAX_IMAGE_SCALE);
 }
 
 export function fitImageWithinViewport(
