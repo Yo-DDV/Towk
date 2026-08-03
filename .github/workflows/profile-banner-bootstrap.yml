@@ -47,7 +47,8 @@ jobs:
           from pathlib import Path
 
           parts = sorted(Path('.github/profile-banner-source-parts').glob('part-*'))
-          if [part.name for part in parts] != ['part-00', 'part-01', 'part-02']:
+          expected = [f'part-{index:02d}' for index in range(6)]
+          if [part.name for part in parts] != expected:
               raise SystemExit(f'unexpected profile banner source parts: {[part.name for part in parts]}')
           clean = ''.join(part.read_text(encoding='ascii') for part in parts)
           print(f'profile banner source base64={len(clean)} remainder={len(clean) % 4}')
