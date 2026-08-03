@@ -66,19 +66,28 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path('apps/frontend/src/lib/components/users/UserProfileSurface.svelte')
-          source = path.read_text(encoding='utf-8')
-          source = source.replace(
+          surface_path = Path('apps/frontend/src/lib/components/users/UserProfileSurface.svelte')
+          surface = surface_path.read_text(encoding='utf-8')
+          surface = surface.replace(
               '  let bannerVisible = $state(Boolean(bannerUrl));\n',
               '  let bannerVisible = $derived(Boolean(bannerUrl));\n',
               1,
           )
-          source = source.replace(
+          surface = surface.replace(
               "\n  $effect(() => {\n    bannerVisible = Boolean(bannerUrl);\n  });\n",
               '',
               1,
           )
-          path.write_text(source, encoding='utf-8')
+          surface_path.write_text(surface, encoding='utf-8')
+
+          editor_path = Path('apps/frontend/src/lib/components/users/ProfileBannerEditor.svelte')
+          editor = editor_path.read_text(encoding='utf-8')
+          editor = editor.replace(
+              '  let currentBannerUrl = $state(bannerUrl);\n',
+              '  let currentBannerUrl = $derived(bannerUrl);\n',
+              1,
+          )
+          editor_path.write_text(editor, encoding='utf-8')
           PY
           rm -rf .github/profile-banner-source-parts
 
@@ -113,6 +122,17 @@ jobs:
             src/lib/components/users/UserProfileSurface.stories.svelte \
             src/lib/components/users/UserProfileSurface.polish.css \
             src/lib/components/users/UserProfileSurface.polish.spec.ts
+
+      - name: Print generated profile diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '--- polish spec file references ---'
+          grep -n -E '\bfile\b' apps/frontend/src/lib/components/users/UserProfileSurface.polish.spec.ts || true
+          echo '--- polish spec lines 50-85 ---'
+          nl -ba apps/frontend/src/lib/components/users/UserProfileSurface.polish.spec.ts | sed -n '50,85p'
+          echo '--- editor state references ---'
+          grep -n -E 'currentBannerUrl|bannerUrl' apps/frontend/src/lib/components/users/ProfileBannerEditor.svelte | head -20
 
       - name: Run focused frontend checks
         shell: bash
