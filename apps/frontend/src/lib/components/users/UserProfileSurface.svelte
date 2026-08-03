@@ -114,6 +114,10 @@ UserContextMenu so every existing identity entry point keeps the same contract.
       timeStyle: 'short'
     }).format(date);
   }
+
+  function handleBiographyFocusIn() {
+    if (biographyCollapsible && !biographyExpanded) biographyExpanded = true;
+  }
 </script>
 
 <article
@@ -200,6 +204,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
                 type="button"
                 class="profile-action btn-danger"
                 onclick={onBanFromRoom}
+                aria-busy={banningFromRoom}
                 disabled={banningFromRoom}
               >
                 <span class="profile-action-icon" aria-hidden="true">
@@ -243,7 +248,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
                       'profile-role-chip',
                       role.moderation && 'profile-role-chip-moderation'
                     ]}
-                    title={role.name}
+                    title={role.displayName || role.name}
                   >
                     {#if role.moderation}
                       <span class="iconify uil--shield-check" aria-hidden="true"></span>
@@ -374,6 +379,7 @@ UserContextMenu so every existing identity entry point keeps the same contract.
               class:profile-biography-content-collapsed={biographyCollapsible &&
                 !biographyExpanded}
               data-testid="profile-biography-content"
+              onfocusin={handleBiographyFocusIn}
             >
               {#if biography.trim()}
                 <MessageContent body={biography} />
