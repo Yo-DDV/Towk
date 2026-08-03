@@ -438,6 +438,34 @@ describe('UserContextMenu', () => {
     expect(container.textContent).toContain('Collapse biography');
   });
 
+  it('expands a long biography before a clipped link receives keyboard focus', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      ...profile,
+      biographyMarkdown: [
+        ...Array.from(
+          { length: 24 },
+          (_, index) => `Paragraph ${index + 1} keeps the biography preview deliberately long.`
+        ),
+        '[Profile link](https://example.com/profile)'
+      ].join('\n\n')
+    });
+    const { container } = renderMenu();
+
+    await vi.waitFor(() => expect(container.textContent).toContain('Show full biography'));
+    const content = q(container, '[data-testid="profile-biography-content"]');
+    const link = content?.querySelector<HTMLAnchorElement>('a');
+    if (!content || !link) throw new Error('Expected the long biography link to be rendered.');
+    expect(content.classList.contains('profile-biography-content-collapsed')).toBe(true);
+
+    link.focus();
+
+    await vi.waitFor(() =>
+      expect(content.classList.contains('profile-biography-content-collapsed')).toBe(false)
+    );
+    expect(document.activeElement).toBe(link);
+    expect(container.textContent).toContain('Collapse biography');
+  });
+
   it('does not expose message or call actions for deleted users', async () => {
     mocks.getUserProfile.mockResolvedValue({
       ...profile,
