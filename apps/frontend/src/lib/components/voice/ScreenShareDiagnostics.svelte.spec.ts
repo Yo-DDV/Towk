@@ -113,7 +113,6 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
         onclose: vi.fn()
       }
     });
-
     await vi.advanceTimersByTimeAsync(0);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(1);
     const panel = document.getElementById('diagnostics-test')!;
@@ -127,6 +126,7 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(panel.querySelector('summary')?.className).toContain('min-h-[44px]');
     expect(panel.textContent).toContain('Technical details');
     expect(panel.textContent).toContain('Local metrics');
+    expect(panel.textContent).not.toContain('Updated');
     expect(panel.textContent).not.toContain('Transport');
 
     (panel.querySelector('summary') as HTMLElement).click();
@@ -149,6 +149,56 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     await vi.advanceTimersByTimeAsync(4_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(3);
     expect(document.getElementById('diagnostics-test')).toBeNull();
+  });
+
+  it('keeps the compact summary stable and fully visible while values refresh', async () => {
+    vi.useFakeTimers({ now: 1_000 });
+    let sample = 0;
+    const getRTCStatsReport = vi.fn(async () => statsReport(sample++));
+    const rendered = render(ScreenShareDiagnostics, {
+      props: {
+        track: { getRTCStatsReport } as unknown as Track,
+        direction: 'inbound',
+        panelId: 'diagnostics-stable-layout-test',
+        onclose: vi.fn()
+      }
+    });
+    Object.assign(rendered.container.style, {
+      position: 'relative',
+      width: '800px',
+      height: '600px'
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+    const panel = document.getElementById('diagnostics-stable-layout-test')!;
+    const summary = panel.querySelector<HTMLElement>(
+      '[data-testid="screen-share-diagnostics-summary"]'
+    )!;
+    const firstMetric = summary.querySelector<HTMLElement>(
+      '[data-screen-share-metric="resolution"]'
+    )!;
+    const scroller = panel.querySelector<HTMLElement>(
+      '[data-testid="screen-share-diagnostics-scroll"]'
+    )!;
+
+    expect(summary.children.length).toBeGreaterThanOrEqual(10);
+    expect(summary.getAttribute('aria-live')).toBe('off');
+    expect(panel.getBoundingClientRect().width).toBeGreaterThanOrEqual(700);
+    expect(getComputedStyle(summary).gridTemplateColumns.split(' ').length).toBe(2);
+    expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
+    expect(summary.querySelector('[data-screen-share-metric="resolution"]')).toBe(firstMetric);
+    expect(scroller.scrollTop).toBe(0);
+    expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
+    expect(panel.textContent).not.toContain('Updated');
+
+    Object.assign(rendered.container.style, { width: '320px', height: '568px' });
+    expect(panel.getBoundingClientRect().width).toBeLessThanOrEqual(320);
+    expect(getComputedStyle(summary).gridTemplateColumns.split(' ')).toHaveLength(1);
+    expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth + 1);
+    rendered.unmount();
   });
 
   it('shows an explicit unavailable state, keeps retrying, and recovers while open', async () => {
@@ -229,12 +279,11 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     const panel = document.getElementById('diagnostics-age-test')!;
     expect(panel.textContent).toContain('1920 × 1080');
     expect(panel.textContent).toContain('Live');
-    expect(panel.textContent).toContain('Updated now');
+    expect(panel.textContent).not.toContain('Updated');
 
     await vi.advanceTimersByTimeAsync(5_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
     expect(panel.textContent).toContain('1920 × 1080');
-    expect(panel.textContent).toContain('Updated 5 s ago');
     expect(panel.textContent).toContain('Collecting');
     expect(panel.textContent).not.toContain('Excellent');
     rendered.unmount();

@@ -37,16 +37,8 @@ strictly local, starts only while this component is mounted, and stops on close.
   let loading = $state(true);
   let unavailable = $state(false);
   let technicalDetailsOpen = $state(false);
-  let clock = $state(Date.now());
+  let stale = $state(false);
   let formattingLocale = $derived(getFormattingLocale());
-
-  $effect(() => {
-    clock = Date.now();
-    const interval = setInterval(() => {
-      clock = Date.now();
-    }, 1_000);
-    return () => clearInterval(interval);
-  });
 
   $effect(() => {
     const activeTrack = track;
@@ -55,11 +47,20 @@ strictly local, starts only while this component is mounted, and stops on close.
     let cancelled = false;
     let inFlight = false;
     let consecutiveFailures = 0;
+    let staleTimer: ReturnType<typeof setTimeout> | null = null;
     sample = null;
     history = [];
     technicalDetailsOpen = false;
     loading = true;
     unavailable = false;
+    stale = false;
+
+    const scheduleStaleState = () => {
+      if (staleTimer) clearTimeout(staleTimer);
+      staleTimer = setTimeout(() => {
+        if (!cancelled) stale = true;
+      }, SCREEN_SHARE_DIAGNOSTICS_INTERVAL_MS * 2 + 500);
+    };
 
     const collect = async () => {
       if (cancelled || inFlight) return;
@@ -77,6 +78,8 @@ strictly local, starts only while this component is mounted, and stops on close.
         sample = nextSample;
         history = appendScreenShareDiagnosticsSample(history, result.sample);
         unavailable = false;
+        stale = false;
+        scheduleStaleState();
       } catch {
         if (!cancelled) {
           consecutiveFailures += 1;
@@ -93,6 +96,7 @@ strictly local, starts only while this component is mounted, and stops on close.
     return () => {
       cancelled = true;
       clearInterval(interval);
+      if (staleTimer) clearTimeout(staleTimer);
     };
   });
 
@@ -132,19 +136,12 @@ strictly local, starts only while this component is mounted, and stops on close.
     return value >= 1_000 ? `${formatNumber(value / 1_000, 1)} s` : `${formatNumber(value)} ms`;
   }
 
-  function sampleAgeLabel(current: ScreenShareDiagnosticsSample): string {
-    const seconds = Math.max(0, Math.floor((clock - current.collectedAt) / 1_000));
-    return seconds < 1
-      ? m['voice.screen_stats_updated_now']()
-      : m['voice.screen_stats_updated_seconds']({ seconds: formatNumber(seconds) });
-  }
-
-  function sampleIsLive(current: ScreenShareDiagnosticsSample): boolean {
-    return clock - current.collectedAt <= SCREEN_SHARE_DIAGNOSTICS_INTERVAL_MS * 2;
+  function sampleIsLive(): boolean {
+    return !stale;
   }
 
   function displayedHealth(current: ScreenShareDiagnosticsSample): ScreenShareDiagnosticsHealth {
-    return unavailable || !sampleIsLive(current) ? 'unknown' : current.health;
+    return unavailable || !sampleIsLive() ? 'unknown' : current.health;
   }
 
   function healthLabel(health: ScreenShareDiagnosticsHealth): string {
@@ -272,28 +269,32 @@ strictly local, starts only while this component is mounted, and stops on close.
   role="region"
   aria-label={m['voice.screen_stats_title']()}
   tabindex="-1"
-  class="screen-share-diagnostics-overlay @container pointer-events-auto absolute z-30 flex min-w-0 flex-col overflow-hidden rounded-md border border-white/15 bg-black/85 text-white shadow-2xl backdrop-blur-md"
+  class="screen-share-diagnostics-overlay @container pointer-events-auto absolute z-30 flex min-w-0 flex-col overflow-hidden rounded-xl border border-white/20 bg-black/90 text-white shadow-2xl backdrop-blur-xl"
   data-testid="screen-share-diagnostics-panel"
 >
-  <header class="flex min-h-10 shrink-0 items-center gap-2 border-b border-white/10 px-2 py-1.5">
+  <header
+    class="flex min-h-14 shrink-0 items-center gap-3 border-b border-white/10 px-3 py-2.5 @min-[36rem]:px-4"
+  >
     <span class="relative flex h-2 w-2 shrink-0" aria-hidden="true">
       <span class="absolute inline-flex h-full w-full rounded-full bg-success opacity-25"></span>
       <span class="relative inline-flex h-2 w-2 rounded-full bg-success"></span>
     </span>
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-1.5">
-        <h2 class="truncate text-[11px] font-semibold tracking-wide text-white/85 uppercase">
+        <h2
+          class="truncate text-xs font-semibold tracking-wide text-white/90 uppercase @min-[36rem]:text-sm"
+        >
           {m['voice.screen_stats_title']()}
         </h2>
         <span
-          class="rounded-full border border-white/10 bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-white/65 uppercase"
+          class="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[9px] font-semibold tracking-wide text-white/70 uppercase"
         >
           {direction === 'outbound'
             ? m['voice.screen_stats_sending']()
             : m['voice.screen_stats_receiving']()}
         </span>
       </div>
-      <p class="truncate text-[9px] text-white/55">
+      <p class="truncate text-[10px] text-white/60 @min-[36rem]:text-[11px]">
         {m['voice.screen_stats_local_only']()}
       </p>
     </div>
@@ -309,7 +310,10 @@ strictly local, starts only while this component is mounted, and stops on close.
     </button>
   </header>
 
-  <div class="min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain px-2 py-2">
+  <div
+    class="min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain p-3 @min-[36rem]:p-4"
+    data-testid="screen-share-diagnostics-scroll"
+  >
     {#if loading && !sample}
       <div class="flex min-h-24 items-center justify-center gap-2 text-xs text-white/70">
         <span class="iconify animate-spin text-base uil--spinner" aria-hidden="true"></span>
@@ -322,8 +326,10 @@ strictly local, starts only while this component is mounted, and stops on close.
         <p class="text-[11px] text-white/60">{m['voice.screen_stats_retrying']()}</p>
       </div>
     {:else if sample}
-      <div class="space-y-2">
-        <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+      <div class="space-y-3">
+        <div
+          class="screen-share-diagnostics-status flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.045] px-3 py-2"
+        >
           <div class="flex min-w-0 items-center gap-2">
             <span
               class={[
@@ -341,69 +347,69 @@ strictly local, starts only while this component is mounted, and stops on close.
               </span>
             {/if}
           </div>
-          <span class="flex shrink-0 items-center gap-1 text-[9px] font-medium text-white/55">
+          <span class="flex shrink-0 items-center gap-1.5 text-[10px] font-medium text-white/70">
             <span
-              class={[
-                'h-1.5 w-1.5 rounded-full',
-                sampleIsLive(sample) ? 'bg-success' : 'bg-warning'
-              ]}
+              class={['h-1.5 w-1.5 rounded-full', sampleIsLive() ? 'bg-success' : 'bg-warning']}
               aria-hidden="true"
             ></span>
-            {#if sampleIsLive(sample)}
-              {m['voice.screen_stats_live']()} ·
-            {/if}
-            {sampleAgeLabel(sample)}
+            {sampleIsLive()
+              ? m['voice.screen_stats_live']()
+              : m['voice.screen_stats_health_unknown']()}
           </span>
         </div>
 
-        <dl class="screen-share-diagnostics-grid text-[11px] leading-tight tabular-nums">
-          <div>
+        <dl
+          class="screen-share-diagnostics-grid text-[11px] leading-tight tabular-nums"
+          data-testid="screen-share-diagnostics-summary"
+          aria-live="off"
+        >
+          <div data-screen-share-metric="resolution">
             <dt>{m['voice.screen_stats_resolution']()}</dt>
             <dd>{formatResolution(sample.width, sample.height)}</dd>
           </div>
           {#if direction === 'outbound'}
-            <div>
+            <div data-screen-share-metric="source-resolution">
               <dt>{m['voice.screen_stats_source_resolution']()}</dt>
               <dd>{formatResolution(sample.sourceWidth, sample.sourceHeight)}</dd>
             </div>
           {/if}
-          <div>
+          <div data-screen-share-metric="fps">
             <dt>{m['voice.screen_stats_fps']()}</dt>
             <dd>{formatNumber(sample.framesPerSecond, 1)} FPS</dd>
           </div>
-          <div>
+          <div data-screen-share-metric="bitrate">
             <dt>{m['voice.screen_stats_bitrate']()}</dt>
             <dd>{formatBitrate(sample.bitrateBps)}</dd>
           </div>
-          <div>
+          <div data-screen-share-metric="bandwidth">
             <dt>{m['voice.screen_stats_available_bandwidth']()}</dt>
             <dd>{formatBitrate(sample.availableBitrateBps)}</dd>
           </div>
-          <div>
+          <div data-screen-share-metric="packet-loss">
             <dt>{m['voice.screen_stats_packet_loss']()}</dt>
             <dd>{formatPercent(sample.packetLossPercent)}</dd>
           </div>
-          <div>
+          <div data-screen-share-metric="packets">
             <dt>{m['voice.screen_stats_packets']()}</dt>
             <dd>{packetsValue(sample)}</dd>
           </div>
-          <div>
+          <div data-screen-share-metric="frames">
             <dt>{m['voice.screen_stats_frames']()}</dt>
             <dd>{framesValue(sample)}</dd>
           </div>
           {#if direction === 'inbound'}
-            <div>
+            <div data-screen-share-metric="frame-drop">
               <dt>{m['voice.screen_stats_frame_drop']()}</dt>
               <dd>{formatPercent(sample.frameDropPercent)}</dd>
             </div>
           {/if}
-          <div>
+          <div data-screen-share-metric="rtt-jitter">
             <dt>{m['voice.screen_stats_rtt']()} / {m['voice.screen_stats_jitter']()}</dt>
             <dd>
               {formatMilliseconds(sample.roundTripTimeMs)} / {formatMilliseconds(sample.jitterMs)}
             </dd>
           </div>
-          <div>
+          <div data-screen-share-metric="codec">
             <dt>{m['voice.screen_stats_codec']()}</dt>
             <dd class="font-mono">{sample.codec ?? '—'}</dd>
           </div>
@@ -678,12 +684,14 @@ strictly local, starts only while this component is mounted, and stops on close.
     --diagnostics-safe-right: env(safe-area-inset-right, 0px);
     --diagnostics-safe-bottom: env(safe-area-inset-bottom, 0px);
     --diagnostics-safe-left: env(safe-area-inset-left, 0px);
-    top: max(0.5rem, var(--diagnostics-safe-top));
-    left: max(0.5rem, var(--diagnostics-safe-left));
-    width: min(23rem, calc(100% - 1rem));
-    max-height: min(22rem, calc(100% - 1rem));
+    top: max(1rem, var(--diagnostics-safe-top));
+    left: 50%;
+    width: min(46rem, calc(100% - 2rem));
+    max-height: min(38rem, calc(100% - 2rem));
+    transform: translateX(-50%);
     overscroll-behavior: contain;
     touch-action: pan-y;
+    animation: diagnostics-panel-enter 160ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .screen-share-diagnostics-overlay :global([class*='overflow-y-auto']) {
@@ -692,17 +700,26 @@ strictly local, starts only while this component is mounted, and stops on close.
 
   .screen-share-diagnostics-grid {
     display: grid;
-    gap: 0.25rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.375rem;
+  }
+
+  @container (min-width: 32rem) {
+    .screen-share-diagnostics-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   .screen-share-diagnostics-grid > div {
     display: grid;
-    grid-template-columns: minmax(0, 45%) minmax(0, 1fr);
-    gap: 0.5rem;
-    align-items: baseline;
-    border-radius: 0.25rem;
-    background: rgb(255 255 255 / 0.055);
-    padding: 0.375rem 0.5rem;
+    grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
+    gap: 0.625rem;
+    min-height: 2.75rem;
+    align-items: center;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 0.5rem;
+    background: rgb(255 255 255 / 0.045);
+    padding: 0.5rem 0.625rem;
   }
 
   .screen-share-diagnostics-grid dt {
@@ -715,7 +732,9 @@ strictly local, starts only while this component is mounted, and stops on close.
 
   .screen-share-diagnostics-grid dd {
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     text-align: right;
     color: rgb(255 255 255 / 0.92);
     font-weight: 600;
@@ -726,6 +745,22 @@ strictly local, starts only while this component is mounted, and stops on close.
     overflow-wrap: anywhere;
     text-overflow: clip;
     white-space: normal;
+  }
+
+  details .screen-share-diagnostics-grid dd {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  @keyframes diagnostics-panel-enter {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 0.5rem) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%);
+    }
   }
 
   .diagnostics-trends :global(figure) {
@@ -746,8 +781,10 @@ strictly local, starts only while this component is mounted, and stops on close.
     .screen-share-diagnostics-overlay {
       right: max(0.5rem, var(--diagnostics-safe-right));
       bottom: max(0.5rem, var(--diagnostics-safe-bottom));
+      left: max(0.5rem, var(--diagnostics-safe-left));
       width: auto;
       max-height: calc(100% - 1rem);
+      transform: none;
     }
 
     .screen-share-diagnostics-grid > div {
@@ -765,6 +802,7 @@ strictly local, starts only while this component is mounted, and stops on close.
       left: max(0.5rem, var(--diagnostics-safe-left));
       width: min(23rem, calc(100% - 1rem));
       max-height: none;
+      transform: none;
     }
   }
 
@@ -778,6 +816,13 @@ strictly local, starts only while this component is mounted, and stops on close.
       left: max(0.5rem, var(--diagnostics-safe-left));
       width: auto;
       max-height: none;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .screen-share-diagnostics-overlay {
+      animation: none;
     }
   }
 </style>

@@ -1844,7 +1844,7 @@ retained only for non-joined projections that still consume this component.
     class="!max-w-none !rounded-lg !border-text/15 !bg-surface-100/95 !p-1.5 !shadow-2xl"
   >
     <table
-      class="w-[min(20rem,calc(100vw-1.75rem))] table-fixed border-separate border-spacing-0 text-left"
+      class="w-[min(20rem,calc(100vw-1.75rem))] table-fixed border-separate border-spacing-0 text-left sm:w-[36rem]"
       aria-label={participantConnectionLabel(connectionTooltipParticipant)}
       data-testid="call-connection-metrics-table"
     >
@@ -1854,13 +1854,13 @@ retained only for non-joined projections that still consume this component.
             <span class="sr-only">{participantConnectionLabel(connectionTooltipParticipant)}</span>
           </th>
           <th class="px-2 py-1 text-right text-[0.6875rem] font-semibold text-accent" scope="col">
-            <span class="inline-flex items-center justify-end gap-1">
+            <span class="inline-flex items-center justify-end gap-1 sm:whitespace-nowrap">
               <span class="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true"></span>
               {m['voice.media_telemetry_source']()}
             </span>
           </th>
           <th class="px-2 py-1 text-right text-[0.6875rem] font-semibold text-warning" scope="col">
-            <span class="inline-flex items-center justify-end gap-1">
+            <span class="inline-flex items-center justify-end gap-1 sm:whitespace-nowrap">
               <span class="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true"></span>
               {m['voice.media_telemetry_reception']()}
             </span>

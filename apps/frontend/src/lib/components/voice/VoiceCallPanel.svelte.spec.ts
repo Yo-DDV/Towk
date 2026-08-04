@@ -163,6 +163,10 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(table?.textContent).toContain('12.4%');
     expect(table?.textContent).toContain('82 ms');
     expect(table?.textContent).toContain('51 ms');
+    expect(table?.className).toContain('sm:w-[36rem]');
+    for (const heading of table?.querySelectorAll('thead th:not(:first-child) > span') ?? []) {
+      expect((heading as HTMLElement).className).toContain('sm:whitespace-nowrap');
+    }
   });
 
   it('shows the same compact metrics table on mouse hover', async () => {
