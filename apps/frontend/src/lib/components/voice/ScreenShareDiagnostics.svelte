@@ -684,10 +684,10 @@ strictly local, starts only while this component is mounted, and stops on close.
     --diagnostics-safe-right: env(safe-area-inset-right, 0px);
     --diagnostics-safe-bottom: env(safe-area-inset-bottom, 0px);
     --diagnostics-safe-left: env(safe-area-inset-left, 0px);
-    top: max(1rem, var(--diagnostics-safe-top));
+    top: max(0.25rem, var(--diagnostics-safe-top));
     left: 50%;
     width: min(46rem, calc(100% - 2rem));
-    max-height: min(38rem, calc(100% - 2rem));
+    max-height: min(38rem, calc(100% - 0.5rem));
     transform: translateX(-50%);
     overscroll-behavior: contain;
     touch-action: pan-y;

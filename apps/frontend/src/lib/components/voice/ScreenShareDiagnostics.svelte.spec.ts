@@ -194,6 +194,10 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
     expect(panel.textContent).not.toContain('Updated');
 
+    Object.assign(rendered.container.style, { height: '462px' });
+    expect(panel.getBoundingClientRect().height).toBeLessThanOrEqual(462);
+    expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
+
     Object.assign(rendered.container.style, { width: '320px', height: '568px' });
     expect(panel.getBoundingClientRect().width).toBeLessThanOrEqual(320);
     expect(getComputedStyle(summary).gridTemplateColumns.split(' ')).toHaveLength(1);
