@@ -130,7 +130,7 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(container.querySelector('[data-testid="call-packet-loss-indicator"]')).toBeNull();
   });
 
-  it('explains average latency, packet loss, and jitter on keyboard focus', async () => {
+  it('presents upload and download metrics as a compact table on keyboard focus', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'sidebar', scenario: 'voice' }
     });
@@ -150,12 +150,43 @@ describe('VoiceCallPanel screen-share audio', () => {
     });
     const tooltip = document.getElementById(trigger.getAttribute('aria-describedby') ?? '')!;
     expect(trigger.getAttribute('aria-describedby')).toBe(tooltip.id);
-    expect(tooltip.textContent).toContain('Average latency: 640 ms');
-    expect(tooltip.textContent).toContain('Packet loss: 12.4%');
-    expect(tooltip.textContent).toContain('Average jitter: 82 ms');
-    expect(tooltip.textContent).toContain('Upload statistics');
-    expect(tooltip.textContent).toContain('Download statistics');
-    expect(tooltip.textContent).toContain('Average latency: 51 ms');
+    const table = tooltip.querySelector<HTMLTableElement>(
+      '[data-testid="call-connection-metrics-table"]'
+    );
+    expect(table).not.toBeNull();
+    expect(table?.querySelectorAll('thead th')).toHaveLength(3);
+    expect(table?.querySelectorAll('tbody tr')).toHaveLength(3);
+    expect(table?.querySelectorAll('th[scope="row"]')).toHaveLength(3);
+    expect(table?.textContent).toContain('Upload statistics');
+    expect(table?.textContent).toContain('Download statistics');
+    expect(table?.textContent).toContain('640 ms');
+    expect(table?.textContent).toContain('12.4%');
+    expect(table?.textContent).toContain('82 ms');
+    expect(table?.textContent).toContain('51 ms');
+  });
+
+  it('shows the same compact metrics table on mouse hover', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'voice' }
+    });
+
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-connection-quality-indicator"][data-network-warning-metric="packetLoss"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    trigger.dispatchEvent(new MouseEvent('mouseenter'));
+
+    const tooltip = await vi.waitFor(() => {
+      const value = document.getElementById(trigger.getAttribute('aria-describedby') ?? '');
+      expect(value?.matches(':popover-open')).toBe(true);
+      return value!;
+    });
+    expect(
+      tooltip.querySelector('[data-testid="call-connection-metrics-table"] tbody')?.children
+    ).toHaveLength(3);
   });
 
   it('opens one viewport-level telemetry dialog without nesting interactive buttons', async () => {

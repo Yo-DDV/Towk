@@ -38,7 +38,6 @@
     "participant_packet_loss": "Instabiles Netzwerk — {percent} % Paketverlust",
     "participant_high_jitter": "Instabiles Netzwerk — {milliseconds} ms Jitter",
     "participant_high_latency": "Hohe Latenz — {milliseconds} ms Umlaufzeit",
-    "participant_connection_metrics": "Durchschnittliche Latenz: {latency} · Paketverlust: {packetLoss} · Durchschnittlicher Jitter: {jitter}",
     "connection_metric_unavailable": "Nicht verfügbar",
     "screen_share": "Bildschirmfreigabe",
     "screen_title": "Bildschirm von {name}",

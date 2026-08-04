@@ -573,25 +573,27 @@ retained only for non-joined projections that still consume this component.
     return m['voice.poor_connection']();
   }
 
-  function participantConnectionMetrics(participant: DisplayParticipant): string {
+  function participantConnectionMetricRows(participant: DisplayParticipant) {
     const unavailable = m['voice.connection_metric_unavailable']();
     const formatValue = (value: number | null, suffix: string) =>
       value === null ? unavailable : `${formatNetworkMetric(value)}${suffix}`;
-    const source = `${m['voice.media_telemetry_source']()}: ${m[
-      'voice.participant_connection_metrics'
-    ]({
-      latency: formatValue(participant.sourceLatencyMs, ' ms'),
-      packetLoss: formatValue(participant.sourcePacketLossPercent, '%'),
-      jitter: formatValue(participant.sourceJitterMs, ' ms')
-    })}`;
-    const reception = `${m['voice.media_telemetry_reception']()}: ${m[
-      'voice.participant_connection_metrics'
-    ]({
-      latency: formatValue(participant.reportedDownloadLatencyMs, ' ms'),
-      packetLoss: formatValue(participant.reportedDownloadPacketLossPercent, '%'),
-      jitter: formatValue(participant.reportedDownloadJitterMs, ' ms')
-    })}`;
-    return `${source} · ${reception}`;
+    return [
+      {
+        label: m['voice.media_telemetry_latency'](),
+        upload: formatValue(participant.sourceLatencyMs, ' ms'),
+        download: formatValue(participant.reportedDownloadLatencyMs, ' ms')
+      },
+      {
+        label: m['voice.media_telemetry_packet_loss'](),
+        upload: formatValue(participant.sourcePacketLossPercent, '%'),
+        download: formatValue(participant.reportedDownloadPacketLossPercent, '%')
+      },
+      {
+        label: m['voice.media_telemetry_jitter'](),
+        upload: formatValue(participant.sourceJitterMs, ' ms'),
+        download: formatValue(participant.reportedDownloadJitterMs, ' ms')
+      }
+    ];
   }
 
   function participantTelemetryPanelId(participant: DisplayParticipant): string {
@@ -1022,6 +1024,7 @@ retained only for non-joined projections that still consume this component.
     {#if participantMicrophoneMuted(participant)}
       <span
         class="iconify shrink-0 text-danger uil--microphone-slash"
+        role="img"
         aria-label={m['voice.muted']()}
         data-testid="call-muted-indicator"
       ></span>
@@ -1029,6 +1032,7 @@ retained only for non-joined projections that still consume this component.
     {#if participantOutputMuted(participant)}
       <span
         class="iconify shrink-0 text-muted uil--volume-mute"
+        role="img"
         aria-label={m['voice.output_muted']()}
         data-testid="call-output-muted-indicator"
       ></span>
@@ -1062,6 +1066,7 @@ retained only for non-joined projections that still consume this component.
       {#if participant.connectionState === 'interrupted'}
         <span
           class="iconify shrink-0 text-warning uil--sync motion-safe:animate-spin"
+          role="img"
           aria-label={m['voice.participant_reconnecting']()}
           data-testid="call-reconnecting-indicator"
         ></span>
@@ -1072,9 +1077,10 @@ retained only for non-joined projections that still consume this component.
             participant.connectionQuality === 'poor' ||
             participant.connectionQuality === 'lost' ||
             participant.networkHealth === 'poor'
-              ? 'bg-danger/10 text-danger'
+              ? 'bg-danger/5 text-[color:color-mix(in_srgb,var(--color-danger)_88%,var(--color-text-top)_12%)]'
               : 'bg-warning/10 text-warning'
           ]}
+          role="img"
           aria-label={participantNetworkWarning(participant)}
           data-testid={participant.networkWarningMetric === 'packetLoss'
             ? 'call-packet-loss-indicator'
@@ -1835,10 +1841,55 @@ retained only for non-joined projections that still consume this component.
     anchor={connectionTooltip.anchor}
     placement="top"
     id={participantConnectionTooltipId(connectionTooltipParticipant)}
+    class="!max-w-none !rounded-lg !border-text/15 !bg-surface-100/95 !p-1.5 !shadow-2xl"
   >
-    <span class="block max-w-[min(28rem,calc(100vw-1rem))] text-left whitespace-normal">
-      {participantConnectionMetrics(connectionTooltipParticipant)}
-    </span>
+    <table
+      class="w-[min(20rem,calc(100vw-1.75rem))] table-fixed border-separate border-spacing-0 text-left"
+      aria-label={participantConnectionLabel(connectionTooltipParticipant)}
+      data-testid="call-connection-metrics-table"
+    >
+      <thead>
+        <tr>
+          <th class="w-[42%] px-2 py-1" scope="col">
+            <span class="sr-only">{participantConnectionLabel(connectionTooltipParticipant)}</span>
+          </th>
+          <th class="px-2 py-1 text-right text-[0.6875rem] font-semibold text-accent" scope="col">
+            <span class="inline-flex items-center justify-end gap-1">
+              <span class="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true"></span>
+              {m['voice.media_telemetry_source']()}
+            </span>
+          </th>
+          <th class="px-2 py-1 text-right text-[0.6875rem] font-semibold text-warning" scope="col">
+            <span class="inline-flex items-center justify-end gap-1">
+              <span class="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true"></span>
+              {m['voice.media_telemetry_reception']()}
+            </span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each participantConnectionMetricRows(connectionTooltipParticipant) as row (row.label)}
+          <tr>
+            <th
+              class="border-t border-text/10 px-2 py-1.5 text-[0.6875rem] font-medium text-text/80"
+              scope="row"
+            >
+              {row.label}
+            </th>
+            <td
+              class="border-t border-text/10 px-2 py-1.5 text-right text-xs font-semibold text-text tabular-nums"
+            >
+              {row.upload}
+            </td>
+            <td
+              class="border-t border-text/10 px-2 py-1.5 text-right text-xs font-semibold text-text tabular-nums"
+            >
+              {row.download}
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
   </FloatingTooltip>
 {/if}
 

@@ -38,7 +38,6 @@
     "participant_packet_loss": "Rede instável — {percent}% de perda de pacotes",
     "participant_high_jitter": "Rede instável — {milliseconds} ms de jitter",
     "participant_high_latency": "Latência alta — {milliseconds} ms de ida e volta",
-    "participant_connection_metrics": "Latência média: {latency} · Perda de pacotes: {packetLoss} · Jitter médio: {jitter}",
     "connection_metric_unavailable": "Indisponível",
     "screen_share": "Compartilhamento de tela",
     "screen_title": "Tela de {name}",

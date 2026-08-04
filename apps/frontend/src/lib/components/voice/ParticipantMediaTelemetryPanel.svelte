@@ -255,7 +255,7 @@
 <svelte:window {onkeydown} />
 
 <div
-  class="fixed inset-0 z-[90] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+  class="telemetry-backdrop fixed inset-0 z-[90] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
   data-testid="participant-media-telemetry-backdrop"
 >
   <div
@@ -264,11 +264,11 @@
     role="dialog"
     aria-modal="true"
     aria-label={m['voice.media_telemetry_title']({ name: participantName })}
-    class="@container flex h-[min(100dvh,52rem)] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-2xl border border-text/15 bg-surface-100 text-text shadow-2xl sm:h-auto sm:max-h-[min(52rem,calc(100dvh-2rem))] sm:max-w-[56rem] sm:rounded-2xl"
+    class="telemetry-panel @container flex h-[min(100dvh,52rem)] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-2xl border border-text/15 bg-surface-100 text-text shadow-2xl sm:h-auto sm:max-h-[min(52rem,calc(100dvh-2rem))] sm:max-w-[min(64rem,calc(100vw-2rem))] sm:rounded-2xl"
     data-testid="participant-media-telemetry-panel"
   >
     <header class="flex shrink-0 items-start gap-3 border-b border-text/10 px-3 py-2.5">
-      <span class="mt-1 iconify shrink-0 text-lg text-primary uil--chart-line" aria-hidden="true"
+      <span class="mt-1 iconify shrink-0 text-lg text-accent uil--chart-line" aria-hidden="true"
       ></span>
       <span class="min-w-0 flex-1">
         <span class="block truncate text-sm font-semibold">
@@ -279,7 +279,7 @@
       <button
         bind:this={closeButton}
         type="button"
-        class="inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-md text-muted outline-none hover:bg-surface-300 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+        class="inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-md text-muted outline-none hover:bg-surface-300 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
         aria-label={m['voice.media_telemetry_close']()}
         data-testid="participant-media-telemetry-close"
         onclick={onclose}
@@ -293,8 +293,10 @@
       data-testid="participant-media-telemetry-scroll"
     >
       <div class="grid gap-3 @min-[520px]:grid-cols-2">
-        <section class="rounded-lg border border-text/10 bg-surface-200/70 p-3">
-          <h3 class="text-xs font-semibold tracking-wide text-text uppercase">
+        <section
+          class="rounded-lg border border-accent/25 bg-surface-200/70 p-3 shadow-[inset_2px_0_0_color-mix(in_srgb,var(--color-accent)_70%,transparent)]"
+        >
+          <h3 class="text-xs font-semibold tracking-wide text-accent uppercase">
             {m['voice.media_telemetry_source']()}
           </h3>
           <p class="mt-1 text-xs text-muted">{m['voice.media_telemetry_source_hint']()}</p>
@@ -302,8 +304,8 @@
             <dl class="mt-2 grid grid-cols-1 gap-2 @min-[300px]:grid-cols-3">
               {#each aggregateRows(sourceAggregate) as row (row[0])}
                 <div class="min-w-0 rounded-md bg-surface-100 px-2 py-1.5">
-                  <dt class="truncate text-[0.6875rem] text-muted">{row[0]}</dt>
-                  <dd class="truncate text-xs font-semibold tabular-nums">{row[1]}</dd>
+                  <dt class="min-h-7 text-[0.6875rem] leading-tight text-text/70">{row[0]}</dt>
+                  <dd class="text-xs font-semibold break-words tabular-nums">{row[1]}</dd>
                 </div>
               {/each}
             </dl>
@@ -318,8 +320,10 @@
           {/if}
         </section>
 
-        <section class="rounded-lg border border-text/10 bg-surface-200/70 p-3">
-          <h3 class="text-xs font-semibold tracking-wide text-text uppercase">
+        <section
+          class="rounded-lg border border-warning/25 bg-surface-200/70 p-3 shadow-[inset_2px_0_0_color-mix(in_srgb,var(--color-warning)_70%,transparent)]"
+        >
+          <h3 class="text-xs font-semibold tracking-wide text-warning uppercase">
             {m['voice.media_telemetry_reception']()}
           </h3>
           <p class="mt-1 text-xs text-muted">{m['voice.media_telemetry_reception_hint']()}</p>
@@ -327,8 +331,8 @@
             <dl class="mt-2 grid grid-cols-1 gap-2 @min-[300px]:grid-cols-3">
               {#each aggregateRows(receptionAggregate) as row (row[0])}
                 <div class="min-w-0 rounded-md bg-surface-100 px-2 py-1.5">
-                  <dt class="truncate text-[0.6875rem] text-muted">{row[0]}</dt>
-                  <dd class="truncate text-xs font-semibold tabular-nums">{row[1]}</dd>
+                  <dt class="min-h-7 text-[0.6875rem] leading-tight text-text/70">{row[0]}</dt>
+                  <dd class="text-xs font-semibold break-words tabular-nums">{row[1]}</dd>
                 </div>
               {/each}
             </dl>
@@ -363,13 +367,19 @@
                 <div class="flex flex-wrap items-start justify-between gap-2">
                   <h4 class="text-xs font-semibold">{chart.label} ({chart.unit})</h4>
                   <div class="flex flex-wrap gap-1 text-[0.6875rem] tabular-nums">
-                    <span class="rounded-full bg-primary/10 px-2 py-0.5 text-primary">
+                    <span
+                      class="rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 font-medium text-accent"
+                      data-telemetry-series="upload"
+                    >
                       {m['voice.media_telemetry_source']()}: {formatChartValue(
                         chart.sourceLatest,
                         chart.unit
                       )}
                     </span>
-                    <span class="rounded-full bg-warning/10 px-2 py-0.5 text-warning">
+                    <span
+                      class="rounded-full border border-warning/25 bg-warning/10 px-2 py-0.5 font-medium text-warning"
+                      data-telemetry-series="download"
+                    >
                       {m['voice.media_telemetry_reception']()}: {formatChartValue(
                         chart.receptionLatest,
                         chart.unit
@@ -408,14 +418,16 @@
                       {#each chart.sourceSegments as segment (segment)}
                         <polyline
                           points={segment}
-                          class="fill-none stroke-primary [stroke-width:2.5] opacity-100 transition-opacity duration-300 [stroke-linecap:round] [stroke-linejoin:round]"
+                          class="fill-none stroke-accent [stroke-width:2.5] opacity-100 transition-opacity duration-300 [stroke-linecap:round] [stroke-linejoin:round] motion-reduce:transition-none"
+                          data-telemetry-series="upload"
                           vector-effect="non-scaling-stroke"
                         />
                       {/each}
                       {#each chart.receptionSegments as segment (segment)}
                         <polyline
                           points={segment}
-                          class="fill-none stroke-warning [stroke-width:2] opacity-100 transition-opacity duration-300 [stroke-dasharray:5_4] [stroke-linecap:round] [stroke-linejoin:round]"
+                          class="fill-none stroke-warning [stroke-width:2] opacity-100 transition-opacity duration-300 [stroke-dasharray:5_4] [stroke-linecap:round] [stroke-linejoin:round] motion-reduce:transition-none"
+                          data-telemetry-series="download"
                           vector-effect="non-scaling-stroke"
                         />
                       {/each}
@@ -424,7 +436,8 @@
                           cx={chart.sourceLatestPoint.x}
                           cy={chart.sourceLatestPoint.y}
                           r="3"
-                          class="fill-primary stroke-surface-100 [stroke-width:1.5]"
+                          class="fill-accent stroke-surface-100 [stroke-width:1.5]"
+                          data-telemetry-series="upload"
                         >
                           <title
                             >{m['voice.media_telemetry_source']()}: {formatChartValue(
@@ -440,6 +453,7 @@
                           cy={chart.receptionLatestPoint.y}
                           r="3"
                           class="fill-warning stroke-surface-100 [stroke-width:1.5]"
+                          data-telemetry-series="download"
                         >
                           <title
                             >{m['voice.media_telemetry_reception']()}: {formatChartValue(
@@ -475,7 +489,7 @@
               <article class="rounded-lg border border-text/10 bg-surface-200/70 p-3">
                 <header class="flex items-center gap-2">
                   <span
-                    class={['iconify shrink-0 text-base text-primary', metricIcon(metric.kind)]}
+                    class={['iconify shrink-0 text-base text-accent', metricIcon(metric.kind)]}
                     aria-hidden="true"
                   ></span>
                   <h4 class="text-sm font-semibold">{metricLabel(metric.kind)}</h4>
@@ -528,3 +542,47 @@
     </div>
   </div>
 </div>
+
+<style>
+  .telemetry-backdrop {
+    animation: telemetry-backdrop-in 160ms ease-out both;
+  }
+
+  .telemetry-panel {
+    transform-origin: bottom center;
+    animation: telemetry-panel-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes telemetry-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes telemetry-panel-in {
+    from {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @media (min-width: 640px) {
+    .telemetry-panel {
+      transform-origin: center;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .telemetry-backdrop,
+    .telemetry-panel {
+      animation: none;
+    }
+  }
+</style>

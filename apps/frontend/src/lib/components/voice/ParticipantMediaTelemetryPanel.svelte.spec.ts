@@ -82,6 +82,18 @@ describe('ParticipantMediaTelemetryPanel', () => {
     ).toHaveLength(2);
     expect(panel.querySelectorAll('svg circle')).toHaveLength(4);
     expect(panel.querySelector('svg title')?.textContent).toContain('280 ms');
+    const uploadLegend = panel.querySelector<HTMLElement>('[data-telemetry-series="upload"]')!;
+    expect(uploadLegend).not.toBeNull();
+    const mutedProbe = document.createElement('span');
+    mutedProbe.className = 'text-muted';
+    panel.append(mutedProbe);
+    expect(uploadLegend.classList.contains('text-accent')).toBe(true);
+    expect(getComputedStyle(uploadLegend).color).not.toBe(getComputedStyle(mutedProbe).color);
+    mutedProbe.remove();
+    expect(
+      panel.querySelector<SVGPolylineElement>('polyline[data-telemetry-series="upload"]')
+    ).not.toBeNull();
+    expect(getComputedStyle(panel).animationName).not.toBe('none');
     expect(panel.textContent).not.toContain('sample age');
     const close = panel.querySelector<HTMLButtonElement>(
       '[data-testid="participant-media-telemetry-close"]'

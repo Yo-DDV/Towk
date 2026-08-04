@@ -38,7 +38,6 @@
     "participant_packet_loss": "Red inestable — {percent} % de pérdida de paquetes",
     "participant_high_jitter": "Red inestable — {milliseconds} ms de fluctuación",
     "participant_high_latency": "Latencia alta — {milliseconds} ms de ida y vuelta",
-    "participant_connection_metrics": "Latencia media: {latency} · Pérdida de paquetes: {packetLoss} · Fluctuación media: {jitter}",
     "connection_metric_unavailable": "No disponible",
     "screen_share": "compartir pantalla",
     "screen_title": "Pantalla de {name}",
