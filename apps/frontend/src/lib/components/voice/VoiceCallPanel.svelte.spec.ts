@@ -153,6 +153,9 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(tooltip.textContent).toContain('Average latency: 640 ms');
     expect(tooltip.textContent).toContain('Packet loss: 12.4%');
     expect(tooltip.textContent).toContain('Average jitter: 82 ms');
+    expect(tooltip.textContent).toContain('Upload statistics');
+    expect(tooltip.textContent).toContain('Download statistics');
+    expect(tooltip.textContent).toContain('Average latency: 51 ms');
   });
 
   it('opens one viewport-level telemetry dialog without nesting interactive buttons', async () => {

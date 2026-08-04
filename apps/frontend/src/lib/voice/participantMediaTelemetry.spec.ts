@@ -55,7 +55,7 @@ const degraded: ParticipantMediaAggregate = {
 
 describe('participant media telemetry wire contract', () => {
   it('round-trips compact metrics without carrying an identity or network address', () => {
-    const payload = encodeParticipantMediaTelemetry(7, 10_000, [cameraMetric]);
+    const payload = encodeParticipantMediaTelemetry(7, 10_000, [cameraMetric], healthy);
     expect(payload).not.toBeNull();
     expect(payload!.byteLength).toBeLessThan(PARTICIPANT_MEDIA_TELEMETRY_MAX_BYTES);
     const text = new TextDecoder().decode(payload!);
@@ -64,7 +64,14 @@ describe('participant media telemetry wire contract', () => {
     expect(text).not.toContain('address');
 
     const parsed = parseParticipantMediaTelemetry(payload!, 12_000);
-    expect(parsed).toEqual({ version: 1, sequence: 7, sentAt: 10_000, metrics: [cameraMetric] });
+    expect(parsed).toEqual({
+      version: 1,
+      sequence: 7,
+      sentAt: 10_000,
+      metrics: [cameraMetric],
+      receptionSupported: true,
+      receptionAggregate: healthy
+    });
     expect(createParticipantMediaTelemetrySnapshot(parsed!, 12_000).aggregate?.health).toBe('good');
   });
 
@@ -116,7 +123,14 @@ describe('participant media telemetry wire contract', () => {
 
   it('rejects replayed or implausibly frequent source packets', () => {
     const previous = { sequence: 4, sentAt: 10_000, receivedAt: 10_100 };
-    const packet = { version: 1 as const, sequence: 5, sentAt: 10_500, metrics: [] };
+    const packet = {
+      version: 1 as const,
+      sequence: 5,
+      sentAt: 10_500,
+      metrics: [],
+      receptionSupported: true,
+      receptionAggregate: null
+    };
     expect(shouldAcceptParticipantMediaTelemetry(previous, packet, 10_600)).toBe(false);
     expect(
       shouldAcceptParticipantMediaTelemetry(previous, { ...packet, sentAt: 11_000 }, 11_100)
@@ -128,6 +142,14 @@ describe('participant media telemetry wire contract', () => {
         11_100
       )
     ).toBe(false);
+  });
+
+  it('accepts legacy upload-only packets while marking download telemetry unsupported', () => {
+    const payload = new TextEncoder().encode(JSON.stringify({ v: 1, s: 2, t: 9_000, m: [] }));
+    expect(parseParticipantMediaTelemetry(payload, 10_000)).toMatchObject({
+      receptionSupported: false,
+      receptionAggregate: null
+    });
   });
 });
 

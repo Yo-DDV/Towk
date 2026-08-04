@@ -1547,7 +1547,6 @@ const msg_voice_media_telemetry_source = (): LocalizedString => messages().voice
 const msg_voice_media_telemetry_reception = (): LocalizedString => messages().voice_media_telemetry_reception(empty());
 const msg_voice_media_telemetry_source_hint = (): LocalizedString => messages().voice_media_telemetry_source_hint(empty());
 const msg_voice_media_telemetry_reception_hint = (): LocalizedString => messages().voice_media_telemetry_reception_hint(empty());
-const msg_voice_media_telemetry_reception_local = (): LocalizedString => messages().voice_media_telemetry_reception_local(empty());
 const msg_voice_media_telemetry_diagnosis_source = (): LocalizedString => messages().voice_media_telemetry_diagnosis_source(empty());
 const msg_voice_media_telemetry_diagnosis_receiver = (): LocalizedString => messages().voice_media_telemetry_diagnosis_receiver(empty());
 const msg_voice_media_telemetry_diagnosis_shared = (): LocalizedString => messages().voice_media_telemetry_diagnosis_shared(empty());
@@ -1568,10 +1567,10 @@ const msg_voice_media_telemetry_fps = (): LocalizedString => messages().voice_me
 const msg_voice_media_telemetry_resolution = (): LocalizedString => messages().voice_media_telemetry_resolution(empty());
 const msg_voice_media_telemetry_limited_by = (): LocalizedString => messages().voice_media_telemetry_limited_by(empty());
 const msg_voice_media_telemetry_unavailable = (): LocalizedString => messages().voice_media_telemetry_unavailable(empty());
+const msg_voice_media_telemetry_source_idle = (): LocalizedString => messages().voice_media_telemetry_source_idle(empty());
+const msg_voice_media_telemetry_reception_idle = (): LocalizedString => messages().voice_media_telemetry_reception_idle(empty());
+const msg_voice_media_telemetry_reception_unavailable = (): LocalizedString => messages().voice_media_telemetry_reception_unavailable(empty());
 const msg_voice_media_telemetry_privacy = (): LocalizedString => messages().voice_media_telemetry_privacy(empty());
-const msg_voice_media_telemetry_sample_age = (
-  inputs: Parameters<LocaleMessages['voice_media_telemetry_sample_age']>[0]
-): LocalizedString => messages().voice_media_telemetry_sample_age(inputs);
 const msg_voice_media_telemetry_limit_bandwidth = (): LocalizedString => messages().voice_media_telemetry_limit_bandwidth(empty());
 const msg_voice_media_telemetry_limit_cpu = (): LocalizedString => messages().voice_media_telemetry_limit_cpu(empty());
 const msg_voice_media_telemetry_limit_other = (): LocalizedString => messages().voice_media_telemetry_limit_other(empty());
@@ -3588,7 +3587,6 @@ export { msg_voice_media_telemetry_source as 'voice.media_telemetry_source' };
 export { msg_voice_media_telemetry_reception as 'voice.media_telemetry_reception' };
 export { msg_voice_media_telemetry_source_hint as 'voice.media_telemetry_source_hint' };
 export { msg_voice_media_telemetry_reception_hint as 'voice.media_telemetry_reception_hint' };
-export { msg_voice_media_telemetry_reception_local as 'voice.media_telemetry_reception_local' };
 export { msg_voice_media_telemetry_diagnosis_source as 'voice.media_telemetry_diagnosis_source' };
 export { msg_voice_media_telemetry_diagnosis_receiver as 'voice.media_telemetry_diagnosis_receiver' };
 export { msg_voice_media_telemetry_diagnosis_shared as 'voice.media_telemetry_diagnosis_shared' };
@@ -3609,8 +3607,10 @@ export { msg_voice_media_telemetry_fps as 'voice.media_telemetry_fps' };
 export { msg_voice_media_telemetry_resolution as 'voice.media_telemetry_resolution' };
 export { msg_voice_media_telemetry_limited_by as 'voice.media_telemetry_limited_by' };
 export { msg_voice_media_telemetry_unavailable as 'voice.media_telemetry_unavailable' };
+export { msg_voice_media_telemetry_source_idle as 'voice.media_telemetry_source_idle' };
+export { msg_voice_media_telemetry_reception_idle as 'voice.media_telemetry_reception_idle' };
+export { msg_voice_media_telemetry_reception_unavailable as 'voice.media_telemetry_reception_unavailable' };
 export { msg_voice_media_telemetry_privacy as 'voice.media_telemetry_privacy' };
-export { msg_voice_media_telemetry_sample_age as 'voice.media_telemetry_sample_age' };
 export { msg_voice_media_telemetry_limit_bandwidth as 'voice.media_telemetry_limit_bandwidth' };
 export { msg_voice_media_telemetry_limit_cpu as 'voice.media_telemetry_limit_cpu' };
 export { msg_voice_media_telemetry_limit_other as 'voice.media_telemetry_limit_other' };

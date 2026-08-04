@@ -39,6 +39,8 @@ export type ParticipantMediaTelemetryPacket = {
   sequence: number;
   sentAt: number;
   metrics: ParticipantMediaMetric[];
+  receptionSupported: boolean;
+  receptionAggregate: ParticipantMediaAggregate | null;
 };
 
 export type ParticipantMediaTelemetrySnapshot = ParticipantMediaTelemetryPacket & {
@@ -95,7 +97,8 @@ type WireMetric = {
   q?: 'b' | 'c' | 'o';
 };
 
-type WirePacket = { v: 1; s: number; t: number; m: WireMetric[] };
+type WireAggregate = Pick<WireMetric, 'h' | 'r' | 'j' | 'l'>;
+type WirePacket = { v: 1; s: number; t: number; m: WireMetric[]; d?: WireAggregate | null };
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -137,14 +140,16 @@ export async function collectParticipantMediaTelemetry(
 export function encodeParticipantMediaTelemetry(
   sequence: number,
   sentAt: number,
-  metrics: ParticipantMediaMetric[]
+  metrics: ParticipantMediaMetric[],
+  receptionAggregate: ParticipantMediaAggregate | null = null
 ): Uint8Array | null {
   if (!validSequence(sequence) || !validTimestamp(sentAt)) return null;
   const wire: WirePacket = {
     v: 1,
     s: sequence,
     t: Math.trunc(sentAt),
-    m: metrics.slice(0, 3).map(metricToWire)
+    m: metrics.slice(0, 3).map(metricToWire),
+    d: receptionAggregate ? aggregateToWire(receptionAggregate) : null
   };
   const payload = encoder.encode(JSON.stringify(wire));
   return payload.byteLength <= PARTICIPANT_MEDIA_TELEMETRY_MAX_BYTES ? payload : null;
@@ -168,7 +173,7 @@ export function parseParticipantMediaTelemetry(
   } catch {
     return null;
   }
-  if (!isPlainRecord(value) || !hasOnlyKeys(value, ['v', 's', 't', 'm'])) return null;
+  if (!isPlainRecord(value) || !hasOnlyKeys(value, ['v', 's', 't', 'm', 'd'])) return null;
   if (value.v !== 1 || !validSequence(value.s) || !validTimestamp(value.t)) return null;
   const sentAt = value.t as number;
   if (
@@ -188,7 +193,18 @@ export function parseParticipantMediaTelemetry(
     kinds.add(metric.kind);
     metrics.push(metric);
   }
-  return { version: 1, sequence: value.s as number, sentAt, metrics };
+  const receptionSupported = Object.hasOwn(value, 'd');
+  const receptionAggregate =
+    value.d === null || value.d === undefined ? null : aggregateFromWire(value.d);
+  if (receptionSupported && value.d !== null && receptionAggregate === null) return null;
+  return {
+    version: 1,
+    sequence: value.s as number,
+    sentAt,
+    metrics,
+    receptionSupported,
+    receptionAggregate
+  };
 }
 
 export function shouldAcceptParticipantMediaTelemetry(
@@ -392,6 +408,31 @@ function metricToWire(metric: ParticipantMediaMetric): WireMetric {
   assignWireNumber(value, 'x', metric.height);
   if (metric.qualityLimitationReason) value.q = limitationToWire(metric.qualityLimitationReason);
   return value;
+}
+
+function aggregateToWire(aggregate: ParticipantMediaAggregate): WireAggregate {
+  const value: WireAggregate = { h: healthToWire(aggregate.health) };
+  if (aggregate.latencyMs !== null) value.r = aggregate.latencyMs;
+  if (aggregate.jitterMs !== null) value.j = aggregate.jitterMs;
+  if (aggregate.packetLossPercent !== null) value.l = aggregate.packetLossPercent;
+  return value;
+}
+
+function aggregateFromWire(value: unknown): ParticipantMediaAggregate | null {
+  if (!isPlainRecord(value) || !hasOnlyKeys(value, ['h', 'r', 'j', 'l'])) return null;
+  const health = healthFromWire(value.h);
+  const latencyMs = optionalBoundedNumber(value.r, 0, 60_000);
+  const jitterMs = optionalBoundedNumber(value.j, 0, 60_000);
+  const packetLossPercent = optionalBoundedNumber(value.l, 0, 100);
+  if (!health || [latencyMs, jitterMs, packetLossPercent].includes(undefined)) {
+    return null;
+  }
+  return {
+    health,
+    latencyMs: latencyMs ?? null,
+    jitterMs: jitterMs ?? null,
+    packetLossPercent: packetLossPercent ?? null
+  };
 }
 
 function metricFromWire(value: unknown): ParticipantMediaMetric | null {

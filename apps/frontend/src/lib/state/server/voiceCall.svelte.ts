@@ -111,12 +111,21 @@ export type CallParticipantInfo = {
   jitterMs: number | null;
   latencyMs: number | null;
   networkWarningMetric: ParticipantNetworkWarningMetric;
+  sourceNetworkHealth?: ParticipantNetworkHealth;
+  sourcePacketLossPercent?: number | null;
+  sourceJitterMs?: number | null;
+  sourceLatencyMs?: number | null;
   receptionNetworkHealth?: ParticipantNetworkHealth;
   receptionPacketLossPercent?: number | null;
   receptionJitterMs?: number | null;
   receptionLatencyMs?: number | null;
+  reportedDownloadNetworkHealth?: ParticipantNetworkHealth;
+  reportedDownloadPacketLossPercent?: number | null;
+  reportedDownloadJitterMs?: number | null;
+  reportedDownloadLatencyMs?: number | null;
   sourceMediaTelemetry?: ParticipantMediaMetric[];
   sourceTelemetryUpdatedAt?: number | null;
+  receptionTelemetrySupported?: boolean;
   mediaTelemetryHistory?: ParticipantMediaTelemetryHistoryPoint[];
   mediaTelemetryDiagnosis?: ParticipantMediaDiagnosis;
   connectionState: 'connected' | 'interrupted';
@@ -2949,7 +2958,10 @@ export class VoiceCallState {
       const payload = encodeParticipantMediaTelemetry(
         this.localParticipantMediaTelemetrySequence,
         collectedAt,
-        collected.metrics
+        collected.metrics,
+        participantNetworkAggregate(
+          aggregateParticipantNetworkQuality(Object.values(this.participantNetworkQuality))
+        )
       );
       if (!payload) return;
       const packet = parseParticipantMediaTelemetry(payload, collectedAt);
@@ -2997,14 +3009,13 @@ export class VoiceCallState {
       ...this.participantSourceTelemetry,
       [identity]: snapshot
     };
-    const reception = participantNetworkAggregate(this.participantNetworkQuality[identity]);
     this.participantMediaTelemetryHistory = {
       ...this.participantMediaTelemetryHistory,
       [identity]: appendParticipantMediaTelemetryHistory(
         this.participantMediaTelemetryHistory[identity] ?? [],
         receivedAt,
         snapshot.aggregate,
-        reception
+        snapshot.receptionAggregate
       )
     };
     this.updateParticipants();
@@ -3191,7 +3202,11 @@ export class VoiceCallState {
       const receptionQuality = this.participantNetworkQuality[p.identity];
       const sourceTelemetry = this.participantSourceTelemetry[p.identity];
       const sourceQuality = sourceTelemetry?.aggregate ?? null;
-      const receptionAggregate = participantNetworkAggregate(receptionQuality);
+      const reportedDownloadAggregate = sourceTelemetry?.receptionAggregate ?? null;
+      const participantConnectionAggregate = aggregateParticipantConnectionQuality(
+        sourceQuality,
+        reportedDownloadAggregate
+      );
       return [
         {
           identity: p.identity,
@@ -3204,21 +3219,30 @@ export class VoiceCallState {
           isMuted: isParticipantMuted(p),
           isLocal,
           connectionQuality: p.connectionQuality as CallParticipantInfo['connectionQuality'],
-          networkHealth: sourceQuality?.health ?? 'unknown',
-          packetLossPercent: sourceQuality?.packetLossPercent ?? null,
-          jitterMs: sourceQuality?.jitterMs ?? null,
-          latencyMs: sourceQuality?.latencyMs ?? null,
-          networkWarningMetric: participantMediaWarningMetric(sourceQuality),
+          networkHealth: participantConnectionAggregate?.health ?? 'unknown',
+          packetLossPercent: participantConnectionAggregate?.packetLossPercent ?? null,
+          jitterMs: participantConnectionAggregate?.jitterMs ?? null,
+          latencyMs: participantConnectionAggregate?.latencyMs ?? null,
+          networkWarningMetric: participantMediaWarningMetric(participantConnectionAggregate),
+          sourceNetworkHealth: sourceQuality?.health ?? 'unknown',
+          sourcePacketLossPercent: sourceQuality?.packetLossPercent ?? null,
+          sourceJitterMs: sourceQuality?.jitterMs ?? null,
+          sourceLatencyMs: sourceQuality?.latencyMs ?? null,
           receptionNetworkHealth: receptionQuality?.health ?? 'unknown',
           receptionPacketLossPercent: receptionQuality?.packetLossPercent ?? null,
           receptionJitterMs: receptionQuality?.jitterMs ?? null,
           receptionLatencyMs: receptionQuality?.latencyMs ?? null,
+          reportedDownloadNetworkHealth: reportedDownloadAggregate?.health ?? 'unknown',
+          reportedDownloadPacketLossPercent: reportedDownloadAggregate?.packetLossPercent ?? null,
+          reportedDownloadJitterMs: reportedDownloadAggregate?.jitterMs ?? null,
+          reportedDownloadLatencyMs: reportedDownloadAggregate?.latencyMs ?? null,
           sourceMediaTelemetry: sourceTelemetry?.metrics ?? [],
           sourceTelemetryUpdatedAt: sourceTelemetry?.receivedAt ?? null,
+          receptionTelemetrySupported: sourceTelemetry?.receptionSupported ?? false,
           mediaTelemetryHistory: this.participantMediaTelemetryHistory[p.identity] ?? [],
           mediaTelemetryDiagnosis: classifyParticipantMediaDiagnosis(
             sourceQuality,
-            receptionAggregate
+            reportedDownloadAggregate
           ),
           connectionState: 'connected' as const,
           interruptionDeadline: null,
@@ -4782,7 +4806,7 @@ function redactSensitiveUrlParts(message: string): string {
 }
 
 function participantNetworkAggregate(
-  quality: ParticipantNetworkQuality | undefined
+  quality: ParticipantNetworkQuality | null | undefined
 ): ParticipantMediaAggregate | null {
   return quality
     ? {
@@ -4792,6 +4816,32 @@ function participantNetworkAggregate(
         packetLossPercent: quality.packetLossPercent
       }
     : null;
+}
+
+function aggregateParticipantConnectionQuality(
+  source: ParticipantMediaAggregate | null,
+  download: ParticipantMediaAggregate | null
+): ParticipantMediaAggregate | null {
+  if (!source) return download;
+  if (!download) return source;
+  const severity = (health: ParticipantMediaAggregate['health']) =>
+    health === 'poor'
+      ? 3
+      : health === 'degraded'
+        ? 2
+        : health === 'good'
+          ? 1
+          : health === 'excellent'
+            ? 0
+            : -1;
+  const maximum = (left: number | null, right: number | null) =>
+    left === null ? right : right === null ? left : Math.max(left, right);
+  return {
+    health: severity(download.health) > severity(source.health) ? download.health : source.health,
+    latencyMs: maximum(source.latencyMs, download.latencyMs),
+    jitterMs: maximum(source.jitterMs, download.jitterMs),
+    packetLossPercent: maximum(source.packetLossPercent, download.packetLossPercent)
+  };
 }
 
 function participantMediaWarningMetric(

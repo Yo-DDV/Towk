@@ -179,12 +179,21 @@ retained only for non-joined projections that still consume this component.
     jitterMs: number | null;
     latencyMs: number | null;
     networkWarningMetric: 'packetLoss' | 'jitter' | 'latency' | null;
+    sourceNetworkHealth: 'excellent' | 'good' | 'degraded' | 'poor' | 'unknown';
+    sourcePacketLossPercent: number | null;
+    sourceJitterMs: number | null;
+    sourceLatencyMs: number | null;
     receptionNetworkHealth: 'excellent' | 'good' | 'degraded' | 'poor' | 'unknown';
     receptionPacketLossPercent: number | null;
     receptionJitterMs: number | null;
     receptionLatencyMs: number | null;
+    reportedDownloadNetworkHealth: 'excellent' | 'good' | 'degraded' | 'poor' | 'unknown';
+    reportedDownloadPacketLossPercent: number | null;
+    reportedDownloadJitterMs: number | null;
+    reportedDownloadLatencyMs: number | null;
     sourceMediaTelemetry: ParticipantMediaMetric[];
     sourceTelemetryUpdatedAt: number | null;
+    receptionTelemetrySupported: boolean;
     mediaTelemetryHistory: ParticipantMediaTelemetryHistoryPoint[];
     mediaTelemetryDiagnosis: ParticipantMediaDiagnosis;
     connectionState: 'connected' | 'interrupted';
@@ -224,12 +233,22 @@ retained only for non-joined projections that still consume this component.
         jitterMs: p.jitterMs,
         latencyMs: p.latencyMs,
         networkWarningMetric: p.networkWarningMetric,
+        sourceNetworkHealth: p.sourceNetworkHealth ?? p.networkHealth,
+        sourcePacketLossPercent:
+          p.sourcePacketLossPercent !== undefined ? p.sourcePacketLossPercent : p.packetLossPercent,
+        sourceJitterMs: p.sourceJitterMs !== undefined ? p.sourceJitterMs : p.jitterMs,
+        sourceLatencyMs: p.sourceLatencyMs !== undefined ? p.sourceLatencyMs : p.latencyMs,
         receptionNetworkHealth: p.receptionNetworkHealth ?? 'unknown',
         receptionPacketLossPercent: p.receptionPacketLossPercent ?? null,
         receptionJitterMs: p.receptionJitterMs ?? null,
         receptionLatencyMs: p.receptionLatencyMs ?? null,
+        reportedDownloadNetworkHealth: p.reportedDownloadNetworkHealth ?? 'unknown',
+        reportedDownloadPacketLossPercent: p.reportedDownloadPacketLossPercent ?? null,
+        reportedDownloadJitterMs: p.reportedDownloadJitterMs ?? null,
+        reportedDownloadLatencyMs: p.reportedDownloadLatencyMs ?? null,
         sourceMediaTelemetry: p.sourceMediaTelemetry ?? [],
         sourceTelemetryUpdatedAt: p.sourceTelemetryUpdatedAt ?? null,
+        receptionTelemetrySupported: p.receptionTelemetrySupported ?? false,
         mediaTelemetryHistory: p.mediaTelemetryHistory ?? [],
         mediaTelemetryDiagnosis: p.mediaTelemetryDiagnosis ?? 'unknown',
         connectionState: p.connectionState,
@@ -268,12 +287,21 @@ retained only for non-joined projections that still consume this component.
       jitterMs: null,
       latencyMs: null,
       networkWarningMetric: null,
+      sourceNetworkHealth: 'unknown',
+      sourcePacketLossPercent: null,
+      sourceJitterMs: null,
+      sourceLatencyMs: null,
       receptionNetworkHealth: 'unknown',
       receptionPacketLossPercent: null,
       receptionJitterMs: null,
       receptionLatencyMs: null,
+      reportedDownloadNetworkHealth: 'unknown',
+      reportedDownloadPacketLossPercent: null,
+      reportedDownloadJitterMs: null,
+      reportedDownloadLatencyMs: null,
       sourceMediaTelemetry: [],
       sourceTelemetryUpdatedAt: null,
+      receptionTelemetrySupported: false,
       mediaTelemetryHistory: [],
       mediaTelemetryDiagnosis: 'unknown',
       connectionState: p.connectionState,
@@ -552,17 +580,17 @@ retained only for non-joined projections that still consume this component.
     const source = `${m['voice.media_telemetry_source']()}: ${m[
       'voice.participant_connection_metrics'
     ]({
-      latency: formatValue(participant.latencyMs, ' ms'),
-      packetLoss: formatValue(participant.packetLossPercent, '%'),
-      jitter: formatValue(participant.jitterMs, ' ms')
+      latency: formatValue(participant.sourceLatencyMs, ' ms'),
+      packetLoss: formatValue(participant.sourcePacketLossPercent, '%'),
+      jitter: formatValue(participant.sourceJitterMs, ' ms')
     })}`;
-    const reception = participant.isLocal
-      ? m['voice.media_telemetry_reception_local']()
-      : `${m['voice.media_telemetry_reception']()}: ${m['voice.participant_connection_metrics']({
-          latency: formatValue(participant.receptionLatencyMs, ' ms'),
-          packetLoss: formatValue(participant.receptionPacketLossPercent, '%'),
-          jitter: formatValue(participant.receptionJitterMs, ' ms')
-        })}`;
+    const reception = `${m['voice.media_telemetry_reception']()}: ${m[
+      'voice.participant_connection_metrics'
+    ]({
+      latency: formatValue(participant.reportedDownloadLatencyMs, ' ms'),
+      packetLoss: formatValue(participant.reportedDownloadPacketLossPercent, '%'),
+      jitter: formatValue(participant.reportedDownloadJitterMs, ' ms')
+    })}`;
     return `${source} · ${reception}`;
   }
 
@@ -1777,26 +1805,26 @@ retained only for non-joined projections that still consume this component.
     panelId={participantTelemetryPanelId(telemetryParticipant)}
     participantName={participantTelemetryName(telemetryParticipant)}
     sourceMetrics={telemetryParticipant.sourceMediaTelemetry}
-    sourceAggregate={telemetryParticipant.networkHealth === 'unknown'
+    sourceAggregate={telemetryParticipant.sourceNetworkHealth === 'unknown'
       ? null
       : {
-          health: telemetryParticipant.networkHealth,
-          packetLossPercent: telemetryParticipant.packetLossPercent,
-          jitterMs: telemetryParticipant.jitterMs,
-          latencyMs: telemetryParticipant.latencyMs
+          health: telemetryParticipant.sourceNetworkHealth,
+          packetLossPercent: telemetryParticipant.sourcePacketLossPercent,
+          jitterMs: telemetryParticipant.sourceJitterMs,
+          latencyMs: telemetryParticipant.sourceLatencyMs
         }}
-    receptionAggregate={telemetryParticipant.receptionNetworkHealth === 'unknown'
+    receptionAggregate={telemetryParticipant.reportedDownloadNetworkHealth === 'unknown'
       ? null
       : {
-          health: telemetryParticipant.receptionNetworkHealth,
-          packetLossPercent: telemetryParticipant.receptionPacketLossPercent,
-          jitterMs: telemetryParticipant.receptionJitterMs,
-          latencyMs: telemetryParticipant.receptionLatencyMs
+          health: telemetryParticipant.reportedDownloadNetworkHealth,
+          packetLossPercent: telemetryParticipant.reportedDownloadPacketLossPercent,
+          jitterMs: telemetryParticipant.reportedDownloadJitterMs,
+          latencyMs: telemetryParticipant.reportedDownloadLatencyMs
         }}
     diagnosis={telemetryParticipant.mediaTelemetryDiagnosis}
     history={telemetryParticipant.mediaTelemetryHistory}
-    updatedAt={telemetryParticipant.sourceTelemetryUpdatedAt}
-    isLocalParticipant={telemetryParticipant.isLocal}
+    sourceTelemetryReceived={telemetryParticipant.sourceTelemetryUpdatedAt !== null}
+    receptionTelemetrySupported={telemetryParticipant.receptionTelemetrySupported}
     onclose={closeParticipantTelemetry}
   />
 {/if}

@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import * as m from '$lib/i18n/messages';
   import {
-    participantMediaHealthScore,
     type ParticipantMediaAggregate,
     type ParticipantMediaDiagnosis,
     type ParticipantMediaMetric,
@@ -17,8 +16,8 @@
     receptionAggregate,
     diagnosis,
     history,
-    updatedAt,
-    isLocalParticipant = false,
+    sourceTelemetryReceived = false,
+    receptionTelemetrySupported = false,
     onclose
   }: {
     panelId: string;
@@ -28,8 +27,8 @@
     receptionAggregate: ParticipantMediaAggregate | null;
     diagnosis: ParticipantMediaDiagnosis;
     history: ParticipantMediaTelemetryHistoryPoint[];
-    updatedAt: number | null;
-    isLocalParticipant?: boolean;
+    sourceTelemetryReceived?: boolean;
+    receptionTelemetrySupported?: boolean;
     onclose: () => void;
   } = $props();
 
@@ -37,8 +36,24 @@
   let closeButton: HTMLButtonElement | null = $state(null);
   const chartWidth = 320;
   const chartHeight = 72;
-  let sourcePolyline = $derived(polyline(history.map((point) => point.sourceHealth)));
-  let receptionPolyline = $derived(polyline(history.map((point) => point.receptionHealth)));
+  let charts = $derived([
+    chartModel(
+      'latency',
+      m['voice.media_telemetry_latency'](),
+      'ms',
+      history.map((point) => point.sourceLatencyMs),
+      history.map((point) => point.receptionLatencyMs),
+      100
+    ),
+    chartModel(
+      'packet-loss',
+      m['voice.media_telemetry_packet_loss'](),
+      '%',
+      history.map((point) => point.sourcePacketLossPercent),
+      history.map((point) => point.receptionPacketLossPercent),
+      5
+    )
+  ]);
 
   onMount(() => closeButton?.focus());
 
@@ -67,16 +82,111 @@
     }
   }
 
-  function polyline(values: Array<ParticipantMediaTelemetryHistoryPoint['sourceHealth']>): string {
-    if (!values.length) return '';
-    const denominator = Math.max(1, values.length - 1);
-    return values
-      .map((health, index) => {
-        const x = (index / denominator) * chartWidth;
-        const y = chartHeight - (participantMediaHealthScore(health) / 3) * (chartHeight - 8) - 4;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(' ');
+  function chartModel(
+    id: string,
+    label: string,
+    unit: string,
+    sourceValues: Array<number | null>,
+    receptionValues: Array<number | null>,
+    minimumMaximum: number
+  ) {
+    const available = [...sourceValues, ...receptionValues].filter(
+      (value): value is number => value !== null
+    );
+    const maximum = niceMaximum(available, minimumMaximum);
+    return {
+      id,
+      label,
+      unit,
+      maximum,
+      sourceSegments: polylineSegments(sourceValues, maximum),
+      receptionSegments: polylineSegments(receptionValues, maximum),
+      sourceLatest: latestValue(sourceValues),
+      receptionLatest: latestValue(receptionValues),
+      sourceLatestPoint: latestPoint(sourceValues, maximum),
+      receptionLatestPoint: latestPoint(receptionValues, maximum),
+      hasValues: available.length > 0
+    };
+  }
+
+  function niceMaximum(values: number[], minimum: number): number {
+    const peak = Math.max(minimum, ...values);
+    const magnitude = 10 ** Math.floor(Math.log10(peak));
+    const normalized = peak / magnitude;
+    const nice = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+    return Math.max(minimum, nice * magnitude);
+  }
+
+  function polylineSegments(values: Array<number | null>, maximum: number): string[] {
+    const firstBucketAt = history[0]?.bucketAt ?? 0;
+    const lastBucketAt = history.at(-1)?.bucketAt ?? firstBucketAt;
+    const duration = Math.max(1, lastBucketAt - firstBucketAt);
+    const segments: string[][] = [];
+    let current: string[] = [];
+    values.forEach((value, index) => {
+      if (value === null) {
+        if (current.length) segments.push(current);
+        current = [];
+        return;
+      }
+      const bucketAt = history[index]?.bucketAt ?? firstBucketAt;
+      const x =
+        firstBucketAt === lastBucketAt
+          ? chartWidth
+          : ((bucketAt - firstBucketAt) / duration) * chartWidth;
+      const y = chartHeight - (Math.min(maximum, value) / maximum) * (chartHeight - 8) - 4;
+      current.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+    });
+    if (current.length) segments.push(current);
+    return segments.map((segment) => segment.join(' '));
+  }
+
+  function latestValue(values: Array<number | null>): number | null {
+    for (let index = values.length - 1; index >= 0; index -= 1) {
+      if (values[index] !== null) return values[index]!;
+    }
+    return null;
+  }
+
+  function latestPoint(values: Array<number | null>, maximum: number) {
+    for (let index = values.length - 1; index >= 0; index -= 1) {
+      const value = values[index];
+      if (value === null) continue;
+      const firstBucketAt = history[0]?.bucketAt ?? 0;
+      const lastBucketAt = history.at(-1)?.bucketAt ?? firstBucketAt;
+      const duration = Math.max(1, lastBucketAt - firstBucketAt);
+      const bucketAt = history[index]?.bucketAt ?? firstBucketAt;
+      return {
+        x:
+          firstBucketAt === lastBucketAt
+            ? chartWidth
+            : ((bucketAt - firstBucketAt) / duration) * chartWidth,
+        y: chartHeight - (Math.min(maximum, value) / maximum) * (chartHeight - 8) - 4,
+        value
+      };
+    }
+    return null;
+  }
+
+  function formatChartValue(value: number | null, unit: string): string {
+    return value === null
+      ? m['voice.connection_metric_unavailable']()
+      : `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unit}`;
+  }
+
+  function formatChartAxis(value: number): string {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  }
+
+  function historyTime(index: number): string {
+    const point = history[index];
+    return point
+      ? new Date(point.bucketAt).toLocaleTimeString(undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        })
+      : '';
   }
 
   function metricLabel(kind: ParticipantMediaMetric['kind']): string {
@@ -188,14 +298,24 @@
             {m['voice.media_telemetry_source']()}
           </h3>
           <p class="mt-1 text-xs text-muted">{m['voice.media_telemetry_source_hint']()}</p>
-          <dl class="mt-2 grid grid-cols-3 gap-2">
-            {#each aggregateRows(sourceAggregate) as row (row[0])}
-              <div class="min-w-0 rounded-md bg-surface-100 px-2 py-1.5">
-                <dt class="truncate text-[0.6875rem] text-muted">{row[0]}</dt>
-                <dd class="truncate text-xs font-semibold tabular-nums">{row[1]}</dd>
-              </div>
-            {/each}
-          </dl>
+          {#if sourceAggregate}
+            <dl class="mt-2 grid grid-cols-1 gap-2 @min-[300px]:grid-cols-3">
+              {#each aggregateRows(sourceAggregate) as row (row[0])}
+                <div class="min-w-0 rounded-md bg-surface-100 px-2 py-1.5">
+                  <dt class="truncate text-[0.6875rem] text-muted">{row[0]}</dt>
+                  <dd class="truncate text-xs font-semibold tabular-nums">{row[1]}</dd>
+                </div>
+              {/each}
+            </dl>
+          {:else}
+            <p
+              class="mt-2 rounded-md bg-surface-100 px-2.5 py-2 text-xs leading-relaxed text-muted"
+            >
+              {sourceTelemetryReceived
+                ? m['voice.media_telemetry_source_idle']()
+                : m['voice.media_telemetry_unavailable']()}
+            </p>
+          {/if}
         </section>
 
         <section class="rounded-lg border border-text/10 bg-surface-200/70 p-3">
@@ -203,14 +323,8 @@
             {m['voice.media_telemetry_reception']()}
           </h3>
           <p class="mt-1 text-xs text-muted">{m['voice.media_telemetry_reception_hint']()}</p>
-          {#if isLocalParticipant}
-            <p
-              class="mt-2 rounded-md bg-surface-100 px-2.5 py-2 text-xs leading-relaxed text-muted"
-            >
-              {m['voice.media_telemetry_reception_local']()}
-            </p>
-          {:else}
-            <dl class="mt-2 grid grid-cols-3 gap-2">
+          {#if receptionAggregate}
+            <dl class="mt-2 grid grid-cols-1 gap-2 @min-[300px]:grid-cols-3">
               {#each aggregateRows(receptionAggregate) as row (row[0])}
                 <div class="min-w-0 rounded-md bg-surface-100 px-2 py-1.5">
                   <dt class="truncate text-[0.6875rem] text-muted">{row[0]}</dt>
@@ -218,6 +332,14 @@
                 </div>
               {/each}
             </dl>
+          {:else}
+            <p
+              class="mt-2 rounded-md bg-surface-100 px-2.5 py-2 text-xs leading-relaxed text-muted"
+            >
+              {receptionTelemetrySupported
+                ? m['voice.media_telemetry_reception_idle']()
+                : m['voice.media_telemetry_reception_unavailable']()}
+            </p>
           {/if}
         </section>
       </div>
@@ -231,35 +353,112 @@
             >{m['voice.media_telemetry_history_window']()}</span
           >
         </div>
-        {#if history.length}
-          <svg
-            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-            class="mt-2 h-[72px] w-full overflow-visible"
-            role="img"
-            aria-label={m['voice.media_telemetry_history_label']()}
-            preserveAspectRatio="none"
-          >
-            <path d={`M0 ${chartHeight - 4} H${chartWidth}`} class="stroke-text/10" fill="none" />
-            <polyline
-              points={sourcePolyline}
-              class="fill-none stroke-primary [stroke-width:2.5]"
-              vector-effect="non-scaling-stroke"
-            />
-            <polyline
-              points={receptionPolyline}
-              class="fill-none stroke-warning [stroke-width:2] [stroke-dasharray:5_4]"
-              vector-effect="non-scaling-stroke"
-            />
-          </svg>
-          <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[0.6875rem] text-muted">
-            <span class="inline-flex items-center gap-1.5"
-              ><span class="h-0.5 w-4 bg-primary"></span>{m['voice.media_telemetry_source']()}</span
-            >
-            <span class="inline-flex items-center gap-1.5"
-              ><span class="w-4 border-t-2 border-dashed border-warning"></span>{m[
-                'voice.media_telemetry_reception'
-              ]()}</span
-            >
+        {#if history.length && charts.some((chart) => chart.hasValues)}
+          <div class="mt-3 grid gap-3 @min-[640px]:grid-cols-2">
+            {#each charts as chart (chart.id)}
+              <article
+                class="min-w-0 rounded-md bg-surface-100 p-2.5"
+                data-testid={`participant-media-telemetry-chart-${chart.id}`}
+              >
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <h4 class="text-xs font-semibold">{chart.label} ({chart.unit})</h4>
+                  <div class="flex flex-wrap gap-1 text-[0.6875rem] tabular-nums">
+                    <span class="rounded-full bg-primary/10 px-2 py-0.5 text-primary">
+                      {m['voice.media_telemetry_source']()}: {formatChartValue(
+                        chart.sourceLatest,
+                        chart.unit
+                      )}
+                    </span>
+                    <span class="rounded-full bg-warning/10 px-2 py-0.5 text-warning">
+                      {m['voice.media_telemetry_reception']()}: {formatChartValue(
+                        chart.receptionLatest,
+                        chart.unit
+                      )}
+                    </span>
+                  </div>
+                </div>
+                {#if chart.hasValues}
+                  <div class="mt-2 grid grid-cols-[2.75rem_minmax(0,1fr)] gap-1">
+                    <div
+                      class="flex h-[72px] flex-col justify-between text-right text-[0.625rem] leading-none text-muted tabular-nums"
+                      aria-hidden="true"
+                    >
+                      <span>{formatChartAxis(chart.maximum)}</span>
+                      <span>{formatChartAxis(chart.maximum / 2)}</span>
+                      <span>0</span>
+                    </div>
+                    <svg
+                      viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                      class="h-[72px] w-full overflow-visible"
+                      role="img"
+                      aria-label={`${chart.label}: ${m['voice.media_telemetry_history_label']()}`}
+                      preserveAspectRatio="none"
+                    >
+                      <path d={`M0 4 H${chartWidth}`} class="stroke-text/10" fill="none" />
+                      <path
+                        d={`M0 ${chartHeight / 2} H${chartWidth}`}
+                        class="stroke-text/10"
+                        fill="none"
+                      />
+                      <path
+                        d={`M0 ${chartHeight - 4} H${chartWidth}`}
+                        class="stroke-text/10"
+                        fill="none"
+                      />
+                      {#each chart.sourceSegments as segment (segment)}
+                        <polyline
+                          points={segment}
+                          class="fill-none stroke-primary [stroke-width:2.5] opacity-100 transition-opacity duration-300 [stroke-linecap:round] [stroke-linejoin:round]"
+                          vector-effect="non-scaling-stroke"
+                        />
+                      {/each}
+                      {#each chart.receptionSegments as segment (segment)}
+                        <polyline
+                          points={segment}
+                          class="fill-none stroke-warning [stroke-width:2] opacity-100 transition-opacity duration-300 [stroke-dasharray:5_4] [stroke-linecap:round] [stroke-linejoin:round]"
+                          vector-effect="non-scaling-stroke"
+                        />
+                      {/each}
+                      {#if chart.sourceLatestPoint}
+                        <circle
+                          cx={chart.sourceLatestPoint.x}
+                          cy={chart.sourceLatestPoint.y}
+                          r="3"
+                          class="fill-primary stroke-surface-100 [stroke-width:1.5]"
+                        >
+                          <title
+                            >{m['voice.media_telemetry_source']()}: {formatChartValue(
+                              chart.sourceLatestPoint.value,
+                              chart.unit
+                            )}</title
+                          >
+                        </circle>
+                      {/if}
+                      {#if chart.receptionLatestPoint}
+                        <circle
+                          cx={chart.receptionLatestPoint.x}
+                          cy={chart.receptionLatestPoint.y}
+                          r="3"
+                          class="fill-warning stroke-surface-100 [stroke-width:1.5]"
+                        >
+                          <title
+                            >{m['voice.media_telemetry_reception']()}: {formatChartValue(
+                              chart.receptionLatestPoint.value,
+                              chart.unit
+                            )}</title
+                          >
+                        </circle>
+                      {/if}
+                    </svg>
+                    <div aria-hidden="true"></div>
+                    <div class="flex justify-between text-[0.625rem] text-muted tabular-nums">
+                      <span>{historyTime(0)}</span>
+                      <span>{historyTime(history.length - 1)}</span>
+                    </div>
+                  </div>
+                {/if}
+              </article>
+            {/each}
           </div>
         {:else}
           <p class="mt-2 text-xs text-muted">{m['voice.media_telemetry_history_empty']()}</p>
@@ -314,7 +513,9 @@
           </div>
         {:else}
           <p class="mt-2 rounded-lg border border-text/10 bg-surface-200/70 p-3 text-xs text-muted">
-            {m['voice.media_telemetry_unavailable']()}
+            {sourceTelemetryReceived
+              ? m['voice.media_telemetry_source_idle']()
+              : m['voice.media_telemetry_unavailable']()}
           </p>
         {/if}
       </section>
@@ -323,11 +524,6 @@
         class="mt-3 rounded-lg border border-text/10 bg-surface-200/50 p-2.5 text-[0.6875rem] leading-4 text-muted"
       >
         {m['voice.media_telemetry_privacy']()}
-        {#if updatedAt !== null}
-          · {m['voice.media_telemetry_sample_age']({
-            seconds: Math.max(0, Math.round((Date.now() - updatedAt) / 1_000))
-          })}
-        {/if}
       </p>
     </div>
   </div>

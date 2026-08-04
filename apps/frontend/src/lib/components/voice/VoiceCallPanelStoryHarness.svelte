@@ -238,7 +238,12 @@
       packetLossPercent: jitterWarning ? 0 : 12.4,
       jitterMs: 82,
       latencyMs: 640,
-      networkWarningMetric: jitterWarning ? 'jitter' : 'packetLoss'
+      networkWarningMetric: jitterWarning ? 'jitter' : 'packetLoss',
+      reportedDownloadNetworkHealth: 'good',
+      reportedDownloadPacketLossPercent: 0.3,
+      reportedDownloadJitterMs: 9,
+      reportedDownloadLatencyMs: 51,
+      receptionTelemetrySupported: true
     });
 
     if (participantCount !== null) {

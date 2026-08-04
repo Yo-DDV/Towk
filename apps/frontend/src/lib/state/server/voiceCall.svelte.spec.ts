@@ -42,6 +42,11 @@ import {
   VideoQuality,
   type RoomOptions
 } from 'livekit-client';
+import {
+  encodeParticipantMediaTelemetry,
+  parseParticipantMediaTelemetry,
+  PARTICIPANT_MEDIA_TELEMETRY_TOPIC
+} from '$lib/voice/participantMediaTelemetry';
 
 const calls: string[] = [];
 let lastRoomOptions: RoomOptions | null = null;
@@ -360,6 +365,7 @@ vi.mock('livekit-client', () => {
       }
     },
     RoomEvent: {
+      DataReceived: 'DataReceived',
       ParticipantConnected: 'ParticipantConnected',
       ParticipantMetadataChanged: 'ParticipantMetadataChanged',
       ParticipantDisconnected: 'ParticipantDisconnected',
@@ -5253,6 +5259,59 @@ describe('VoiceCallState', () => {
     connectGate.resolve();
     await joining;
     await vi.waitFor(() => expect(publishDataMock).toHaveBeenCalledOnce());
+    const [payload, options] = publishDataMock.mock.calls[0]!;
+    expect(options).toEqual({ reliable: false, topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC });
+    expect(parseParticipantMediaTelemetry(payload, Date.now())).toMatchObject({
+      receptionSupported: true
+    });
+    await state.leave();
+  });
+
+  it("shows each participant's self-reported download statistics on every other device", async () => {
+    const remoteParticipant = {
+      identity: 'remote-device-2',
+      name: 'Same Account',
+      metadata:
+        '{"userId":"same-account","participantId":"remote-device-2","deviceIndex":2,"login":"same-account"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    };
+    mockRemoteParticipants.set(remoteParticipant.identity, remoteParticipant);
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const now = Date.now();
+    const payload = encodeParticipantMediaTelemetry(1, now, [], {
+      health: 'degraded',
+      latencyMs: 310,
+      jitterMs: 72,
+      packetLossPercent: 4.2
+    })!;
+    roomEventHandlers.get('DataReceived')?.(
+      payload,
+      remoteParticipant,
+      undefined,
+      PARTICIPANT_MEDIA_TELEMETRY_TOPIC
+    );
+
+    expect(
+      state.participants.find((participant) => participant.identity === remoteParticipant.identity)
+    ).toMatchObject({
+      userId: 'same-account',
+      deviceIndex: 2,
+      sourceMediaTelemetry: [],
+      receptionTelemetrySupported: true,
+      networkHealth: 'degraded',
+      networkWarningMetric: 'packetLoss',
+      reportedDownloadNetworkHealth: 'degraded',
+      reportedDownloadLatencyMs: 310,
+      reportedDownloadJitterMs: 72,
+      reportedDownloadPacketLossPercent: 4.2
+    });
     await state.leave();
   });
 
