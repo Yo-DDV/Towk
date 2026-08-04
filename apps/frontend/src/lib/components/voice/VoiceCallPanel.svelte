@@ -25,6 +25,7 @@ retained only for non-joined projections that still consume this component.
   import CallTileActionButton from './CallTileActionButton.svelte';
   import CallTileActionToolbar from './CallTileActionToolbar.svelte';
   import ScreenShareDiagnostics from './ScreenShareDiagnostics.svelte';
+  import type { ScreenShareDiagnosticsDirection } from '$lib/voice/screenShareDiagnostics';
   import ParticipantMediaTelemetryPanel from './ParticipantMediaTelemetryPanel.svelte';
   import type {
     ParticipantMediaDiagnosis,
@@ -67,6 +68,12 @@ retained only for non-joined projections that still consume this component.
   let hasActiveCall = $derived(activeCallRooms.has(roomId));
   let isStageLayout = $derived(layout === 'stage');
   let diagnosticsParticipantKey = $state<string | null>(null);
+  let diagnosticsSession = $state<{
+    participantKey: string;
+    track: Track;
+    direction: ScreenShareDiagnosticsDirection;
+    panelId: string;
+  } | null>(null);
   let telemetryParticipantKey = $state<string | null>(null);
   let telemetryTrigger: HTMLButtonElement | null = null;
   let connectionTooltip = $state<{
@@ -488,14 +495,30 @@ retained only for non-joined projections that still consume this component.
   });
 
   $effect(() => {
-    if (
-      diagnosticsParticipantKey &&
-      !screenShareParticipants.some(
-        (participant) =>
-          participant.key === diagnosticsParticipantKey && participant.screenShareTrack
-      )
-    ) {
+    if (!diagnosticsParticipantKey) return;
+    const participant = screenShareParticipants.find(
+      (candidate) => candidate.key === diagnosticsParticipantKey && candidate.screenShareTrack
+    );
+    if (!participant?.screenShareTrack) {
       diagnosticsParticipantKey = null;
+      diagnosticsSession = null;
+      return;
+    }
+    const direction: ScreenShareDiagnosticsDirection = participant.isLocal
+      ? 'outbound'
+      : 'inbound';
+    if (
+      !diagnosticsSession ||
+      diagnosticsSession.participantKey !== participant.key ||
+      diagnosticsSession.track !== participant.screenShareTrack ||
+      diagnosticsSession.direction !== direction
+    ) {
+      diagnosticsSession = {
+        participantKey: participant.key,
+        track: participant.screenShareTrack,
+        direction,
+        panelId: diagnosticsPanelId(participant)
+      };
     }
   });
   let isIdle = $derived(!hasActiveCall && !isInThisCall && !isJoiningThisCall);
@@ -861,17 +884,29 @@ retained only for non-joined projections that still consume this component.
     return `screen-share-diagnostics-button-${encodeURIComponent(participant.key)}`;
   }
 
-  function closeScreenShareDiagnostics(participant: DisplayParticipant): void {
+  function closeScreenShareDiagnostics(participantKey: string): void {
     diagnosticsParticipantKey = null;
+    diagnosticsSession = null;
     requestAnimationFrame(() => {
-      document.getElementById(diagnosticsButtonId(participant))?.focus();
+      document
+        .getElementById(`screen-share-diagnostics-button-${encodeURIComponent(participantKey)}`)
+        ?.focus();
     });
   }
 
   function toggleScreenShareDiagnostics(participant: DisplayParticipant, event: MouseEvent): void {
     event.stopPropagation();
-    diagnosticsParticipantKey =
-      diagnosticsParticipantKey === participant.key ? null : participant.key;
+    if (diagnosticsParticipantKey === participant.key) {
+      closeScreenShareDiagnostics(participant.key);
+      return;
+    }
+    diagnosticsParticipantKey = participant.key;
+    diagnosticsSession = {
+      participantKey: participant.key,
+      track: participant.screenShareTrack!,
+      direction: participant.isLocal ? 'outbound' : 'inbound',
+      panelId: diagnosticsPanelId(participant)
+    };
   }
 </script>
 
@@ -1420,14 +1455,6 @@ retained only for non-joined projections that still consume this component.
           showIdentityOverlay={false}
         />
       </button>
-      {#if diagnosticsParticipantKey === participant.key}
-        <ScreenShareDiagnostics
-          track={participant.screenShareTrack!}
-          direction={participant.isLocal ? 'outbound' : 'inbound'}
-          panelId={diagnosticsPanelId(participant)}
-          onclose={() => closeScreenShareDiagnostics(participant)}
-        />
-      {/if}
     </div>
   </div>
 {/snippet}
@@ -1491,14 +1518,6 @@ retained only for non-joined projections that still consume this component.
           </div>
         {/if}
       </button>
-      {#if isScreen && diagnosticsParticipantKey === participant.key}
-        <ScreenShareDiagnostics
-          track={participant.screenShareTrack!}
-          direction={participant.isLocal ? 'outbound' : 'inbound'}
-          panelId={diagnosticsPanelId(participant)}
-          onclose={() => closeScreenShareDiagnostics(participant)}
-        />
-      {/if}
     </div>
   </div>
 {/snippet}
@@ -1805,6 +1824,17 @@ retained only for non-joined projections that still consume this component.
     {/if}
   </div>
 </div>
+
+{#if diagnosticsSession}
+  {#key diagnosticsSession}
+    <ScreenShareDiagnostics
+      track={diagnosticsSession.track}
+      direction={diagnosticsSession.direction}
+      panelId={diagnosticsSession.panelId}
+      onclose={() => closeScreenShareDiagnostics(diagnosticsSession!.participantKey)}
+    />
+  {/key}
+{/if}
 
 {#if telemetryParticipant}
   <ParticipantMediaTelemetryPanel

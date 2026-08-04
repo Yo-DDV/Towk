@@ -1740,8 +1740,20 @@ describe('VoiceCallPanel screen-share audio', () => {
 
 describe('VoiceCallPanel screen-share diagnostics', () => {
   it('keeps viewer diagnostics opt-in and closes them without affecting the share', async () => {
+    let publishParticipantRefresh = () => undefined;
     const { container } = render(VoiceCallPanelStoryHarness, {
-      props: { layout: 'stage', scenario: 'screen' }
+      props: {
+        layout: 'stage',
+        scenario: 'screen',
+        onStoreSeeded: (store) => {
+          publishParticipantRefresh = () => {
+            store.voiceCall.participants = store.voiceCall.participants.map((participant) => ({
+              ...participant,
+              packetLossPercent: participant.packetLossPercent ?? 0
+            }));
+          };
+        }
+      }
     });
 
     await vi.waitFor(() => {
@@ -1817,13 +1829,31 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
     expect(button.getAttribute('aria-controls')).toBe(panel.id);
     expect(panel.getAttribute('role')).toBe('region');
     expect(panel.getAttribute('aria-modal')).toBeNull();
-    expect(panel.className).toContain('absolute');
-    expect(panel.closest('[data-call-media-card]')).toBe(mediaCard);
+    expect(panel.className).toContain('fixed');
+    expect(panel.closest('[data-call-media-card]')).toBeNull();
     expect(panel.textContent).toContain('Receiving');
     expect(panel.textContent).toContain('1920 × 1080');
     expect(panel.textContent).toContain('Technical details');
     expect(panel.querySelector('details')?.open).toBe(false);
     expect(panel.textContent).toContain('AV1');
+
+    const technicalDetails = panel.querySelector<HTMLDetailsElement>(
+      '[data-testid="screen-share-diagnostics-details"]'
+    )!;
+    technicalDetails.querySelector<HTMLElement>('summary')!.click();
+    await vi.waitFor(() => {
+      expect(technicalDetails.open).toBe(true);
+      expect(panel.textContent).toContain('Transport');
+    });
+
+    publishParticipantRefresh();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(container.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBe(panel);
+    expect(
+      panel.querySelector('[data-testid="screen-share-diagnostics-details"]')
+    ).toBe(technicalDetails);
+    expect(technicalDetails.open).toBe(true);
+    expect(panel.textContent).toContain('Transport');
 
     container
       .querySelector<HTMLButtonElement>('[data-testid="screen-share-diagnostics-close"]')!

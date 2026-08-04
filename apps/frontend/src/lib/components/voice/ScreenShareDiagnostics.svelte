@@ -269,7 +269,7 @@ strictly local, starts only while this component is mounted, and stops on close.
   role="region"
   aria-label={m['voice.screen_stats_title']()}
   tabindex="-1"
-  class="screen-share-diagnostics-overlay @container pointer-events-auto absolute z-30 flex min-w-0 flex-col overflow-hidden rounded-xl border border-white/20 bg-black/90 text-white shadow-2xl backdrop-blur-xl"
+  class="screen-share-diagnostics-overlay @container pointer-events-auto fixed z-[100] flex min-w-0 flex-col overflow-hidden rounded-xl border border-white/20 bg-black/90 text-white shadow-2xl backdrop-blur-xl"
   data-testid="screen-share-diagnostics-panel"
 >
   <header
@@ -684,11 +684,13 @@ strictly local, starts only while this component is mounted, and stops on close.
     --diagnostics-safe-right: env(safe-area-inset-right, 0px);
     --diagnostics-safe-bottom: env(safe-area-inset-bottom, 0px);
     --diagnostics-safe-left: env(safe-area-inset-left, 0px);
-    top: max(0.25rem, var(--diagnostics-safe-top));
-    left: 50%;
-    width: min(46rem, calc(100% - 2rem));
-    max-height: min(38rem, calc(100% - 0.5rem));
-    transform: translateX(-50%);
+    top: max(0.5rem, var(--diagnostics-safe-top));
+    right: max(0.5rem, var(--diagnostics-safe-right));
+    left: max(0.5rem, var(--diagnostics-safe-left));
+    width: auto;
+    max-width: 46rem;
+    max-height: calc(100dvh - 1rem);
+    margin-inline: auto;
     overscroll-behavior: contain;
     touch-action: pan-y;
     animation: diagnostics-panel-enter 160ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -777,22 +779,6 @@ strictly local, starts only while this component is mounted, and stops on close.
 
   .diagnostics-trends :global(figcaption > strong) {
     color: rgb(255 255 255 / 0.92);
-  }
-
-  @container (max-width: 48rem) {
-    .screen-share-diagnostics-overlay {
-      position: fixed;
-      z-index: 100;
-      top: max(0.5rem, var(--diagnostics-safe-top));
-      right: max(0.5rem, var(--diagnostics-safe-right));
-      bottom: auto;
-      left: max(0.5rem, var(--diagnostics-safe-left));
-      width: auto;
-      max-width: 46rem;
-      max-height: calc(100dvh - 1rem);
-      margin-inline: auto;
-      transform: none;
-    }
   }
 
   @media (max-width: 460px), (max-height: 460px) {

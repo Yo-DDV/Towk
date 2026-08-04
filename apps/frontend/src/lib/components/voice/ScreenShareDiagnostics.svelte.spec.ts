@@ -118,7 +118,7 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     const panel = document.getElementById('diagnostics-test')!;
     expect(panel.getAttribute('role')).toBe('region');
     expect(panel.getAttribute('aria-modal')).toBeNull();
-    expect(panel.className).toContain('absolute');
+    expect(panel.className).toContain('fixed');
     expect(panel.querySelector('details')).not.toBeNull();
     expect(
       panel.querySelector('[data-testid="screen-share-diagnostics-close"]')?.className
@@ -129,9 +129,13 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(panel.textContent).not.toContain('Updated');
     expect(panel.textContent).not.toContain('Transport');
 
+    const technicalDetails = panel.querySelector<HTMLDetailsElement>(
+      '[data-testid="screen-share-diagnostics-details"]'
+    )!;
     (panel.querySelector('summary') as HTMLElement).click();
     await vi.advanceTimersByTimeAsync(0);
 
+    expect(technicalDetails.open).toBe(true);
     expect(panel.textContent).toContain('Transport');
     expect(panel.textContent).toContain('RTP packets');
     expect(panel.textContent).toContain('Jitter-buffer delay');
@@ -144,6 +148,11 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
 
     await vi.advanceTimersByTimeAsync(4_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(3);
+    expect(
+      panel.querySelector('[data-testid="screen-share-diagnostics-details"]')
+    ).toBe(technicalDetails);
+    expect(technicalDetails.open).toBe(true);
+    expect(panel.textContent).toContain('Transport');
 
     rendered.unmount();
     await vi.advanceTimersByTimeAsync(4_000);
@@ -184,8 +193,10 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
 
     expect(summary.children.length).toBeGreaterThanOrEqual(10);
     expect(summary.getAttribute('aria-live')).toBe('off');
-    expect(panel.getBoundingClientRect().width).toBeGreaterThanOrEqual(700);
-    expect(getComputedStyle(summary).gridTemplateColumns.split(' ').length).toBe(2);
+    expect(panel.getBoundingClientRect().width).toBeLessThanOrEqual(window.innerWidth);
+    expect(getComputedStyle(summary).gridTemplateColumns.split(' ').length).toBe(
+      panel.getBoundingClientRect().width >= 512 ? 2 : 1
+    );
     expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
 
     await vi.advanceTimersByTimeAsync(2_000);
@@ -195,13 +206,13 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
     expect(panel.textContent).not.toContain('Updated');
 
+    const viewportPanelHeight = panel.getBoundingClientRect().height;
     Object.assign(rendered.container.style, { height: '462px' });
-    expect(panel.getBoundingClientRect().height).toBeLessThanOrEqual(462);
-    expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
+    expect(panel.getBoundingClientRect().height).toBeCloseTo(viewportPanelHeight, 0);
+    expect(panel.getBoundingClientRect().height).toBeLessThanOrEqual(window.innerHeight);
 
     Object.assign(rendered.container.style, { width: '700px', height: '600px' });
     expect(getComputedStyle(panel).position).toBe('fixed');
-    expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
 
     Object.assign(rendered.container.style, { width: '320px', height: '568px' });
     const mobilePanelRect = panel.getBoundingClientRect();
