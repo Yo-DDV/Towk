@@ -145,12 +145,29 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(panel.textContent).toContain('RTP feedback');
     expect(panel.textContent).toContain('AV1');
     expect(panel.querySelectorAll('svg')).toHaveLength(4);
+    for (const cell of panel.querySelectorAll<HTMLElement>(
+      '[data-testid="screen-share-diagnostics-details"] dt, [data-testid="screen-share-diagnostics-details"] dd'
+    )) {
+      const style = getComputedStyle(cell);
+      expect(style.whiteSpace).toBe('nowrap');
+      expect(style.overflow).toBe('hidden');
+      expect(style.textOverflow).toBe('ellipsis');
+    }
+    for (const caption of panel.querySelectorAll<HTMLElement>(
+      'figcaption > span, figcaption > strong'
+    )) {
+      expect(caption.className).toContain('whitespace-nowrap');
+    }
+    for (const heading of panel.querySelectorAll<HTMLElement>('details h3')) {
+      expect(heading.className).toContain('whitespace-nowrap');
+      expect(heading.className).toContain('truncate');
+    }
 
     await vi.advanceTimersByTimeAsync(4_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(3);
-    expect(
-      panel.querySelector('[data-testid="screen-share-diagnostics-details"]')
-    ).toBe(technicalDetails);
+    expect(panel.querySelector('[data-testid="screen-share-diagnostics-details"]')).toBe(
+      technicalDetails
+    );
     expect(technicalDetails.open).toBe(true);
     expect(panel.textContent).toContain('Transport');
 

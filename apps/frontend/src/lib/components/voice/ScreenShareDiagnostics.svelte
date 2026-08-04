@@ -423,7 +423,7 @@ strictly local, starts only while this component is mounted, and stops on close.
           <summary
             class="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 px-2 text-[11px] font-semibold text-white/80 focus-visible:outline-2 focus-visible:outline-white"
           >
-            <span class="flex items-center gap-1.5">
+            <span class="flex min-w-0 items-center gap-1.5 truncate whitespace-nowrap">
               <span class="iconify text-sm text-white/55 uil--chart-line" aria-hidden="true"></span>
               {m['voice.screen_stats_technical_details']()}
             </span>
@@ -438,7 +438,7 @@ strictly local, starts only while this component is mounted, and stops on close.
               <section aria-labelledby={`${panelId}-trends`}>
                 <h3
                   id={`${panelId}-trends`}
-                  class="mb-1.5 text-[10px] font-semibold tracking-wide text-white/55 uppercase"
+                  class="mb-1.5 truncate text-[10px] font-semibold tracking-wide whitespace-nowrap text-white/55 uppercase"
                 >
                   {m['voice.screen_stats_last_60_seconds']()}
                 </h3>
@@ -484,7 +484,7 @@ strictly local, starts only while this component is mounted, and stops on close.
               <section aria-labelledby={`${panelId}-transport`}>
                 <h3
                   id={`${panelId}-transport`}
-                  class="mb-1 text-[10px] font-semibold tracking-wide text-white/55 uppercase"
+                  class="mb-1 truncate text-[10px] font-semibold tracking-wide whitespace-nowrap text-white/55 uppercase"
                 >
                   {m['voice.screen_stats_transport']()}
                 </h3>
@@ -521,7 +521,7 @@ strictly local, starts only while this component is mounted, and stops on close.
               <section aria-labelledby={`${panelId}-pipeline`}>
                 <h3
                   id={`${panelId}-pipeline`}
-                  class="mb-1 text-[10px] font-semibold tracking-wide text-white/55 uppercase"
+                  class="mb-1 truncate text-[10px] font-semibold tracking-wide whitespace-nowrap text-white/55 uppercase"
                 >
                   {m['voice.screen_stats_video_pipeline']()}
                 </h3>
@@ -592,7 +592,7 @@ strictly local, starts only while this component is mounted, and stops on close.
               <section aria-labelledby={`${panelId}-control`}>
                 <h3
                   id={`${panelId}-control`}
-                  class="mb-1 text-[10px] font-semibold tracking-wide text-white/55 uppercase"
+                  class="mb-1 truncate text-[10px] font-semibold tracking-wide whitespace-nowrap text-white/55 uppercase"
                 >
                   {direction === 'outbound'
                     ? m['voice.screen_stats_congestion_control']()
@@ -632,7 +632,7 @@ strictly local, starts only while this component is mounted, and stops on close.
                 <section aria-labelledby={`${panelId}-layers`}>
                   <h3
                     id={`${panelId}-layers`}
-                    class="mb-1 text-[10px] font-semibold tracking-wide text-white/55 uppercase"
+                    class="mb-1 truncate text-[10px] font-semibold tracking-wide whitespace-nowrap text-white/55 uppercase"
                   >
                     {m['voice.screen_stats_layers']()}
                   </h3>
@@ -650,7 +650,12 @@ strictly local, starts only while this component is mounted, and stops on close.
                             )} FPS`}
                           </span>
                         </div>
-                        <div class="mt-0.5 break-words text-white/55">
+                        <div
+                          class="mt-0.5 truncate whitespace-nowrap text-white/55"
+                          title={`${formatBitrate(layer.bitrateBps)} · ${formatBitrate(
+                            layer.targetBitrateBps
+                          )} · ${layer.scalabilityMode ?? layer.codec ?? '—'}`}
+                        >
                           {formatBitrate(layer.bitrateBps)} · {formatBitrate(
                             layer.targetBitrateBps
                           )} ·
@@ -740,18 +745,6 @@ strictly local, starts only while this component is mounted, and stops on close.
     text-align: right;
     color: rgb(255 255 255 / 0.92);
     font-weight: 600;
-  }
-
-  details .screen-share-diagnostics-grid dt {
-    overflow: visible;
-    overflow-wrap: anywhere;
-    text-overflow: clip;
-    white-space: normal;
-  }
-
-  details .screen-share-diagnostics-grid dd {
-    overflow-wrap: anywhere;
-    white-space: normal;
   }
 
   @keyframes diagnostics-panel-enter {
