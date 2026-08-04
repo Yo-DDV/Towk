@@ -68,6 +68,7 @@ retained only for non-joined projections that still consume this component.
   let isStageLayout = $derived(layout === 'stage');
   let diagnosticsParticipantKey = $state<string | null>(null);
   let telemetryParticipantKey = $state<string | null>(null);
+  let telemetryTrigger: HTMLButtonElement | null = null;
   let connectionTooltip = $state<{
     key: string;
     anchor: { top: number; bottom: number; left: number };
@@ -289,6 +290,13 @@ retained only for non-joined projections that still consume this component.
       isSiblingOutputControlPending: false
     }));
   });
+
+  let telemetryParticipant = $derived(
+    participants.find((participant) => participant.key === telemetryParticipantKey) ?? null
+  );
+  let connectionTooltipParticipant = $derived(
+    participants.find((participant) => participant.key === connectionTooltip?.key) ?? null
+  );
 
   let sortedParticipants = $derived(
     [...participants].sort((a, b) => {
@@ -541,36 +549,49 @@ retained only for non-joined projections that still consume this component.
     const unavailable = m['voice.connection_metric_unavailable']();
     const formatValue = (value: number | null, suffix: string) =>
       value === null ? unavailable : `${formatNetworkMetric(value)}${suffix}`;
-    return `${m['voice.media_telemetry_source']()}: ${m['voice.participant_connection_metrics']({
+    const source = `${m['voice.media_telemetry_source']()}: ${m[
+      'voice.participant_connection_metrics'
+    ]({
       latency: formatValue(participant.latencyMs, ' ms'),
       packetLoss: formatValue(participant.packetLossPercent, '%'),
       jitter: formatValue(participant.jitterMs, ' ms')
-    })} · ${m['voice.media_telemetry_reception']()}: ${m['voice.participant_connection_metrics']({
-      latency: formatValue(participant.receptionLatencyMs, ' ms'),
-      packetLoss: formatValue(participant.receptionPacketLossPercent, '%'),
-      jitter: formatValue(participant.receptionJitterMs, ' ms')
     })}`;
+    const reception = participant.isLocal
+      ? m['voice.media_telemetry_reception_local']()
+      : `${m['voice.media_telemetry_reception']()}: ${m['voice.participant_connection_metrics']({
+          latency: formatValue(participant.receptionLatencyMs, ' ms'),
+          packetLoss: formatValue(participant.receptionPacketLossPercent, '%'),
+          jitter: formatValue(participant.receptionJitterMs, ' ms')
+        })}`;
+    return `${source} · ${reception}`;
   }
 
   function participantTelemetryPanelId(participant: DisplayParticipant): string {
     return `call-participant-telemetry-${encodeURIComponent(participant.key)}`;
   }
 
-  function participantTelemetryButtonId(participant: DisplayParticipant): string {
-    return `call-participant-telemetry-button-${encodeURIComponent(participant.key)}`;
+  function participantTelemetryName(participant: DisplayParticipant): string {
+    return (participantAccountCounts[participant.userId] ?? 0) > 1
+      ? `${participant.displayName} — ${m['voice.device_badge']({ index: participant.deviceIndex })}`
+      : participant.displayName;
   }
 
-  function closeParticipantTelemetry(participant: DisplayParticipant): void {
+  function closeParticipantTelemetry(): void {
     telemetryParticipantKey = null;
     requestAnimationFrame(() => {
-      document.getElementById(participantTelemetryButtonId(participant))?.focus();
+      telemetryTrigger?.focus();
     });
   }
 
   function toggleParticipantTelemetry(participant: DisplayParticipant, event: MouseEvent): void {
     event.stopPropagation();
     connectionTooltip = null;
-    telemetryParticipantKey = telemetryParticipantKey === participant.key ? null : participant.key;
+    if (telemetryParticipantKey === participant.key) {
+      telemetryParticipantKey = null;
+      return;
+    }
+    telemetryTrigger = event.currentTarget as HTMLButtonElement;
+    telemetryParticipantKey = participant.key;
   }
 
   function participantConnectionTooltipId(participant: DisplayParticipant): string {
@@ -964,9 +985,9 @@ retained only for non-joined projections that still consume this component.
 {#snippet participantIndicators(participant: DisplayParticipant, gallery = false)}
   <span
     class={[
-      'inline-flex h-6 max-w-full min-w-5 shrink-0 items-center justify-end gap-1.5 overflow-hidden text-sm',
+      'inline-flex h-11 min-h-[44px] max-w-full min-w-[44px] shrink-0 items-center justify-end gap-1.5 overflow-hidden text-sm',
       gallery &&
-        'pointer-events-none absolute bottom-2 left-2 z-10 max-w-[calc(100%-3.5rem)] rounded-md bg-surface-100/90 px-1.5 shadow-sm'
+        'absolute bottom-2 left-2 z-30 max-w-[calc(100%-3.5rem)] rounded-md bg-surface-100/90 px-1.5 shadow-sm'
     ]}
     data-testid="call-participant-indicators"
   >
@@ -985,9 +1006,13 @@ retained only for non-joined projections that still consume this component.
       ></span>
     {/if}
     <button
-      id={participantTelemetryButtonId(participant)}
       type="button"
-      class="inline-flex min-h-[44px] min-w-[44px] shrink-0 cursor-help items-center justify-center rounded-md border-0 bg-transparent p-0 outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+      class={[
+        'inline-flex min-h-[44px] min-w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent p-0 transition-colors outline-none hover:border-text/10 hover:bg-surface-300 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
+        telemetryParticipantKey === participant.key
+          ? 'border-primary/30 bg-primary/15 text-primary shadow-sm'
+          : 'bg-transparent'
+      ]}
       aria-label={`${participantConnectionLabel(participant)} — ${m['voice.media_telemetry_open']()}`}
       aria-expanded={telemetryParticipantKey === participant.key}
       aria-controls={participantTelemetryPanelId(participant)}
@@ -1065,16 +1090,6 @@ retained only for non-joined projections that still consume this component.
         ></span>
       {/if}
     </button>
-    <FloatingTooltip
-      open={connectionTooltip?.key === participant.key}
-      anchor={connectionTooltip?.key === participant.key ? connectionTooltip.anchor : null}
-      placement="top"
-      id={participantConnectionTooltipId(participant)}
-    >
-      <span class="block max-w-[min(28rem,calc(100vw-1rem))] text-left whitespace-normal">
-        {participantConnectionMetrics(participant)}
-      </span>
-    </FloatingTooltip>
   </span>
 {/snippet}
 
@@ -1137,10 +1152,11 @@ retained only for non-joined projections that still consume this component.
           data-testid="call-screen-share-audio-indicator"
         ></span>
       {/if}
-      {#if showIndicators && hasParticipantIndicator(participant)}
-        {@render participantIndicators(participant, gallery)}
-      {/if}
     </button>
+
+    {#if showIndicators && hasParticipantIndicator(participant)}
+      {@render participantIndicators(participant, gallery)}
+    {/if}
 
     {#if actions === 'media'}
       {@render mediaTileActions(participant, isScreenShare, isScreenShare)}
@@ -1197,34 +1213,6 @@ retained only for non-joined projections that still consume this component.
         false,
         mode === 'gallery' || mode === 'filmstrip' || mode === 'filmstrip-video'
       )}
-
-      {#if telemetryParticipantKey === participant.key}
-        <ParticipantMediaTelemetryPanel
-          panelId={participantTelemetryPanelId(participant)}
-          participantName={participant.displayName}
-          sourceMetrics={participant.sourceMediaTelemetry}
-          sourceAggregate={participant.networkHealth === 'unknown'
-            ? null
-            : {
-                health: participant.networkHealth,
-                packetLossPercent: participant.packetLossPercent,
-                jitterMs: participant.jitterMs,
-                latencyMs: participant.latencyMs
-              }}
-          receptionAggregate={participant.receptionNetworkHealth === 'unknown'
-            ? null
-            : {
-                health: participant.receptionNetworkHealth,
-                packetLossPercent: participant.receptionPacketLossPercent,
-                jitterMs: participant.receptionJitterMs,
-                latencyMs: participant.receptionLatencyMs
-              }}
-          diagnosis={participant.mediaTelemetryDiagnosis}
-          history={participant.mediaTelemetryHistory}
-          updatedAt={participant.sourceTelemetryUpdatedAt}
-          onclose={() => closeParticipantTelemetry(participant)}
-        />
-      {/if}
 
       {#if showVideo}
         <button
@@ -1783,6 +1771,48 @@ retained only for non-joined projections that still consume this component.
     {/if}
   </div>
 </div>
+
+{#if telemetryParticipant}
+  <ParticipantMediaTelemetryPanel
+    panelId={participantTelemetryPanelId(telemetryParticipant)}
+    participantName={participantTelemetryName(telemetryParticipant)}
+    sourceMetrics={telemetryParticipant.sourceMediaTelemetry}
+    sourceAggregate={telemetryParticipant.networkHealth === 'unknown'
+      ? null
+      : {
+          health: telemetryParticipant.networkHealth,
+          packetLossPercent: telemetryParticipant.packetLossPercent,
+          jitterMs: telemetryParticipant.jitterMs,
+          latencyMs: telemetryParticipant.latencyMs
+        }}
+    receptionAggregate={telemetryParticipant.receptionNetworkHealth === 'unknown'
+      ? null
+      : {
+          health: telemetryParticipant.receptionNetworkHealth,
+          packetLossPercent: telemetryParticipant.receptionPacketLossPercent,
+          jitterMs: telemetryParticipant.receptionJitterMs,
+          latencyMs: telemetryParticipant.receptionLatencyMs
+        }}
+    diagnosis={telemetryParticipant.mediaTelemetryDiagnosis}
+    history={telemetryParticipant.mediaTelemetryHistory}
+    updatedAt={telemetryParticipant.sourceTelemetryUpdatedAt}
+    isLocalParticipant={telemetryParticipant.isLocal}
+    onclose={closeParticipantTelemetry}
+  />
+{/if}
+
+{#if connectionTooltip && connectionTooltipParticipant}
+  <FloatingTooltip
+    open={true}
+    anchor={connectionTooltip.anchor}
+    placement="top"
+    id={participantConnectionTooltipId(connectionTooltipParticipant)}
+  >
+    <span class="block max-w-[min(28rem,calc(100vw-1rem))] text-left whitespace-normal">
+      {participantConnectionMetrics(connectionTooltipParticipant)}
+    </span>
+  </FloatingTooltip>
+{/if}
 
 {#if popoverParticipant && popoverAnchorRect}
   <UserContextMenu

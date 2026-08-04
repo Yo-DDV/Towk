@@ -58,6 +58,17 @@ describe('ParticipantMediaTelemetryPanel', () => {
 
     const panel = document.getElementById('participant-telemetry-test')!;
     expect(panel.getAttribute('role')).toBe('dialog');
+    expect(panel.getAttribute('aria-modal')).toBe('true');
+    expect(panel.closest('[data-testid="participant-media-telemetry-backdrop"]')).not.toBeNull();
+    const panelRect = panel.getBoundingClientRect();
+    expect(panelRect.left).toBeGreaterThanOrEqual(-1);
+    expect(panelRect.top).toBeGreaterThanOrEqual(-1);
+    expect(panelRect.right).toBeLessThanOrEqual(window.innerWidth + 1);
+    expect(panelRect.bottom).toBeLessThanOrEqual(window.innerHeight + 1);
+    const scroll = panel.querySelector<HTMLElement>(
+      '[data-testid="participant-media-telemetry-scroll"]'
+    )!;
+    expect(getComputedStyle(scroll).overflowY).toBe('auto');
     expect(panel.textContent).toContain('Source to server');
     expect(panel.textContent).toContain('Reception on this device');
     expect(panel.textContent).toContain('The source path is probably degraded');
@@ -89,6 +100,27 @@ describe('ParticipantMediaTelemetryPanel', () => {
     const panel = document.getElementById('participant-telemetry-unavailable')!;
     expect(panel.textContent).toContain('Source telemetry is unavailable');
     expect(panel.textContent).toContain('Reception on this device');
+    rendered.unmount();
+  });
+
+  it('explains why reception metrics do not apply to the local participant', () => {
+    const rendered = render(ParticipantMediaTelemetryPanel, {
+      props: {
+        panelId: 'participant-telemetry-local',
+        participantName: 'Local device',
+        sourceMetrics: [],
+        sourceAggregate: source,
+        receptionAggregate: null,
+        diagnosis: 'unknown',
+        history: [],
+        updatedAt: Date.now(),
+        isLocalParticipant: true,
+        onclose: vi.fn()
+      }
+    });
+    const panel = document.getElementById('participant-telemetry-local')!;
+    expect(panel.textContent).toContain('Local reception does not apply to your own device');
+    expect(panel.textContent).not.toContain('Reception on this device: Unavailable');
     rendered.unmount();
   });
 });

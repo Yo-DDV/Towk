@@ -155,6 +155,78 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(tooltip.textContent).toContain('Average jitter: 82 ms');
   });
 
+  it('opens one viewport-level telemetry dialog without nesting interactive buttons', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'stage', scenario: 'screen-devices' }
+    });
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-connection-quality-indicator"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(
+      container.querySelector('button [data-testid="call-connection-quality-indicator"]')
+    ).toBeNull();
+    trigger.click();
+    const panel = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLElement>(
+        '[data-testid="participant-media-telemetry-panel"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(panel.closest('[data-testid="call-participant-card"]')).toBeNull();
+    const rect = panel.getBoundingClientRect();
+    expect(rect.right).toBeLessThanOrEqual(window.innerWidth + 1);
+    expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight + 1);
+  });
+
+  it('renders only one connection tooltip for duplicate participant projections', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'stage', scenario: 'screen-devices' }
+    });
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-connection-quality-indicator"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    trigger.focus();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll('[id^="call-connection-tooltip-"]')).toHaveLength(1);
+    });
+  });
+
+  it('identifies the selected device when one account has two active connections', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'devices' }
+    });
+    const secondDeviceCard = await vi.waitFor(() => {
+      const cards = Array.from(
+        container.querySelectorAll<HTMLElement>('[data-testid="call-participant-card"]')
+      );
+      const value = cards.find((card) =>
+        card.querySelector('[data-testid="call-device-badge"]')?.textContent?.includes('Device 2')
+      );
+      expect(value).not.toBeUndefined();
+      return value!;
+    });
+    secondDeviceCard
+      .querySelector<HTMLButtonElement>('[data-testid="call-connection-quality-indicator"]')!
+      .click();
+    const panel = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLElement>(
+        '[data-testid="participant-media-telemetry-panel"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(panel.textContent).toContain('Device 2');
+  });
+
   it('renders good measured connections as healthy instead of unavailable gray', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'sidebar', scenario: 'voice' }

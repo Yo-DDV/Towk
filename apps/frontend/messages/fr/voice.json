@@ -227,6 +227,7 @@
     "media_telemetry_reception": "Réception sur cet appareil",
     "media_telemetry_source_hint": "Mesures publiées par la connexion authentifiée de ce participant.",
     "media_telemetry_reception_hint": "Ce que ce navigateur reçoit actuellement du serveur.",
+    "media_telemetry_reception_local": "La réception locale ne s’applique pas à votre propre appareil : ce navigateur n’en reçoit pas les médias sortants.",
     "media_telemetry_diagnosis_source": "Le chemin source est probablement dégradé ; il s'agit d'une déduction, pas d'une preuve.",
     "media_telemetry_diagnosis_receiver": "La réception sur cet appareil est probablement dégradée ; il s'agit d'une déduction, pas d'une preuve.",
     "media_telemetry_diagnosis_shared": "Plusieurs chemins sont dégradés ; la route partagée ou le serveur peut être concerné.",

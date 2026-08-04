@@ -227,6 +227,7 @@
     "media_telemetry_reception": "Reception on this device",
     "media_telemetry_source_hint": "Metrics published by this participant's authenticated connection.",
     "media_telemetry_reception_hint": "What this browser currently receives from the server.",
+    "media_telemetry_reception_local": "Local reception does not apply to your own device: this browser does not receive its outgoing media.",
     "media_telemetry_diagnosis_source": "The source path is probably degraded; this is an inference, not proof.",
     "media_telemetry_diagnosis_receiver": "Reception on this device is probably degraded; this is an inference, not proof.",
     "media_telemetry_diagnosis_shared": "Several paths are degraded; the shared route or server may be involved.",

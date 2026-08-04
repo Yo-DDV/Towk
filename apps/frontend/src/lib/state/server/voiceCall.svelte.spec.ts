@@ -56,6 +56,7 @@ let lastRoom: {
     setScreenShareEnabled: ReturnType<typeof vi.fn>;
     setCameraEnabled: ReturnType<typeof vi.fn>;
     performRpc: ReturnType<typeof vi.fn>;
+    publishData: ReturnType<typeof vi.fn>;
   };
   getActiveDevice: ReturnType<typeof vi.fn>;
   switchActiveDevice: ReturnType<typeof vi.fn>;
@@ -125,6 +126,9 @@ let roomRpcHandlers = new Map<
   }) => Promise<string>
 >();
 let performRpcFailure: Error | null = null;
+let publishDataMock = vi.fn(
+  async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
+);
 let performRpcResponder: (params: {
   destinationIdentity: string;
   method: string;
@@ -264,6 +268,9 @@ vi.mock('livekit-client', () => {
           if (performRpcFailure) throw performRpcFailure;
           return performRpcResponder(params);
         }
+      ),
+      publishData: vi.fn((data: Uint8Array, options: { reliable: boolean; topic: string }) =>
+        publishDataMock(data, options)
       ),
       getTrackPublication: vi.fn((source: string) => {
         if (source === 'microphone') return microphonePublication;
@@ -599,6 +606,9 @@ describe('VoiceCallState', () => {
     roomEventHandlers = new Map();
     roomRpcHandlers = new Map();
     performRpcFailure = null;
+    publishDataMock = vi.fn(
+      async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
+    );
     performRpcResponder = () =>
       JSON.stringify({ version: 1, microphoneMuted: false, outputMuted: false, revision: 0 });
     localTrackPublications = [];
@@ -5228,6 +5238,21 @@ describe('VoiceCallState', () => {
 
     recoveredPoll.resolve(emptyReport);
     await flushPromises();
+    await state.leave();
+  });
+
+  it('waits for the LiveKit room to connect before publishing participant telemetry', async () => {
+    connectGate = deferredVoid();
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    const joining = state.join('wss://livekit.example.test', 'R1');
+    await vi.waitFor(() => expect(calls).toContain('connect'));
+    await flushPromises();
+    expect(publishDataMock).not.toHaveBeenCalled();
+
+    connectGate.resolve();
+    await joining;
+    await vi.waitFor(() => expect(publishDataMock).toHaveBeenCalledOnce());
     await state.leave();
   });
 

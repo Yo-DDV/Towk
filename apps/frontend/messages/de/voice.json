@@ -227,6 +227,7 @@
     "media_telemetry_reception": "Empfang auf diesem Gerät",
     "media_telemetry_source_hint": "Messwerte der authentifizierten Verbindung dieses Teilnehmers.",
     "media_telemetry_reception_hint": "Was dieser Browser derzeit vom Server empfängt.",
+    "media_telemetry_reception_local": "Der lokale Empfang gilt nicht für das eigene Gerät: Dieser Browser empfängt dessen ausgehende Medien nicht.",
     "media_telemetry_diagnosis_source": "Der Quellpfad ist wahrscheinlich beeinträchtigt; dies ist eine Einschätzung, kein Beweis.",
     "media_telemetry_diagnosis_receiver": "Der Empfang auf diesem Gerät ist wahrscheinlich beeinträchtigt; dies ist eine Einschätzung, kein Beweis.",
     "media_telemetry_diagnosis_shared": "Mehrere Pfade sind beeinträchtigt; die gemeinsame Route oder der Server kann beteiligt sein.",

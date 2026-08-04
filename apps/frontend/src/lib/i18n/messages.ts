@@ -1547,6 +1547,7 @@ const msg_voice_media_telemetry_source = (): LocalizedString => messages().voice
 const msg_voice_media_telemetry_reception = (): LocalizedString => messages().voice_media_telemetry_reception(empty());
 const msg_voice_media_telemetry_source_hint = (): LocalizedString => messages().voice_media_telemetry_source_hint(empty());
 const msg_voice_media_telemetry_reception_hint = (): LocalizedString => messages().voice_media_telemetry_reception_hint(empty());
+const msg_voice_media_telemetry_reception_local = (): LocalizedString => messages().voice_media_telemetry_reception_local(empty());
 const msg_voice_media_telemetry_diagnosis_source = (): LocalizedString => messages().voice_media_telemetry_diagnosis_source(empty());
 const msg_voice_media_telemetry_diagnosis_receiver = (): LocalizedString => messages().voice_media_telemetry_diagnosis_receiver(empty());
 const msg_voice_media_telemetry_diagnosis_shared = (): LocalizedString => messages().voice_media_telemetry_diagnosis_shared(empty());
@@ -3587,6 +3588,7 @@ export { msg_voice_media_telemetry_source as 'voice.media_telemetry_source' };
 export { msg_voice_media_telemetry_reception as 'voice.media_telemetry_reception' };
 export { msg_voice_media_telemetry_source_hint as 'voice.media_telemetry_source_hint' };
 export { msg_voice_media_telemetry_reception_hint as 'voice.media_telemetry_reception_hint' };
+export { msg_voice_media_telemetry_reception_local as 'voice.media_telemetry_reception_local' };
 export { msg_voice_media_telemetry_diagnosis_source as 'voice.media_telemetry_diagnosis_source' };
 export { msg_voice_media_telemetry_diagnosis_receiver as 'voice.media_telemetry_diagnosis_receiver' };
 export { msg_voice_media_telemetry_diagnosis_shared as 'voice.media_telemetry_diagnosis_shared' };

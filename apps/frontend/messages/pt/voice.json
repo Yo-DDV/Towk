@@ -227,6 +227,7 @@
     "media_telemetry_reception": "Recepção neste dispositivo",
     "media_telemetry_source_hint": "Métricas publicadas pela conexão autenticada deste participante.",
     "media_telemetry_reception_hint": "O que este navegador recebe atualmente do servidor.",
+    "media_telemetry_reception_local": "A recepção local não se aplica ao seu próprio dispositivo: este navegador não recebe a mídia enviada por ele.",
     "media_telemetry_diagnosis_source": "O caminho da fonte provavelmente está degradado; isso é uma inferência, não uma prova.",
     "media_telemetry_diagnosis_receiver": "A recepção neste dispositivo provavelmente está degradada; isso é uma inferência, não uma prova.",
     "media_telemetry_diagnosis_shared": "Vários caminhos estão degradados; a rota compartilhada ou o servidor podem estar envolvidos.",

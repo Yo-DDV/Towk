@@ -1000,6 +1000,7 @@ export class VoiceCallState {
       this.attachBrowserNetworkListeners();
       this.updateParticipants();
       void this.refreshSiblingAudioStates();
+      void this.refreshParticipantMediaTelemetry();
       await this.refreshDevices();
       await this.reconcileMicrophoneProcessing(room);
       if (this.consumePendingOwnJoinSound()) {
@@ -2789,7 +2790,6 @@ export class VoiceCallState {
       void this.observeMicrophoneRoute(room);
     }, MICROPHONE_ROUTE_RECONCILE_INTERVAL_MS);
     void this.refreshParticipantNetworkQuality();
-    void this.refreshParticipantMediaTelemetry();
     this.participantNetworkQualityInterval = setInterval(
       () => {
         void this.refreshParticipantNetworkQuality();
@@ -2923,7 +2923,13 @@ export class VoiceCallState {
 
   private async refreshParticipantMediaTelemetry(): Promise<void> {
     const room = this.room;
-    if (!room || this.participantMediaTelemetryPollRoom === room) return;
+    if (
+      !room ||
+      room.state !== ConnectionState.Connected ||
+      this.participantMediaTelemetryPollRoom === room
+    ) {
+      return;
+    }
     this.participantMediaTelemetryPollRoom = room;
     try {
       const collectedAt = Date.now();
