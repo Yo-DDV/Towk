@@ -755,11 +755,13 @@ strictly local, starts only while this component is mounted, and stops on close.
   @keyframes diagnostics-panel-enter {
     from {
       opacity: 0;
-      transform: translate(-50%, 0.5rem) scale(0.985);
+      scale: 0.985;
+      translate: 0 0.5rem;
     }
     to {
       opacity: 1;
-      transform: translateX(-50%);
+      scale: 1;
+      translate: 0 0;
     }
   }
 
@@ -775,6 +777,22 @@ strictly local, starts only while this component is mounted, and stops on close.
 
   .diagnostics-trends :global(figcaption > strong) {
     color: rgb(255 255 255 / 0.92);
+  }
+
+  @container (max-width: 48rem) {
+    .screen-share-diagnostics-overlay {
+      position: fixed;
+      z-index: 100;
+      top: max(0.5rem, var(--diagnostics-safe-top));
+      right: max(0.5rem, var(--diagnostics-safe-right));
+      bottom: auto;
+      left: max(0.5rem, var(--diagnostics-safe-left));
+      width: auto;
+      max-width: 46rem;
+      max-height: calc(100dvh - 1rem);
+      margin-inline: auto;
+      transform: none;
+    }
   }
 
   @media (max-width: 460px), (max-height: 460px) {

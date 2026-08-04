@@ -165,6 +165,7 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     });
     Object.assign(rendered.container.style, {
       position: 'relative',
+      containerType: 'inline-size',
       width: '800px',
       height: '600px'
     });
@@ -198,8 +199,14 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(panel.getBoundingClientRect().height).toBeLessThanOrEqual(462);
     expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
 
+    Object.assign(rendered.container.style, { width: '700px', height: '600px' });
+    expect(getComputedStyle(panel).position).toBe('fixed');
+    expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
+
     Object.assign(rendered.container.style, { width: '320px', height: '568px' });
-    expect(panel.getBoundingClientRect().width).toBeLessThanOrEqual(320);
+    const mobilePanelRect = panel.getBoundingClientRect();
+    expect(mobilePanelRect.left).toBeGreaterThanOrEqual(0);
+    expect(mobilePanelRect.right).toBeLessThanOrEqual(window.innerWidth + 1);
     expect(getComputedStyle(summary).gridTemplateColumns.split(' ')).toHaveLength(1);
     expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth + 1);
     rendered.unmount();
