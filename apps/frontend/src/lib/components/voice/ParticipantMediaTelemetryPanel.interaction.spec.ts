@@ -57,7 +57,7 @@ describe('ParticipantMediaTelemetryPanel touch disclosure', () => {
     const underlyingClick = vi.fn();
     underlying.addEventListener('click', underlyingClick);
 
-    let unmount = () => undefined;
+    let unmount: () => void = () => undefined;
     const onclose = vi.fn(() => unmount());
     const rendered = render(ParticipantMediaTelemetryPanel, {
       props: { ...baseProps, panelId: 'telemetry-click-shield', onclose }
@@ -111,7 +111,7 @@ describe('ParticipantMediaTelemetryPanel touch disclosure', () => {
     const previewFocus = vi.fn();
     trigger.addEventListener('focus', previewFocus);
 
-    let unmount = () => undefined;
+    let unmount: () => void = () => undefined;
     const onclose = vi.fn(() => {
       unmount();
       requestAnimationFrame(() => trigger.focus({ preventScroll: true }));
@@ -150,7 +150,7 @@ describe('ParticipantMediaTelemetryPanel touch disclosure', () => {
     const previewFocus = vi.fn();
     trigger.addEventListener('focus', previewFocus);
 
-    let unmount = () => undefined;
+    let unmount: () => void = () => undefined;
     const onclose = vi.fn(() => {
       unmount();
       requestAnimationFrame(() => trigger.focus({ preventScroll: true }));
