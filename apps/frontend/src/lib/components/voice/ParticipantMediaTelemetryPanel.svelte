@@ -89,8 +89,6 @@
     window.addEventListener('keydown', markKeyboardInput, true);
     return () => {
       cancelAnimationFrame(focusFrame);
-      removeClickShield?.();
-      removeFocusRestoreGuard?.();
       window.removeEventListener('pointerdown', markPointerInput, true);
       window.removeEventListener('keydown', markKeyboardInput, true);
     };

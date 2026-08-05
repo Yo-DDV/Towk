@@ -88,7 +88,6 @@ desktop pointer activation keeps the detailed diagnostics view.
     });
     return () => {
       cancelAnimationFrame(frame);
-      removeClickShield?.();
     };
   });
 
@@ -109,6 +108,9 @@ desktop pointer activation keeps the detailed diagnostics view.
 
   function expand(): void {
     presentation = 'expanded';
+    requestAnimationFrame(() => {
+      document.getElementById(panelId)?.focus({ preventScroll: true });
+    });
   }
 
   function closeFromBackdrop(event: PointerEvent): void {
