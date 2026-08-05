@@ -40,6 +40,7 @@ desktop pointer activation keeps the detailed diagnostics view.
   let sample = $state<ScreenShareDiagnosticsSample | null>(null);
   let loading = $state(touchFirstDisclosure);
   let unavailable = $state(false);
+  let dialogElement: HTMLElement | null = $state(null);
   let closeButton: HTMLButtonElement | null = $state(null);
   let expandButton: HTMLButtonElement | null = $state(null);
   let formattingLocale = $derived(getFormattingLocale());
@@ -147,10 +148,29 @@ desktop pointer activation keeps the detailed diagnostics view.
   }
 
   function handleWindowKeydown(event: KeyboardEvent): void {
-    if (presentation !== 'compact' || event.key !== 'Escape') return;
-    event.preventDefault();
-    event.stopPropagation();
-    onclose();
+    if (presentation !== 'compact') return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      onclose();
+      return;
+    }
+    if (event.key !== 'Tab' || !dialogElement) return;
+    const focusable = Array.from(
+      dialogElement.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((element) => !element.hasAttribute('hidden'));
+    if (!focusable.length) return;
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   function formatNumber(value: number | null, maximumFractionDigits = 0): string {
@@ -213,6 +233,7 @@ desktop pointer activation keeps the detailed diagnostics view.
     onpointerdown={closeFromBackdrop}
   >
     <aside
+      bind:this={dialogElement}
       id={panelId}
       role="dialog"
       aria-modal="true"
