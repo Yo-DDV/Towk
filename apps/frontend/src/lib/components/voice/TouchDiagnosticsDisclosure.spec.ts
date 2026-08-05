@@ -100,6 +100,7 @@ const participantProps = {
 afterEach(async () => {
   vi.restoreAllMocks();
   vi.useRealTimers();
+  document.querySelectorAll('[data-telemetry-test-fixture]').forEach((element) => element.remove());
   await page.viewport(1280, 720);
 });
 
@@ -224,5 +225,83 @@ describe('touch-first diagnostics disclosure', () => {
       }
       rendered.unmount();
     }
+  });
+
+  it('keeps focus inside the touch screen-share preview', async () => {
+    useTabletWithFineSecondaryPointer();
+    const rendered = render(ScreenShareDiagnostics, {
+      props: {
+        track: { getRTCStatsReport: vi.fn(async () => statsReport()) } as unknown as Track,
+        direction: 'inbound',
+        panelId: 'screen-share-touch-focus',
+        onclose: vi.fn()
+      }
+    });
+
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const preview = document.getElementById('screen-share-touch-focus')!;
+    const close = preview.querySelector<HTMLButtonElement>(
+      '[data-testid="screen-share-diagnostics-preview-close"]'
+    )!;
+    const expand = preview.querySelector<HTMLButtonElement>(
+      '[data-testid="screen-share-diagnostics-expand"]'
+    )!;
+    expect(document.activeElement).toBe(expand);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+    expect(document.activeElement).toBe(close);
+
+    close.focus();
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
+    );
+    expect(document.activeElement).toBe(expand);
+    rendered.unmount();
+  });
+
+  it('blocks the synthetic click behind the dismissed screen-share preview', () => {
+    useTabletWithFineSecondaryPointer();
+    const underlying = document.createElement('button');
+    underlying.dataset.telemetryTestFixture = 'screen-underlying';
+    document.body.append(underlying);
+    const underlyingClick = vi.fn();
+    underlying.addEventListener('click', underlyingClick);
+
+    let unmount: () => void = () => undefined;
+    const onclose = vi.fn(() => unmount());
+    const rendered = render(ScreenShareDiagnostics, {
+      props: {
+        track: { getRTCStatsReport: vi.fn(async () => statsReport()) } as unknown as Track,
+        direction: 'inbound',
+        panelId: 'screen-share-touch-dismiss',
+        onclose
+      }
+    });
+    unmount = () => rendered.unmount();
+
+    const backdrop = document.querySelector<HTMLElement>(
+      '[data-testid="screen-share-diagnostics-preview-backdrop"]'
+    )!;
+    backdrop.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerType: 'touch',
+        clientX: 24,
+        clientY: 24
+      })
+    );
+    underlying.dispatchEvent(
+      new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        detail: 1,
+        clientX: 24,
+        clientY: 24
+      })
+    );
+
+    expect(onclose).toHaveBeenCalledOnce();
+    expect(underlyingClick).not.toHaveBeenCalled();
   });
 });
