@@ -4,6 +4,7 @@
   import {
     type ParticipantMediaAggregate,
     type ParticipantMediaDiagnosis,
+    type ParticipantMediaHealth,
     type ParticipantMediaMetric,
     type ParticipantMediaTelemetryHistoryPoint
   } from '$lib/voice/participantMediaTelemetry';
@@ -32,10 +33,16 @@
     onclose: () => void;
   } = $props();
 
+  type Presentation = 'compact' | 'expanded';
+
   let dialogElement: HTMLElement | null = $state(null);
   let closeButton: HTMLButtonElement | null = $state(null);
-  const chartWidth = 320;
-  const chartHeight = 72;
+  let compactPrimaryButton: HTMLButtonElement | null = $state(null);
+  let presentation = $state<Presentation>(initialPresentation());
+  const chartWidth = 360;
+  const chartHeight = 96;
+
+  let overallHealth = $derived(resolveOverallHealth(sourceAggregate, receptionAggregate));
   let charts = $derived([
     chartModel(
       'latency',
@@ -55,7 +62,34 @@
     )
   ]);
 
-  onMount(() => closeButton?.focus());
+  onMount(() => {
+    const frame = requestAnimationFrame(() => {
+      (presentation === 'compact' ? compactPrimaryButton : closeButton)?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  });
+
+  function initialPresentation(): Presentation {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return 'expanded';
+    }
+    const coarsePrimaryPointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const finePointerAvailable = window.matchMedia(
+      '(any-hover: hover) and (any-pointer: fine)'
+    ).matches;
+    return coarsePrimaryPointer && !finePointerAvailable ? 'compact' : 'expanded';
+  }
+
+  function expand(): void {
+    presentation = 'expanded';
+    requestAnimationFrame(() => closeButton?.focus());
+  }
+
+  function closeFromBackdrop(event: PointerEvent): void {
+    if (event.target !== event.currentTarget) return;
+    event.preventDefault();
+    onclose();
+  }
 
   function onkeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
@@ -80,6 +114,43 @@
       event.preventDefault();
       first.focus();
     }
+  }
+
+  function resolveOverallHealth(
+    source: ParticipantMediaAggregate | null,
+    reception: ParticipantMediaAggregate | null
+  ): ParticipantMediaHealth {
+    const candidates = [source?.health, reception?.health].filter(
+      (health): health is ParticipantMediaHealth => Boolean(health) && health !== 'unknown'
+    );
+    if (!candidates.length) return 'unknown';
+    return candidates.reduce((worst, health) =>
+      healthSeverity(health) > healthSeverity(worst) ? health : worst
+    );
+  }
+
+  function healthSeverity(health: ParticipantMediaHealth): number {
+    return health === 'poor'
+      ? 4
+      : health === 'degraded'
+        ? 3
+        : health === 'good'
+          ? 2
+          : health === 'excellent'
+            ? 1
+            : 0;
+  }
+
+  function qualityBadgeClass(health: ParticipantMediaHealth): string {
+    return health === 'excellent'
+      ? 'bg-presence-online/10 text-presence-online'
+      : health === 'good'
+        ? 'bg-accent/10 text-accent'
+        : health === 'degraded'
+          ? 'bg-warning/10 text-warning'
+          : health === 'poor'
+            ? 'bg-danger/10 text-danger'
+            : 'bg-surface-300/80 text-muted';
   }
 
   function chartModel(
@@ -134,7 +205,7 @@
         firstBucketAt === lastBucketAt
           ? chartWidth
           : ((bucketAt - firstBucketAt) / duration) * chartWidth;
-      const y = chartHeight - (Math.min(maximum, value) / maximum) * (chartHeight - 8) - 4;
+      const y = chartHeight - (Math.min(maximum, value) / maximum) * (chartHeight - 12) - 6;
       current.push(`${x.toFixed(1)},${y.toFixed(1)}`);
     });
     if (current.length) segments.push(current);
@@ -161,7 +232,7 @@
           firstBucketAt === lastBucketAt
             ? chartWidth
             : ((bucketAt - firstBucketAt) / duration) * chartWidth,
-        y: chartHeight - (Math.min(maximum, value) / maximum) * (chartHeight - 8) - 4,
+        y: chartHeight - (Math.min(maximum, value) / maximum) * (chartHeight - 12) - 6,
         value
       };
     }
@@ -211,7 +282,7 @@
       : `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}${unit}`;
   }
 
-  function healthLabel(health: ParticipantMediaMetric['health']): string {
+  function healthLabel(health: ParticipantMediaHealth): string {
     return health === 'excellent'
       ? m['voice.screen_stats_health_excellent']()
       : health === 'good'
@@ -241,78 +312,373 @@
     ] as const;
   }
 
-  function diagnosisLabel(value: ParticipantMediaDiagnosis): string {
-    return value === 'source'
-      ? m['voice.media_telemetry_diagnosis_source']()
-      : value === 'receiver'
-        ? m['voice.media_telemetry_diagnosis_receiver']()
-        : value === 'shared'
-          ? m['voice.media_telemetry_diagnosis_shared']()
-          : m['voice.media_telemetry_diagnosis_unknown']();
+  function connectionMetricRows() {
+    const upload = aggregateRows(sourceAggregate);
+    const download = aggregateRows(receptionAggregate);
+    return upload.map((row, index) => ({
+      label: row[0],
+      upload: row[1],
+      download: download[index]![1]
+    }));
   }
 </script>
 
 <svelte:window {onkeydown} />
 
 <div
-  class="telemetry-backdrop fixed inset-0 z-[90] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+  class={[
+    'telemetry-backdrop fixed inset-0 z-[90] flex justify-center',
+    presentation === 'compact'
+      ? 'items-end bg-black/35 p-2 sm:items-center'
+      : 'items-end bg-black/65 p-0 sm:items-center sm:p-4'
+  ]}
+  data-presentation={presentation}
   data-testid="participant-media-telemetry-backdrop"
+  onpointerdown={closeFromBackdrop}
 >
-  <div
-    bind:this={dialogElement}
-    id={panelId}
-    role="dialog"
-    aria-modal="true"
-    aria-label={m['voice.media_telemetry_title']({ name: participantName })}
-    class="telemetry-panel @container flex h-[min(100dvh,52rem)] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-2xl border border-text/15 bg-surface-100 text-text shadow-2xl sm:h-auto sm:max-h-[min(52rem,calc(100dvh-2rem))] sm:max-w-[min(64rem,calc(100vw-2rem))] sm:rounded-2xl"
-    data-testid="participant-media-telemetry-panel"
-  >
-    <header class="flex shrink-0 items-start gap-3 border-b border-text/10 px-3 py-2.5">
-      <span class="mt-1 iconify shrink-0 text-lg text-accent uil--chart-line" aria-hidden="true"
-      ></span>
-      <span class="min-w-0 flex-1">
-        <span class="block truncate text-sm font-semibold">
-          {m['voice.media_telemetry_title']({ name: participantName })}
-        </span>
-        <span class="mt-0.5 block text-xs text-muted">{diagnosisLabel(diagnosis)}</span>
-      </span>
-      <button
-        bind:this={closeButton}
-        type="button"
-        class="inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-md text-muted outline-none hover:bg-surface-300 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
-        aria-label={m['voice.media_telemetry_close']()}
-        data-testid="participant-media-telemetry-close"
-        onclick={onclose}
-      >
-        <span class="iconify text-lg uil--times" aria-hidden="true"></span>
-      </button>
-    </header>
-
+  {#if presentation === 'compact'}
     <div
-      class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4"
-      data-testid="participant-media-telemetry-scroll"
+      bind:this={dialogElement}
+      id={panelId}
+      role="dialog"
+      aria-modal="true"
+      aria-label={m['voice.media_telemetry_title']({ name: participantName })}
+      class="telemetry-compact telemetry-glass @container flex w-[min(36rem,calc(100vw-1rem))] min-w-0 flex-col overflow-hidden rounded-2xl border border-text/15 text-text shadow-2xl"
+      data-diagnosis={diagnosis}
+      data-testid="participant-media-telemetry-compact"
     >
-      <div class="grid gap-3 @min-[520px]:grid-cols-2">
-        <section
-          class="rounded-lg border border-accent/25 bg-surface-200/70 p-3 shadow-[inset_2px_0_0_color-mix(in_srgb,var(--color-accent)_70%,transparent)]"
+      <header class="flex h-14 shrink-0 items-center gap-2 border-b border-text/10 px-2.5">
+        <span class="iconify shrink-0 text-lg text-accent uil--chart-line" aria-hidden="true"></span>
+        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold">
+          {m['voice.media_telemetry_title']({ name: participantName })}
+        </h2>
+        <span
+          class={[
+            'quality-badge inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-text/10 px-2.5 text-[0.6875rem] font-semibold whitespace-nowrap',
+            qualityBadgeClass(overallHealth)
+          ]}
+          data-quality={overallHealth}
+          data-testid="participant-media-telemetry-quality-badge"
         >
-          <h3 class="text-xs font-semibold tracking-wide text-accent uppercase">
-            {m['voice.media_telemetry_source']()}
-          </h3>
-          <p class="mt-1 text-xs text-muted">{m['voice.media_telemetry_source_hint']()}</p>
-          {#if sourceAggregate}
-            <dl class="mt-2 grid grid-cols-1 gap-2 @min-[300px]:grid-cols-3">
-              {#each aggregateRows(sourceAggregate) as row (row[0])}
-                <div class="min-w-0 rounded-md bg-surface-100 px-2 py-1.5">
-                  <dt class="min-h-7 text-[0.6875rem] leading-tight text-text/70">{row[0]}</dt>
-                  <dd class="text-xs font-semibold break-words tabular-nums">{row[1]}</dd>
-                </div>
+          <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span>
+          <span class="truncate">{healthLabel(overallHealth)}</span>
+        </span>
+        <button
+          type="button"
+          class="inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl text-muted outline-none hover:bg-surface-300/80 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+          aria-label={m['voice.media_telemetry_close']()}
+          data-testid="participant-media-telemetry-compact-close"
+          onclick={onclose}
+        >
+          <span class="iconify text-lg uil--times" aria-hidden="true"></span>
+        </button>
+      </header>
+
+      <div class="p-2.5">
+        <div class="overflow-hidden rounded-xl border border-text/10 bg-surface-100/45">
+          <table
+            class="w-full table-fixed border-separate border-spacing-0 text-left"
+            aria-label={m['voice.media_telemetry_title']({ name: participantName })}
+            data-testid="participant-media-telemetry-compact-table"
+          >
+            <thead>
+              <tr>
+                <th class="w-[40%] px-2 py-1.5" scope="col">
+                  <span class="sr-only">{m['voice.media_telemetry_title']({ name: participantName })}</span>
+                </th>
+                <th class="px-2 py-1.5 text-right text-[0.6875rem] font-semibold text-accent" scope="col">
+                  <span class="inline-flex items-center justify-end gap-1">
+                    <span class="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true"></span>
+                    <span class="truncate">{m['voice.media_telemetry_source']()}</span>
+                  </span>
+                </th>
+                <th class="px-2 py-1.5 text-right text-[0.6875rem] font-semibold text-warning" scope="col">
+                  <span class="inline-flex items-center justify-end gap-1">
+                    <span class="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true"></span>
+                    <span class="truncate">{m['voice.media_telemetry_reception']()}</span>
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each connectionMetricRows() as row (row.label)}
+                <tr>
+                  <th class="border-t border-text/10 px-2 py-2 text-[0.6875rem] font-medium text-text/75" scope="row">
+                    {row.label}
+                  </th>
+                  <td class="border-t border-text/10 px-2 py-2 text-right text-xs font-semibold tabular-nums">
+                    {row.upload}
+                  </td>
+                  <td class="border-t border-text/10 px-2 py-2 text-right text-xs font-semibold tabular-nums">
+                    {row.download}
+                  </td>
+                </tr>
               {/each}
-            </dl>
+            </tbody>
+          </table>
+        </div>
+        <button
+          bind:this={compactPrimaryButton}
+          type="button"
+          class="mt-2.5 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-text/10 bg-surface-200/70 px-3 py-2 text-sm font-semibold text-text outline-none transition-colors hover:bg-surface-300/80 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+          data-testid="participant-media-telemetry-expand"
+          onclick={expand}
+        >
+          <span class="iconify text-lg text-accent uil--expand-arrows-alt" aria-hidden="true"></span>
+          {m['voice.media_telemetry_open']()}
+        </button>
+      </div>
+    </div>
+  {:else}
+    <div
+      bind:this={dialogElement}
+      id={panelId}
+      role="dialog"
+      aria-modal="true"
+      aria-label={m['voice.media_telemetry_title']({ name: participantName })}
+      class="telemetry-panel telemetry-glass @container flex h-[min(100dvh,52rem)] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-2xl border border-text/15 text-text shadow-2xl sm:h-auto sm:max-h-[min(52rem,calc(100dvh-2rem))] sm:max-w-[min(68rem,calc(100vw-2rem))] sm:rounded-2xl"
+      data-diagnosis={diagnosis}
+      data-testid="participant-media-telemetry-panel"
+    >
+      <header class="flex h-16 shrink-0 items-center gap-2.5 border-b border-text/10 px-2.5 sm:px-3.5">
+        <span class="iconify shrink-0 text-lg text-accent uil--chart-line" aria-hidden="true"></span>
+        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">
+          {m['voice.media_telemetry_title']({ name: participantName })}
+        </h2>
+        <span
+          class={[
+            'quality-badge inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-text/10 px-2.5 text-[0.6875rem] font-semibold whitespace-nowrap sm:text-xs',
+            qualityBadgeClass(overallHealth)
+          ]}
+          data-quality={overallHealth}
+          data-testid="participant-media-telemetry-quality-badge"
+        >
+          <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden="true"></span>
+          <span class="truncate">{healthLabel(overallHealth)}</span>
+        </span>
+        <button
+          bind:this={closeButton}
+          type="button"
+          class="inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl text-muted outline-none hover:bg-surface-300/80 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+          aria-label={m['voice.media_telemetry_close']()}
+          data-testid="participant-media-telemetry-close"
+          onclick={onclose}
+        >
+          <span class="iconify text-lg uil--times" aria-hidden="true"></span>
+        </button>
+      </header>
+
+      <div
+        class="telemetry-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4"
+        data-testid="participant-media-telemetry-scroll"
+      >
+        <div class="grid gap-3 @min-[540px]:grid-cols-2">
+          <section class="telemetry-card rounded-xl border border-text/10 p-3" data-telemetry-card="upload">
+            <div class="flex items-center gap-2">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent" aria-hidden="true">
+                <span class="iconify text-base uil--upload"></span>
+              </span>
+              <h3 class="text-xs font-semibold tracking-wide text-accent uppercase">
+                {m['voice.media_telemetry_source']()}
+              </h3>
+            </div>
+            <p class="mt-1.5 text-xs leading-relaxed text-muted">{m['voice.media_telemetry_source_hint']()}</p>
+            {#if sourceAggregate}
+              <dl class="mt-2.5 grid grid-cols-1 gap-2 @min-[300px]:grid-cols-3">
+                {#each aggregateRows(sourceAggregate) as row (row[0])}
+                  <div class="metric-tile min-w-0 rounded-lg border border-text/10 px-2.5 py-2">
+                    <dt class="min-h-7 text-[0.6875rem] leading-tight text-text/65">{row[0]}</dt>
+                    <dd class="text-sm font-semibold break-words tabular-nums">{row[1]}</dd>
+                  </div>
+                {/each}
+              </dl>
+            {:else}
+              <p class="metric-tile mt-2.5 rounded-lg border border-text/10 px-2.5 py-2 text-xs leading-relaxed text-muted">
+                {sourceTelemetryReceived
+                  ? m['voice.media_telemetry_source_idle']()
+                  : m['voice.media_telemetry_unavailable']()}
+              </p>
+            {/if}
+          </section>
+
+          <section class="telemetry-card rounded-xl border border-text/10 p-3" data-telemetry-card="download">
+            <div class="flex items-center gap-2">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning" aria-hidden="true">
+                <span class="iconify text-base uil--download-alt"></span>
+              </span>
+              <h3 class="text-xs font-semibold tracking-wide text-warning uppercase">
+                {m['voice.media_telemetry_reception']()}
+              </h3>
+            </div>
+            <p class="mt-1.5 text-xs leading-relaxed text-muted">{m['voice.media_telemetry_reception_hint']()}</p>
+            {#if receptionAggregate}
+              <dl class="mt-2.5 grid grid-cols-1 gap-2 @min-[300px]:grid-cols-3">
+                {#each aggregateRows(receptionAggregate) as row (row[0])}
+                  <div class="metric-tile min-w-0 rounded-lg border border-text/10 px-2.5 py-2">
+                    <dt class="min-h-7 text-[0.6875rem] leading-tight text-text/65">{row[0]}</dt>
+                    <dd class="text-sm font-semibold break-words tabular-nums">{row[1]}</dd>
+                  </div>
+                {/each}
+              </dl>
+            {:else}
+              <p class="metric-tile mt-2.5 rounded-lg border border-text/10 px-2.5 py-2 text-xs leading-relaxed text-muted">
+                {receptionTelemetrySupported
+                  ? m['voice.media_telemetry_reception_idle']()
+                  : m['voice.media_telemetry_reception_unavailable']()}
+              </p>
+            {/if}
+          </section>
+        </div>
+
+        <section class="telemetry-card mt-3 rounded-xl border border-text/10 p-3">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-xs font-semibold tracking-wide text-text uppercase">
+              {m['voice.media_telemetry_history']()}
+            </h3>
+            <span class="shrink-0 text-[0.6875rem] text-muted">{m['voice.media_telemetry_history_window']()}</span>
+          </div>
+          {#if history.length && charts.some((chart) => chart.hasValues)}
+            <div class="mt-3 grid gap-3 @min-[680px]:grid-cols-2">
+              {#each charts as chart (chart.id)}
+                <article
+                  class="chart-card min-w-0 rounded-xl border border-text/10 p-3"
+                  data-testid={`participant-media-telemetry-chart-${chart.id}`}
+                >
+                  <h4 class="text-xs font-semibold">{chart.label} ({chart.unit})</h4>
+                  <div class="mt-2 flex flex-wrap gap-1.5 text-[0.6875rem] tabular-nums">
+                    <span
+                      class="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-surface-300/65 px-2 py-1 font-medium text-accent"
+                      data-telemetry-series="upload"
+                    >
+                      <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true"></span>
+                      <span class="truncate">{m['voice.media_telemetry_source']()}: {formatChartValue(chart.sourceLatest, chart.unit)}</span>
+                    </span>
+                    <span
+                      class="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-surface-300/65 px-2 py-1 font-medium text-warning"
+                      data-telemetry-series="download"
+                    >
+                      <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" aria-hidden="true"></span>
+                      <span class="truncate">{m['voice.media_telemetry_reception']()}: {formatChartValue(chart.receptionLatest, chart.unit)}</span>
+                    </span>
+                  </div>
+                  <div class="mt-3 grid grid-cols-[2.75rem_minmax(0,1fr)] gap-1.5">
+                    <div
+                      class="flex h-[96px] flex-col justify-between text-right text-[0.625rem] leading-none text-muted tabular-nums"
+                      aria-hidden="true"
+                    >
+                      <span>{formatChartAxis(chart.maximum)}</span>
+                      <span>{formatChartAxis(chart.maximum / 2)}</span>
+                      <span>0</span>
+                    </div>
+                    <div class="chart-plot min-w-0 overflow-hidden rounded-lg border border-text/10 px-1.5 py-1">
+                      <svg
+                        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                        class="h-[96px] w-full overflow-visible"
+                        role="img"
+                        aria-label={`${chart.label}: ${m['voice.media_telemetry_history_label']()}`}
+                        preserveAspectRatio="none"
+                      >
+                        <path d={`M0 6 H${chartWidth}`} class="stroke-text/10" fill="none" vector-effect="non-scaling-stroke" />
+                        <path d={`M0 ${chartHeight / 2} H${chartWidth}`} class="stroke-text/10" fill="none" vector-effect="non-scaling-stroke" />
+                        <path d={`M0 ${chartHeight - 6} H${chartWidth}`} class="stroke-text/10" fill="none" vector-effect="non-scaling-stroke" />
+                        {#each chart.sourceSegments as segment (segment)}
+                          <polyline
+                            points={segment}
+                            class="fill-none stroke-accent [stroke-width:2.5] opacity-100 transition-opacity duration-300 [stroke-linecap:round] [stroke-linejoin:round] motion-reduce:transition-none"
+                            data-telemetry-series="upload"
+                            vector-effect="non-scaling-stroke"
+                          />
+                        {/each}
+                        {#each chart.receptionSegments as segment (segment)}
+                          <polyline
+                            points={segment}
+                            class="fill-none stroke-warning [stroke-width:2.25] opacity-100 transition-opacity duration-300 [stroke-dasharray:5_4] [stroke-linecap:round] [stroke-linejoin:round] motion-reduce:transition-none"
+                            data-telemetry-series="download"
+                            vector-effect="non-scaling-stroke"
+                          />
+                        {/each}
+                        {#if chart.sourceLatestPoint}
+                          <circle
+                            cx={chart.sourceLatestPoint.x}
+                            cy={chart.sourceLatestPoint.y}
+                            r="3.5"
+                            class="fill-accent stroke-surface-100 [stroke-width:1.5]"
+                            data-telemetry-series="upload"
+                          >
+                            <title>{m['voice.media_telemetry_source']()}: {formatChartValue(chart.sourceLatestPoint.value, chart.unit)}</title>
+                          </circle>
+                        {/if}
+                        {#if chart.receptionLatestPoint}
+                          <circle
+                            cx={chart.receptionLatestPoint.x}
+                            cy={chart.receptionLatestPoint.y}
+                            r="3.5"
+                            class="fill-warning stroke-surface-100 [stroke-width:1.5]"
+                            data-telemetry-series="download"
+                          >
+                            <title>{m['voice.media_telemetry_reception']()}: {formatChartValue(chart.receptionLatestPoint.value, chart.unit)}</title>
+                          </circle>
+                        {/if}
+                      </svg>
+                    </div>
+                    <div aria-hidden="true"></div>
+                    <div class="flex justify-between text-[0.625rem] text-muted tabular-nums">
+                      <span>{historyTime(0)}</span>
+                      <span>{historyTime(history.length - 1)}</span>
+                    </div>
+                  </div>
+                </article>
+              {/each}
+            </div>
           {:else}
-            <p
-              class="mt-2 rounded-md bg-surface-100 px-2.5 py-2 text-xs leading-relaxed text-muted"
-            >
+            <p class="mt-2 text-xs text-muted">{m['voice.media_telemetry_history_empty']()}</p>
+          {/if}
+        </section>
+
+        <section class="mt-3">
+          <h3 class="text-xs font-semibold tracking-wide text-text uppercase">
+            {m['voice.media_telemetry_paths']()}
+          </h3>
+          {#if sourceMetrics.length}
+            <div class="mt-2 grid gap-2 @min-[620px]:grid-cols-2">
+              {#each sourceMetrics as metric (metric.kind)}
+                <article class="telemetry-card rounded-xl border border-text/10 p-3">
+                  <header class="flex items-center gap-2">
+                    <span class={['iconify shrink-0 text-base text-accent', metricIcon(metric.kind)]} aria-hidden="true"></span>
+                    <h4 class="text-sm font-semibold">{metricLabel(metric.kind)}</h4>
+                    <span class={['ml-auto rounded-full border border-text/10 px-2 py-0.5 text-[0.6875rem] font-medium', qualityBadgeClass(metric.health)]}>
+                      {healthLabel(metric.health)}
+                    </span>
+                  </header>
+                  <dl class="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                    <dt class="text-muted">{m['voice.media_telemetry_bitrate']()}</dt>
+                    <dd class="text-right tabular-nums">{format(metric.bitrateKbps, ' kb/s')}</dd>
+                    <dt class="text-muted">{m['voice.media_telemetry_packet_loss']()}</dt>
+                    <dd class="text-right tabular-nums">{format(metric.packetLossPercent, '%')}</dd>
+                    <dt class="text-muted">{m['voice.media_telemetry_jitter']()}</dt>
+                    <dd class="text-right tabular-nums">{format(metric.jitterMs, ' ms')}</dd>
+                    <dt class="text-muted">{m['voice.media_telemetry_latency']()}</dt>
+                    <dd class="text-right tabular-nums">{format(metric.latencyMs, ' ms')}</dd>
+                    {#if metric.kind !== 'microphone'}
+                      <dt class="text-muted">{m['voice.media_telemetry_fps']()}</dt>
+                      <dd class="text-right tabular-nums">{format(metric.framesPerSecond, '')}</dd>
+                      <dt class="text-muted">{m['voice.media_telemetry_resolution']()}</dt>
+                      <dd class="text-right tabular-nums">
+                        {metric.width !== null && metric.height !== null
+                          ? `${metric.width} × ${metric.height}`
+                          : m['voice.connection_metric_unavailable']()}
+                      </dd>
+                    {/if}
+                    {#if metric.qualityLimitationReason}
+                      <dt class="text-muted">{m['voice.media_telemetry_limited_by']()}</dt>
+                      <dd class="text-right">{limitationLabel(metric.qualityLimitationReason)}</dd>
+                    {/if}
+                  </dl>
+                </article>
+              {/each}
+            </div>
+          {:else}
+            <p class="telemetry-card mt-2 rounded-xl border border-text/10 p-3 text-xs text-muted">
               {sourceTelemetryReceived
                 ? m['voice.media_telemetry_source_idle']()
                 : m['voice.media_telemetry_unavailable']()}
@@ -320,227 +686,12 @@
           {/if}
         </section>
 
-        <section
-          class="rounded-lg border border-warning/25 bg-surface-200/70 p-3 shadow-[inset_2px_0_0_color-mix(in_srgb,var(--color-warning)_70%,transparent)]"
-        >
-          <h3 class="text-xs font-semibold tracking-wide text-warning uppercase">
-            {m['voice.media_telemetry_reception']()}
-          </h3>
-          <p class="mt-1 text-xs text-muted">{m['voice.media_telemetry_reception_hint']()}</p>
-          {#if receptionAggregate}
-            <dl class="mt-2 grid grid-cols-1 gap-2 @min-[300px]:grid-cols-3">
-              {#each aggregateRows(receptionAggregate) as row (row[0])}
-                <div class="min-w-0 rounded-md bg-surface-100 px-2 py-1.5">
-                  <dt class="min-h-7 text-[0.6875rem] leading-tight text-text/70">{row[0]}</dt>
-                  <dd class="text-xs font-semibold break-words tabular-nums">{row[1]}</dd>
-                </div>
-              {/each}
-            </dl>
-          {:else}
-            <p
-              class="mt-2 rounded-md bg-surface-100 px-2.5 py-2 text-xs leading-relaxed text-muted"
-            >
-              {receptionTelemetrySupported
-                ? m['voice.media_telemetry_reception_idle']()
-                : m['voice.media_telemetry_reception_unavailable']()}
-            </p>
-          {/if}
-        </section>
+        <p class="telemetry-card mt-3 rounded-xl border border-text/10 p-2.5 text-[0.6875rem] leading-4 text-muted">
+          {m['voice.media_telemetry_privacy']()}
+        </p>
       </div>
-
-      <section class="mt-3 rounded-lg border border-text/10 bg-surface-200/70 p-3">
-        <div class="flex items-center justify-between gap-3">
-          <h3 class="text-xs font-semibold tracking-wide text-text uppercase">
-            {m['voice.media_telemetry_history']()}
-          </h3>
-          <span class="text-[0.6875rem] text-muted"
-            >{m['voice.media_telemetry_history_window']()}</span
-          >
-        </div>
-        {#if history.length && charts.some((chart) => chart.hasValues)}
-          <div class="mt-3 grid gap-3 @min-[640px]:grid-cols-2">
-            {#each charts as chart (chart.id)}
-              <article
-                class="min-w-0 rounded-md bg-surface-100 p-2.5"
-                data-testid={`participant-media-telemetry-chart-${chart.id}`}
-              >
-                <div class="flex flex-wrap items-start justify-between gap-2">
-                  <h4 class="text-xs font-semibold">{chart.label} ({chart.unit})</h4>
-                  <div class="flex flex-wrap gap-1 text-[0.6875rem] tabular-nums">
-                    <span
-                      class="rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 font-medium text-accent"
-                      data-telemetry-series="upload"
-                    >
-                      {m['voice.media_telemetry_source']()}: {formatChartValue(
-                        chart.sourceLatest,
-                        chart.unit
-                      )}
-                    </span>
-                    <span
-                      class="rounded-full border border-warning/25 bg-warning/10 px-2 py-0.5 font-medium text-warning"
-                      data-telemetry-series="download"
-                    >
-                      {m['voice.media_telemetry_reception']()}: {formatChartValue(
-                        chart.receptionLatest,
-                        chart.unit
-                      )}
-                    </span>
-                  </div>
-                </div>
-                {#if chart.hasValues}
-                  <div class="mt-2 grid grid-cols-[2.75rem_minmax(0,1fr)] gap-1">
-                    <div
-                      class="flex h-[72px] flex-col justify-between text-right text-[0.625rem] leading-none text-muted tabular-nums"
-                      aria-hidden="true"
-                    >
-                      <span>{formatChartAxis(chart.maximum)}</span>
-                      <span>{formatChartAxis(chart.maximum / 2)}</span>
-                      <span>0</span>
-                    </div>
-                    <svg
-                      viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-                      class="h-[72px] w-full overflow-visible"
-                      role="img"
-                      aria-label={`${chart.label}: ${m['voice.media_telemetry_history_label']()}`}
-                      preserveAspectRatio="none"
-                    >
-                      <path d={`M0 4 H${chartWidth}`} class="stroke-text/10" fill="none" />
-                      <path
-                        d={`M0 ${chartHeight / 2} H${chartWidth}`}
-                        class="stroke-text/10"
-                        fill="none"
-                      />
-                      <path
-                        d={`M0 ${chartHeight - 4} H${chartWidth}`}
-                        class="stroke-text/10"
-                        fill="none"
-                      />
-                      {#each chart.sourceSegments as segment (segment)}
-                        <polyline
-                          points={segment}
-                          class="fill-none stroke-accent [stroke-width:2.5] opacity-100 transition-opacity duration-300 [stroke-linecap:round] [stroke-linejoin:round] motion-reduce:transition-none"
-                          data-telemetry-series="upload"
-                          vector-effect="non-scaling-stroke"
-                        />
-                      {/each}
-                      {#each chart.receptionSegments as segment (segment)}
-                        <polyline
-                          points={segment}
-                          class="fill-none stroke-warning [stroke-width:2] opacity-100 transition-opacity duration-300 [stroke-dasharray:5_4] [stroke-linecap:round] [stroke-linejoin:round] motion-reduce:transition-none"
-                          data-telemetry-series="download"
-                          vector-effect="non-scaling-stroke"
-                        />
-                      {/each}
-                      {#if chart.sourceLatestPoint}
-                        <circle
-                          cx={chart.sourceLatestPoint.x}
-                          cy={chart.sourceLatestPoint.y}
-                          r="3"
-                          class="fill-accent stroke-surface-100 [stroke-width:1.5]"
-                          data-telemetry-series="upload"
-                        >
-                          <title
-                            >{m['voice.media_telemetry_source']()}: {formatChartValue(
-                              chart.sourceLatestPoint.value,
-                              chart.unit
-                            )}</title
-                          >
-                        </circle>
-                      {/if}
-                      {#if chart.receptionLatestPoint}
-                        <circle
-                          cx={chart.receptionLatestPoint.x}
-                          cy={chart.receptionLatestPoint.y}
-                          r="3"
-                          class="fill-warning stroke-surface-100 [stroke-width:1.5]"
-                          data-telemetry-series="download"
-                        >
-                          <title
-                            >{m['voice.media_telemetry_reception']()}: {formatChartValue(
-                              chart.receptionLatestPoint.value,
-                              chart.unit
-                            )}</title
-                          >
-                        </circle>
-                      {/if}
-                    </svg>
-                    <div aria-hidden="true"></div>
-                    <div class="flex justify-between text-[0.625rem] text-muted tabular-nums">
-                      <span>{historyTime(0)}</span>
-                      <span>{historyTime(history.length - 1)}</span>
-                    </div>
-                  </div>
-                {/if}
-              </article>
-            {/each}
-          </div>
-        {:else}
-          <p class="mt-2 text-xs text-muted">{m['voice.media_telemetry_history_empty']()}</p>
-        {/if}
-      </section>
-
-      <section class="mt-3">
-        <h3 class="text-xs font-semibold tracking-wide text-text uppercase">
-          {m['voice.media_telemetry_paths']()}
-        </h3>
-        {#if sourceMetrics.length}
-          <div class="mt-2 grid gap-2 @min-[600px]:grid-cols-2">
-            {#each sourceMetrics as metric (metric.kind)}
-              <article class="rounded-lg border border-text/10 bg-surface-200/70 p-3">
-                <header class="flex items-center gap-2">
-                  <span
-                    class={['iconify shrink-0 text-base text-accent', metricIcon(metric.kind)]}
-                    aria-hidden="true"
-                  ></span>
-                  <h4 class="text-sm font-semibold">{metricLabel(metric.kind)}</h4>
-                  <span
-                    class="ml-auto rounded-full bg-surface-300 px-2 py-0.5 text-[0.6875rem] font-medium"
-                    >{healthLabel(metric.health)}</span
-                  >
-                </header>
-                <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <dt class="text-muted">{m['voice.media_telemetry_bitrate']()}</dt>
-                  <dd class="text-right tabular-nums">{format(metric.bitrateKbps, ' kb/s')}</dd>
-                  <dt class="text-muted">{m['voice.media_telemetry_packet_loss']()}</dt>
-                  <dd class="text-right tabular-nums">{format(metric.packetLossPercent, '%')}</dd>
-                  <dt class="text-muted">{m['voice.media_telemetry_jitter']()}</dt>
-                  <dd class="text-right tabular-nums">{format(metric.jitterMs, ' ms')}</dd>
-                  <dt class="text-muted">{m['voice.media_telemetry_latency']()}</dt>
-                  <dd class="text-right tabular-nums">{format(metric.latencyMs, ' ms')}</dd>
-                  {#if metric.kind !== 'microphone'}
-                    <dt class="text-muted">{m['voice.media_telemetry_fps']()}</dt>
-                    <dd class="text-right tabular-nums">{format(metric.framesPerSecond, '')}</dd>
-                    <dt class="text-muted">{m['voice.media_telemetry_resolution']()}</dt>
-                    <dd class="text-right tabular-nums">
-                      {metric.width !== null && metric.height !== null
-                        ? `${metric.width} × ${metric.height}`
-                        : m['voice.connection_metric_unavailable']()}
-                    </dd>
-                  {/if}
-                  {#if metric.qualityLimitationReason}
-                    <dt class="text-muted">{m['voice.media_telemetry_limited_by']()}</dt>
-                    <dd class="text-right">{limitationLabel(metric.qualityLimitationReason)}</dd>
-                  {/if}
-                </dl>
-              </article>
-            {/each}
-          </div>
-        {:else}
-          <p class="mt-2 rounded-lg border border-text/10 bg-surface-200/70 p-3 text-xs text-muted">
-            {sourceTelemetryReceived
-              ? m['voice.media_telemetry_source_idle']()
-              : m['voice.media_telemetry_unavailable']()}
-          </p>
-        {/if}
-      </section>
-
-      <p
-        class="mt-3 rounded-lg border border-text/10 bg-surface-200/50 p-2.5 text-[0.6875rem] leading-4 text-muted"
-      >
-        {m['voice.media_telemetry_privacy']()}
-      </p>
     </div>
-  </div>
+  {/if}
 </div>
 
 <style>
@@ -548,9 +699,56 @@
     animation: telemetry-backdrop-in 160ms ease-out both;
   }
 
+  .telemetry-glass {
+    background-color: color-mix(in srgb, var(--color-surface-100) 86%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(125%);
+    backdrop-filter: blur(24px) saturate(125%);
+    box-shadow:
+      0 28px 72px rgb(0 0 0 / 0.38),
+      inset 0 1px 0 rgb(255 255 255 / 0.055);
+  }
+
+  .telemetry-card,
+  .metric-tile,
+  .chart-card,
+  .chart-plot {
+    background-color: color-mix(in srgb, var(--color-surface-200) 72%, transparent);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035);
+  }
+
+  .metric-tile,
+  .chart-plot {
+    background-color: color-mix(in srgb, var(--color-surface-100) 62%, transparent);
+  }
+
   .telemetry-panel {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .telemetry-compact {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+
+  .telemetry-panel,
+  .telemetry-compact {
     transform-origin: bottom center;
-    animation: telemetry-panel-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: telemetry-panel-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .quality-badge {
+    min-width: 5.75rem;
+    max-width: min(9.5rem, 34vw);
+  }
+
+  .telemetry-scroll {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    scrollbar-gutter: stable;
+  }
+
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .telemetry-glass {
+      background-color: var(--color-surface-100);
+    }
   }
 
   @keyframes telemetry-backdrop-in {
@@ -565,24 +763,46 @@
   @keyframes telemetry-panel-in {
     from {
       opacity: 0;
-      transform: scale(0.985);
+      transform: translateY(8px) scale(0.985);
     }
     to {
       opacity: 1;
-      transform: scale(1);
+      transform: translateY(0) scale(1);
     }
   }
 
   @media (min-width: 640px) {
-    .telemetry-panel {
+    .telemetry-panel,
+    .telemetry-compact {
       transform-origin: center;
+    }
+  }
+
+  @media (max-width: 359px) {
+    .quality-badge {
+      min-width: 4.75rem;
+      max-width: 28vw;
+      padding-inline: 0.5rem;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .telemetry-backdrop,
-    .telemetry-panel {
+    .telemetry-panel,
+    .telemetry-compact {
       animation: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .telemetry-glass,
+    .telemetry-card,
+    .metric-tile,
+    .chart-card,
+    .chart-plot {
+      border-color: CanvasText;
+      background: Canvas;
+      box-shadow: none;
     }
   }
 </style>
