@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { page } from 'vitest/browser';
 import '../../../app.css';
@@ -17,50 +17,75 @@ const reception = {
   packetLossPercent: 0
 };
 
+function mediaQueryList(query: string, matches: boolean): MediaQueryList {
+  return {
+    matches,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true)
+  };
+}
+
+function useCoarsePointer() {
+  return vi.spyOn(window, 'matchMedia').mockImplementation((query) =>
+    mediaQueryList(query, query === '(hover: none) and (pointer: coarse)')
+  );
+}
+
+const baseProps = {
+  panelId: 'participant-telemetry-test',
+  participantName: 'Alice',
+  sourceMetrics: [
+    {
+      kind: 'camera' as const,
+      health: 'degraded' as const,
+      latencyMs: 280,
+      jitterMs: 70,
+      packetLossPercent: 4,
+      bitrateKbps: 1_500,
+      framesPerSecond: 24,
+      width: 1_280,
+      height: 720,
+      qualityLimitationReason: 'bandwidth' as const
+    }
+  ],
+  sourceAggregate: source,
+  receptionAggregate: reception,
+  diagnosis: 'source' as const,
+  history: [
+    {
+      bucketAt: 5_000,
+      sourceHealth: 'degraded' as const,
+      receptionHealth: 'excellent' as const,
+      sourceLatencyMs: 280,
+      receptionLatencyMs: 45,
+      sourcePacketLossPercent: 4,
+      receptionPacketLossPercent: 0
+    }
+  ],
+  sourceTelemetryReceived: true,
+  receptionTelemetrySupported: true
+};
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('ParticipantMediaTelemetryPanel', () => {
-  it('separates source and local reception, renders bounded history, and closes accessibly', async () => {
+  it('uses a stable quality badge, neutral glass cards, bounded history, and accessible close', () => {
     const onclose = vi.fn();
     const rendered = render(ParticipantMediaTelemetryPanel, {
-      props: {
-        panelId: 'participant-telemetry-test',
-        participantName: 'Alice',
-        sourceMetrics: [
-          {
-            kind: 'camera',
-            health: 'degraded',
-            latencyMs: 280,
-            jitterMs: 70,
-            packetLossPercent: 4,
-            bitrateKbps: 1_500,
-            framesPerSecond: 24,
-            width: 1_280,
-            height: 720,
-            qualityLimitationReason: 'bandwidth'
-          }
-        ],
-        sourceAggregate: source,
-        receptionAggregate: reception,
-        diagnosis: 'source',
-        history: [
-          {
-            bucketAt: 5_000,
-            sourceHealth: 'degraded',
-            receptionHealth: 'excellent',
-            sourceLatencyMs: 280,
-            receptionLatencyMs: 45,
-            sourcePacketLossPercent: 4,
-            receptionPacketLossPercent: 0
-          }
-        ],
-        sourceTelemetryReceived: true,
-        receptionTelemetrySupported: true,
-        onclose
-      }
+      props: { ...baseProps, onclose }
     });
 
     const panel = document.getElementById('participant-telemetry-test')!;
     expect(panel.getAttribute('role')).toBe('dialog');
     expect(panel.getAttribute('aria-modal')).toBe('true');
+    expect(panel.getAttribute('data-diagnosis')).toBe('source');
     expect(panel.closest('[data-testid="participant-media-telemetry-backdrop"]')).not.toBeNull();
     const panelRect = panel.getBoundingClientRect();
     expect(panelRect.left).toBeGreaterThanOrEqual(-1);
@@ -73,10 +98,28 @@ describe('ParticipantMediaTelemetryPanel', () => {
     expect(getComputedStyle(scroll).overflowY).toBe('auto');
     expect(panel.textContent).toContain('Upload statistics');
     expect(panel.textContent).toContain('Download statistics');
-    expect(panel.textContent).toContain('The upload path is probably degraded');
+    expect(panel.textContent).not.toContain('The upload path is probably degraded');
     expect(panel.textContent).toContain('1280 × 720');
     expect(panel.textContent).toContain('280 ms');
     expect(panel.textContent).toContain('4 %');
+
+    const badge = panel.querySelector<HTMLElement>(
+      '[data-testid="participant-media-telemetry-quality-badge"]'
+    )!;
+    expect(badge.dataset.quality).toBe('degraded');
+    expect(badge.textContent).toContain('Degraded');
+    expect(badge.getBoundingClientRect().height).toBeGreaterThanOrEqual(27);
+    expect(panel.querySelector('header')!.getBoundingClientRect().height).toBeGreaterThanOrEqual(63);
+
+    const uploadCard = panel.querySelector<HTMLElement>('[data-telemetry-card="upload"]')!;
+    const downloadCard = panel.querySelector<HTMLElement>('[data-telemetry-card="download"]')!;
+    expect(uploadCard.className).not.toContain('border-accent');
+    expect(downloadCard.className).not.toContain('border-warning');
+    expect(uploadCard.className).not.toContain('inset_2px');
+    expect(downloadCard.className).not.toContain('inset_2px');
+    expect(getComputedStyle(uploadCard).backgroundImage).toBe('none');
+    expect(getComputedStyle(downloadCard).backgroundImage).toBe('none');
+
     expect(
       panel.querySelectorAll('[data-testid^="participant-media-telemetry-chart-"]')
     ).toHaveLength(2);
@@ -102,6 +145,56 @@ describe('ParticipantMediaTelemetryPanel', () => {
     close.click();
     expect(onclose).toHaveBeenCalledOnce();
     rendered.unmount();
+  });
+
+  it('opens the light view first on coarse touch input and expands only from its explicit action', async () => {
+    useCoarsePointer();
+    const onclose = vi.fn();
+    const rendered = render(ParticipantMediaTelemetryPanel, {
+      props: { ...baseProps, onclose }
+    });
+
+    const compact = document.getElementById('participant-telemetry-test')!;
+    expect(compact.getAttribute('data-testid')).toBe('participant-media-telemetry-compact');
+    expect(compact.querySelector('[data-testid="participant-media-telemetry-compact-table"]')).not.toBeNull();
+    expect(compact.querySelector('[data-testid="participant-media-telemetry-scroll"]')).toBeNull();
+    const compactClose = compact.querySelector<HTMLButtonElement>(
+      '[data-testid="participant-media-telemetry-compact-close"]'
+    )!;
+    expect(compactClose.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+
+    compact.querySelector<HTMLButtonElement>('[data-testid="participant-media-telemetry-expand"]')!.click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const expanded = document.getElementById('participant-telemetry-test')!;
+    expect(expanded.getAttribute('data-testid')).toBe('participant-media-telemetry-panel');
+    expect(expanded.querySelector('[data-testid="participant-media-telemetry-scroll"]')).not.toBeNull();
+    expect(onclose).not.toHaveBeenCalled();
+    rendered.unmount();
+  });
+
+  it('dismisses the touch light view from the backdrop or its visible close control', () => {
+    useCoarsePointer();
+    const outsideClose = vi.fn();
+    const outsideRendered = render(ParticipantMediaTelemetryPanel, {
+      props: { ...baseProps, panelId: 'participant-telemetry-outside', onclose: outsideClose }
+    });
+    const backdrop = document.querySelector<HTMLElement>(
+      '[data-testid="participant-media-telemetry-backdrop"]'
+    )!;
+    backdrop.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(outsideClose).toHaveBeenCalledOnce();
+    outsideRendered.unmount();
+
+    const buttonClose = vi.fn();
+    const buttonRendered = render(ParticipantMediaTelemetryPanel, {
+      props: { ...baseProps, panelId: 'participant-telemetry-button', onclose: buttonClose }
+    });
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="participant-media-telemetry-compact-close"]')!
+      .click();
+    expect(buttonClose).toHaveBeenCalledOnce();
+    buttonRendered.unmount();
   });
 
   it('reports telemetry as unavailable instead of borrowing local reception values', () => {
@@ -159,22 +252,12 @@ describe('ParticipantMediaTelemetryPanel', () => {
       await page.viewport(width, height);
       const rendered = render(ParticipantMediaTelemetryPanel, {
         props: {
+          ...baseProps,
           panelId: `participant-telemetry-${width}-${height}`,
           participantName: 'Participant avec un nom volontairement très long',
-          sourceMetrics: [],
-          sourceAggregate: source,
-          receptionAggregate: reception,
           diagnosis: 'shared',
           history: [
-            {
-              bucketAt: 5_000,
-              sourceHealth: 'degraded',
-              receptionHealth: 'excellent',
-              sourceLatencyMs: 280,
-              receptionLatencyMs: 45,
-              sourcePacketLossPercent: 4,
-              receptionPacketLossPercent: 0
-            },
+            ...baseProps.history,
             {
               bucketAt: 10_000,
               sourceHealth: 'good',
@@ -185,8 +268,6 @@ describe('ParticipantMediaTelemetryPanel', () => {
               receptionPacketLossPercent: 0.2
             }
           ],
-          sourceTelemetryReceived: true,
-          receptionTelemetrySupported: true,
           onclose: vi.fn()
         }
       });
