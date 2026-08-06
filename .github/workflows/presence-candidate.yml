@@ -1,0 +1,109 @@
+name: presence candidate materialization
+
+on:
+  push:
+    branches:
+      - feat/pwa-presence-leases
+
+concurrency:
+  group: presence-candidate-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  materialize-and-test:
+    name: materialize-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Materialize candidate source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/presence-source/chunk-*.txt | base64 -d > /tmp/presence-source.tar.gz
+          tar -xzf /tmp/presence-source.tar.gz -C .
+          gofmt -w \
+            cli/internal/core/presence.go \
+            cli/internal/core/presence_model.go \
+            cli/internal/core/presence_session.go \
+            cli/internal/core/presence_session_hub.go \
+            cli/internal/core/presence_session_test.go \
+            cli/internal/connectapi/presence.go \
+            cli/internal/connectapi/presence_session_test.go
+          git diff --check
+
+      - name: Setup repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Generate bindings and execute focused qualification
+        id: qualify
+        shell: bash
+        run: |
+          set +e
+          mkdir -p /tmp/presence-candidate
+          : > /tmp/presence-candidate/commands.log
+          overall=0
+          run_check() {
+            label="$1"
+            shift
+            printf '\n===== %s =====\n' "$label" | tee -a /tmp/presence-candidate/commands.log
+            "$@" >> /tmp/presence-candidate/commands.log 2>&1
+            rc=$?
+            printf 'exit=%d\n' "$rc" | tee -a /tmp/presence-candidate/commands.log
+            if [ "$rc" -ne 0 ]; then overall=1; fi
+          }
+
+          run_check codegen mise codegen-proto
+          run_check go-presence bash -lc "cd cli && go test -trimpath ./internal/core ./internal/connectapi -run 'Presence' -count=1"
+          run_check go-presence-race bash -lc "cd cli && go test -race -trimpath ./internal/core ./internal/connectapi -run 'Presence' -count=1"
+          run_check frontend-presence-tests pnpm --dir apps/frontend exec vitest run src/lib/api-client/presence.spec.ts src/lib/presenceTracking.spec.ts
+          run_check frontend-check pnpm --dir apps/frontend run check
+          run_check frontend-lint pnpm --dir apps/frontend exec eslint src/lib/api-client/presence.ts src/lib/api-client/presence.spec.ts src/lib/presenceTracking.ts src/lib/presenceTracking.spec.ts
+          run_check frontend-build mise build-frontend
+          run_check diff-check git diff --check
+
+          echo "$overall" > /tmp/presence-candidate/overall-status
+          git rev-parse HEAD > /tmp/presence-candidate/parent-commit
+          git rev-parse 'HEAD^{tree}' > /tmp/presence-candidate/base-tree
+          git diff --name-status HEAD > /tmp/presence-candidate/name-status.txt
+          git diff --stat HEAD > /tmp/presence-candidate/stat.txt
+          git diff --binary HEAD > /tmp/presence-candidate/candidate.patch
+          mkdir -p /tmp/presence-candidate/files
+          git diff --name-only --diff-filter=ACMRT HEAD | while IFS= read -r path; do
+            mkdir -p "/tmp/presence-candidate/files/$(dirname "$path")"
+            cp "$path" "/tmp/presence-candidate/files/$path"
+          done
+          git diff --name-only --diff-filter=D HEAD > /tmp/presence-candidate/deleted-files.txt
+          changed_paths=()
+          while IFS= read -r path; do changed_paths+=("$path"); done < <(git diff --name-only --diff-filter=ACMRT HEAD)
+          if [ "${#changed_paths[@]}" -gt 0 ]; then
+            git ls-files -s -- "${changed_paths[@]}" > /tmp/presence-candidate/file-modes.txt
+          else
+            : > /tmp/presence-candidate/file-modes.txt
+          fi
+          exit "$overall"
+
+      - name: Package candidate even after test failures
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d /tmp/presence-candidate || mkdir -p /tmp/presence-candidate
+          tar -czf /tmp/presence-candidate.tar.gz -C /tmp presence-candidate
+
+      - name: Upload candidate and evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: presence-candidate-${{ github.sha }}
+          path: /tmp/presence-candidate.tar.gz
+          if-no-files-found: error
+          retention-days: 2
