@@ -93,7 +93,21 @@ jobs:
         with:
           install-cli-deps: "false"
       - name: Typecheck frontend
-        run: pnpm run check:frontend
+        id: frontend-check
+        shell: bash
+        run: |
+          set +e
+          pnpm run check:frontend > frontend-check.log 2>&1
+          status=$?
+          cat frontend-check.log
+          exit "$status"
+      - name: Upload frontend diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr312-frontend-diagnostics
+          path: frontend-check.log
+          if-no-files-found: error
       - name: Lint frontend
         run: pnpm run lint:frontend
       - name: Run grade tests
@@ -111,6 +125,28 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup
       - name: Build frontend assets
-        run: mise build-frontend
+        shell: bash
+        run: |
+          set +e
+          mise build-frontend > backend-build.log 2>&1
+          status=$?
+          cat backend-build.log
+          exit "$status"
       - name: Run RBAC and ConnectRPC tests
-        run: cd cli && go test -trimpath -p 1 -tags test_endpoints ./internal/core ./internal/connectapi
+        shell: bash
+        run: |
+          set +e
+          cd cli
+          go test -trimpath -p 1 -tags test_endpoints ./internal/core ./internal/connectapi > ../backend-test.log 2>&1
+          status=$?
+          cat ../backend-test.log
+          exit "$status"
+      - name: Upload backend diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr312-backend-diagnostics
+          path: |
+            backend-build.log
+            backend-test.log
+          if-no-files-found: warn
