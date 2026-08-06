@@ -3,12 +3,12 @@
   "repository": "Yo-DDV/Towk",
   "branch": "main",
   "sourceCommit": "1e81f4062fe775b367b3a4bea696422fcd3e76a2",
-  "generatedAt": "2026-08-05T19:55:57.795Z",
+  "generatedAt": "2026-08-06T03:39:48.648Z",
   "window": {
     "kind": "rolling-30-utc-days",
     "days": 30,
-    "start": "2026-07-07T00:00:00.000Z",
-    "end": "2026-08-05T19:55:57.795Z",
+    "start": "2026-07-08T00:00:00.000Z",
+    "end": "2026-08-06T03:39:48.648Z",
     "currentDayPartial": true
   },
   "baselineCommit": "205e91fe1ae5e5c23420974f7e04cf82456eeab3",
@@ -35,17 +35,6 @@
     "mergedPullRequests": 24
   },
   "daily": [
-    {
-      "date": "2026-07-07",
-      "label": "7",
-      "commits": 0,
-      "mergedPullRequests": 0,
-      "issuesClosed": 0,
-      "additions": 0,
-      "deletions": 0,
-      "filesChanged": 0,
-      "medianPrLeadTimeHours": null
-    },
     {
       "date": "2026-07-08",
       "label": "8",
@@ -357,6 +346,17 @@
     {
       "date": "2026-08-05",
       "label": "5",
+      "commits": 0,
+      "mergedPullRequests": 0,
+      "issuesClosed": 0,
+      "additions": 0,
+      "deletions": 0,
+      "filesChanged": 0,
+      "medianPrLeadTimeHours": null
+    },
+    {
+      "date": "2026-08-06",
+      "label": "6",
       "commits": 0,
       "mergedPullRequests": 0,
       "issuesClosed": 0,
