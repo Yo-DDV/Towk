@@ -1,0 +1,45 @@
+name: pr312 toolchain source inspection
+
+on:
+  push:
+    branches:
+      - feat/localized-default-grades
+
+concurrency:
+  group: pr312-final-clean
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    if: github.event.head_commit.message != 'chore(ci): record PR 312 diagnostic v15'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/localized-default-grades
+          fetch-depth: 0
+
+      - name: Record toolchain sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .github/pr312-diag
+          mkdir -p .github/pr312-diag
+          grep -qi 'pnpm' mise.toml && : > .github/pr312-diag/V15_MISE_HAS_PNPM || : > .github/pr312-diag/V15_MISE_NO_PNPM
+          grep -qi 'pnpm' .github/actions/setup/action.yml && : > .github/pr312-diag/V15_SETUP_HAS_PNPM || : > .github/pr312-diag/V15_SETUP_NO_PNPM
+          grep -qi 'mise' .github/actions/setup/action.yml && : > .github/pr312-diag/V15_SETUP_USES_MISE || : > .github/pr312-diag/V15_SETUP_NO_MISE
+          test -f .tool-versions && grep -qi 'pnpm' .tool-versions && : > .github/pr312-diag/V15_TOOL_VERSIONS_HAS_PNPM || : > .github/pr312-diag/V15_TOOL_VERSIONS_NO_PNPM
+          test -f pnpm-lock.yaml && : > .github/pr312-diag/V15_ROOT_LOCKFILE || true
+          test -f apps/frontend/pnpm-lock.yaml && : > .github/pr312-diag/V15_FRONTEND_LOCKFILE || true
+          node -e "const p=require('./package.json'); process.exit(p.packageManager || (p.engines&&p.engines.pnpm) ? 0 : 1)" \
+            && : > .github/pr312-diag/V15_ROOT_MANIFEST_HAS_PNPM || : > .github/pr312-diag/V15_ROOT_MANIFEST_NO_PNPM
+          node -e "const p=require('./apps/frontend/package.json'); process.exit(p.packageManager || (p.engines&&p.engines.pnpm) ? 0 : 1)" \
+            && : > .github/pr312-diag/V15_FRONTEND_MANIFEST_HAS_PNPM || : > .github/pr312-diag/V15_FRONTEND_MANIFEST_NO_PNPM
+          git add .github/pr312-diag
+          git -c user.name='Yo-DDV' -c user.email='116607353+Yo-DDV@users.noreply.github.com' commit -m 'chore(ci): record PR 312 diagnostic v15'
+          git push origin HEAD:feat/localized-default-grades
