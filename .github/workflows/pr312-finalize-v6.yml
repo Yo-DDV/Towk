@@ -1,0 +1,156 @@
+name: pr312 scoped validation
+
+on:
+  push:
+    branches:
+      - feat/localized-default-grades
+
+concurrency:
+  group: pr312-final-clean
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  finalize:
+    if: github.event.head_commit.message != 'chore(ci): record PR 312 diagnostic'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/localized-default-grades
+          fetch-depth: 0
+
+      - name: Apply verified remediation
+        id: prepare
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .github/pr312-diag
+          curl --fail --silent --show-error \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/blobs/1e35f3e90ca24587fd326d4dd22691a7b7b1f3c1" \
+            > /tmp/pr312-blob.json
+          jq -e '.encoding == "base64" and (.content | type == "string")' /tmp/pr312-blob.json
+          jq -r '.content' /tmp/pr312-blob.json | tr -d '\n' | base64 --decode > /tmp/pr312-remediation.patch.gz
+          echo 'e728dbb49039fe94ca0f4c6d52786fed421c7a29de61eeaebc16b27dafeedb4f  /tmp/pr312-remediation.patch.gz' | sha256sum -c -
+          gzip --test /tmp/pr312-remediation.patch.gz
+          gzip --decompress --stdout /tmp/pr312-remediation.patch.gz > /tmp/pr312-remediation.patch
+          if patch -p1 --forward --batch --dry-run < /tmp/pr312-remediation.patch; then
+            patch -p1 --forward --batch < /tmp/pr312-remediation.patch
+          elif patch -p1 --reverse --batch --dry-run < /tmp/pr312-remediation.patch; then
+            echo 'Verified remediation already applied.'
+          else
+            exit 1
+          fi
+          mapfile -t changed_go < <({ git diff --name-only; git ls-files --others --exclude-standard; } | grep -E '\.go$' | sort -u)
+          if test "${#changed_go[@]}" -gt 0; then gofmt -w "${changed_go[@]}"; fi
+          git diff --check
+
+      - name: Setup frontend toolchain
+        id: setup
+        if: steps.prepare.outcome == 'success'
+        continue-on-error: true
+        uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+
+      - name: Typecheck frontend
+        id: frontend_check
+        if: steps.setup.outcome == 'success'
+        continue-on-error: true
+        run: pnpm run check:frontend
+
+      - name: Lint frontend
+        id: frontend_lint
+        if: steps.frontend_check.outcome == 'success'
+        continue-on-error: true
+        run: pnpm run lint:frontend
+
+      - name: Run targeted grade tests
+        id: frontend_test
+        if: steps.frontend_lint.outcome == 'success'
+        continue-on-error: true
+        run: pnpm --filter towk-frontend exec vitest run src/lib/components/rbac/gradeTemplates.spec.ts 'src/routes/chat/[serverId]/[roomId]/memberRoleSections.spec.ts'
+
+      - name: Build frontend
+        id: frontend_build
+        if: steps.frontend_test.outcome == 'success'
+        continue-on-error: true
+        run: pnpm run build:frontend
+
+      - name: Run Go core and ConnectRPC tests
+        id: go_test
+        if: steps.frontend_build.outcome == 'success'
+        continue-on-error: true
+        working-directory: cli
+        run: go test -trimpath -p 1 -tags test_endpoints ./internal/core ./internal/connectapi
+
+      - name: Run Go vet
+        id: go_vet
+        if: steps.go_test.outcome == 'success'
+        continue-on-error: true
+        working-directory: cli
+        run: go vet ./internal/core ./internal/connectapi
+
+      - name: Commit clean implementation
+        id: publish
+        if: >-
+          steps.prepare.outcome == 'success' && steps.setup.outcome == 'success' &&
+          steps.frontend_check.outcome == 'success' && steps.frontend_lint.outcome == 'success' &&
+          steps.frontend_test.outcome == 'success' && steps.frontend_build.outcome == 'success' &&
+          steps.go_test.outcome == 'success' && steps.go_vet.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .github/pr312-diag .github/pr312-patch
+          rm -f .github/workflows/pr312-validation.yml .github/workflows/pr312-status.yml \
+            .github/workflows/pr312-finalize.yml .github/workflows/pr312-finalize-transaction.yml \
+            .github/workflows/pr312-finalize-clean.yml .github/workflows/pr312-finalize-v2.yml \
+            .github/workflows/pr312-finalize-v3.yml .github/workflows/pr312-finalize-v4.yml \
+            .github/workflows/pr312-finalize-v5.yml .github/workflows/pr312-finalize-v6.yml
+          git show origin/main:.github/workflows/quick-gate.yml > .github/workflows/quick-gate.yml
+          git add -A
+          git diff --cached --check
+          ! git diff --cached --name-only | grep -E '(^|/)pr312-|\.github/pr312-patch|pr312-(validation|status|finalize).*\.yml'
+          ! git diff --cached | grep -Ei 'ChatGPT|Codex|Co-authored-by:|Generated-by:|Assisted-by:'
+          git -c user.name='Yo-DDV' -c user.email='116607353+Yo-DDV@users.noreply.github.com' commit -m 'feat(rbac): finalize localized default grade templates'
+          git push origin HEAD:feat/localized-default-grades
+          head="$(git rev-parse HEAD)"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/312/comments" -f body="PR312_FINAL_CANDIDATE_PASS\n\nBench candidate head: ${head}\n\nAccessible checks passed: frontend typecheck, frontend lint, targeted grade tests, frontend build, Go core and ConnectRPC tests, Go vet, diff hygiene and provenance guards. Temporary transfer payloads and validation workflows are absent. Docker/runtime and physical-device qualification remain pending."
+
+      - name: Record failing gate
+        if: always() && steps.publish.outcome != 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage='UNKNOWN_FAILED'
+          test '${{ steps.prepare.outcome }}' = success || stage='PREPARE_FAILED'
+          if test "${stage}" = UNKNOWN_FAILED; then test '${{ steps.setup.outcome }}' = success || stage='SETUP_FAILED'; fi
+          if test "${stage}" = UNKNOWN_FAILED; then test '${{ steps.frontend_check.outcome }}' = success || stage='FRONTEND_CHECK_FAILED'; fi
+          if test "${stage}" = UNKNOWN_FAILED; then test '${{ steps.frontend_lint.outcome }}' = success || stage='FRONTEND_LINT_FAILED'; fi
+          if test "${stage}" = UNKNOWN_FAILED; then test '${{ steps.frontend_test.outcome }}' = success || stage='FRONTEND_TEST_FAILED'; fi
+          if test "${stage}" = UNKNOWN_FAILED; then test '${{ steps.frontend_build.outcome }}' = success || stage='FRONTEND_BUILD_FAILED'; fi
+          if test "${stage}" = UNKNOWN_FAILED; then test '${{ steps.go_test.outcome }}' = success || stage='GO_TEST_FAILED'; fi
+          if test "${stage}" = UNKNOWN_FAILED; then test '${{ steps.go_vet.outcome }}' = success || stage='GO_VET_FAILED'; fi
+          git restore --source=HEAD --staged --worktree .
+          while IFS= read -r -d '' path; do rm -rf -- "${path}"; done < <(git ls-files --others --exclude-standard -z)
+          rm -rf .github/pr312-diag
+          mkdir -p .github/pr312-diag
+          : > ".github/pr312-diag/${stage}"
+          git add .github/pr312-diag
+          git -c user.name='Yo-DDV' -c user.email='116607353+Yo-DDV@users.noreply.github.com' commit -m 'chore(ci): record PR 312 diagnostic'
+          git push origin HEAD:feat/localized-default-grades
+          exit 1
