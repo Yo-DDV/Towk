@@ -153,8 +153,11 @@
   );
   let bottomScrollOperation = 0;
   let userScrollIntentAt = 0;
+  let scrollIntentGeneration = 0;
   let userScrollPointerActive = false;
+  let pointerScrollCandidate: { pointerId: number; startY: number } | null = null;
   const USER_SCROLL_INTENT_MS = 250;
+  const POINTER_SCROLL_INTENT_DISTANCE_PX = 8;
   let settledRoomId = $state<string | null>(null);
   let hasSeenRoomSwitch = $state(false);
   let roomRevealActive = $state(false);
@@ -932,6 +935,7 @@
     // A reply-link click or drag inside the timeline arms scroll intent. Once the
     // user explicitly asks to return to the present, that older gesture must not
     // cancel or relock the programmatic bottom convergence.
+    scrollIntentGeneration += 1;
     userScrollIntentAt = 0;
     cancelBottomScroll();
     scrollUpLock = false;
@@ -970,22 +974,54 @@
   // composer-resize-driven scrollTop writes, and browser scroll clamping during
   // layout shifts never get misread as the user scrolling up.
   function markUserScrollIntent() {
+    scrollIntentGeneration += 1;
     userScrollIntentAt = Date.now();
     cancelBottomScroll();
   }
 
-  function markPointerScrollIntent() {
+  function isInteractiveScrollTarget(target: EventTarget | null): boolean {
+    return (
+      target instanceof Element &&
+      target.closest(
+        'button, a[href], input, textarea, select, summary, [role="button"], [role="link"], [contenteditable="true"]'
+      ) !== null
+    );
+  }
+
+  function markPointerScrollIntent(event: PointerEvent) {
+    if (
+      (event.pointerType === 'mouse' && event.button !== 0) ||
+      isInteractiveScrollTarget(event.target)
+    ) {
+      pointerScrollCandidate = null;
+      return;
+    }
+
+    pointerScrollCandidate = {
+      pointerId: event.pointerId,
+      startY: event.clientY
+    };
+  }
+
+  function trackPointerScrollIntent(event: PointerEvent) {
+    const candidate = pointerScrollCandidate;
+    if (!candidate || candidate.pointerId !== event.pointerId) return;
+    if (Math.abs(event.clientY - candidate.startY) < POINTER_SCROLL_INTENT_DISTANCE_PX) return;
+
+    pointerScrollCandidate = null;
     userScrollPointerActive = true;
     markUserScrollIntent();
   }
 
   function clearPointerScrollIntent() {
+    pointerScrollCandidate = null;
     userScrollPointerActive = false;
   }
 
   function markKeyboardScrollIntent(event: KeyboardEvent) {
     const target = event.target;
     if (
+      isInteractiveScrollTarget(target) ||
       target instanceof HTMLInputElement ||
       target instanceof HTMLTextAreaElement ||
       (target instanceof HTMLElement && target.isContentEditable)
@@ -1056,6 +1092,7 @@
   }
 
   let softRefreshInFlight = false;
+  let latestResumeEpoch = 0;
   const MIN_BROWSER_WAKE_REFRESH_HIDDEN_MS = 5_000;
 
   function isShortBrowserWake(signal: ResumeSignal): boolean {
@@ -1068,6 +1105,7 @@
   }
 
   async function refreshAfterPossibleMiss(signal: ResumeSignal): Promise<boolean> {
+    latestResumeEpoch = Math.max(latestResumeEpoch, signal.epoch);
     if (softRefreshInFlight) return false;
     if (isLoading && virtualItems.length === 0) return false;
     if (isShortBrowserWake(signal)) {
@@ -1083,8 +1121,17 @@
     const bottomDistance = distanceFromBottom();
     const wasAtBottom =
       alwaysScrollToBottom ||
-      (bottomDistance === null ? shouldScrollToBottom : bottomDistance < 50);
+      shouldScrollToBottom ||
+      (bottomDistance !== null && bottomDistance < 50);
     const anchor = wasAtBottom ? null : captureRefreshAnchor();
+    const refreshRoomId = roomId;
+    const refreshIntentGeneration = scrollIntentGeneration;
+    const anchorIsCurrent = () =>
+      anchor === null ||
+      (roomId === refreshRoomId &&
+        !shouldScrollToBottom &&
+        scrollIntentGeneration === refreshIntentGeneration &&
+        signal.epoch === latestResumeEpoch);
 
     softRefreshInFlight = true;
     try {
@@ -1115,7 +1162,13 @@
         });
         return false;
       }
-      onSoftRefresh?.(result, anchor !== null);
+      if (result.changed) {
+        await tick();
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+
+      const anchoredRefreshIsCurrent = anchor !== null && anchorIsCurrent();
+      onSoftRefresh?.(result, anchoredRefreshIsCurrent);
       if (!result.changed) {
         console.debug('[room-refresh] event list refresh completed unchanged', {
           roomId,
@@ -1124,16 +1177,30 @@
         });
         return true;
       }
-      await tick();
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-
       if (wasAtBottom) {
+        if (roomId !== refreshRoomId) return true;
         setShouldScrollToBottom(true);
         await requestBottomScroll();
         console.debug('[room-refresh] event list refresh completed at bottom', {
           roomId,
           result,
           itemCount: virtualItems.length
+        });
+        return true;
+      }
+
+      if (!anchoredRefreshIsCurrent) {
+        if (roomId === refreshRoomId && shouldScrollToBottom) {
+          await requestBottomScroll();
+        }
+        console.debug('[room-refresh] skipped stale refresh anchor restoration', {
+          roomId,
+          refreshRoomId,
+          anchorEventId: anchor?.eventId ?? null,
+          refreshIntentGeneration,
+          scrollIntentGeneration,
+          signalEpoch: signal.epoch,
+          latestResumeEpoch
         });
         return true;
       }
@@ -1530,6 +1597,7 @@
 
 <svelte:window
   onkeydown={markKeyboardScrollIntent}
+  onpointermove={trackPointerScrollIntent}
   onpointerup={clearPointerScrollIntent}
   onpointercancel={clearPointerScrollIntent}
 />
