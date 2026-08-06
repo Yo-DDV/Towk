@@ -209,6 +209,15 @@ describe('initPresenceTracking', () => {
     vi.advanceTimersByTime(1);
 
     expect(sentStatuses()).toEqual([APIPresenceStatus.ONLINE]);
+
+    vi.advanceTimersByTime(__presenceTrackingTest.ACTIVE_PRESENCE_REFRESH_MS - 1);
+    expect(sentStatuses()).toEqual([APIPresenceStatus.ONLINE]);
+
+    vi.advanceTimersByTime(1);
+    expect(sentStatuses()).toEqual([
+      APIPresenceStatus.ONLINE,
+      APIPresenceStatus.ONLINE
+    ]);
   });
 
   it('returns Online on meaningful activity after idle', () => {
