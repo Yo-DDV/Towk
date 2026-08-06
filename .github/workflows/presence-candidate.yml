@@ -17,7 +17,7 @@ jobs:
   materialize-and-test:
     name: materialize-and-test
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,11 +63,12 @@ jobs:
           }
 
           run_check codegen mise codegen-proto
+          run_check api-types-build pnpm --dir packages/api-types run build
           run_check go-presence bash -lc "cd cli && go test -trimpath ./internal/core ./internal/connectapi -run 'Presence' -count=1"
           run_check go-presence-race bash -lc "cd cli && go test -race -trimpath ./internal/core ./internal/connectapi -run 'Presence' -count=1"
-          run_check frontend-presence-tests pnpm --dir apps/frontend exec vitest run src/lib/api-client/presence.spec.ts src/lib/presenceTracking.spec.ts
+          run_check frontend-presence-tests pnpm --dir apps/frontend exec vitest run src/lib/api-client/presence.spec.ts src/lib/presenceTracking.spec.ts src/lib/auth/signOut.spec.ts
           run_check frontend-check pnpm --dir apps/frontend run check
-          run_check frontend-lint pnpm --dir apps/frontend exec eslint src/lib/api-client/presence.ts src/lib/api-client/presence.spec.ts src/lib/presenceTracking.ts src/lib/presenceTracking.spec.ts
+          run_check frontend-lint pnpm --dir apps/frontend exec eslint src/lib/api-client/presence.ts src/lib/api-client/presence.spec.ts src/lib/presenceTracking.ts src/lib/presenceTracking.spec.ts src/lib/auth/signOut.ts src/lib/auth/signOut.spec.ts
           run_check frontend-build mise build-frontend
           run_check diff-check git diff --check
 
@@ -92,16 +93,18 @@ jobs:
           fi
           exit "$overall"
 
-      - name: Package candidate even after test failures
+      - name: Package candidate and complete worktree
         if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
           test -d /tmp/presence-candidate || mkdir -p /tmp/presence-candidate
           tar -czf /tmp/presence-candidate.tar.gz -C /tmp presence-candidate
+          git ls-files -co --exclude-standard -z > /tmp/presence-worktree-files
+          tar --null -czf /tmp/presence-worktree.tar.gz --files-from=/tmp/presence-worktree-files
 
       - name: Upload candidate and evidence
-        id: upload
+        id: upload_candidate
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -110,18 +113,29 @@ jobs:
           if-no-files-found: error
           retention-days: 2
 
+      - name: Upload complete materialized worktree
+        id: upload_worktree
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: presence-worktree-${{ github.sha }}
+          path: /tmp/presence-worktree.tar.gz
+          if-no-files-found: error
+          retention-days: 2
+
       - name: Publish artifact coordinates on the commit
         if: ${{ always() }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          CANDIDATE_ARTIFACT_ID: ${{ steps.upload_candidate.outputs.artifact-id }}
+          WORKTREE_ARTIFACT_ID: ${{ steps.upload_worktree.outputs.artifact-id }}
           JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
           state=failure
           if [ "$JOB_STATUS" = success ]; then state=success; fi
-          description="run=${GITHUB_RUN_ID}; artifact=${ARTIFACT_ID:-none}; ${JOB_STATUS}"
+          description="run=${GITHUB_RUN_ID}; candidate=${CANDIDATE_ARTIFACT_ID:-none}; worktree=${WORKTREE_ARTIFACT_ID:-none}; ${JOB_STATUS}"
           payload=$(jq -n \
             --arg state "$state" \
             --arg context "presence-candidate-artifact" \
