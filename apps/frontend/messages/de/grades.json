@@ -2,9 +2,25 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "grades": {
     "system_roles": {
+      "owner": {
+        "display_name": "Eigentümer",
+        "description": "Vollständige Kontrolle über die Instanz. RBAC-Berechtigungen des Eigentümers werden immer gewährt; Direktnachrichten bleiben an die Teilnahme gebunden."
+      },
+      "admin": {
+        "display_name": "Administrator",
+        "description": "Erweiterte delegierte Verwaltung von Einstellungen, Kanälen, Rollen, Berechtigungen, Konten und Auditwerkzeugen. Entspricht nicht dem Eigentümer."
+      },
+      "moderator": {
+        "display_name": "Moderator",
+        "description": "Moderiert öffentliche Kanäle, indem Nachrichten gelöscht, Mitglieder entfernt oder gesperrt und Diskussionen gesperrt werden. Verwaltet standardmäßig weder Konten noch Rollen und löscht keinen gesamten Verlauf."
+      },
       "helper": {
         "display_name": "Helfer",
         "description": "Unterstützt Mitglieder und kann für Hilfe erwähnt werden. Standardmäßig keine Moderations- oder Verwaltungsrechte."
+      },
+      "everyone": {
+        "display_name": "Mitglieder",
+        "description": "Alle authentifizierten Benutzer und ihre normalen geerbten Berechtigungen."
       }
     },
     "templates": {
@@ -40,7 +56,7 @@
       "identity": "Rollenidentität",
       "permissions": "Berechtigungsvorschau",
       "added_permissions": "Durch diese Rolle hinzugefügt",
-      "inherited_permissions": "Von Mitglieder geerbt",
+      "inherited_permissions": "Von Mitgliedern geerbt",
       "no_added_permissions": "Keine zusätzlichen Berechtigungen",
       "advanced": "Erweiterte Anpassung",
       "advanced_description": "Server-, Gruppen- und Kanalentscheidungen können nach der Erstellung weiter angepasst werden.",
@@ -49,7 +65,7 @@
       "permission_setup_failed": "Die Rolle konnte nicht vollständig konfiguriert werden und wurde entfernt. Bitte erneut versuchen.",
       "template_changed": "Die vorgeschlagene Identität wurde an die ausgewählte Vorlage angepasst.",
       "handle_preview": "Dauerhafter Handle: @{handle}",
-      "member_inheritance_note": "Alle zugewiesenen Benutzer behalten außerdem die von Mitglieder geerbten Berechtigungen."
+      "member_inheritance_note": "Alle zugewiesenen Benutzer behalten außerdem die von Mitgliedern geerbten Berechtigungen."
     },
     "overview": {
       "title": "Rollen und Berechtigungen",
