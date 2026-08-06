@@ -49,7 +49,7 @@ describe('routeNotificationClick', () => {
     const navigate = vi.fn(async () => client);
     const postMessage = vi.fn((_message, transfer) => {
       const ackPort = transfer?.[0] as { postMessage: (message: unknown) => void };
-      ackPort.postMessage({ type: 'notification-click-ack' });
+      ackPort.postMessage({ type: 'notification-click-ack', notificationConsumed: true });
     });
     const client: NotificationClickClient = {
       focus,
@@ -59,16 +59,45 @@ describe('routeNotificationClick', () => {
     const clients = clientsWith([client]);
 
     const result = await routeNotificationClick(TARGET_URL, ORIGIN, clients, {
-      createMessageChannel: () => channel
+      createMessageChannel: () => channel,
+      notificationId: 'notification-1'
     });
 
     expect(result).toBe('client');
     expect(focus).toHaveBeenCalledOnce();
-    expect(postMessage).toHaveBeenCalledWith({ type: 'notification-click', url: TARGET_URL }, [
-      channel.port2
-    ]);
+    expect(postMessage).toHaveBeenCalledWith(
+      {
+        type: 'notification-click',
+        url: TARGET_URL,
+        notificationId: 'notification-1'
+      },
+      [channel.port2]
+    );
     expect(focus.mock.invocationCallOrder[0]).toBeLessThan(postMessage.mock.invocationCallOrder[0]);
     expect(navigate).not.toHaveBeenCalled();
+    expect(clients.openWindow).not.toHaveBeenCalled();
+  });
+
+  it('reports an acknowledged route whose notification was not consumed', async () => {
+    const client: NotificationClickClient = {
+      focus: vi.fn(async () => client),
+      navigate: vi.fn(async () => client),
+      postMessage: vi.fn((_message, transfer) => {
+        const ackPort = transfer?.[0] as { postMessage: (message: unknown) => void };
+        ackPort.postMessage({
+          type: 'notification-click-ack',
+          notificationConsumed: false
+        });
+      })
+    };
+    const clients = clientsWith([client]);
+
+    const result = await routeNotificationClick(TARGET_URL, ORIGIN, clients, {
+      notificationId: 'notification-1'
+    });
+
+    expect(result).toBe('client-unconsumed');
+    expect(client.navigate).not.toHaveBeenCalled();
     expect(clients.openWindow).not.toHaveBeenCalled();
   });
 
@@ -108,7 +137,7 @@ describe('routeNotificationClick', () => {
       navigate: vi.fn(async () => activeClient),
       postMessage: vi.fn((_message, transfer) => {
         const ackPort = transfer?.[0] as { postMessage: (message: unknown) => void };
-        ackPort.postMessage({ type: 'notification-click-ack' });
+        ackPort.postMessage({ type: 'notification-click-ack', notificationConsumed: true });
       })
     };
     const clients = clientsWith([staleClient, activeClient]);

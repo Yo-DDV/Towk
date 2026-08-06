@@ -1426,6 +1426,12 @@ func (c *ChattoCore) DeleteUser(ctx context.Context, actorID, userID string) err
 		c.logger.Warn("Failed to delete push subscriptions", "user_id", userID, "error", err)
 		// Continue - this is best-effort
 	}
+	// Profile banners use a deterministic server-asset key rather than a user event pointer.
+	// Remove that derived object before the user aggregate is shredded.
+	if err := c.DeleteUserProfileBanner(ctx, userID); err != nil {
+		c.logger.Warn("Failed to delete profile banner", "user_id", userID, "error", err)
+	}
+
 	// Delete avatar from object store if it exists
 	avatar, _ := c.GetUserAvatar(ctx, userID)
 	if avatar != nil {

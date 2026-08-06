@@ -38,13 +38,17 @@ test.describe('drag and drop image upload on settings pages', () => {
       await expect(page.getByText('Drop image')).not.toBeVisible();
     });
 
-    test('dropping image uploads avatar', async ({ page }) => {
+    test('dropping image frames and uploads avatar', async ({ page }) => {
       await createAndLoginTestUser(page);
       await page.goto(routes.settings);
       await page.getByPlaceholder('Enter your display name').waitFor({ state: 'visible' });
 
       const avatarDropZone = page.getByTestId('avatar-drop-zone');
       await simulateFileDrop(avatarDropZone, 'e2e/fixtures/brighton.jpg');
+
+      const framingDialog = page.getByRole('dialog', { name: 'Frame your avatar' });
+      await expect(framingDialog).toBeVisible();
+      await framingDialog.getByRole('button', { name: 'Apply and upload' }).click();
 
       await expect(page.getByText('Avatar uploaded successfully')).toBeVisible({
         timeout: TIMEOUTS.COMPLEX_OPERATION

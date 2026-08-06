@@ -82,6 +82,7 @@ vi.mock('$lib/hooks/useMayHaveMissedMessagesCallback.svelte', () => ({
 
 describe('EventList jump completion', () => {
   beforeEach(() => {
+    resumeCallbacks.length = 0;
     readReceiptMocks.advanceReadReceipt.mockReset().mockResolvedValue(false);
     readReceiptMocks.getReadReceiptSummaries
       .mockReset()
@@ -889,7 +890,7 @@ describe('EventList jump completion', () => {
     await expect.element(page.getByTestId('virtualizer-scroll-alignment')).toHaveTextContent('end');
   });
 
-  it('completes initialization when a bottom scroll supersedes the initial request', async () => {
+  it('re-converges instead of abandoning a sticky timeline when resume reveals media drift', async () => {
     const animationFrames: FrameRequestCallback[] = [];
     vi.stubGlobal(
       'requestAnimationFrame',
@@ -930,9 +931,27 @@ describe('EventList jump completion', () => {
 
       const resume = resumeCallbacks.at(-1);
       expect(resume).toBeDefined();
+      const callsBeforeResume = Number(
+        page.getByTestId('virtualizer-scroll-calls').element().textContent
+      );
       setVirtualizerScrollOffset(400);
       resume?.();
-      await expect.element(page.getByTestId('jump-to-present')).toBeVisible();
+      for (let frame = 0; frame < 20; frame++) {
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.((frame + 50) * 16);
+        if (
+          Number(page.getByTestId('virtualizer-scroll-calls').element().textContent) >
+          callsBeforeResume
+        ) {
+          break;
+        }
+      }
+      await vi.waitFor(() =>
+        expect(
+          Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)
+        ).toBeGreaterThan(callsBeforeResume)
+      );
+      await expect.element(page.getByTestId('jump-to-present')).not.toBeInTheDocument();
     } finally {
       setVirtualizerScrollOffset(700);
       vi.unstubAllGlobals();
@@ -1243,11 +1262,12 @@ describe('EventList jump completion', () => {
 
       await vi.waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(0));
       await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThanOrEqual(7));
-      setVirtualizerScrollOffset(400);
-      resumeCallbacks.at(-1)?.();
+      const messageContainer = page.getByTestId('messages-container').element();
+      messageContainer.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+      emitVirtualizerScroll(650);
+      emitVirtualizerScroll(400);
       await expect.element(page.getByTestId('jump-to-present')).toBeVisible();
       const callsBeforeResize = scrollCalls();
-      const messageContainer = page.getByTestId('messages-container').element();
       const initialEntry = resizeObserverEntry(messageContainer, 300);
       const resizedEntry = resizeObserverEntry(messageContainer, 200);
 

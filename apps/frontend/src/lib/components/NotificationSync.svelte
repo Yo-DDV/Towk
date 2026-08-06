@@ -294,6 +294,13 @@ Include this component once in the chat layout (unconditionally).
             }
             break;
           }
+          case RoomEventKind.RoomMarkedAsRead: {
+            // A focus/resume refresh may complete just before the read
+            // mutation dismisses its notifications. Treat this event as an
+            // ordering barrier so a missed dismissal cannot leave stale UI.
+            void refreshAuthoritativeNotificationState(instance.id, stores);
+            break;
+          }
         }
       };
 
@@ -361,7 +368,10 @@ Include this component once in the chat layout (unconditionally).
     drainNativeNotificationCloseOutbox();
 
     const handleVisibleResume = () => refreshVisibleAuthenticatedNotificationState();
-    const handleOnline = () => refreshAllAuthenticatedNotificationState();
+    const handleOnline = () => {
+      refreshAllAuthenticatedNotificationState();
+      drainNativeNotificationCloseOutbox();
+    };
     const stopNativeNotificationClose = onNativeNotificationClose((notificationId) => {
       const originServer = serverRegistry.originServer;
       if (!originServer) return;

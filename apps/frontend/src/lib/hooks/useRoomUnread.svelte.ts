@@ -13,7 +13,24 @@ import { useUnreadMarker } from './useUnreadMarker.svelte';
  */
 export function useRoomUnread(getProps: () => { roomId: string; attentionEnabled?: boolean }) {
   const connection = useConnection();
-  const roomUnreadStore = serverRegistry.getStore(getActiveServer()).roomUnread;
+  const stores = serverRegistry.getStore(getActiveServer());
+  const roomUnreadStore = stores.roomUnread;
+
+  function roomHasRenderedNotification(roomId: string): boolean {
+    return (
+      (stores.rooms.rooms.find((room) => room.id === roomId)?.viewerNotificationCount ?? 0) > 0 ||
+      stores.notifications.hasRoomNotification(roomId) ||
+      stores.notifications.hasDMRoomNotification(roomId)
+    );
+  }
+
+  async function reconcileRenderedRoomNotification(roomId: string): Promise<void> {
+    if (!roomHasRenderedNotification(roomId)) return;
+    await Promise.allSettled([
+      stores.notifications.fetch(),
+      stores.rooms.refreshNotificationCounts()
+    ]);
+  }
 
   const unread = useUnreadMarker(() => getProps().roomId, {
     attentionEnabled: () => getProps().attentionEnabled ?? true,
@@ -28,6 +45,7 @@ export function useRoomUnread(getProps: () => { roomId: string; attentionEnabled
           bearerToken: conn.bearerToken
         }).markRoomAsRead({ roomId: targetRoomId, upToEventId });
         optimisticRead.commit();
+        await reconcileRenderedRoomNotification(targetRoomId);
         return result;
       } catch (err) {
         optimisticRead.rollback();

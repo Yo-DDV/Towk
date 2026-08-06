@@ -653,7 +653,7 @@ describe('notification navigation UI routing', () => {
 describe('onNotificationClick', () => {
   it('acknowledges after the notification callback completes', async () => {
     const serviceWorker = stubServiceWorker();
-    const navigation = deferred();
+    const navigation = deferred<boolean>();
     const callback = vi.fn(() => navigation.promise);
     const responsePort = { postMessage: vi.fn() };
     const stop = onNotificationClick(callback);
@@ -661,20 +661,27 @@ describe('onNotificationClick', () => {
     serviceWorker.dispatchMessage({
       data: {
         type: 'notification-click',
-        url: 'https://towk.example/chat/-/room-1'
+        url: 'https://towk.example/chat/-/room-1',
+        notificationId: 'notification-1'
       },
       ports: [responsePort as unknown as MessagePort]
     });
 
     await Promise.resolve();
-    expect(callback).toHaveBeenCalledWith('https://towk.example/chat/-/room-1');
+    expect(callback).toHaveBeenCalledWith(
+      'https://towk.example/chat/-/room-1',
+      'notification-1'
+    );
     expect(responsePort.postMessage).not.toHaveBeenCalled();
 
-    navigation.resolve();
+    navigation.resolve(true);
     await navigation.promise;
     await Promise.resolve();
 
-    expect(responsePort.postMessage).toHaveBeenCalledWith({ type: 'notification-click-ack' });
+    expect(responsePort.postMessage).toHaveBeenCalledWith({
+      type: 'notification-click-ack',
+      notificationConsumed: true
+    });
 
     stop();
     expect(serviceWorker.listenerCount()).toBe(0);
@@ -701,5 +708,27 @@ describe('onNotificationClick', () => {
 
     expect(callback).toHaveBeenCalledOnce();
     expect(responsePort.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges routing without claiming an unconsumed notification', async () => {
+    const serviceWorker = stubServiceWorker();
+    const callback = vi.fn(async () => false);
+    const responsePort = { postMessage: vi.fn() };
+    onNotificationClick(callback);
+
+    serviceWorker.dispatchMessage({
+      data: {
+        type: 'notification-click',
+        url: 'https://towk.example/chat/-/room-1',
+        notificationId: 'notification-2'
+      },
+      ports: [responsePort as unknown as MessagePort]
+    });
+    await vi.waitFor(() => expect(responsePort.postMessage).toHaveBeenCalledOnce());
+
+    expect(responsePort.postMessage).toHaveBeenCalledWith({
+      type: 'notification-click-ack',
+      notificationConsumed: false
+    });
   });
 });

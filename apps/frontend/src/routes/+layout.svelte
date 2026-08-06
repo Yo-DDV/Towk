@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { onNotificationClick } from '$lib/notifications/pushNotifications';
   import { prepareUiForNotificationPath } from '$lib/notifications/notificationNavigationUi';
+  import { reconcileNotificationClick } from '$lib/notifications/reconcileNotificationClick';
   import { setAuthServerInfo } from '$lib/components/authServerInfo';
   import ConnectionIndicator from '$lib/components/ConnectionIndicator.svelte';
   import ConnectionProvider from '$lib/components/ConnectionProvider.svelte';
@@ -60,19 +61,24 @@
     appUi.setActiveServer(activeServerId);
   });
 
-  // Route push-notification clicks via SvelteKit's client-side navigation
-  // instead of letting the SW do a full document navigation. Same-URL
-  // clicks become a no-op; cross-URL clicks just update the route.
+  // Route push-notification clicks via SvelteKit and consume the exact
+  // application notification independently of whether the URL changes.
   $effect(() =>
-    onNotificationClick((url) => {
+    onNotificationClick((url, notificationId) => {
+      let target: URL;
       try {
-        const target = new URL(url);
-        if (target.origin !== window.location.origin) return;
-        prepareUiForNotificationPath(appUi, target.pathname);
-        return goto(resolve((target.pathname + target.search + target.hash) as '/'));
+        target = new URL(url);
       } catch {
         // Ignore malformed URLs from the SW.
+        return;
       }
+      if (target.origin !== window.location.origin) return;
+
+      prepareUiForNotificationPath(appUi, target.pathname);
+      return Promise.all([
+        goto(resolve((target.pathname + target.search + target.hash) as '/')),
+        reconcileNotificationClick(notificationId)
+      ]).then(([, notificationConsumed]) => notificationConsumed);
     })
   );
 

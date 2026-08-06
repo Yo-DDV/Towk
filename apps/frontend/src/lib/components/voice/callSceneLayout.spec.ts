@@ -82,6 +82,12 @@ describe('call scene container layout', () => {
       rows: 1,
       tileSize: 370
     });
+    expect(computeSceneGrid(537, 642, 2, 220)).toEqual({
+      capacity: 2,
+      columns: 2,
+      rows: 1,
+      tileSize: 262
+    });
   });
 
   it('preserves a vertical two-participant stack when portrait space materially improves readability', () => {

@@ -16,6 +16,10 @@ function testImageUrl(label: string): string {
   return `/icons/favicon.png?label=${label}`;
 }
 
+function futureExpiry(): string {
+  return new Date(Date.now() + 60 * 60_000).toISOString();
+}
+
 vi.mock('$lib/api-client/roomTimeline', () => ({
   createRoomTimelineAPI: vi.fn(() => ({
     getRoomEventsAround: getRoomEventsAroundMock
@@ -91,7 +95,7 @@ function previewResult(thumbnailUrl: string) {
         contentType: 'image/jpeg',
         thumbnailAssetUrl: {
           url: thumbnailUrl,
-          expiresAt: '2027-05-29T15:00:00Z'
+          expiresAt: futureExpiry()
         },
         videoProcessing: null
       }
@@ -121,7 +125,7 @@ function videoPreviewResult(videoThumbnailUrl: string | null) {
           ? {
               thumbnailAssetUrl: {
                 url: videoThumbnailUrl,
-                expiresAt: '2027-05-29T15:00:00Z'
+                expiresAt: futureExpiry()
               }
             }
           : null
@@ -137,11 +141,11 @@ function refreshResult(thumbnailUrl: string) {
       {
         assetUrl: {
           url: '/assets/files/att_1?access=fresh-original',
-          expiresAt: '2027-05-29T15:00:00Z'
+          expiresAt: futureExpiry()
         },
         thumbnailAssetUrl: {
           url: thumbnailUrl,
-          expiresAt: '2027-05-29T15:00:00Z'
+          expiresAt: futureExpiry()
         },
         videoThumbnailAssetUrl: null,
         variantAssetUrls: new Map()
@@ -157,12 +161,12 @@ function videoRefreshResult(videoThumbnailUrl: string) {
       {
         assetUrl: {
           url: '/assets/files/att_video?access=fresh-original',
-          expiresAt: '2027-05-29T15:00:00Z'
+          expiresAt: futureExpiry()
         },
         thumbnailAssetUrl: null,
         videoThumbnailAssetUrl: {
           url: videoThumbnailUrl,
-          expiresAt: '2027-05-29T15:00:00Z'
+          expiresAt: futureExpiry()
         },
         variantAssetUrls: new Map()
       }
