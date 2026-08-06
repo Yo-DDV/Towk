@@ -1,1 +1,1 @@
-trigger db0ad73ce5f8e88ebee77ee9afa87d4639cd111b
+trigger materialized-worktree-2026-08-06T13:48+02:00
