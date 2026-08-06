@@ -1033,6 +1033,144 @@ describe('service worker badge orchestration', () => {
     expect(worker.clients.openWindow).toHaveBeenCalledWith(targetUrl);
   });
 
+  it('dismisses a clicked app notification without requiring an open window', async () => {
+    const worker = await importServiceWorker();
+    worker.registration.pushManager.getSubscription.mockResolvedValue({
+      toJSON: () => ({
+        endpoint: 'https://push.example/subscription',
+        keys: { auth: 'push-auth' }
+      })
+    });
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ dismissed: true }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await worker.dispatch('notificationclick', {
+      notification: {
+        close: vi.fn(),
+        data: {
+          notificationId: 'notification-1',
+          url: 'https://towk.example/chat/-/room-1'
+        }
+      }
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/push/notification-close',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'omit',
+        body: JSON.stringify({
+          endpoint: 'https://push.example/subscription',
+          auth: 'push-auth',
+          notificationId: 'notification-1'
+        })
+      })
+    );
+    expect(worker.clients.openWindow).toHaveBeenCalledWith(
+      'https://towk.example/chat/-/room-1'
+    );
+  });
+
+  it('passes notification identity to an open SPA client', async () => {
+    const worker = await importServiceWorker();
+    const client = {
+      focus: vi.fn(async () => client),
+      postMessage: vi.fn((_message: unknown, transfer?: unknown[]) => {
+        const ackPort = transfer?.[0] as { postMessage?: (message: unknown) => void } | undefined;
+        ackPort?.postMessage?.({
+          type: 'notification-click-ack',
+          notificationConsumed: true
+        });
+      })
+    };
+    worker.clients.matchAll.mockResolvedValue([client]);
+
+    await worker.dispatch('notificationclick', {
+      notification: {
+        close: vi.fn(),
+        data: {
+          notificationId: 'notification-2',
+          url: 'https://towk.example/chat/-/room-2'
+        }
+      }
+    });
+
+    expect(client.postMessage).toHaveBeenCalledWith(
+      {
+        type: 'notification-click',
+        url: 'https://towk.example/chat/-/room-2',
+        notificationId: 'notification-2'
+      },
+      [expect.anything()]
+    );
+    expect(worker.clients.openWindow).not.toHaveBeenCalled();
+    expect(worker.registration.pushManager.getSubscription).not.toHaveBeenCalled();
+  });
+
+  it('queues and replays a click when the open client could only route it', async () => {
+    const worker = await importServiceWorker();
+    const client = {
+      focus: vi.fn(async () => client),
+      postMessage: vi.fn((message: unknown, transfer?: unknown[]) => {
+        if (
+          typeof message === 'object' &&
+          message !== null &&
+          'type' in message &&
+          message.type === 'notification-click'
+        ) {
+          const ackPort = transfer?.[0] as { postMessage?: (value: unknown) => void } | undefined;
+          ackPort?.postMessage?.({
+            type: 'notification-click-ack',
+            notificationConsumed: false
+          });
+        }
+      })
+    };
+    worker.clients.matchAll.mockResolvedValue([client]);
+
+    await worker.dispatch('notificationclick', {
+      notification: {
+        close: vi.fn(),
+        data: {
+          notificationId: 'notification-3',
+          url: 'https://towk.example/chat/-/room-3'
+        }
+      }
+    });
+
+    expect(client.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-closed',
+      notificationId: 'notification-3',
+      source: 'native-close'
+    });
+    expect(worker.clients.openWindow).not.toHaveBeenCalled();
+  });
+
+  it('preserves the join action destination while consuming a call notification', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('notificationclick', {
+      action: 'join-call',
+      notification: {
+        close: vi.fn(),
+        data: {
+          notificationId: 'call-notification-1',
+          url: 'https://towk.example/chat/-/room-1',
+          joinUrl: 'https://towk.example/chat/-/room-1?joinCall=C1'
+        }
+      }
+    });
+
+    expect(worker.clients.openWindow).toHaveBeenCalledWith(
+      'https://towk.example/chat/-/room-1?joinCall=C1'
+    );
+  });
+
   it('preserves a foreground authoritative count after clicking the only native notification', async () => {
     const worker = await importServiceWorker();
 
