@@ -52,6 +52,21 @@
     });
   }
 
+  function riskLabel(permission: string): string {
+    switch (getPermissionRisk(permission)) {
+      case 'standard':
+        return m['grades.risk.standard']();
+      case 'moderation':
+        return m['grades.risk.moderation']();
+      case 'sensitive':
+        return m['grades.risk.sensitive']();
+      case 'destructive':
+        return m['grades.risk.destructive']();
+      case 'privilege':
+        return m['grades.risk.privilege']();
+    }
+  }
+
   async function loadPermissions() {
     loading = true;
     try {
@@ -114,7 +129,7 @@
         }
         error = m['grades.create.permission_setup_failed']();
       } else {
-        error = localizedErrorMessage(err, m['admin.permissions.create_role_failed']());
+        error = localizedErrorMessage(err, m['admin.permissions.load_instance_failed']());
       }
       creating = false;
       return;
@@ -158,7 +173,11 @@
           subtitle={m['grades.create.starting_point_description']()}
           icon="iconify uil--layer-group"
         >
-          <div class="grid gap-3 md:grid-cols-3" role="radiogroup" aria-label={m['grades.create.starting_point']()}>
+          <div
+            class="grid gap-3 md:grid-cols-3"
+            role="radiogroup"
+            aria-label={m['grades.create.starting_point']()}
+          >
             {#each GRADE_TEMPLATES as option (option.id)}
               <button
                 type="button"
@@ -215,8 +234,10 @@
                       <li class="rounded-lg border border-text/10 bg-surface-100 p-3">
                         <div class="flex items-start justify-between gap-3">
                           <code class="min-w-0 break-all text-xs">{permission}</code>
-                          <span class="shrink-0 rounded-full bg-surface-200 px-2 py-0.5 text-[0.7rem] text-muted">
-                            {m[`grades.risk.${getPermissionRisk(permission)}`]()}
+                          <span
+                            class="shrink-0 rounded-full bg-surface-200 px-2 py-0.5 text-[0.7rem] text-muted"
+                          >
+                            {riskLabel(permission)}
                           </span>
                         </div>
                         <p class="mt-2 text-sm text-muted">{getPermissionDescription(permission)}</p>
