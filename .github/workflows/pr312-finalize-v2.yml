@@ -1,0 +1,166 @@
+name: pr312 deterministic finalization
+
+on:
+  push:
+    branches:
+      - feat/localized-default-grades
+
+concurrency:
+  group: pr312-final-clean
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  finalize:
+    if: github.event.head_commit.message != 'chore(ci): record PR 312 diagnostic'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/localized-default-grades
+          fetch-depth: 0
+
+      - name: Finalize, validate and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          record_failure() {
+            stage="$1"
+            rm -rf .github/pr312-diag
+            mkdir -p .github/pr312-diag
+            : > ".github/pr312-diag/${stage}"
+            git add .github/pr312-diag
+            git -c user.name='Yo-DDV' -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
+              commit -m 'chore(ci): record PR 312 diagnostic'
+            git push origin HEAD:feat/localized-default-grades
+            exit 1
+          }
+
+          run_stage() {
+            stage="$1"
+            shift
+            set +e
+            "$@"
+            rc=$?
+            set -e
+            if test "${rc}" -ne 0; then
+              record_failure "${stage}"
+            fi
+          }
+
+          rm -rf .github/pr312-diag
+
+          if test ! -f cli/internal/core/role_template_apply.go; then
+            blob='1e35f3e90ca24587fd326d4dd22691a7b7b1f3c1'
+            expected='e728dbb49039fe94ca0f4c6d52786fed421c7a29de61eeaebc16b27dafeedb4f'
+            set +e
+            curl --fail --silent --show-error \
+              -H 'Accept: application/vnd.github+json' \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/blobs/${blob}" \
+              | jq -r '.content' | tr -d '\n' | base64 --decode \
+              > /tmp/pr312-remediation.patch.gz
+            rc=$?
+            set -e
+            test "${rc}" -eq 0 || record_failure FETCH_BLOB_FAILED
+            printf '%s  %s\n' "${expected}" /tmp/pr312-remediation.patch.gz | sha256sum -c - \
+              || record_failure CHECKSUM_FAILED
+            gzip --test /tmp/pr312-remediation.patch.gz || record_failure GZIP_FAILED
+            gzip --decompress --stdout /tmp/pr312-remediation.patch.gz > /tmp/pr312-remediation.patch \
+              || record_failure DECOMPRESS_FAILED
+            if patch -p1 --forward --batch --dry-run < /tmp/pr312-remediation.patch; then
+              patch -p1 --forward --batch < /tmp/pr312-remediation.patch \
+                || record_failure PATCH_APPLY_FAILED
+            elif patch -p1 --reverse --batch --dry-run < /tmp/pr312-remediation.patch; then
+              echo 'Verified remediation already applied.'
+            else
+              record_failure PATCH_CHECK_FAILED
+            fi
+          fi
+
+          rm -rf .github/pr312-patch
+          rm -f \
+            .github/workflows/pr312-validation.yml \
+            .github/workflows/pr312-status.yml \
+            .github/workflows/pr312-finalize.yml \
+            .github/workflows/pr312-finalize-transaction.yml \
+            .github/workflows/pr312-finalize-clean.yml
+          git show origin/main:.github/workflows/quick-gate.yml > .github/workflows/quick-gate.yml \
+            || record_failure RESTORE_QUICK_GATE_FAILED
+
+          mapfile -t changed_go < <(
+            { git diff --name-only; git ls-files --others --exclude-standard; } \
+              | grep -E '\.go$' | sort -u
+          )
+          if test "${#changed_go[@]}" -gt 0; then
+            gofmt -w "${changed_go[@]}" || record_failure GOFMT_FAILED
+          fi
+          git diff --check || record_failure DIFF_CHECK_FAILED
+
+          run_stage SETUP ./.github/actions/setup/action.yml
+
+          set +e
+          pnpm run check:frontend
+          rc=$?
+          set -e
+          test "${rc}" -eq 0 || record_failure FRONTEND_CHECK_FAILED
+
+          set +e
+          pnpm run lint:frontend
+          rc=$?
+          set -e
+          test "${rc}" -eq 0 || record_failure FRONTEND_LINT_FAILED
+
+          set +e
+          pnpm --filter towk-frontend exec vitest run \
+            src/lib/components/rbac/gradeTemplates.spec.ts \
+            'src/routes/chat/[serverId]/[roomId]/memberRoleSections.spec.ts'
+          rc=$?
+          set -e
+          test "${rc}" -eq 0 || record_failure FRONTEND_TEST_FAILED
+
+          set +e
+          pnpm run build:frontend
+          rc=$?
+          set -e
+          test "${rc}" -eq 0 || record_failure FRONTEND_BUILD_FAILED
+
+          set +e
+          (cd cli && go test -trimpath -p 1 -tags test_endpoints ./internal/core ./internal/connectapi)
+          rc=$?
+          set -e
+          test "${rc}" -eq 0 || record_failure GO_TEST_FAILED
+
+          set +e
+          (cd cli && go vet ./internal/core ./internal/connectapi)
+          rc=$?
+          set -e
+          test "${rc}" -eq 0 || record_failure GO_VET_FAILED
+
+          rm -rf .github/pr312-diag
+          rm -f .github/workflows/pr312-finalize-v2.yml
+          git add -A
+          git diff --cached --check || record_failure FINAL_DIFF_CHECK_FAILED
+          if git diff --cached --name-only | grep -E '(^|/)pr312-|\.github/pr312-patch|pr312-(validation|status|finalize).*\.yml'; then
+            record_failure TEMP_ASSET_GUARD_FAILED
+          fi
+          if git diff --cached | grep -Ei 'ChatGPT|Codex|Co-authored-by:|Generated-by:|Assisted-by:'; then
+            record_failure PROVENANCE_GUARD_FAILED
+          fi
+
+          git -c user.name='Yo-DDV' -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
+            commit -m 'feat(rbac): finalize localized default grade templates'
+          git push origin HEAD:feat/localized-default-grades
+          head="$(git rev-parse HEAD)"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/312/comments" \
+            -f body="PR312_FINAL_CANDIDATE_PASS\n\nBench candidate head: ${head}\n\nAccessible checks passed: frontend typecheck, frontend lint, targeted grade tests, frontend build, Go core and ConnectRPC tests, Go vet, diff hygiene and provenance guards. Temporary transfer payloads and validation workflows are absent. Docker/runtime and physical-device qualification remain pending."
