@@ -36,7 +36,7 @@ A later version never mutates an existing grade automatically.
 
 Helper is a system grade, not a naming convention or a decorative custom role. It is assignable and revocable, but cannot be deleted or freely reordered. Its name and description are localized from the stable `helper` identifier.
 
-Helper grants no moderation or administration permission by default. Making the role pingable lets room members ask the assigned helpers for assistance using `@helper`; normal mention membership, confirmation, mute and notification rules still apply.
+Helper grants no moderation or administration permission by default. Making the role pingable lets room members ask assigned helpers for assistance using `@helper`; normal mention membership, confirmation, mute and notification rules still apply.
 
 ### Moderator
 
@@ -48,14 +48,7 @@ Helper grants no moderation or administration permission by default. Making the 
 - `room.bypass-lock`;
 - `message.delete-others`.
 
-The template deliberately excludes:
-
-- `room.manage`;
-- `room.purge-messages`;
-- `message.manage`;
-- role administration;
-- account administration;
-- user and audit administration views.
+The template deliberately excludes `room.manage`, `room.purge-messages`, `message.manage`, role administration, account administration and administrative user/audit views.
 
 This lets moderators remove harmful content and contain channel incidents without rewriting another user's message, purging a channel, changing permissions or taking over an account.
 
@@ -84,7 +77,7 @@ Both narrow permissions are unconditionally unavailable to non-owners inside dir
 
 The bundled client submits role metadata and a stable template identifier in one server command. The server validates the template, creates the role, applies the server baseline and returns only after the resulting policy can be read back. If applying the baseline fails, the just-created role is removed before an error is returned.
 
-The command preserves the existing protobuf request shape for mixed-version compatibility. Older servers ignore no new protobuf field: clients feature the template command only when connected to a compatible server.
+The command preserves the existing protobuf request shape for mixed-version compatibility. Older servers receive no unknown protobuf template field that they could silently ignore.
 
 ## Existing Installations
 
@@ -106,5 +99,5 @@ All product text for default grades, templates, risks, permission descriptions a
 
 ## Related
 
-- **ADRs:** ADR-040 (permission-only RBAC), ADR-043 (client-shell localization), ADR-057 (default grade catalog)
+- **ADRs:** ADR-040 (permission-only RBAC), ADR-043 (client-shell localization), ADR-058 (default grade catalog)
 - **FDRs:** FDR-001 (RBAC), FDR-004 (message editing and deletion), FDR-006 (mentions), FDR-007 (DMs), FDR-024 (permission inspection), FDR-032 (channel lock and purge)
