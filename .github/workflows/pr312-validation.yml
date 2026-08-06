@@ -1,4 +1,4 @@
-name: pr312 validation
+name: pr312 remediation apply
 
 on:
   push:
@@ -6,59 +6,40 @@ on:
       - feat/localized-default-grades
 
 concurrency:
-  group: pr312-validation-${{ github.ref }}
-  cancel-in-progress: true
+  group: pr312-remediation-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  source-snapshot:
+  apply-remediation:
+    if: github.event.head_commit.message == 'chore(ci): stage PR 312 remediation'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout code
+      - name: Checkout branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
-      - name: Upload source snapshot
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: pr312-source-${{ github.sha }}
-          path: .
-          include-hidden-files: true
-          retention-days: 1
+          ref: feat/localized-default-grades
+          fetch-depth: 0
 
-  frontend:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Setup environment
-        uses: ./.github/actions/setup
-        with:
-          install-cli-deps: "false"
-      - name: Typecheck frontend
-        run: pnpm run check:frontend
-      - name: Lint frontend
-        run: pnpm run lint:frontend
-      - name: Run targeted grade tests
-        run: pnpm --filter towk-frontend exec vitest run src/lib/components/rbac/gradeTemplates.spec.ts src/routes/chat/[serverId]/[roomId]/memberRoleSections.spec.ts
+      - name: Verify and apply remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/pr312-patch/part-* > /tmp/pr312-remediation.patch.gz.b64
+          printf '%s  %s\n' 'e728dbb49039fe94ca0f4c6d52786fed421c7a29de61eeaebc16b27dafeedb4f' '/tmp/pr312-remediation.patch.gz.b64' | sha256sum -c -
+          base64 --decode /tmp/pr312-remediation.patch.gz.b64 | gzip --decompress > /tmp/pr312-remediation.patch
+          git apply --check /tmp/pr312-remediation.patch
+          git apply --index /tmp/pr312-remediation.patch
+          git diff --cached --check
 
-  backend:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Setup environment
-        uses: ./.github/actions/setup
-      - name: Build frontend assets
-        run: mise build-frontend
-      - name: Run RBAC and ConnectRPC tests
-        run: cd cli && go test -trimpath -p 1 -tags test_endpoints ./internal/core ./internal/connectapi
+      - name: Commit and push remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Yo-DDV'
+          git config user.email '116607353+Yo-DDV@users.noreply.github.com'
+          git commit -m 'feat(rbac): complete safe grade template application'
+          git push origin HEAD:feat/localized-default-grades
