@@ -52,12 +52,16 @@ jobs:
           git -c user.name='Yo-DDV' \
               -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
               merge --no-edit origin/main
+
           cat .github/presence-source/chunk-*.txt | base64 -d > /tmp/presence-source.tar.gz
           tar -xzf /tmp/presence-source.tar.gz -C .
-          base64 -d .github/presence-source/hardening.patch.gz.b64 | gzip -dc > /tmp/presence-hardening.patch
-          test "$(sha256sum /tmp/presence-hardening.patch | cut -d' ' -f1)" = \
-            9b1b2f811fa6ecc63a2d3165d351a63bc3ff6c845509d8597460a1716013f9f4
-          git apply --whitespace=error /tmp/presence-hardening.patch
+
+          cat .github/presence-source/hardened-[0-9][0-9].txt | \
+            base64 -d > /tmp/presence-hardened-overlay.tar.gz
+          test "$(sha256sum /tmp/presence-hardened-overlay.tar.gz | cut -d' ' -f1)" = \
+            f95fae79f6e4f271187c89a655bc907e8935cfe38d80ba3e62b2dd543e16542e
+          tar -xzf /tmp/presence-hardened-overlay.tar.gz -C .
+
           gofmt -w \
             cli/internal/core/presence.go \
             cli/internal/core/presence_model.go \
@@ -66,6 +70,7 @@ jobs:
             cli/internal/core/presence_session_test.go \
             cli/internal/connectapi/presence.go \
             cli/internal/connectapi/presence_session_test.go
+
           rm -rf .github/presence-source
           rm -f .github/workflows/presence-candidate.yml
           git diff --check
@@ -122,6 +127,7 @@ jobs:
           set -euo pipefail
           git diff --binary origin/main > /tmp/presence-product.patch
           test -s /tmp/presence-product.patch
+
           if git diff --name-only origin/main | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
             echo 'temporary transfer surface leaked into product diff' >&2
             exit 1
@@ -130,16 +136,19 @@ jobs:
             echo 'forbidden authorship trailer found' >&2
             exit 1
           fi
+
           git worktree add /tmp/presence-product origin/main
           cd /tmp/presence-product
           git switch -c feat/resilient-pwa-presence
           git apply --index --whitespace=error /tmp/presence-product.patch
           git diff --cached --check
           test -n "$(git diff --cached --name-only)"
+
           if git ls-files | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
             echo 'temporary transfer surface exists in product tree' >&2
             exit 1
           fi
+
           git -c user.name='Yo-DDV' \
               -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
               commit -m 'feat(presence): add resilient PWA presence leases'
