@@ -58,6 +58,27 @@ import {
   type ParticipantNetworkQualitySmoothing,
   type ParticipantNetworkWarningMetric
 } from '$lib/voice/participantNetworkQuality';
+import {
+  PARTICIPANT_MEDIA_TELEMETRY_INTERVAL_MS,
+  PARTICIPANT_MEDIA_TELEMETRY_STALE_MS,
+  PARTICIPANT_MEDIA_TELEMETRY_TOPIC,
+  appendParticipantMediaTelemetryHistory,
+  classifyParticipantMediaDiagnosis,
+  collectParticipantMediaTelemetry,
+  createParticipantMediaTelemetrySnapshot,
+  encodeParticipantMediaTelemetry,
+  nextParticipantMediaTelemetrySequence,
+  parseParticipantMediaTelemetry,
+  shouldAcceptParticipantMediaTelemetry,
+  type ParticipantMediaAggregate,
+  type ParticipantMediaDiagnosis,
+  type ParticipantMediaMetric,
+  type ParticipantMediaOutboundCounters,
+  type ParticipantMediaTelemetryHistoryPoint,
+  type ParticipantMediaTelemetryPacket,
+  type ParticipantMediaTelemetrySnapshot,
+  type ParticipantTelemetryAcceptance
+} from '$lib/voice/participantMediaTelemetry';
 import type {
   VoiceCallAPI,
   VoiceCallJoinMode,
@@ -90,6 +111,23 @@ export type CallParticipantInfo = {
   jitterMs: number | null;
   latencyMs: number | null;
   networkWarningMetric: ParticipantNetworkWarningMetric;
+  sourceNetworkHealth?: ParticipantNetworkHealth;
+  sourcePacketLossPercent?: number | null;
+  sourceJitterMs?: number | null;
+  sourceLatencyMs?: number | null;
+  receptionNetworkHealth?: ParticipantNetworkHealth;
+  receptionPacketLossPercent?: number | null;
+  receptionJitterMs?: number | null;
+  receptionLatencyMs?: number | null;
+  reportedDownloadNetworkHealth?: ParticipantNetworkHealth;
+  reportedDownloadPacketLossPercent?: number | null;
+  reportedDownloadJitterMs?: number | null;
+  reportedDownloadLatencyMs?: number | null;
+  sourceMediaTelemetry?: ParticipantMediaMetric[];
+  sourceTelemetryUpdatedAt?: number | null;
+  receptionTelemetrySupported?: boolean;
+  mediaTelemetryHistory?: ParticipantMediaTelemetryHistoryPoint[];
+  mediaTelemetryDiagnosis?: ParticipantMediaDiagnosis;
   connectionState: 'connected' | 'interrupted';
   interruptionDeadline: string | null;
   isCameraEnabled: boolean;
@@ -450,7 +488,23 @@ export class VoiceCallState {
   private microphoneRouteRecoveryAttempts = 0;
   private nextMicrophoneRouteRecoveryAt = 0;
   private participantNetworkQualityPollRoom: Room | null = null;
+  private participantMediaTelemetryPollRoom: Room | null = null;
   private participantNetworkQuality = $state<Record<string, ParticipantNetworkQuality>>({});
+  private participantSourceTelemetry = $state<Record<string, ParticipantMediaTelemetrySnapshot>>(
+    {}
+  );
+  private participantMediaTelemetryHistory = $state<
+    Record<string, ParticipantMediaTelemetryHistoryPoint[]>
+  >({});
+  private participantMediaTelemetryAcceptance = new SvelteMap<
+    string,
+    ParticipantTelemetryAcceptance
+  >();
+  private localParticipantMediaTelemetrySequence = 0;
+  private localParticipantMediaTelemetryCounters = new SvelteMap<
+    string,
+    ParticipantMediaOutboundCounters
+  >();
   private participantNetworkCounters = new SvelteMap<string, ParticipantNetworkCounters>();
   private participantNetworkQualitySmoothing = new SvelteMap<
     string,
@@ -955,6 +1009,7 @@ export class VoiceCallState {
       this.attachBrowserNetworkListeners();
       this.updateParticipants();
       void this.refreshSiblingAudioStates();
+      void this.refreshParticipantMediaTelemetry();
       await this.refreshDevices();
       await this.reconcileMicrophoneProcessing(room);
       if (this.consumePendingOwnJoinSound()) {
@@ -2505,6 +2560,24 @@ export class VoiceCallState {
   }
 
   private setupRoomEventListeners(room: Room): void {
+    room.on(
+      RoomEvent.DataReceived,
+      (
+        payload: Uint8Array,
+        participant: RemoteParticipant | undefined,
+        _kind: unknown,
+        topic: string | undefined
+      ) => {
+        if (this.room !== room || topic !== PARTICIPANT_MEDIA_TELEMETRY_TOPIC || !participant) {
+          return;
+        }
+        const receivedAt = Date.now();
+        const packet = parseParticipantMediaTelemetry(payload, receivedAt);
+        if (!packet) return;
+        this.applyParticipantSourceTelemetry(participant.identity, packet, receivedAt);
+      }
+    );
+
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
       if (this.room !== room) return;
       this.clearInterruptedParticipant(participant.identity);
@@ -2538,6 +2611,7 @@ export class VoiceCallState {
         );
       }
       this.removeSiblingAudioState(participant.identity);
+      this.removeParticipantMediaTelemetry(participant.identity);
       this.updateParticipants();
     });
 
@@ -2725,9 +2799,13 @@ export class VoiceCallState {
       void this.observeMicrophoneRoute(room);
     }, MICROPHONE_ROUTE_RECONCILE_INTERVAL_MS);
     void this.refreshParticipantNetworkQuality();
-    this.participantNetworkQualityInterval = setInterval(() => {
-      void this.refreshParticipantNetworkQuality();
-    }, PARTICIPANT_NETWORK_QUALITY_INTERVAL_MS);
+    this.participantNetworkQualityInterval = setInterval(
+      () => {
+        void this.refreshParticipantNetworkQuality();
+        void this.refreshParticipantMediaTelemetry();
+      },
+      Math.min(PARTICIPANT_NETWORK_QUALITY_INTERVAL_MS, PARTICIPANT_MEDIA_TELEMETRY_INTERVAL_MS)
+    );
   }
 
   private async handleMediaDevicesChanged(room: Room): Promise<void> {
@@ -2852,6 +2930,121 @@ export class VoiceCallState {
     this.broadcastLocalAudioState();
   }
 
+  private async refreshParticipantMediaTelemetry(): Promise<void> {
+    const room = this.room;
+    if (
+      !room ||
+      room.state !== ConnectionState.Connected ||
+      this.participantMediaTelemetryPollRoom === room
+    ) {
+      return;
+    }
+    this.participantMediaTelemetryPollRoom = room;
+    try {
+      const collectedAt = Date.now();
+      const collected = await collectParticipantMediaTelemetry(
+        room.localParticipant,
+        this.localParticipantMediaTelemetryCounters,
+        collectedAt
+      );
+      if (this.room !== room) return;
+      this.localParticipantMediaTelemetryCounters.clear();
+      for (const [key, counters] of collected.counters) {
+        this.localParticipantMediaTelemetryCounters.set(key, counters);
+      }
+      this.localParticipantMediaTelemetrySequence = nextParticipantMediaTelemetrySequence(
+        this.localParticipantMediaTelemetrySequence
+      );
+      const payload = encodeParticipantMediaTelemetry(
+        this.localParticipantMediaTelemetrySequence,
+        collectedAt,
+        collected.metrics,
+        participantNetworkAggregate(
+          aggregateParticipantNetworkQuality(Object.values(this.participantNetworkQuality))
+        )
+      );
+      if (!payload) return;
+      const packet = parseParticipantMediaTelemetry(payload, collectedAt);
+      if (packet) {
+        this.applyParticipantSourceTelemetry(room.localParticipant.identity, packet, collectedAt);
+      }
+      const publishData = (
+        room.localParticipant as unknown as {
+          publishData?: (
+            data: Uint8Array,
+            options: { reliable: boolean; topic: string }
+          ) => Promise<void>;
+        }
+      ).publishData;
+      if (typeof publishData === 'function') {
+        await publishData
+          .call(room.localParticipant, payload, {
+            reliable: false,
+            topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC
+          })
+          .catch(() => undefined);
+      }
+      this.expireParticipantMediaTelemetry(collectedAt);
+    } finally {
+      if (this.participantMediaTelemetryPollRoom === room) {
+        this.participantMediaTelemetryPollRoom = null;
+      }
+    }
+  }
+
+  private applyParticipantSourceTelemetry(
+    identity: string,
+    packet: ParticipantMediaTelemetryPacket,
+    receivedAt: number
+  ): void {
+    const previous = this.participantMediaTelemetryAcceptance.get(identity) ?? null;
+    if (!shouldAcceptParticipantMediaTelemetry(previous, packet, receivedAt)) return;
+    const snapshot = createParticipantMediaTelemetrySnapshot(packet, receivedAt);
+    this.participantMediaTelemetryAcceptance.set(identity, {
+      sequence: packet.sequence,
+      sentAt: packet.sentAt,
+      receivedAt
+    });
+    this.participantSourceTelemetry = {
+      ...this.participantSourceTelemetry,
+      [identity]: snapshot
+    };
+    this.participantMediaTelemetryHistory = {
+      ...this.participantMediaTelemetryHistory,
+      [identity]: appendParticipantMediaTelemetryHistory(
+        this.participantMediaTelemetryHistory[identity] ?? [],
+        receivedAt,
+        snapshot.aggregate,
+        snapshot.receptionAggregate
+      )
+    };
+    this.updateParticipants();
+  }
+
+  private expireParticipantMediaTelemetry(now: number): void {
+    const next = { ...this.participantSourceTelemetry };
+    let changed = false;
+    for (const [identity, snapshot] of Object.entries(next)) {
+      if (now - snapshot.receivedAt <= PARTICIPANT_MEDIA_TELEMETRY_STALE_MS) continue;
+      delete next[identity];
+      changed = true;
+    }
+    if (changed) {
+      this.participantSourceTelemetry = next;
+      this.updateParticipants();
+    }
+  }
+
+  private removeParticipantMediaTelemetry(identity: string): void {
+    const { [identity]: _source, ...remainingSources } = this.participantSourceTelemetry;
+    const { [identity]: _history, ...remainingHistory } = this.participantMediaTelemetryHistory;
+    void _source;
+    void _history;
+    this.participantSourceTelemetry = remainingSources;
+    this.participantMediaTelemetryHistory = remainingHistory;
+    this.participantMediaTelemetryAcceptance.delete(identity);
+  }
+
   private async refreshParticipantNetworkQuality(): Promise<void> {
     const room = this.room;
     if (!room || this.participantNetworkQualityPollRoom === room) return;
@@ -2974,6 +3167,7 @@ export class VoiceCallState {
         }
       }
       this.participantNetworkQuality = next;
+      this.expireParticipantMediaTelemetry(Date.now());
       this.updateParticipants();
     } finally {
       clearTimeout(staleTimer);
@@ -3005,7 +3199,14 @@ export class VoiceCallState {
       const userId = md.userId ?? p.identity;
       const canControlAudio = this.isControllableSibling(p);
       const siblingAudioState = canControlAudio ? this.siblingAudioStates[p.identity] : undefined;
-      const networkQuality = this.participantNetworkQuality[p.identity];
+      const receptionQuality = this.participantNetworkQuality[p.identity];
+      const sourceTelemetry = this.participantSourceTelemetry[p.identity];
+      const sourceQuality = sourceTelemetry?.aggregate ?? null;
+      const reportedDownloadAggregate = sourceTelemetry?.receptionAggregate ?? null;
+      const participantConnectionAggregate = aggregateParticipantConnectionQuality(
+        sourceQuality,
+        reportedDownloadAggregate
+      );
       return [
         {
           identity: p.identity,
@@ -3018,11 +3219,31 @@ export class VoiceCallState {
           isMuted: isParticipantMuted(p),
           isLocal,
           connectionQuality: p.connectionQuality as CallParticipantInfo['connectionQuality'],
-          networkHealth: networkQuality?.health ?? 'unknown',
-          packetLossPercent: networkQuality?.packetLossPercent ?? null,
-          jitterMs: networkQuality?.jitterMs ?? null,
-          latencyMs: networkQuality?.latencyMs ?? null,
-          networkWarningMetric: networkQuality?.warningMetric ?? null,
+          networkHealth: participantConnectionAggregate?.health ?? 'unknown',
+          packetLossPercent: participantConnectionAggregate?.packetLossPercent ?? null,
+          jitterMs: participantConnectionAggregate?.jitterMs ?? null,
+          latencyMs: participantConnectionAggregate?.latencyMs ?? null,
+          networkWarningMetric: participantMediaWarningMetric(participantConnectionAggregate),
+          sourceNetworkHealth: sourceQuality?.health ?? 'unknown',
+          sourcePacketLossPercent: sourceQuality?.packetLossPercent ?? null,
+          sourceJitterMs: sourceQuality?.jitterMs ?? null,
+          sourceLatencyMs: sourceQuality?.latencyMs ?? null,
+          receptionNetworkHealth: receptionQuality?.health ?? 'unknown',
+          receptionPacketLossPercent: receptionQuality?.packetLossPercent ?? null,
+          receptionJitterMs: receptionQuality?.jitterMs ?? null,
+          receptionLatencyMs: receptionQuality?.latencyMs ?? null,
+          reportedDownloadNetworkHealth: reportedDownloadAggregate?.health ?? 'unknown',
+          reportedDownloadPacketLossPercent: reportedDownloadAggregate?.packetLossPercent ?? null,
+          reportedDownloadJitterMs: reportedDownloadAggregate?.jitterMs ?? null,
+          reportedDownloadLatencyMs: reportedDownloadAggregate?.latencyMs ?? null,
+          sourceMediaTelemetry: sourceTelemetry?.metrics ?? [],
+          sourceTelemetryUpdatedAt: sourceTelemetry?.receivedAt ?? null,
+          receptionTelemetrySupported: sourceTelemetry?.receptionSupported ?? false,
+          mediaTelemetryHistory: this.participantMediaTelemetryHistory[p.identity] ?? [],
+          mediaTelemetryDiagnosis: classifyParticipantMediaDiagnosis(
+            sourceQuality,
+            reportedDownloadAggregate
+          ),
           connectionState: 'connected' as const,
           interruptionDeadline: null,
           isCameraEnabled: isParticipantCameraEnabled(p),
@@ -3442,6 +3663,12 @@ export class VoiceCallState {
     this.e2eeWorker = null;
     this.participants = [];
     this.participantNetworkQuality = {};
+    this.participantSourceTelemetry = {};
+    this.participantMediaTelemetryHistory = {};
+    this.participantMediaTelemetryAcceptance.clear();
+    this.localParticipantMediaTelemetryCounters.clear();
+    this.localParticipantMediaTelemetrySequence = 0;
+    this.participantMediaTelemetryPollRoom = null;
     this.participantNetworkCounters.clear();
     this.participantNetworkQualityFailures.clear();
     this.participantNetworkQualitySmoothing.clear();
@@ -4576,4 +4803,54 @@ function redactSensitiveUrlParts(message: string): string {
     .replace(/access_token=([^&\s]+)/gi, 'access_token=<redacted>')
     .replace(/join_request=([^&\s]+)/gi, 'join_request=<redacted>')
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '<jwt-redacted>');
+}
+
+function participantNetworkAggregate(
+  quality: ParticipantNetworkQuality | null | undefined
+): ParticipantMediaAggregate | null {
+  return quality
+    ? {
+        health: quality.health,
+        latencyMs: quality.latencyMs,
+        jitterMs: quality.jitterMs,
+        packetLossPercent: quality.packetLossPercent
+      }
+    : null;
+}
+
+function aggregateParticipantConnectionQuality(
+  source: ParticipantMediaAggregate | null,
+  download: ParticipantMediaAggregate | null
+): ParticipantMediaAggregate | null {
+  if (!source) return download;
+  if (!download) return source;
+  const severity = (health: ParticipantMediaAggregate['health']) =>
+    health === 'poor'
+      ? 3
+      : health === 'degraded'
+        ? 2
+        : health === 'good'
+          ? 1
+          : health === 'excellent'
+            ? 0
+            : -1;
+  const maximum = (left: number | null, right: number | null) =>
+    left === null ? right : right === null ? left : Math.max(left, right);
+  return {
+    health: severity(download.health) > severity(source.health) ? download.health : source.health,
+    latencyMs: maximum(source.latencyMs, download.latencyMs),
+    jitterMs: maximum(source.jitterMs, download.jitterMs),
+    packetLossPercent: maximum(source.packetLossPercent, download.packetLossPercent)
+  };
+}
+
+function participantMediaWarningMetric(
+  aggregate: ParticipantMediaAggregate | null
+): ParticipantNetworkWarningMetric {
+  if (!aggregate || (aggregate.health !== 'degraded' && aggregate.health !== 'poor')) return null;
+  const lossSeverity = aggregate.packetLossPercent ?? -1;
+  const jitterSeverity = aggregate.jitterMs === null ? -1 : aggregate.jitterMs / 20;
+  const latencySeverity = aggregate.latencyMs === null ? -1 : aggregate.latencyMs / 80;
+  if (latencySeverity > Math.max(lossSeverity, jitterSeverity)) return 'latency';
+  return jitterSeverity > lossSeverity ? 'jitter' : 'packetLoss';
 }

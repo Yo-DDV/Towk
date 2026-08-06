@@ -104,8 +104,12 @@ against a moving array index.
 
 <figure class="min-w-0 rounded-md border border-text/10 bg-surface-100/80 p-2.5">
   <figcaption class="flex items-baseline justify-between gap-2">
-    <span class="truncate text-[11px] font-medium text-muted">{label}</span>
-    <strong class="shrink-0 text-sm font-semibold tabular-nums">{value}</strong>
+    <span class="truncate text-[11px] font-medium whitespace-nowrap text-muted" title={label}
+      >{label}</span
+    >
+    <strong class="shrink-0 text-sm font-semibold whitespace-nowrap tabular-nums" title={value}
+      >{value}</strong
+    >
   </figcaption>
 
   <svg

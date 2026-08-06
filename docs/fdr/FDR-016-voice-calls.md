@@ -204,3 +204,13 @@ Voice calling doesn't have a dedicated permission today; room membership is the 
 ## Open Questions
 
 - Should there be a dedicated `voice.join` permission so operators can disable voice in specific rooms/groups without touching room membership? Currently any room member can call.
+
+### Participant-owned media telemetry
+
+Call-card connection quality is attributed to the connection that owns the card. Every client samples its active outbound microphone, camera, and screen-share senders at a bounded two-second cadence and publishes a compact versioned lossy packet on `towk.media-telemetry.v1`. The authenticated LiveKit sender supplied with `RoomEvent.DataReceived` is authoritative; the payload contains no participant or user identity and cannot select another card.
+
+The source packet is capped at 1,200 bytes and accepts only a closed set of finite, bounded aggregate fields: RTT, jitter, packet loss, bitrate, FPS, resolution, and encoder-limitation category. IP addresses, candidate addresses, hostnames, ICE or TURN credentials, device identifiers and labels, and media content are neither serialized nor retained. Version, keys, size, sequence, source cadence, timestamp age, clock skew, media-kind uniqueness, and value ranges fail closed. A modified client can lie about its own measurements, but it cannot attribute its packet to another authenticated LiveKit connection.
+
+Inbound WebRTC observations remain browser-local and are presented separately as “reception on this device.” They are never substituted for missing source telemetry. Older clients therefore remain compatible but show source telemetry as unavailable. Source-only, receiver-only, and simultaneous degradation are framed as probabilistic diagnoses; the client does not claim authoritative server fault from endpoint observations.
+
+History is memory-only, bucketed to five seconds, bounded to 180 points (approximately fifteen minutes), and removed with the participant or call lifecycle. No EVT event, NATS subject, ObjectStore/S3 object, API record, browser persistent storage, backup entry, or analytics pipeline is added. Collection, publication, listener, sequence, counter, and history state are disposed with the LiveKit room.

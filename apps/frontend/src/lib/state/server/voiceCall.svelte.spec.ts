@@ -42,6 +42,11 @@ import {
   VideoQuality,
   type RoomOptions
 } from 'livekit-client';
+import {
+  encodeParticipantMediaTelemetry,
+  parseParticipantMediaTelemetry,
+  PARTICIPANT_MEDIA_TELEMETRY_TOPIC
+} from '$lib/voice/participantMediaTelemetry';
 
 const calls: string[] = [];
 let lastRoomOptions: RoomOptions | null = null;
@@ -56,6 +61,7 @@ let lastRoom: {
     setScreenShareEnabled: ReturnType<typeof vi.fn>;
     setCameraEnabled: ReturnType<typeof vi.fn>;
     performRpc: ReturnType<typeof vi.fn>;
+    publishData: ReturnType<typeof vi.fn>;
   };
   getActiveDevice: ReturnType<typeof vi.fn>;
   switchActiveDevice: ReturnType<typeof vi.fn>;
@@ -125,6 +131,9 @@ let roomRpcHandlers = new Map<
   }) => Promise<string>
 >();
 let performRpcFailure: Error | null = null;
+let publishDataMock = vi.fn(
+  async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
+);
 let performRpcResponder: (params: {
   destinationIdentity: string;
   method: string;
@@ -265,6 +274,9 @@ vi.mock('livekit-client', () => {
           return performRpcResponder(params);
         }
       ),
+      publishData: vi.fn((data: Uint8Array, options: { reliable: boolean; topic: string }) =>
+        publishDataMock(data, options)
+      ),
       getTrackPublication: vi.fn((source: string) => {
         if (source === 'microphone') return microphonePublication;
         return localTrackPublications.find((publication) => publication.track.source === source);
@@ -353,6 +365,7 @@ vi.mock('livekit-client', () => {
       }
     },
     RoomEvent: {
+      DataReceived: 'DataReceived',
       ParticipantConnected: 'ParticipantConnected',
       ParticipantMetadataChanged: 'ParticipantMetadataChanged',
       ParticipantDisconnected: 'ParticipantDisconnected',
@@ -599,6 +612,9 @@ describe('VoiceCallState', () => {
     roomEventHandlers = new Map();
     roomRpcHandlers = new Map();
     performRpcFailure = null;
+    publishDataMock = vi.fn(
+      async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
+    );
     performRpcResponder = () =>
       JSON.stringify({ version: 1, microphoneMuted: false, outputMuted: false, revision: 0 });
     localTrackPublications = [];
@@ -5231,7 +5247,75 @@ describe('VoiceCallState', () => {
     await state.leave();
   });
 
-  it('reports the worst current quality across microphone and screen-share tracks', async () => {
+  it('waits for the LiveKit room to connect before publishing participant telemetry', async () => {
+    connectGate = deferredVoid();
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    const joining = state.join('wss://livekit.example.test', 'R1');
+    await vi.waitFor(() => expect(calls).toContain('connect'));
+    await flushPromises();
+    expect(publishDataMock).not.toHaveBeenCalled();
+
+    connectGate.resolve();
+    await joining;
+    await vi.waitFor(() => expect(publishDataMock).toHaveBeenCalledOnce());
+    const [payload, options] = publishDataMock.mock.calls[0]!;
+    expect(options).toEqual({ reliable: false, topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC });
+    expect(parseParticipantMediaTelemetry(payload, Date.now())).toMatchObject({
+      receptionSupported: true
+    });
+    await state.leave();
+  });
+
+  it("shows each participant's self-reported download statistics on every other device", async () => {
+    const remoteParticipant = {
+      identity: 'remote-device-2',
+      name: 'Same Account',
+      metadata:
+        '{"userId":"same-account","participantId":"remote-device-2","deviceIndex":2,"login":"same-account"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    };
+    mockRemoteParticipants.set(remoteParticipant.identity, remoteParticipant);
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const now = Date.now();
+    const payload = encodeParticipantMediaTelemetry(1, now, [], {
+      health: 'degraded',
+      latencyMs: 310,
+      jitterMs: 72,
+      packetLossPercent: 4.2
+    })!;
+    roomEventHandlers.get('DataReceived')?.(
+      payload,
+      remoteParticipant,
+      undefined,
+      PARTICIPANT_MEDIA_TELEMETRY_TOPIC
+    );
+
+    expect(
+      state.participants.find((participant) => participant.identity === remoteParticipant.identity)
+    ).toMatchObject({
+      userId: 'same-account',
+      deviceIndex: 2,
+      sourceMediaTelemetry: [],
+      receptionTelemetrySupported: true,
+      networkHealth: 'degraded',
+      networkWarningMetric: 'packetLoss',
+      reportedDownloadNetworkHealth: 'degraded',
+      reportedDownloadLatencyMs: 310,
+      reportedDownloadJitterMs: 72,
+      reportedDownloadPacketLossPercent: 4.2
+    });
+    await state.leave();
+  });
+
+  it('reports the worst current reception quality across microphone and screen-share tracks', async () => {
     const microphoneStats = vi.fn(async () =>
       inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 1_000, jitter: 0.008 })
     );
@@ -5276,16 +5360,15 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'poor',
-      packetLossPercent: 20,
-      jitterMs: 160,
-      networkWarningMetric: 'packetLoss'
+      receptionNetworkHealth: 'poor',
+      receptionPacketLossPercent: 20,
+      receptionJitterMs: 160
     });
 
     await state.leave();
   });
 
-  it('clears a participant quality sample when every active track stops reporting stats', async () => {
+  it('clears a participant reception quality sample when every active track stops reporting stats', async () => {
     const getRTCStatsReport = vi
       .fn<() => Promise<RTCStatsReport | undefined>>()
       .mockResolvedValueOnce(
@@ -5315,14 +5398,14 @@ describe('VoiceCallState', () => {
     await flushPromises();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
     ).refreshParticipantNetworkQuality();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5331,10 +5414,9 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'unknown',
-      packetLossPercent: null,
-      jitterMs: null,
-      networkWarningMetric: null
+      receptionNetworkHealth: 'unknown',
+      receptionPacketLossPercent: null,
+      receptionJitterMs: null
     });
 
     await state.leave();
@@ -5390,14 +5472,14 @@ describe('VoiceCallState', () => {
     ).refreshParticipantNetworkQuality();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'poor' });
+    ).toMatchObject({ receptionNetworkHealth: 'poor' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
     ).refreshParticipantNetworkQuality();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'poor' });
+    ).toMatchObject({ receptionNetworkHealth: 'poor' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5405,16 +5487,15 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'unknown',
-      packetLossPercent: null,
-      jitterMs: null,
-      networkWarningMetric: null
+      receptionNetworkHealth: 'unknown',
+      receptionPacketLossPercent: null,
+      receptionJitterMs: null
     });
 
     await state.leave();
   });
 
-  it('expires a participant quality sample when a WebRTC stats read never settles', async () => {
+  it('expires a participant reception quality sample when a WebRTC stats read never settles', async () => {
     vi.useFakeTimers({ now: 1_000 });
     const stalledReport = deferredValue<RTCStatsReport>();
     const getRTCStatsReport = vi
@@ -5446,7 +5527,7 @@ describe('VoiceCallState', () => {
     await flushPromises();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     const poll = (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5459,10 +5540,9 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'unknown',
-      packetLossPercent: null,
-      jitterMs: null,
-      networkWarningMetric: null
+      receptionNetworkHealth: 'unknown',
+      receptionPacketLossPercent: null,
+      receptionJitterMs: null
     });
 
     stalledReport.resolve(
@@ -5472,10 +5552,9 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'unknown',
-      packetLossPercent: null,
-      jitterMs: null,
-      networkWarningMetric: null
+      receptionNetworkHealth: 'unknown',
+      receptionPacketLossPercent: null,
+      receptionJitterMs: null
     });
     await state.leave();
   });
@@ -5515,7 +5594,7 @@ describe('VoiceCallState', () => {
     await flushPromises();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     const poll = (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5534,7 +5613,7 @@ describe('VoiceCallState', () => {
 
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'unknown' });
+    ).toMatchObject({ receptionNetworkHealth: 'unknown' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5542,7 +5621,7 @@ describe('VoiceCallState', () => {
     expect(screenShareStats).toHaveBeenCalledOnce();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     await state.leave();
   });

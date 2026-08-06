@@ -130,7 +130,7 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(container.querySelector('[data-testid="call-packet-loss-indicator"]')).toBeNull();
   });
 
-  it('explains average latency, packet loss, and jitter on keyboard focus', async () => {
+  it('presents upload and download metrics as a compact table on keyboard focus', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'sidebar', scenario: 'voice' }
     });
@@ -150,9 +150,119 @@ describe('VoiceCallPanel screen-share audio', () => {
     });
     const tooltip = document.getElementById(trigger.getAttribute('aria-describedby') ?? '')!;
     expect(trigger.getAttribute('aria-describedby')).toBe(tooltip.id);
-    expect(tooltip.textContent).toContain('Average latency: 640 ms');
-    expect(tooltip.textContent).toContain('Packet loss: 12.4%');
-    expect(tooltip.textContent).toContain('Average jitter: 82 ms');
+    const table = tooltip.querySelector<HTMLTableElement>(
+      '[data-testid="call-connection-metrics-table"]'
+    );
+    expect(table).not.toBeNull();
+    expect(table?.querySelectorAll('thead th')).toHaveLength(3);
+    expect(table?.querySelectorAll('tbody tr')).toHaveLength(3);
+    expect(table?.querySelectorAll('th[scope="row"]')).toHaveLength(3);
+    expect(table?.textContent).toContain('Upload statistics');
+    expect(table?.textContent).toContain('Download statistics');
+    expect(table?.textContent).toContain('640 ms');
+    expect(table?.textContent).toContain('12.4%');
+    expect(table?.textContent).toContain('82 ms');
+    expect(table?.textContent).toContain('51 ms');
+    expect(table?.className).toContain('sm:w-[36rem]');
+    for (const heading of table?.querySelectorAll('thead th:not(:first-child) > span') ?? []) {
+      expect((heading as HTMLElement).className).toContain('sm:whitespace-nowrap');
+    }
+  });
+
+  it('shows the same compact metrics table on mouse hover', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'voice' }
+    });
+
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-connection-quality-indicator"][data-network-warning-metric="packetLoss"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    trigger.dispatchEvent(new MouseEvent('mouseenter'));
+
+    const tooltip = await vi.waitFor(() => {
+      const value = document.getElementById(trigger.getAttribute('aria-describedby') ?? '');
+      expect(value?.matches(':popover-open')).toBe(true);
+      return value!;
+    });
+    expect(
+      tooltip.querySelector('[data-testid="call-connection-metrics-table"] tbody')?.children
+    ).toHaveLength(3);
+  });
+
+  it('opens one viewport-level telemetry dialog without nesting interactive buttons', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'stage', scenario: 'screen-devices' }
+    });
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-connection-quality-indicator"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(
+      container.querySelector('button [data-testid="call-connection-quality-indicator"]')
+    ).toBeNull();
+    trigger.click();
+    const panel = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLElement>(
+        '[data-testid="participant-media-telemetry-panel"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(panel.closest('[data-testid="call-participant-card"]')).toBeNull();
+    const rect = panel.getBoundingClientRect();
+    expect(rect.right).toBeLessThanOrEqual(window.innerWidth + 1);
+    expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight + 1);
+  });
+
+  it('renders only one connection tooltip for duplicate participant projections', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'stage', scenario: 'screen-devices' }
+    });
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-connection-quality-indicator"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    trigger.focus();
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll('[id^="call-connection-tooltip-"]')).toHaveLength(1);
+    });
+  });
+
+  it('identifies the selected device when one account has two active connections', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'devices' }
+    });
+    const secondDeviceCard = await vi.waitFor(() => {
+      const cards = Array.from(
+        container.querySelectorAll<HTMLElement>('[data-testid="call-participant-card"]')
+      );
+      const value = cards.find((card) =>
+        card.querySelector('[data-testid="call-device-badge"]')?.textContent?.includes('Device 2')
+      );
+      expect(value).not.toBeUndefined();
+      return value!;
+    });
+    secondDeviceCard
+      .querySelector<HTMLButtonElement>('[data-testid="call-connection-quality-indicator"]')!
+      .click();
+    const panel = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLElement>(
+        '[data-testid="participant-media-telemetry-panel"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(panel.textContent).toContain('Device 2');
   });
 
   it('renders good measured connections as healthy instead of unavailable gray', async () => {
@@ -501,16 +611,8 @@ describe('VoiceCallPanel screen-share audio', () => {
   });
 
   it('offers a one-touch camera switch when several phone lenses are available', async () => {
-    const devices = [
-      mediaDevice('audioinput', 'mobile-microphone', 'Phone microphone'),
-      mediaDevice('videoinput', 'mobile-front', 'camera2 1, facing front'),
-      mediaDevice('videoinput', 'mobile-rear', 'camera2 0, facing back')
-    ];
-    const enumerateDevices = vi
-      .spyOn(navigator.mediaDevices, 'enumerateDevices')
-      .mockResolvedValue(devices);
     const { container } = render(VoiceCallPanelStoryHarness, {
-      props: { layout: 'sidebar', scenario: 'camera' }
+      props: { layout: 'sidebar', scenario: 'mobile-camera' }
     });
 
     const control = await vi.waitFor(() => {
@@ -522,8 +624,6 @@ describe('VoiceCallPanel screen-share audio', () => {
     });
     expect(control.getAttribute('aria-label')).toBe('Switch camera');
     expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(32);
-
-    enumerateDevices.mockRestore();
   });
 
   it('keeps unavailable web screen sharing compact and explains it only on tap', async () => {
@@ -1640,8 +1740,20 @@ describe('VoiceCallPanel screen-share audio', () => {
 
 describe('VoiceCallPanel screen-share diagnostics', () => {
   it('keeps viewer diagnostics opt-in and closes them without affecting the share', async () => {
+    let publishParticipantRefresh = () => undefined;
     const { container } = render(VoiceCallPanelStoryHarness, {
-      props: { layout: 'stage', scenario: 'screen' }
+      props: {
+        layout: 'stage',
+        scenario: 'screen',
+        onStoreSeeded: (store) => {
+          publishParticipantRefresh = () => {
+            store.voiceCall.participants = store.voiceCall.participants.map((participant) => ({
+              ...participant,
+              packetLossPercent: participant.packetLossPercent ?? 0
+            }));
+          };
+        }
+      }
     });
 
     await vi.waitFor(() => {
@@ -1717,13 +1829,31 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
     expect(button.getAttribute('aria-controls')).toBe(panel.id);
     expect(panel.getAttribute('role')).toBe('region');
     expect(panel.getAttribute('aria-modal')).toBeNull();
-    expect(panel.className).toContain('absolute');
-    expect(panel.closest('[data-call-media-card]')).toBe(mediaCard);
+    expect(panel.className).toContain('fixed');
+    expect(panel.closest('[data-call-media-card]')).toBeNull();
     expect(panel.textContent).toContain('Receiving');
     expect(panel.textContent).toContain('1920 × 1080');
     expect(panel.textContent).toContain('Technical details');
     expect(panel.querySelector('details')?.open).toBe(false);
     expect(panel.textContent).toContain('AV1');
+
+    const technicalDetails = panel.querySelector<HTMLDetailsElement>(
+      '[data-testid="screen-share-diagnostics-details"]'
+    )!;
+    technicalDetails.querySelector<HTMLElement>('summary')!.click();
+    await vi.waitFor(() => {
+      expect(technicalDetails.open).toBe(true);
+      expect(panel.textContent).toContain('Transport');
+    });
+
+    publishParticipantRefresh();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(container.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBe(panel);
+    expect(
+      panel.querySelector('[data-testid="screen-share-diagnostics-details"]')
+    ).toBe(technicalDetails);
+    expect(technicalDetails.open).toBe(true);
+    expect(panel.textContent).toContain('Transport');
 
     container
       .querySelector<HTMLButtonElement>('[data-testid="screen-share-diagnostics-close"]')!
