@@ -4,7 +4,6 @@ import {
   type PresenceReportOptions
 } from '$lib/api-client/presence';
 import { PresenceStatus } from '$lib/render/types';
-import { presencePreference } from '$lib/state/presencePreference.svelte';
 import { __presenceTrackingTest, initPresenceTracking, setPresenceMode } from './presenceTracking';
 
 type UpdatePresence = (
@@ -210,7 +209,9 @@ describe('initPresenceTracking', () => {
 
     expect(sentStatuses()).toEqual([APIPresenceStatus.ONLINE]);
 
-    vi.advanceTimersByTime(__presenceTrackingTest.ACTIVE_PRESENCE_REFRESH_MS - 1);
+    // Focus occurs 1ms before the passive grace expires; leave 1ms before
+    // the refresh deadline after crossing that boundary.
+    vi.advanceTimersByTime(__presenceTrackingTest.ACTIVE_PRESENCE_REFRESH_MS - 2);
     expect(sentStatuses()).toEqual([APIPresenceStatus.ONLINE]);
 
     vi.advanceTimersByTime(1);
