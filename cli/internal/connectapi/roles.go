@@ -3,6 +3,7 @@ package connectapi
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"connectrpc.com/connect"
 	"hmans.de/chatto/internal/core"
@@ -10,12 +11,15 @@ import (
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
 )
 
+const roleTemplateHeader = "Towk-Role-Template"
+
 type roleService struct{ api *API }
 type publicRoleService struct{ api *API }
 
 func (s *publicRoleService) ListRoles(ctx context.Context, _ *connect.Request[apiv1.ListRolesRequest]) (*connect.Response[apiv1.ListRolesResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil { return nil, err }
+	if err := s.api.core.EnsureHelperSystemGrade(ctx); err != nil { return nil, connectError(err) }
 	catalog, err := s.api.core.ListServerRolesForUser(ctx, caller.UserID)
 	if err != nil { return nil, connectError(err) }
 	return connect.NewResponse(&apiv1.ListRolesResponse{Roles: publicAPIRoles(catalog.Roles)}), nil
@@ -61,6 +65,7 @@ func (s *roleService) ListRoles(ctx context.Context, _ *connect.Request[adminv1.
 	caller, err := requireCaller(ctx)
 	if err != nil { return nil, err }
 	if err := s.requireRoleAdminRead(ctx, caller.UserID); err != nil { return nil, connectError(err) }
+	if err := s.api.core.EnsureHelperSystemGrade(ctx); err != nil { return nil, connectError(err) }
 	catalog, err := s.api.core.ListServerRolesForUser(ctx, caller.UserID)
 	if err != nil { return nil, connectError(err) }
 	return connect.NewResponse(&adminv1.ListRolesResponse{
@@ -87,10 +92,17 @@ func (s *roleService) CreateRole(ctx context.Context, req *connect.Request[admin
 	caller, err := requireCaller(ctx)
 	if err != nil { return nil, err }
 	pingable := req.Msg.GetPingable()
-	role, err := s.api.core.AdminCreateServerRole(ctx, caller.UserID, core.AdminRoleInput{
+	input := core.AdminRoleInput{
 		Name: req.Msg.GetName(), DisplayName: req.Msg.GetDisplayName(), Description: req.Msg.GetDescription(),
 		Pingable: &pingable, Color: req.Msg.Color,
-	})
+	}
+	templateID := strings.TrimSpace(req.Header().Get(roleTemplateHeader))
+	var role *core.RoleWithPermissions
+	if templateID == "" {
+		role, err = s.api.core.AdminCreateServerRole(ctx, caller.UserID, input)
+	} else {
+		role, err = s.api.core.AdminCreateServerRoleFromTemplate(ctx, caller.UserID, input, templateID)
+	}
 	if err != nil { return nil, connectError(err) }
 	return connect.NewResponse(&adminv1.CreateRoleResponse{Role: adminAPIRole(role)}), nil
 }
