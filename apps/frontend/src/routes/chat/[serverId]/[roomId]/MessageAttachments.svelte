@@ -52,6 +52,7 @@
   const assetRetrySalts = new SvelteMap<string, number>();
   let refreshPromise: Promise<Map<string, RefreshedAttachmentUrls>> | null = null;
   const failedAssetRefreshKeys = new SvelteSet<string>();
+  const displayedImageUrls = new SvelteMap<string, string>();
   let galleryScrolledFromLeft = $state(false);
   let galleryScrolledFromRight = $state(false);
 
@@ -227,7 +228,7 @@
     return `width: ${display.width}px; max-width: 100%; aspect-ratio: ${display.width} / ${display.height}`;
   }
 
-  function imageAttachmentUrl(attachment: Attachment): string | null {
+  function currentImageAttachmentUrl(attachment: Attachment): string | null {
     if (attachment.contentType === 'image/gif') return attachment.url;
     return attachment.thumbnailUrl ?? attachment.url;
   }
@@ -237,6 +238,37 @@
       ? 'asset'
       : 'thumbnail';
   }
+
+  function displayedImageKey(attachment: Attachment): string {
+    return `${attachment.id}:${imageAttachmentRole(attachment)}`;
+  }
+
+  function imageAttachmentUrl(attachment: Attachment): string | null {
+    return (
+      displayedImageUrls.get(displayedImageKey(attachment)) ?? currentImageAttachmentUrl(attachment)
+    );
+  }
+
+  // Refresh signed URLs in the background without replacing the source of an
+  // image that is already decoded on screen. A loaded GIF otherwise visibly
+  // restarts and can make the virtualizer re-measure a sticky message row.
+  $effect(() => {
+    const activeKeys = new SvelteSet<string>();
+    for (const attachment of attachments) {
+      if (!isGalleryImageAttachment(attachment)) continue;
+      const key = displayedImageKey(attachment);
+      activeKeys.add(key);
+      const currentUrl = currentImageAttachmentUrl(attachment);
+      if (!currentUrl) {
+        displayedImageUrls.delete(key);
+      } else if (!displayedImageUrls.has(key)) {
+        displayedImageUrls.set(key, currentUrl);
+      }
+    }
+    for (const key of displayedImageUrls.keys()) {
+      if (!activeKeys.has(key)) displayedImageUrls.delete(key);
+    }
+  });
 
   function shouldWaitForPortableVideoVariant(attachment: Attachment): boolean {
     return (
@@ -373,6 +405,7 @@
     refreshAndApplyUrls()
       .then(() => {
         assetRetrySalts.set(key, Date.now());
+        displayedImageUrls.delete(key);
       })
       .catch((error: unknown) => {
         console.warn('Failed to refresh attachment URL after load error', error);
@@ -523,10 +556,7 @@
           decoding="async"
           src={imageAttachmentUrl(attachment)}
           alt={attachment.filename}
-          class={[
-            display.fit === 'contain' ? 'object-contain' : 'object-cover',
-            'h-full w-full'
-          ]}
+          class={[display.fit === 'contain' ? 'object-contain' : 'object-cover', 'h-full w-full']}
           onerror={() => refreshAfterAssetError(attachment, imageAttachmentRole(attachment))}
         />
       {:else}

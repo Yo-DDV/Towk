@@ -150,6 +150,7 @@ describe('ImageModal', () => {
     const stage = container.querySelector<HTMLElement>('[data-testid="image-modal-stage"]')!;
     expect(stage.getAttribute('role')).toBe('application');
     expect(stage.getAttribute('aria-label')).toBe('first-image.png');
+    await vi.waitFor(() => expect(document.activeElement).toBe(stage));
     expect(
       container.querySelector<HTMLImageElement>('[data-testid="image-modal-preview-image"]')
         ?.getAttribute('aria-hidden')

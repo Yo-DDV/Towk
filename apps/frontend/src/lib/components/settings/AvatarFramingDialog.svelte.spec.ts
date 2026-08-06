@@ -153,6 +153,7 @@ describe('AvatarFramingDialog', () => {
     );
     expect(container.textContent).toContain('Frame your avatar');
 
+    await vi.waitFor(() => expect(apply.disabled).toBe(false));
     apply.click();
     await vi.waitFor(() => expect(completed).toHaveBeenCalledTimes(1));
     expect(history.back).toHaveBeenCalledTimes(1);
@@ -173,7 +174,9 @@ describe('AvatarFramingDialog', () => {
     });
 
     await vi.waitFor(() => expect(createObjectURL).toHaveBeenCalledWith(file));
-    expect(buttonByText(container, 'Apply and upload').disabled).toBe(true);
+    const apply = container.querySelector<HTMLButtonElement>('button[aria-busy="true"]');
+    expect(apply).not.toBeNull();
+    expect(apply?.disabled).toBe(true);
     expect(buttonByText(container, 'Full image').disabled).toBe(true);
 
     const close = container.querySelector<HTMLButtonElement>('button[aria-label="Close"]');
