@@ -15,6 +15,7 @@
   import PermissionMatrix from '$lib/components/rbac/PermissionMatrix.svelte';
   import { localizedRoleDescription, localizedRoleDisplayName } from '$lib/rbacLabels';
   import * as m from '$lib/i18n/messages';
+  import { g } from '$lib/i18n/gradeMessages.svelte';
   import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   const serverSegment = $derived(serverIdToSegment(getActiveServer()));
@@ -72,22 +73,22 @@
   }
 
   function gradeSummary(roleName: string): string {
-    if (roleName === 'owner') return m['grades.overview.owner_summary']();
-    if (roleName === 'moderator') return m['grades.overview.moderator_summary']();
-    if (roleName === 'helper') return m['grades.overview.helper_summary']();
-    if (roleName === 'everyone') return m['grades.overview.members_summary']();
-    return m['grades.overview.admin_summary']();
+    if (roleName === 'owner') return g['grades.overview.owner_summary']();
+    if (roleName === 'moderator') return g['grades.overview.moderator_summary']();
+    if (roleName === 'helper') return g['grades.overview.helper_summary']();
+    if (roleName === 'everyone') return g['grades.overview.members_summary']();
+    return g['grades.overview.admin_summary']();
   }
 </script>
 
 <PageTitle
-  title={m['admin.common.server_admin_page_title']({ title: m['grades.overview.title']() })}
+  title={m['admin.common.server_admin_page_title']({ title: g['grades.overview.title']() })}
 />
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <PaneHeader
-    title={m['grades.overview.title']()}
-    subtitle={m['grades.overview.subtitle']()}
+    title={g['grades.overview.title']()}
+    subtitle={g['grades.overview.subtitle']()}
     showMobileNav
   >
     {#snippet actions()}
@@ -100,7 +101,7 @@
           })}
         >
           <span class="iconify uil--plus" aria-hidden="true"></span>
-          {m['grades.create.title']()}
+          {g['grades.create.title']()}
         </Button>
       {/if}
     {/snippet}
@@ -113,7 +114,7 @@
       <div class="text-muted">{m['admin.common.loading']()}</div>
     {:else}
       <Panel
-        title={m['grades.overview.default_grades']()}
+        title={g['grades.overview.default_grades']()}
         subtitle={m['admin.permissions.role_presets_intro']()}
         icon="iconify uil--shield-check"
       >
@@ -155,8 +156,8 @@
 
       {#if adminGrade}
         <Panel
-          title={m['grades.overview.advanced_admin']()}
-          subtitle={m['grades.overview.admin_summary']()}
+          title={g['grades.overview.advanced_admin']()}
+          subtitle={g['grades.overview.admin_summary']()}
           icon="iconify uil--setting"
         >
           <a
@@ -183,7 +184,7 @@
       {/if}
 
       <Panel
-        title={m['grades.overview.custom_grades']()}
+        title={g['grades.overview.custom_grades']()}
         icon="iconify uil--layers-alt"
         noPadding
       >
@@ -218,7 +219,7 @@
           class="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <span class="iconify uil--table" aria-hidden="true"></span>
-          <span>{m['grades.create.advanced']()}</span>
+          <span>{g['grades.create.advanced']()}</span>
         </summary>
         <div class="border-t border-text/10 p-4">
           <Hint>
