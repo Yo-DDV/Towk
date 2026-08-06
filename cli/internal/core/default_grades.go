@@ -6,10 +6,6 @@ const (
 	// RoleHelper is the stable identifier for Towk's built-in community helper grade.
 	RoleHelper = "helper"
 
-	// PositionHelper keeps Helper between ordinary/custom grades and Moderator.
-	// Positions are display metadata only and never participate in authorization.
-	PositionHelper int32 = 50
-
 	// RoleColorHelper is the default display accent for Helper.
 	RoleColorHelper = "#0891B2"
 )
