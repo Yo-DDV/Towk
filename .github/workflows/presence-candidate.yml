@@ -91,6 +91,42 @@ jobs:
           mise codegen-proto
           pnpm --dir packages/api-types run build
 
+      - name: Publish clean product candidate
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --binary origin/main > /tmp/presence-product.patch
+          test -s /tmp/presence-product.patch
+
+          if git diff --name-only origin/main | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
+            echo 'temporary transfer surface leaked into product diff' >&2
+            exit 1
+          fi
+          if git diff origin/main | grep -Ei 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
+            echo 'forbidden authorship trailer found' >&2
+            exit 1
+          fi
+
+          git worktree add /tmp/presence-product origin/main
+          cd /tmp/presence-product
+          git switch -c feat/resilient-pwa-presence
+          git apply --index --whitespace=error /tmp/presence-product.patch
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+
+          if git ls-files | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
+            echo 'temporary transfer surface exists in product tree' >&2
+            exit 1
+          fi
+
+          git -c user.name='Yo-DDV' \
+              -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
+              commit -m 'feat(presence): add resilient PWA presence leases'
+          product_sha=$(git rev-parse HEAD)
+          git push origin HEAD:refs/heads/feat/resilient-pwa-presence
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+
       - name: Focused backend qualification
         shell: bash
         run: |
@@ -126,48 +162,12 @@ jobs:
           set -euo pipefail
           mise test
 
-      - name: Build clean product commit from current main
-        id: publish
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --binary origin/main > /tmp/presence-product.patch
-          test -s /tmp/presence-product.patch
-
-          if git diff --name-only origin/main | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
-            echo 'temporary transfer surface leaked into product diff' >&2
-            exit 1
-          fi
-          if git diff origin/main | grep -Ei 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
-            echo 'forbidden authorship trailer found' >&2
-            exit 1
-          fi
-
-          git worktree add /tmp/presence-product origin/main
-          cd /tmp/presence-product
-          git switch -c feat/resilient-pwa-presence
-          git apply --index --whitespace=error /tmp/presence-product.patch
-          git diff --cached --check
-          test -n "$(git diff --cached --name-only)"
-
-          if git ls-files | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
-            echo 'temporary transfer surface exists in product tree' >&2
-            exit 1
-          fi
-
-          git -c user.name='Yo-DDV' \
-              -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
-              commit -m 'feat(presence): add resilient PWA presence leases'
-          product_sha=$(git rev-parse HEAD)
-          git push origin HEAD:refs/heads/feat/resilient-pwa-presence
-          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
-
       - name: Publish exact product status
-        if: ${{ steps.publish.outputs.product_sha != '' }}
+        if: ${{ steps.candidate.outputs.product_sha != '' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PRODUCT_SHA: ${{ steps.publish.outputs.product_sha }}
+          PRODUCT_SHA: ${{ steps.candidate.outputs.product_sha }}
         run: |
           set -euo pipefail
           payload=$(jq -n \
