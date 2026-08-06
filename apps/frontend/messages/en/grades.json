@@ -1,0 +1,75 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "grades": {
+    "system_roles": {
+      "helper": {
+        "display_name": "Helper",
+        "description": "Helps members and can be mentioned for assistance. No moderation or administration power by default."
+      }
+    },
+    "templates": {
+      "moderator": {
+        "title": "Moderator",
+        "description": "Delete other users' messages, remove or ban channel members, and lock discussions without managing accounts or roles.",
+        "default_name": "Moderation Team",
+        "default_description": "Moderates public channels and community conduct."
+      },
+      "helper": {
+        "title": "Helper",
+        "description": "Identify people who assist the community. Adds no moderation or administration power.",
+        "default_name": "Helpers",
+        "default_description": "Helps members find answers and use the community."
+      },
+      "custom": {
+        "title": "Custom",
+        "description": "Start without additional permissions and configure every decision manually. Members still inherit ordinary access."
+      }
+    },
+    "permission_descriptions": {
+      "room_remove_member": "Remove an explicit member from a channel without banning them. They may rejoin if allowed.",
+      "room_lock": "Lock or unlock new activity in channel rooms.",
+      "room_purge_messages": "Permanently erase message-owned channel history while preserving the room.",
+      "room_bypass_lock": "Add permitted content while a channel is locked.",
+      "message_delete_others": "Delete other users' messages without being able to rewrite them."
+    },
+    "create": {
+      "title": "Create a grade",
+      "subtitle": "Choose a safe starting point, then review the exact permissions before creating the grade.",
+      "starting_point": "Starting point",
+      "starting_point_description": "Templates add only the permissions listed below. Ordinary member access is inherited separately.",
+      "identity": "Grade identity",
+      "permissions": "Permission preview",
+      "added_permissions": "Added by this grade",
+      "inherited_permissions": "Inherited from Members",
+      "no_added_permissions": "No additional permissions",
+      "advanced": "Advanced customization",
+      "advanced_description": "You can fine-tune server, group and channel decisions after creation.",
+      "create": "Create grade",
+      "creating": "Creating grade...",
+      "permission_setup_failed": "The grade could not be fully configured and was removed. Try again.",
+      "template_changed": "The suggested identity was updated for the selected template.",
+      "handle_preview": "Permanent handle: @{handle}",
+      "member_inheritance_note": "Every assigned user also keeps permissions inherited from Members."
+    },
+    "overview": {
+      "title": "Roles and permissions",
+      "subtitle": "Define team responsibilities without granting more power than necessary.",
+      "default_grades": "Default grades",
+      "advanced_admin": "Advanced administration",
+      "custom_grades": "Custom grades",
+      "helper_summary": "Community assistance without moderation power",
+      "moderator_summary": "Channel moderation without account or role administration",
+      "members_summary": "Ordinary permissions inherited by every authenticated user",
+      "owner_summary": "Full RBAC authority; direct-message reading still requires participation",
+      "admin_summary": "Highly trusted delegated administration"
+    },
+    "risk": {
+      "standard": "Standard",
+      "moderation": "Moderation",
+      "sensitive": "Sensitive",
+      "destructive": "Destructive",
+      "privilege": "Privilege management",
+      "legacy": "Broad legacy permission"
+    }
+  }
+}
