@@ -34,7 +34,7 @@ export function localizedRoleDisplayName(roleName: string, fallback?: string | n
   if (roleName === 'owner') return m['rbac.system_roles.owner.display_name']();
   if (roleName === 'admin') return m['rbac.system_roles.admin.display_name']();
   if (roleName === 'moderator') return m['rbac.system_roles.moderator.display_name']();
-  if (roleName === 'helper') return m['rbac.system_roles.helper.display_name']();
+  if (roleName === 'helper') return m['grades.system_roles.helper.display_name']();
   if (roleName === 'everyone') return m['rbac.system_roles.everyone.display_name']();
   return fallback || roleName;
 }
@@ -43,7 +43,7 @@ export function localizedRoleDescription(roleName: string, fallback?: string | n
   if (roleName === 'owner') return m['rbac.system_roles.owner.description']();
   if (roleName === 'admin') return m['rbac.system_roles.admin.description']();
   if (roleName === 'moderator') return m['rbac.system_roles.moderator.description']();
-  if (roleName === 'helper') return m['rbac.system_roles.helper.description']();
+  if (roleName === 'helper') return m['grades.system_roles.helper.description']();
   if (roleName === 'everyone') return m['rbac.system_roles.everyone.description']();
   return fallback || '';
 }
