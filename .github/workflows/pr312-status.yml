@@ -1,0 +1,91 @@
+name: pr312 candidate verification
+
+on:
+  push:
+    branches:
+      - feat/localized-default-grades
+
+concurrency:
+  group: pr312-candidate-verification
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/localized-default-grades
+          fetch-depth: 0
+
+      - name: Wait for finalized implementation
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test ! -f cli/internal/core/role_template_apply.go; then
+            echo 'ready=false' >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo 'ready=true' >> "${GITHUB_OUTPUT}"
+
+      - name: Setup environment
+        if: steps.candidate.outputs.ready == 'true'
+        uses: ./.github/actions/setup
+
+      - name: Verify clean candidate
+        if: steps.candidate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/pr312-patch
+          test ! -e .github/workflows/pr312-validation.yml
+          git diff --quiet origin/main -- .github/workflows/quick-gate.yml
+          git diff --check origin/main...HEAD
+          ! git diff --name-only origin/main...HEAD | grep -E '(^|/)pr312-|\.github/pr312-patch|pr312-validation\.yml'
+          ! git log --format='%an%n%cn%n%B' origin/main..HEAD | grep -Ei 'ChatGPT|Codex|Co-authored-by:|Generated-by:|Assisted-by:'
+
+      - name: Validate frontend
+        if: steps.candidate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm run check:frontend
+          pnpm run lint:frontend
+          pnpm --filter towk-frontend exec vitest run \
+            src/lib/components/rbac/gradeTemplates.spec.ts \
+            'src/routes/chat/[serverId]/[roomId]/memberRoleSections.spec.ts'
+          pnpm run build:frontend
+
+      - name: Validate backend
+        if: steps.candidate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd cli
+          go test -trimpath -p 1 -tags test_endpoints ./internal/core ./internal/connectapi
+          go vet ./internal/core ./internal/connectapi
+
+      - name: Remove verification workflow and publish candidate head
+        if: steps.candidate.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/pr312-status.yml
+          git add -A
+          git diff --cached --check
+          git -c user.name='Yo-DDV' -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
+            commit -m 'chore(rbac): remove candidate verification harness'
+          git push origin HEAD:feat/localized-default-grades
+          head="$(git rev-parse HEAD)"
+          body="Bench candidate head: ${head}\n\nAccessible checks passed on the finalized implementation: frontend typecheck, frontend lint, targeted grade tests, frontend build, Go core/ConnectRPC tests, Go vet, diff hygiene and provenance guards. The pull request contains no transfer payload or temporary validation workflow. Runtime, Docker and physical-device qualification remain pending."
+          gh api "repos/${GITHUB_REPOSITORY}/issues/312/comments" -f body="${body}"
