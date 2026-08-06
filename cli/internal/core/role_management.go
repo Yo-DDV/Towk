@@ -141,6 +141,10 @@ func (c *ChattoCore) AdminCreateServerRoleFromTemplate(ctx context.Context, acto
 		return nil, err
 	}
 	for _, permission := range template.Permissions {
+		if err := c.requireCanManageAdminRoles(ctx, actorID); err != nil {
+			_ = c.DeleteServerRole(ctx, SystemActorID, role.Name)
+			return nil, err
+		}
 		if err := c.GrantServerPermission(ctx, actorID, role.Name, permission); err != nil {
 			_ = c.DeleteServerRole(ctx, SystemActorID, role.Name)
 			return nil, fmt.Errorf("apply template %s permission %s: %w", templateID, permission, err)
@@ -215,19 +219,49 @@ func (c *ChattoCore) AdminDeleteServerRole(ctx context.Context, actorID, roleNam
 	return c.DeleteServerRole(ctx, actorID, roleName)
 }
 
+// AdminReorderServerRoles owns the custom-role definition for the admin API so
+// newly introduced system grades cannot accidentally enter the custom reorder
+// set through legacy IsSystemRole callers.
 func (c *ChattoCore) AdminReorderServerRoles(ctx context.Context, actorID string, roleNames []string) ([]RoleWithPermissions, error) {
-	if err := c.requireCanManageAdminRoles(ctx, actorID); err != nil {
-		return nil, err
-	}
 	if roleNames == nil {
 		roleNames = []string{}
 	}
-	for _, roleName := range roleNames {
-		if IsDefaultSystemGrade(roleName) {
-			return nil, fmt.Errorf("%w: cannot reorder system grade %s", ErrInvalidArgument, roleName)
+	event := newEvent(actorID, &corev1.Event{})
+	if _, err := c.appendRBACEvent(ctx, event, func() error {
+		if err := c.requireCanManageAdminRoles(ctx, actorID); err != nil {
+			return err
 		}
+		customRoles := make(map[string]struct{})
+		for _, role := range c.RBAC.ListRoles() {
+			if role.GetName() == "" || IsDefaultSystemGrade(role.GetName()) {
+				continue
+			}
+			customRoles[role.GetName()] = struct{}{}
+		}
+		if len(roleNames) != len(customRoles) {
+			return fmt.Errorf("%w: role reorder must include every custom role exactly once", ErrInvalidArgument)
+		}
+		seen := make(map[string]struct{}, len(roleNames))
+		for _, roleName := range roleNames {
+			if IsDefaultSystemGrade(roleName) {
+				return fmt.Errorf("%w: cannot reorder system grade %s", ErrInvalidArgument, roleName)
+			}
+			if _, duplicate := seen[roleName]; duplicate {
+				return fmt.Errorf("%w: duplicate role in reorder: %s", ErrInvalidArgument, roleName)
+			}
+			seen[roleName] = struct{}{}
+			if _, exists := customRoles[roleName]; !exists {
+				return fmt.Errorf("role %s: %w", roleName, ErrRoleNotFound)
+			}
+		}
+		event.Event = &corev1.Event_RbacRolesReordered{
+			RbacRolesReordered: &corev1.RbacRolesReorderedEvent{RoleNames: roleNames},
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
-	roles, err := c.ReorderServerRoles(ctx, actorID, roleNames)
+	roles, err := c.ListServerRoles(ctx)
 	if err != nil {
 		return nil, err
 	}
