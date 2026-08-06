@@ -26,8 +26,16 @@ function handlePreview(handle: string): string {
 }
 
 export const g = {
+  'grades.system_roles.owner.display_name': () => current().system_roles.owner.display_name,
+  'grades.system_roles.owner.description': () => current().system_roles.owner.description,
+  'grades.system_roles.admin.display_name': () => current().system_roles.admin.display_name,
+  'grades.system_roles.admin.description': () => current().system_roles.admin.description,
+  'grades.system_roles.moderator.display_name': () => current().system_roles.moderator.display_name,
+  'grades.system_roles.moderator.description': () => current().system_roles.moderator.description,
   'grades.system_roles.helper.display_name': () => current().system_roles.helper.display_name,
   'grades.system_roles.helper.description': () => current().system_roles.helper.description,
+  'grades.system_roles.everyone.display_name': () => current().system_roles.everyone.display_name,
+  'grades.system_roles.everyone.description': () => current().system_roles.everyone.description,
 
   'grades.templates.moderator.title': () => current().templates.moderator.title,
   'grades.templates.moderator.description': () => current().templates.moderator.description,
