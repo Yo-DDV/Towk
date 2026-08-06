@@ -1,4 +1,4 @@
-name: presence candidate materialization
+name: presence product materialization
 
 on:
   push:
@@ -6,26 +6,34 @@ on:
       - feat/pwa-presence-leases
 
 concurrency:
-  group: presence-candidate-${{ github.sha }}
+  group: presence-product-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   statuses: write
 
 jobs:
-  materialize-and-test:
-    name: materialize-and-test
+  materialize-test-publish:
+    name: materialize-test-publish
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          persist-credentials: false
 
-      - name: Materialize candidate source
+      - name: Merge current main without rewriting history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git -c user.name='Yo-DDV' \
+              -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
+              merge --no-edit origin/main
+
+      - name: Materialize complete product source
         shell: bash
         run: |
           set -euo pipefail
@@ -44,108 +52,109 @@ jobs:
       - name: Setup repository toolchain
         uses: ./.github/actions/setup
 
-      - name: Generate bindings and execute focused qualification
-        id: qualify
-        shell: bash
-        run: |
-          set +e
-          mkdir -p /tmp/presence-candidate
-          : > /tmp/presence-candidate/commands.log
-          overall=0
-          run_check() {
-            label="$1"
-            shift
-            printf '\n===== %s =====\n' "$label" | tee -a /tmp/presence-candidate/commands.log
-            "$@" >> /tmp/presence-candidate/commands.log 2>&1
-            rc=$?
-            printf 'exit=%d\n' "$rc" | tee -a /tmp/presence-candidate/commands.log
-            if [ "$rc" -ne 0 ]; then overall=1; fi
-          }
-
-          run_check codegen mise codegen-proto
-          run_check api-types-build pnpm --dir packages/api-types run build
-          run_check go-presence bash -lc "cd cli && go test -trimpath ./internal/core ./internal/connectapi -run 'Presence' -count=1"
-          run_check go-presence-race bash -lc "cd cli && go test -race -trimpath ./internal/core ./internal/connectapi -run 'Presence' -count=1"
-          run_check frontend-presence-tests pnpm --dir apps/frontend exec vitest run src/lib/api-client/presence.spec.ts src/lib/presenceTracking.spec.ts src/lib/auth/signOut.spec.ts
-          run_check frontend-check pnpm --dir apps/frontend run check
-          run_check frontend-lint pnpm --dir apps/frontend exec eslint src/lib/api-client/presence.ts src/lib/api-client/presence.spec.ts src/lib/presenceTracking.ts src/lib/presenceTracking.spec.ts src/lib/auth/signOut.ts src/lib/auth/signOut.spec.ts
-          run_check frontend-build mise build-frontend
-          run_check diff-check git diff --check
-
-          echo "$overall" > /tmp/presence-candidate/overall-status
-          git rev-parse HEAD > /tmp/presence-candidate/parent-commit
-          git rev-parse 'HEAD^{tree}' > /tmp/presence-candidate/base-tree
-          git diff --name-status HEAD > /tmp/presence-candidate/name-status.txt
-          git diff --stat HEAD > /tmp/presence-candidate/stat.txt
-          git diff --binary HEAD > /tmp/presence-candidate/candidate.patch
-          mkdir -p /tmp/presence-candidate/files
-          git diff --name-only --diff-filter=ACMRT HEAD | while IFS= read -r path; do
-            mkdir -p "/tmp/presence-candidate/files/$(dirname "$path")"
-            cp "$path" "/tmp/presence-candidate/files/$path"
-          done
-          git diff --name-only --diff-filter=D HEAD > /tmp/presence-candidate/deleted-files.txt
-          changed_paths=()
-          while IFS= read -r path; do changed_paths+=("$path"); done < <(git diff --name-only --diff-filter=ACMRT HEAD)
-          if [ "${#changed_paths[@]}" -gt 0 ]; then
-            git ls-files -s -- "${changed_paths[@]}" > /tmp/presence-candidate/file-modes.txt
-          else
-            : > /tmp/presence-candidate/file-modes.txt
-          fi
-          exit "$overall"
-
-      - name: Package candidate and complete worktree
-        if: ${{ always() }}
+      - name: Generate bindings
         shell: bash
         run: |
           set -euo pipefail
-          test -d /tmp/presence-candidate || mkdir -p /tmp/presence-candidate
-          tar -czf /tmp/presence-candidate.tar.gz -C /tmp presence-candidate
-          git ls-files -co --exclude-standard -z > /tmp/presence-worktree-files
-          tar --null -czf /tmp/presence-worktree.tar.gz --files-from=/tmp/presence-worktree-files
+          mise codegen-proto
+          pnpm --dir packages/api-types run build
 
-      - name: Upload candidate and evidence
-        id: upload_candidate
-        if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: presence-candidate-${{ github.sha }}
-          path: /tmp/presence-candidate.tar.gz
-          if-no-files-found: error
-          retention-days: 2
+      - name: Execute focused backend qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd cli
+          go test -trimpath ./internal/core ./internal/connectapi -run 'Presence|LastActivity' -count=1
+          go test -race -trimpath ./internal/core ./internal/connectapi -run 'Presence' -count=1
+          go vet ./internal/core ./internal/connectapi
 
-      - name: Upload complete materialized worktree
-        id: upload_worktree
-        if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: presence-worktree-${{ github.sha }}
-          path: /tmp/presence-worktree.tar.gz
-          if-no-files-found: error
-          retention-days: 2
+      - name: Execute focused frontend qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend exec vitest run \
+            src/lib/api-client/presence.spec.ts \
+            src/lib/presenceTracking.spec.ts \
+            src/lib/auth/signOut.spec.ts
+          pnpm --dir apps/frontend run check
+          pnpm --dir apps/frontend exec eslint \
+            src/lib/api-client/presence.ts \
+            src/lib/api-client/presence.spec.ts \
+            src/lib/presenceTracking.ts \
+            src/lib/presenceTracking.spec.ts \
+            src/lib/auth/signOut.ts \
+            src/lib/auth/signOut.spec.ts
+          mise build-frontend
 
-      - name: Publish artifact coordinates on the commit
-        if: ${{ always() }}
+      - name: Execute repository quality gate
+        shell: bash
+        env:
+          TOWK_LOCAL_WORKERS: '4'
+        run: |
+          set -euo pipefail
+          mise test
+
+      - name: Remove all temporary transfer surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .github/presence-source
+          rm -f .github/workflows/presence-candidate.yml
+          test ! -e .github/presence-source
+          test ! -e .github/workflows/presence-candidate.yml
+          git diff --check
+          if git diff --name-only | grep -E '(^|/)(presence-source|presence-candidate\.yml|commands\.log|candidate\.patch|trigger\.txt)$'; then
+            echo 'temporary transfer artifact remains in product diff' >&2
+            exit 1
+          fi
+
+      - name: Verify product diff and authorship boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git diff --cached --check
+          git diff --cached --name-status
+          test -n "$(git diff --cached --name-only)"
+          if git diff --cached --name-only | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
+            echo 'temporary workflow material is staged' >&2
+            exit 1
+          fi
+          if git diff --cached | grep -Ei 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
+            echo 'forbidden authorship trailer found' >&2
+            exit 1
+          fi
+
+      - name: Commit and publish product code
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -c user.name='Yo-DDV' \
+              -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
+              commit -m 'feat(presence): add resilient PWA presence leases'
+          product_sha=$(git rev-parse HEAD)
+          git push origin HEAD:feat/pwa-presence-leases
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Publish exact product status
+        if: ${{ always() && steps.publish.outputs.product_sha != '' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_ARTIFACT_ID: ${{ steps.upload_candidate.outputs.artifact-id }}
-          WORKTREE_ARTIFACT_ID: ${{ steps.upload_worktree.outputs.artifact-id }}
-          JOB_STATUS: ${{ job.status }}
+          PRODUCT_SHA: ${{ steps.publish.outputs.product_sha }}
         run: |
           set -euo pipefail
-          state=failure
-          if [ "$JOB_STATUS" = success ]; then state=success; fi
-          description="run=${GITHUB_RUN_ID}; candidate=${CANDIDATE_ARTIFACT_ID:-none}; worktree=${WORKTREE_ARTIFACT_ID:-none}; ${JOB_STATUS}"
           payload=$(jq -n \
-            --arg state "$state" \
-            --arg context "presence-candidate-artifact" \
-            --arg description "$description" \
+            --arg state success \
+            --arg context 'presence-product-materialization' \
+            --arg description "qualified and published by run ${GITHUB_RUN_ID}" \
             --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error \
             -X POST \
-            -H "Accept: application/vnd.github+json" \
+            -H 'Accept: application/vnd.github+json' \
             -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/statuses/${PRODUCT_SHA}" \
             -d "$payload" >/dev/null
