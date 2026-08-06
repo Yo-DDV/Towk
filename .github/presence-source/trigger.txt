@@ -1,1 +1,1 @@
-trigger publish-materialized-product-candidate-2026-08-06T19:59+02:00
+trigger bounded-product-materializer-2026-08-06T20:02+02:00
