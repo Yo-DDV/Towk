@@ -1,0 +1,43 @@
+name: pr312 pnpm policy inspection
+
+on:
+  push:
+    branches:
+      - feat/localized-default-grades
+
+concurrency:
+  group: pr312-final-clean
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    if: github.event.head_commit.message != 'chore(ci): record PR 312 diagnostic v19'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout canonical branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/localized-default-grades
+          fetch-depth: 0
+
+      - name: Record pnpm policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .github/pr312-diag
+          mkdir -p .github/pr312-diag
+          grep -i 'pnpm' mise.toml | grep -qi 'latest' && : > .github/pr312-diag/V19_MISE_LATEST || true
+          grep -i 'pnpm' mise.toml | grep -qi 'lts' && : > .github/pr312-diag/V19_MISE_LTS || true
+          grep -qi 'pnpm/action-setup' .github/actions/setup/action.yml && : > .github/pr312-diag/V19_ACTION_PNPM_SETUP || true
+          grep -qi 'corepack' .github/actions/setup/action.yml && : > .github/pr312-diag/V19_ACTION_COREPACK || true
+          grep -Eqi 'npm (install|i).*(pnpm)|npm:pnpm' .github/actions/setup/action.yml && : > .github/pr312-diag/V19_ACTION_NPM_PNPM || true
+          grep -qi 'mise' .github/actions/setup/action.yml && : > .github/pr312-diag/V19_ACTION_MISE || true
+          grep -qi 'lockfileVersion:.*9' pnpm-lock.yaml && : > .github/pr312-diag/V19_LOCKFILE_V9 || true
+          if ! find .github/pr312-diag -type f | grep -q .; then : > .github/pr312-diag/V19_UNCLASSIFIED; fi
+          git add .github/pr312-diag
+          git -c user.name='Yo-DDV' -c user.email='116607353+Yo-DDV@users.noreply.github.com' commit -m 'chore(ci): record PR 312 diagnostic v19'
+          git push origin HEAD:feat/localized-default-grades
