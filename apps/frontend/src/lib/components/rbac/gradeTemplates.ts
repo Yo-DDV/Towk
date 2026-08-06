@@ -39,11 +39,11 @@ export const GRADE_TEMPLATES: readonly GradeTemplate[] = [
   {
     id: 'moderator.v1',
     icon: 'uil--shield-check',
-    title: m['rbac.grade_templates.moderator.title'],
-    description: m['rbac.grade_templates.moderator.description'],
+    title: m['grades.templates.moderator.title'],
+    description: m['grades.templates.moderator.description'],
     defaultName: 'moderation-team',
-    defaultDisplayName: m['rbac.grade_templates.moderator.default_name'],
-    defaultDescription: m['rbac.grade_templates.moderator.default_description'],
+    defaultDisplayName: m['grades.templates.moderator.default_name'],
+    defaultDescription: m['grades.templates.moderator.default_description'],
     defaultColor: '#16A34A',
     defaultPingable: true,
     permissions: MODERATOR_PERMISSIONS
@@ -51,11 +51,11 @@ export const GRADE_TEMPLATES: readonly GradeTemplate[] = [
   {
     id: 'helper.v1',
     icon: 'uil--life-ring',
-    title: m['rbac.grade_templates.helper.title'],
-    description: m['rbac.grade_templates.helper.description'],
+    title: m['grades.templates.helper.title'],
+    description: m['grades.templates.helper.description'],
     defaultName: 'helpers',
-    defaultDisplayName: m['rbac.grade_templates.helper.default_name'],
-    defaultDescription: m['rbac.grade_templates.helper.default_description'],
+    defaultDisplayName: m['grades.templates.helper.default_name'],
+    defaultDescription: m['grades.templates.helper.default_description'],
     defaultColor: '#0891B2',
     defaultPingable: true,
     permissions: []
@@ -63,8 +63,8 @@ export const GRADE_TEMPLATES: readonly GradeTemplate[] = [
   {
     id: 'custom',
     icon: 'uil--sliders-v-alt',
-    title: m['rbac.grade_templates.custom.title'],
-    description: m['rbac.grade_templates.custom.description'],
+    title: m['grades.templates.custom.title'],
+    description: m['grades.templates.custom.description'],
     defaultName: '',
     defaultDisplayName: () => '',
     defaultDescription: () => '',
