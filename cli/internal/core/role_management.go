@@ -44,6 +44,12 @@ type AdminRoleUpdateInput struct {
 	Color       *string
 }
 
+func markDefaultSystemGrades(roles []RoleWithPermissions) {
+	for i := range roles {
+		roles[i].IsSystem = IsDefaultSystemGrade(roles[i].Name)
+	}
+}
+
 func (c *ChattoCore) ListServerRolesForUser(ctx context.Context, actorID string) (*RoleCatalog, error) {
 	if actorID == "" {
 		return nil, ErrNotAuthenticated
@@ -52,6 +58,7 @@ func (c *ChattoCore) ListServerRolesForUser(ctx context.Context, actorID string)
 	if err != nil {
 		return nil, err
 	}
+	markDefaultSystemGrades(roles)
 	canManage, err := c.CanManageRoles(ctx, actorID)
 	if err != nil {
 		return nil, err
@@ -78,6 +85,7 @@ func (c *ChattoCore) GetServerRoleDetails(ctx context.Context, actorID, roleName
 	if err != nil {
 		return nil, err
 	}
+	role.IsSystem = IsDefaultSystemGrade(role.Name)
 	canManage, err := c.CanManageRoles(ctx, actorID)
 	if err != nil {
 		return nil, err
@@ -112,12 +120,47 @@ func (c *ChattoCore) AdminCreateServerRole(ctx context.Context, actorID string, 
 	return c.createServerRole(ctx, actorID, input.Name, input.DisplayName, input.Description, pingable, input.Color)
 }
 
+// AdminCreateServerRoleFromTemplate creates a custom role and applies a
+// versioned server-scope baseline. If a permission write fails, the role is
+// removed before returning so callers never receive a partially configured
+// success response.
+func (c *ChattoCore) AdminCreateServerRoleFromTemplate(ctx context.Context, actorID string, input AdminRoleInput, templateID string) (*RoleWithPermissions, error) {
+	template, ok := GradeTemplateByID(templateID)
+	if !ok || template.RoleName == RoleOwner || template.RoleName == RoleEveryone || template.RoleName == RoleAdmin {
+		return nil, fmt.Errorf("%w: unsupported role template %q", ErrInvalidArgument, templateID)
+	}
+	if input.Pingable == nil {
+		input.Pingable = &template.Pingable
+	}
+	if input.Color == nil && template.Color != "" {
+		color := template.Color
+		input.Color = &color
+	}
+	role, err := c.AdminCreateServerRole(ctx, actorID, input)
+	if err != nil {
+		return nil, err
+	}
+	for _, permission := range template.Permissions {
+		if err := c.GrantServerPermission(ctx, actorID, role.Name, permission); err != nil {
+			_ = c.DeleteServerRole(ctx, SystemActorID, role.Name)
+			return nil, fmt.Errorf("apply template %s permission %s: %w", templateID, permission, err)
+		}
+	}
+	return c.GetServerRole(ctx, role.Name)
+}
+
 func (c *ChattoCore) AdminUpdateServerRole(ctx context.Context, actorID string, input AdminRoleUpdateInput) (*RoleWithPermissions, error) {
 	if err := c.requireCanManageAdminRoles(ctx, actorID); err != nil {
 		return nil, err
 	}
 	if input.DisplayName == nil && input.Description == nil && input.Pingable == nil && input.Color == nil {
 		return nil, fmt.Errorf("%w: provide at least one role field to update", ErrInvalidArgument)
+	}
+	if IsDefaultSystemGrade(input.Name) && (input.DisplayName != nil || input.Description != nil) {
+		return nil, fmt.Errorf("%w: system grade names and descriptions are localized and cannot be edited", ErrInvalidArgument)
+	}
+	if input.Name == RoleEveryone && input.Pingable != nil && *input.Pingable {
+		return nil, fmt.Errorf("%w: everyone is implicit and cannot be mentioned", ErrInvalidArgument)
 	}
 	if input.Color != nil {
 		normalized, err := normalizeRoleColor(*input.Color)
@@ -138,7 +181,7 @@ func (c *ChattoCore) AdminUpdateServerRole(ctx context.Context, actorID string, 
 	if input.Description != nil {
 		description = *input.Description
 	}
-	var updated *RoleWithPermissions
+	updated := role
 	if input.DisplayName != nil || input.Description != nil || input.Pingable != nil {
 		if input.Pingable != nil {
 			updated, err = c.UpdateServerRole(ctx, actorID, input.Name, displayName, description, *input.Pingable)
@@ -150,8 +193,12 @@ func (c *ChattoCore) AdminUpdateServerRole(ctx context.Context, actorID string, 
 		}
 	}
 	if input.Color != nil {
-		return c.UpdateServerRoleColor(ctx, actorID, input.Name, *input.Color)
+		updated, err = c.UpdateServerRoleColor(ctx, actorID, input.Name, *input.Color)
+		if err != nil {
+			return nil, err
+		}
 	}
+	updated.IsSystem = IsDefaultSystemGrade(updated.Name)
 	return updated, nil
 }
 
@@ -161,6 +208,9 @@ func (c *ChattoCore) AdminDeleteServerRole(ctx context.Context, actorID, roleNam
 	}
 	if roleName == "" {
 		return fmt.Errorf("%w: role name is required", ErrInvalidArgument)
+	}
+	if IsDefaultSystemGrade(roleName) {
+		return ErrCannotDeleteSystemRole
 	}
 	return c.DeleteServerRole(ctx, actorID, roleName)
 }
@@ -172,7 +222,17 @@ func (c *ChattoCore) AdminReorderServerRoles(ctx context.Context, actorID string
 	if roleNames == nil {
 		roleNames = []string{}
 	}
-	return c.ReorderServerRoles(ctx, actorID, roleNames)
+	for _, roleName := range roleNames {
+		if IsDefaultSystemGrade(roleName) {
+			return nil, fmt.Errorf("%w: cannot reorder system grade %s", ErrInvalidArgument, roleName)
+		}
+	}
+	roles, err := c.ReorderServerRoles(ctx, actorID, roleNames)
+	if err != nil {
+		return nil, err
+	}
+	markDefaultSystemGrades(roles)
+	return roles, nil
 }
 
 func (c *ChattoCore) requireCanManageAdminRoles(ctx context.Context, actorID string) error {
