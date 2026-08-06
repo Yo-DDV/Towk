@@ -8,7 +8,7 @@ on:
       - "release-[0-9]*"
 
 concurrency:
-  group: quick-gate-${{ github.event.pull_request.number }}
+  group: pr312-finalize-${{ github.run_id }}
   cancel-in-progress: false
 
 permissions:
