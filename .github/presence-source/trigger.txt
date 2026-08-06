@@ -1,1 +1,1 @@
-trigger ordering-hardened-qualification-2026-08-06T15:34+02:00
+trigger clean-ordering-hardened-qualification-2026-08-06T15:42+02:00
