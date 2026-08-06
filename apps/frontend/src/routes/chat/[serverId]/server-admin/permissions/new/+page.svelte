@@ -19,14 +19,15 @@
   } from '$lib/components/rbac/gradeTemplates';
   import { getPermissionDescription, getPermissionRisk } from '$lib/permissions';
   import * as m from '$lib/i18n/messages';
+  import { g } from '$lib/i18n/gradeMessages.svelte';
   import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   const connection = useConnection();
 
   let selectedTemplate = $state<GradeTemplateId>('moderator.v1');
   let name = $state('moderation-team');
-  let displayName = $state(m['grades.templates.moderator.default_name']());
-  let description = $state(m['grades.templates.moderator.default_description']());
+  let displayName = $state(g['grades.templates.moderator.default_name']());
+  let description = $state(g['grades.templates.moderator.default_description']());
   let color = $state('#16A34A');
   let pingable = $state(true);
   let creating = $state(false);
@@ -55,15 +56,15 @@
   function riskLabel(permission: string): string {
     switch (getPermissionRisk(permission)) {
       case 'standard':
-        return m['grades.risk.standard']();
+        return g['grades.risk.standard']();
       case 'moderation':
-        return m['grades.risk.moderation']();
+        return g['grades.risk.moderation']();
       case 'sensitive':
-        return m['grades.risk.sensitive']();
+        return g['grades.risk.sensitive']();
       case 'destructive':
-        return m['grades.risk.destructive']();
+        return g['grades.risk.destructive']();
       case 'privilege':
-        return m['grades.risk.privilege']();
+        return g['grades.risk.privilege']();
     }
   }
 
@@ -127,7 +128,7 @@
         } catch (rollbackError) {
           console.error('Failed to roll back partially configured grade:', rollbackError);
         }
-        error = m['grades.create.permission_setup_failed']();
+        error = g['grades.create.permission_setup_failed']();
       } else {
         error = localizedErrorMessage(err, m['admin.permissions.load_instance_failed']());
       }
@@ -145,13 +146,13 @@
 </script>
 
 <PageTitle
-  title={m['admin.common.server_admin_page_title']({ title: m['grades.create.title']() })}
+  title={m['admin.common.server_admin_page_title']({ title: g['grades.create.title']() })}
 />
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <PaneHeader
-    title={m['grades.create.title']()}
-    subtitle={m['grades.create.subtitle']()}
+    title={g['grades.create.title']()}
+    subtitle={g['grades.create.subtitle']()}
     backHref={resolve('/chat/[serverId]/server-admin/permissions', {
       serverId: serverIdToSegment(getActiveServer())
     })}
@@ -169,14 +170,14 @@
         {#if error}<FormError {error} />{/if}
 
         <Panel
-          title={m['grades.create.starting_point']()}
-          subtitle={m['grades.create.starting_point_description']()}
+          title={g['grades.create.starting_point']()}
+          subtitle={g['grades.create.starting_point_description']()}
           icon="iconify uil--layer-group"
         >
           <div
             class="grid gap-3 md:grid-cols-3"
             role="radiogroup"
-            aria-label={m['grades.create.starting_point']()}
+            aria-label={g['grades.create.starting_point']()}
           >
             {#each GRADE_TEMPLATES as option (option.id)}
               <button
@@ -203,7 +204,7 @@
         </Panel>
 
         <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
-          <Panel title={m['grades.create.identity']()} icon="iconify uil--user-square">
+          <Panel title={g['grades.create.identity']()} icon="iconify uil--user-square">
             <RoleForm
               bind:name
               bind:displayName
@@ -211,23 +212,23 @@
               bind:color
               bind:pingable
               saving={creating}
-              submitLabel={m['grades.create.create']()}
-              savingLabel={m['grades.create.creating']()}
+              submitLabel={g['grades.create.create']()}
+              savingLabel={g['grades.create.creating']()}
               onSubmit={createRole}
             />
             {#if name}
               <p class="mt-3 break-all text-xs text-muted">
-                {m['grades.create.handle_preview']({ handle: name.trim() })}
+                {g['grades.create.handle_preview']({ handle: name.trim() })}
               </p>
             {/if}
           </Panel>
 
           <div class="flex flex-col gap-6 lg:sticky lg:top-0">
-            <Panel title={m['grades.create.permissions']()} icon="iconify uil--shield-check">
+            <Panel title={g['grades.create.permissions']()} icon="iconify uil--shield-check">
               <section>
-                <h3 class="text-sm font-semibold">{m['grades.create.added_permissions']()}</h3>
+                <h3 class="text-sm font-semibold">{g['grades.create.added_permissions']()}</h3>
                 {#if template.permissions.length === 0}
-                  <p class="mt-2 text-sm text-muted">{m['grades.create.no_added_permissions']()}</p>
+                  <p class="mt-2 text-sm text-muted">{g['grades.create.no_added_permissions']()}</p>
                 {:else}
                   <ul class="mt-3 space-y-3">
                     {#each template.permissions as permission (permission)}
@@ -248,21 +249,21 @@
               </section>
 
               <section class="mt-5 border-t border-text/10 pt-5">
-                <h3 class="text-sm font-semibold">{m['grades.create.inherited_permissions']()}</h3>
+                <h3 class="text-sm font-semibold">{g['grades.create.inherited_permissions']()}</h3>
                 <div class="mt-3 flex flex-wrap gap-2">
                   {#each MEMBER_PERMISSIONS as permission (permission)}
                     <code class="rounded-md bg-surface-200 px-2 py-1 text-[0.7rem]">{permission}</code>
                   {/each}
                 </div>
                 <p class="mt-3 text-xs leading-relaxed text-muted">
-                  {m['grades.create.member_inheritance_note']()}
+                  {g['grades.create.member_inheritance_note']()}
                 </p>
               </section>
             </Panel>
 
-            <Panel title={m['grades.create.advanced']()} icon="iconify uil--sliders-v-alt">
+            <Panel title={g['grades.create.advanced']()} icon="iconify uil--sliders-v-alt">
               <p class="text-sm leading-relaxed text-muted">
-                {m['grades.create.advanced_description']()}
+                {g['grades.create.advanced_description']()}
               </p>
             </Panel>
           </div>
