@@ -285,11 +285,19 @@ func (c *ChattoCore) GetUserPresence(ctx context.Context, userID string) (string
 
 // SetPresence writes/refreshes legacy live presence.
 func (c *ChattoCore) SetPresence(ctx context.Context, userID string, status string) error {
-	return c.presenceModel.SetPresence(ctx, userID, status)
+	if err := c.presenceModel.SetPresence(ctx, userID, status); err != nil {
+		return err
+	}
+	c.touchUserLastActivityIfKnown(ctx, userID)
+	return nil
 }
 
 func (c *ChattoCore) SetPresenceWithOptions(ctx context.Context, userID string, status string, manuallySet bool) error {
-	return c.presenceModel.SetPresenceWithOptions(ctx, userID, status, manuallySet)
+	if err := c.presenceModel.SetPresenceWithOptions(ctx, userID, status, manuallySet); err != nil {
+		return err
+	}
+	c.touchUserLastActivityIfKnown(ctx, userID)
+	return nil
 }
 
 func (c *ChattoCore) refreshPresence(ctx context.Context, userID string) error {
