@@ -78,3 +78,39 @@ jobs:
           bash tools/verify-compose-project-name.sh
           bash tools/verify-compose-resource-envelope.sh
           bash tools/runtime-image-process_test.sh
+
+  pr312-frontend:
+    name: pr312-frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup environment
+        uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+      - name: Typecheck frontend
+        run: pnpm run check:frontend
+      - name: Lint frontend
+        run: pnpm run lint:frontend
+      - name: Run grade tests
+        run: pnpm --filter towk-frontend exec vitest run src/lib/components/rbac/gradeTemplates.spec.ts src/routes/chat/[serverId]/[roomId]/memberRoleSections.spec.ts
+
+  pr312-backend:
+    name: pr312-backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup environment
+        uses: ./.github/actions/setup
+      - name: Build frontend assets
+        run: mise build-frontend
+      - name: Run RBAC and ConnectRPC tests
+        run: cd cli && go test -trimpath -p 1 -tags test_endpoints ./internal/core ./internal/connectapi
