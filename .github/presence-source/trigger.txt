@@ -1,1 +1,1 @@
-trigger head-with-all-overlay-chunks-2026-08-06T15:10+02:00
+trigger final-clean-qualification-2026-08-06T15:18+02:00
