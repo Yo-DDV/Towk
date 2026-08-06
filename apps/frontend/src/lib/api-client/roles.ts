@@ -6,6 +6,8 @@ import { RoleService } from '@towk/api-types/api/v1/roles_pb';
 import type { Role as APIRole } from '@towk/api-types/api/v1/roles_pb';
 import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 
+const roleTemplateHeader = 'Towk-Role-Template';
+
 export type RoleAPIConfig = {
   baseUrl: string;
   bearerToken: string | null;
@@ -47,6 +49,7 @@ export type CreateRoleInput = {
   description: string;
   pingable: boolean;
   color: string;
+  templateId?: 'helper.v1' | 'moderator.v1';
 };
 
 export type UpdateRoleInput = {
@@ -110,16 +113,15 @@ export function createRoleAPI(config: RoleAPIConfig) {
     },
 
     async createRole(input: CreateRoleInput): Promise<ServerRole> {
-      const response = await adminClient.createRole(input, {
-        headers: headers()
-      });
+      const requestHeaders = headers();
+      if (input.templateId) requestHeaders.set(roleTemplateHeader, input.templateId);
+      const { templateId: _templateId, ...request } = input;
+      const response = await adminClient.createRole(request, { headers: requestHeaders });
       return requiredAdminRole(response.role);
     },
 
     async updateRole(input: UpdateRoleInput): Promise<ServerRole> {
-      const response = await adminClient.updateRole(input, {
-        headers: headers()
-      });
+      const response = await adminClient.updateRole(input, { headers: headers() });
       return requiredAdminRole(response.role);
     },
 
@@ -133,16 +135,12 @@ export function createRoleAPI(config: RoleAPIConfig) {
 export type RoleAPI = ReturnType<typeof createRoleAPI>;
 
 function requiredAdminRole(role: APIAdminRole | undefined): ServerRole {
-  if (!role) {
-    throw new Error(m['common.error.unexpected_server_response']());
-  }
+  if (!role) throw new Error(m['common.error.unexpected_server_response']());
   return serverRoleFromAdmin(role);
 }
 
 function serverRoleFromAdmin(role: APIAdminRole): ServerRole {
-  if (!role.role) {
-    throw new Error(m['common.error.unexpected_server_response']());
-  }
+  if (!role.role) throw new Error(m['common.error.unexpected_server_response']());
   return serverRoleFromPublic(role.role, role.permissions, role.permissionDenials);
 }
 
@@ -165,9 +163,5 @@ function serverRoleFromPublic(
 }
 
 function roleUser(user: APIUser): RoleUser {
-  return {
-    id: user.id,
-    login: user.login,
-    displayName: user.displayName
-  };
+  return { id: user.id, login: user.login, displayName: user.displayName };
 }
