@@ -11,7 +11,7 @@ function role(name: string, displayName: string, position: number, color: string
     description: '',
     permissions: [],
     permissionDenials: [],
-    isSystem: ['owner', 'admin', 'moderator', 'everyone'].includes(name),
+    isSystem: ['owner', 'admin', 'moderator', 'helper', 'everyone'].includes(name),
     position,
     pingable: false,
     color
@@ -29,19 +29,19 @@ function member(id: string, roles: string[]): RoomMember {
 }
 
 describe('groupMembersByDisplayRole', () => {
-  it('places each member once under their highest-position explicit role', () => {
+  it('places each member once under the structurally highest default grade', () => {
     const result = groupMembersByDisplayRole(
       [
-        member('alice', ['everyone', 'moderator', 'owner']),
-        member('boris', ['helpers', 'moderator']),
+        member('alice', ['everyone', 'helper', 'owner']),
+        member('boris', ['helper', 'moderator']),
         member('cora', ['everyone']),
         member('dina', ['unknown'])
       ],
       [
         role('everyone', 'Everyone', 0, ''),
-        role('helpers', '🛟 Équipe d’aide', 10, '#2563EB'),
-        role('moderator', 'Modérateur', 100, '#16A34A'),
-        role('owner', 'Propriétaire', 1000, '#F97316')
+        role('helper', 'Helper', 50, '#0891B2'),
+        role('moderator', 'Moderator', 100, '#16A34A'),
+        role('owner', 'Owner', 1000, '#F97316')
       ]
     );
 
@@ -55,6 +55,16 @@ describe('groupMembersByDisplayRole', () => {
         .concat(result.ungrouped)
         .map((item) => item.id)
     ).toHaveLength(4);
+  });
+
+  it('keeps Helper above a custom visual role regardless of numeric position', () => {
+    const result = groupMembersByDisplayRole(
+      [member('alice', ['helper', 'vip'])],
+      [role('helper', 'Helper', 50, '#0891B2'), role('vip', 'VIP', 899, '#DB2777')]
+    );
+
+    expect(result.sections.map((section) => section.role.name)).toEqual(['helper']);
+    expect(result.sections[0]?.members.map((item) => item.id)).toEqual(['alice']);
   });
 
   it('rejects non-canonical colors before they reach inline CSS', () => {
