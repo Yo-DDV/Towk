@@ -72,12 +72,10 @@ func (c *ChattoCore) ListAdminMembers(ctx context.Context, actorID string, input
 		return nil, err
 	}
 	limit, offset := adminMemberPagination(input.Limit, input.Offset)
-
 	members, totalCount, err := c.GetServerMembers(ctx, input.Search, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-
 	users := make([]AdminMember, 0, len(members))
 	for _, member := range members {
 		user, err := c.GetUser(ctx, member.UserID)
@@ -90,12 +88,11 @@ func (c *ChattoCore) ListAdminMembers(ctx context.Context, actorID string, input
 		}
 		users = append(users, *adminMember)
 	}
-
 	roles, err := c.ListServerRoles(ctx)
 	if err != nil {
 		return nil, err
 	}
-
+	markDefaultSystemGrades(roles)
 	return &AdminMemberList{
 		Users:      users,
 		Roles:      adminMemberRoleSummaries(roles),
@@ -111,7 +108,6 @@ func (c *ChattoCore) GetAdminMemberDetails(ctx context.Context, actorID, targetU
 	if targetUserID == "" {
 		return nil, fmt.Errorf("%w: target user ID is required", ErrInvalidArgument)
 	}
-
 	user, err := c.GetUser(ctx, targetUserID)
 	if err != nil {
 		return nil, err
@@ -124,11 +120,11 @@ func (c *ChattoCore) GetAdminMemberDetails(ctx context.Context, actorID, targetU
 	if err != nil {
 		return nil, err
 	}
-
 	roles, err := c.ListServerRoles(ctx)
 	if err != nil {
 		return nil, err
 	}
+	markDefaultSystemGrades(roles)
 	canAssignRoles, err := c.CanAssignRoles(ctx, actorID)
 	if err != nil {
 		return nil, err
@@ -141,7 +137,6 @@ func (c *ChattoCore) GetAdminMemberDetails(ctx context.Context, actorID, targetU
 	if err != nil {
 		return nil, err
 	}
-
 	return &AdminMemberDetails{
 		Member:                         member,
 		Roles:                          adminMemberRoles(roles),
@@ -156,7 +151,6 @@ func (c *ChattoCore) BatchGetAdminMembers(ctx context.Context, actorID string, u
 	if err := c.requireCanViewAdminMembers(ctx, actorID); err != nil {
 		return nil, err
 	}
-
 	seen := make(map[string]struct{}, len(userIDs))
 	users := make([]AdminMember, 0, len(userIDs))
 	for _, userID := range userIDs {
@@ -164,7 +158,6 @@ func (c *ChattoCore) BatchGetAdminMembers(ctx context.Context, actorID string, u
 			continue
 		}
 		seen[userID] = struct{}{}
-
 		user, err := c.GetUser(ctx, userID)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
@@ -182,17 +175,12 @@ func (c *ChattoCore) BatchGetAdminMembers(ctx context.Context, actorID string, u
 		}
 		users = append(users, *member)
 	}
-
 	roles, err := c.ListServerRoles(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	return &AdminMemberList{
-		Users:      users,
-		Roles:      adminMemberRoleSummaries(roles),
-		TotalCount: len(users),
-	}, nil
+	markDefaultSystemGrades(roles)
+	return &AdminMemberList{Users: users, Roles: adminMemberRoleSummaries(roles), TotalCount: len(users)}, nil
 }
 
 func (c *ChattoCore) requireCanViewAdminMembers(ctx context.Context, actorID string) error {
@@ -243,6 +231,11 @@ func (c *ChattoCore) requireCanAssignAdminRole(ctx context.Context, actorID, tar
 	if !canAssign {
 		return ErrPermissionDenied
 	}
+	if roleName != RoleOwner {
+		if err := c.requireNonOwnerAdministrativeTarget(ctx, actorID, targetUserID); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -251,7 +244,6 @@ func (c *ChattoCore) adminMemberForViewer(ctx context.Context, actorID string, u
 	if err != nil {
 		return nil, err
 	}
-
 	member := &AdminMember{
 		ID:           user.GetId(),
 		Login:        user.GetLogin(),
@@ -262,7 +254,6 @@ func (c *ChattoCore) adminMemberForViewer(ctx context.Context, actorID string, u
 		Deleted:      user.GetDeleted(),
 		CustomStatus: user.GetCustomStatus(),
 	}
-
 	if canViewEmails, err := c.canViewAdminMemberEmails(ctx, actorID, user.GetId()); err != nil {
 		return nil, err
 	} else if canViewEmails {
@@ -280,7 +271,6 @@ func (c *ChattoCore) adminMemberForViewer(ctx context.Context, actorID string, u
 			member.VerifiedEmails = append(member.VerifiedEmails, email.Email)
 		}
 	}
-
 	if actorID != user.GetId() {
 		viewerCanDeleteAccount, err := c.CanDeleteUser(ctx, actorID, user.GetId())
 		if err != nil {
@@ -288,7 +278,6 @@ func (c *ChattoCore) adminMemberForViewer(ctx context.Context, actorID string, u
 		}
 		member.ViewerCanDeleteAccount = viewerCanDeleteAccount
 	}
-
 	if canViewLastLoginChange, err := c.canViewAdminMemberLastLoginChange(ctx, actorID, user.GetId()); err != nil {
 		return nil, err
 	} else if canViewLastLoginChange {
@@ -300,7 +289,6 @@ func (c *ChattoCore) adminMemberForViewer(ctx context.Context, actorID string, u
 			member.LastLoginChange = &lastLoginChange
 		}
 	}
-
 	return member, nil
 }
 
@@ -355,7 +343,7 @@ func adminMemberRoleSummaries(roles []RoleWithPermissions) []AdminMemberRoleSumm
 			Name:        role.Name,
 			DisplayName: role.DisplayName,
 			Description: role.Description,
-			IsSystem:    role.IsSystem,
+			IsSystem:    IsDefaultSystemGrade(role.Name),
 			Position:    role.Position,
 			Pingable:    role.Pingable,
 		})
@@ -370,7 +358,7 @@ func adminMemberRoles(roles []RoleWithPermissions) []AdminMemberRole {
 			Name:              role.Name,
 			DisplayName:       role.DisplayName,
 			Description:       role.Description,
-			IsSystem:          role.IsSystem,
+			IsSystem:          IsDefaultSystemGrade(role.Name),
 			Position:          role.Position,
 			Pingable:          role.Pingable,
 			Permissions:       append([]Permission{}, role.Permissions...),
