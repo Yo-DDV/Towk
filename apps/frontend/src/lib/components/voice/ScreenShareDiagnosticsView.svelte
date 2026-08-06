@@ -750,13 +750,9 @@ strictly local, starts only while this component is mounted, and stops on close.
   @keyframes diagnostics-panel-enter {
     from {
       opacity: 0;
-      scale: 0.985;
-      translate: 0 0.5rem;
     }
     to {
       opacity: 1;
-      scale: 1;
-      translate: 0 0;
     }
   }
 

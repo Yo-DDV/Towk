@@ -372,7 +372,7 @@ desktop pointer activation keeps the detailed diagnostics view.
     .screen-share-preview { background: rgb(15 15 15 / 0.98); }
   }
   @keyframes screen-share-preview-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes screen-share-preview-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes screen-share-preview-in { from { opacity: 0; } to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .screen-share-preview-backdrop, .screen-share-preview { animation: none; } }
   @media (prefers-reduced-transparency: reduce) { .screen-share-preview { background: rgb(15 15 15 / 0.98); -webkit-backdrop-filter: none; backdrop-filter: none; } }
   @media (forced-colors: active) {

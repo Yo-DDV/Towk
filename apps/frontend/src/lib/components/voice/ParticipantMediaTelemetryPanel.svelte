@@ -422,14 +422,14 @@
       data-diagnosis={diagnosis}
       data-testid="participant-media-telemetry-compact"
     >
-      <header class="flex min-h-16 shrink-0 items-center gap-2 border-b border-text/10 px-2.5">
+      <header class="flex min-h-[64px] shrink-0 items-center gap-2 border-b border-text/10 px-2.5">
         <span class="iconify shrink-0 text-lg text-accent uil--chart-line" aria-hidden="true"></span>
         <h2 class="min-w-0 flex-1 truncate text-sm font-semibold">
           {m['voice.media_telemetry_title']({ name: participantName })}
         </h2>
         <span
           class={[
-            'quality-badge inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-full border border-text/10 px-2 text-[0.6875rem] font-semibold whitespace-nowrap',
+            'quality-badge inline-flex h-[28px] shrink-0 items-center justify-center gap-1.5 rounded-full border border-text/10 px-2 text-[0.6875rem] font-semibold whitespace-nowrap',
             qualityBadgeClass(overallHealth)
           ]}
           data-quality={overallHealth}
@@ -515,14 +515,14 @@
       data-diagnosis={diagnosis}
       data-testid="participant-media-telemetry-panel"
     >
-      <header class="flex min-h-16 shrink-0 items-center gap-2.5 border-b border-text/10 px-2.5 sm:px-3.5">
+      <header class="flex min-h-[64px] shrink-0 items-center gap-2.5 border-b border-text/10 px-2.5 sm:px-3.5">
         <span class="iconify shrink-0 text-lg text-accent uil--chart-line" aria-hidden="true"></span>
         <h2 class="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">
           {m['voice.media_telemetry_title']({ name: participantName })}
         </h2>
         <span
           class={[
-            'quality-badge inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-full border border-text/10 px-2 text-[0.6875rem] font-semibold whitespace-nowrap sm:text-xs',
+            'quality-badge inline-flex h-[28px] shrink-0 items-center justify-center gap-1.5 rounded-full border border-text/10 px-2 text-[0.6875rem] font-semibold whitespace-nowrap sm:text-xs',
             qualityBadgeClass(overallHealth)
           ]}
           data-quality={overallHealth}
@@ -726,7 +726,7 @@
     .telemetry-glass { background-color: var(--color-surface-100); }
   }
   @keyframes telemetry-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes telemetry-panel-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes telemetry-panel-in { from { opacity: 0; } to { opacity: 1; } }
   @media (min-width: 640px) { .telemetry-panel, .telemetry-compact { transform-origin: center; } }
   @media (max-width: 359px) {
     .quality-badge { width: min(4.75rem, 28vw); max-width: min(4.75rem, 28vw); padding-inline: 0.4rem; }
