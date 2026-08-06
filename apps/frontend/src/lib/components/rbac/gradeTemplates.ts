@@ -1,4 +1,4 @@
-import * as m from '$lib/i18n/messages';
+import { g } from '$lib/i18n/gradeMessages.svelte';
 
 export type GradeTemplateId = 'helper.v1' | 'moderator.v1' | 'custom';
 
@@ -39,11 +39,11 @@ export const GRADE_TEMPLATES: readonly GradeTemplate[] = [
   {
     id: 'moderator.v1',
     icon: 'uil--shield-check',
-    title: m['grades.templates.moderator.title'],
-    description: m['grades.templates.moderator.description'],
+    title: g['grades.templates.moderator.title'],
+    description: g['grades.templates.moderator.description'],
     defaultName: 'moderation-team',
-    defaultDisplayName: m['grades.templates.moderator.default_name'],
-    defaultDescription: m['grades.templates.moderator.default_description'],
+    defaultDisplayName: g['grades.templates.moderator.default_name'],
+    defaultDescription: g['grades.templates.moderator.default_description'],
     defaultColor: '#16A34A',
     defaultPingable: true,
     permissions: MODERATOR_PERMISSIONS
@@ -51,11 +51,11 @@ export const GRADE_TEMPLATES: readonly GradeTemplate[] = [
   {
     id: 'helper.v1',
     icon: 'uil--life-ring',
-    title: m['grades.templates.helper.title'],
-    description: m['grades.templates.helper.description'],
+    title: g['grades.templates.helper.title'],
+    description: g['grades.templates.helper.description'],
     defaultName: 'helpers',
-    defaultDisplayName: m['grades.templates.helper.default_name'],
-    defaultDescription: m['grades.templates.helper.default_description'],
+    defaultDisplayName: g['grades.templates.helper.default_name'],
+    defaultDescription: g['grades.templates.helper.default_description'],
     defaultColor: '#0891B2',
     defaultPingable: true,
     permissions: []
@@ -63,8 +63,8 @@ export const GRADE_TEMPLATES: readonly GradeTemplate[] = [
   {
     id: 'custom',
     icon: 'uil--sliders-v-alt',
-    title: m['grades.templates.custom.title'],
-    description: m['grades.templates.custom.description'],
+    title: g['grades.templates.custom.title'],
+    description: g['grades.templates.custom.description'],
     defaultName: '',
     defaultDisplayName: () => '',
     defaultDescription: () => '',
