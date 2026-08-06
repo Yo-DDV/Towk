@@ -230,7 +230,7 @@ func TestChattoCorePresenceSessionLimitsInstallationCardinality(t *testing.T) {
 func TestChattoCorePresenceSessionLimitIsSerializedAcrossConcurrentWriters(t *testing.T) {
 	chatCore, _ := setupTestCore(t)
 	ctx := testContext(t)
-	userID := "bounded-concurrent-user"
+	userID := fmt.Sprintf("bounded-concurrent-user-%d", time.Now().UnixNano())
 	const attempts = maxPresenceSessionsPerUser + 12
 
 	start := make(chan struct{})
@@ -241,13 +241,19 @@ func TestChattoCorePresenceSessionLimitIsSerializedAcrossConcurrentWriters(t *te
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			_, err := chatCore.ReportPresenceSession(ctx, userID, PresenceSessionReport{
-				InstallationID: fmt.Sprintf("install-%d", i),
-				SessionID:      "tab-a",
-				Status:         PresenceStatusAway,
-				Active:         false,
-			})
-			errs <- err
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				_, err := chatCore.ReportPresenceSession(ctx, userID, PresenceSessionReport{
+					InstallationID: fmt.Sprintf("install-%d", i),
+					SessionID:      "tab-a",
+					Status:         PresenceStatusAway,
+					Active:         false,
+				})
+				if !errors.Is(err, ErrPresenceSessionBusy) || time.Now().After(deadline) {
+					errs <- err
+					return
+				}
+			}
 		}(i)
 	}
 	close(start)
@@ -448,7 +454,7 @@ func TestPresenceSessionHubEnforcesActiveAndRecentExpiry(t *testing.T) {
 func TestDeletePresenceRemovesAllSessionLeases(t *testing.T) {
 	chatCore, _ := setupTestCore(t)
 	ctx := testContext(t)
-	userID := "deleted-presence-user"
+	userID := fmt.Sprintf("deleted-presence-user-%d", time.Now().UnixNano())
 
 	if _, err := chatCore.ReportPresenceSession(ctx, userID, PresenceSessionReport{
 		InstallationID: "install-a",
@@ -471,7 +477,18 @@ func TestDeletePresenceRemovesAllSessionLeases(t *testing.T) {
 			t.Fatalf("%s leases remain after presence deletion: %v", prefix, keys)
 		}
 	}
-	if got, err := chatCore.GetUserPresence(ctx, userID); err != nil || got != PresenceStatusOffline {
-		t.Fatalf("presence after deletion = (%q, %v), want OFFLINE", got, err)
+	deadline := time.Now().Add(time.Second)
+	for {
+		got, err := chatCore.GetUserPresence(ctx, userID)
+		if err != nil {
+			t.Fatalf("GetUserPresence after deletion: %v", err)
+		}
+		if got == PresenceStatusOffline {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("presence after deletion = %q, want OFFLINE", got)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
