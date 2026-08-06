@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   apply-remediation:
-    if: github.event.head_commit.message == 'chore(ci): stage validated PR 312 remediation'
+    if: github.event.head_commit.message == 'chore(ci): apply checksummed PR 312 remediation'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -24,7 +24,7 @@ jobs:
           ref: feat/localized-default-grades
           fetch-depth: 0
 
-      - name: Apply validated remediation once
+      - name: Apply checksummed remediation once
         shell: bash
         run: |
           set -euo pipefail
@@ -34,7 +34,7 @@ jobs:
           fi
           test "$(find .github/pr312-patch -maxdepth 1 -name 'part-*' | wc -l)" -eq 8
           cat .github/pr312-patch/part-* > /tmp/pr312-remediation.patch.gz.b64
-          sha256sum /tmp/pr312-remediation.patch.gz.b64
+          printf '%s  %s\n' '648d6bb8722348876689a21990c15b1fda43a79d9f0a591c6d0dba3252ed4c47' '/tmp/pr312-remediation.patch.gz.b64' | sha256sum -c -
           base64 --decode /tmp/pr312-remediation.patch.gz.b64 | gzip --decompress > /tmp/pr312-remediation.patch
           git apply --check /tmp/pr312-remediation.patch
           git apply --index /tmp/pr312-remediation.patch
