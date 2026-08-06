@@ -1,0 +1,75 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "grades": {
+    "system_roles": {
+      "helper": {
+        "display_name": "Assistente",
+        "description": "Ajuda os membros e pode ser mencionado para prestar assistência. Sem poderes de moderação ou administração por predefinição."
+      }
+    },
+    "templates": {
+      "moderator": {
+        "title": "Moderador",
+        "description": "Elimina mensagens de terceiros, remove ou bane membros de canais e bloqueia discussões sem gerir contas ou funções.",
+        "default_name": "Equipa de moderação",
+        "default_description": "Modera canais públicos e ajuda a fazer cumprir as regras da comunidade."
+      },
+      "helper": {
+        "title": "Assistente",
+        "description": "Identifica as pessoas que ajudam a comunidade. Não adiciona poderes de moderação ou administração.",
+        "default_name": "Assistentes",
+        "default_description": "Ajuda os membros a encontrar respostas e a utilizar a comunidade."
+      },
+      "custom": {
+        "title": "Personalizado",
+        "description": "Começa sem permissões adicionais e permite configurar cada decisão manualmente. As permissões normais de Membros continuam herdadas."
+      }
+    },
+    "permission_descriptions": {
+      "room_remove_member": "Remover um membro explícito de um canal sem o banir. Poderá voltar se as permissões o permitirem.",
+      "room_lock": "Bloquear ou desbloquear nova atividade nos canais.",
+      "room_purge_messages": "Apagar permanentemente o histórico de mensagens, mantendo o canal.",
+      "room_bypass_lock": "Adicionar conteúdo permitido enquanto um canal está bloqueado.",
+      "message_delete_others": "Eliminar mensagens de outros utilizadores sem poder reescrevê-las."
+    },
+    "create": {
+      "title": "Criar uma função",
+      "subtitle": "Escolha um ponto de partida seguro e reveja as permissões exatas antes de criar a função.",
+      "starting_point": "Ponto de partida",
+      "starting_point_description": "Os modelos adicionam apenas as permissões abaixo. As permissões normais de Membros são herdadas separadamente.",
+      "identity": "Identidade da função",
+      "permissions": "Pré-visualização das permissões",
+      "added_permissions": "Adicionado por esta função",
+      "inherited_permissions": "Herdado de Membros",
+      "no_added_permissions": "Sem permissões adicionais",
+      "advanced": "Personalização avançada",
+      "advanced_description": "Pode ajustar as decisões do servidor, grupos e canais após a criação.",
+      "create": "Criar função",
+      "creating": "A criar função...",
+      "permission_setup_failed": "Não foi possível configurar totalmente a função e esta foi removida. Tente novamente.",
+      "template_changed": "A identidade sugerida foi adaptada ao modelo selecionado.",
+      "handle_preview": "Identificador permanente: @{handle}",
+      "member_inheritance_note": "Cada pessoa atribuída também mantém as permissões herdadas de Membros."
+    },
+    "overview": {
+      "title": "Funções e permissões",
+      "subtitle": "Defina claramente as responsabilidades da equipa sem conceder mais poder do que o necessário.",
+      "default_grades": "Funções predefinidas",
+      "advanced_admin": "Administração avançada",
+      "custom_grades": "Funções personalizadas",
+      "helper_summary": "Assistência à comunidade sem poder de moderação",
+      "moderator_summary": "Moderação de canais sem administração de contas ou funções",
+      "members_summary": "Permissões normais herdadas por todos os utilizadores autenticados",
+      "owner_summary": "Autoridade RBAC completa; ler mensagens diretas continua a exigir participação",
+      "admin_summary": "Administração delegada para pessoas de confiança muito elevada"
+    },
+    "risk": {
+      "standard": "Padrão",
+      "moderation": "Moderação",
+      "sensitive": "Sensível",
+      "destructive": "Destrutivo",
+      "privilege": "Gestão de privilégios",
+      "legacy": "Permissão histórica de âmbito alargado"
+    }
+  }
+}
