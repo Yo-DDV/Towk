@@ -2,9 +2,25 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "grades": {
     "system_roles": {
+      "owner": {
+        "display_name": "Owner",
+        "description": "Full instance control. Owner RBAC permissions are always granted; reading direct messages still requires participation."
+      },
+      "admin": {
+        "display_name": "Admin",
+        "description": "Advanced delegated administration of settings, channels, roles, permissions, accounts and audit tools. This is not equivalent to ownership."
+      },
+      "moderator": {
+        "display_name": "Moderator",
+        "description": "Moderates public channels by deleting messages, removing or banning members and locking discussions. Does not manage accounts or roles and does not purge history by default."
+      },
       "helper": {
         "display_name": "Helper",
         "description": "Helps members and can be mentioned for assistance. No moderation or administration power by default."
+      },
+      "everyone": {
+        "display_name": "Members",
+        "description": "All authenticated users and their ordinary inherited permissions."
       }
     },
     "templates": {
