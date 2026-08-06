@@ -134,7 +134,7 @@ func TestCORSMiddleware(t *testing.T) {
 		if origin := w.Header().Get("Access-Control-Allow-Origin"); origin != "https://chat.example.com" {
 			t.Errorf("expected Access-Control-Allow-Origin 'https://chat.example.com', got %q", origin)
 		}
-		if methods := w.Header().Get("Access-Control-Allow-Methods"); methods != "GET, POST, OPTIONS" {
+		if methods := w.Header().Get("Access-Control-Allow-Methods"); methods != "GET, HEAD, POST, PUT, DELETE, OPTIONS" {
 			t.Errorf("expected Access-Control-Allow-Methods 'GET, POST, OPTIONS', got %q", methods)
 		}
 		if headers := w.Header().Get("Access-Control-Allow-Headers"); headers != corsAllowedHeaders {
@@ -167,7 +167,7 @@ func TestCORSMiddleware(t *testing.T) {
 		if creds := w.Header().Get("Access-Control-Allow-Credentials"); creds != "" {
 			t.Errorf("expected no Access-Control-Allow-Credentials for wildcard bearer-token clients, got %q", creds)
 		}
-		if methods := w.Header().Get("Access-Control-Allow-Methods"); methods != "GET, POST, OPTIONS" {
+		if methods := w.Header().Get("Access-Control-Allow-Methods"); methods != "GET, HEAD, POST, PUT, DELETE, OPTIONS" {
 			t.Errorf("expected Access-Control-Allow-Methods 'GET, POST, OPTIONS', got %q", methods)
 		}
 		headers := w.Header().Get("Access-Control-Allow-Headers")

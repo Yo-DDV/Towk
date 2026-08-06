@@ -1,0 +1,413 @@
+/*
+ * Final profile-surface composition.
+ *
+ * UserProfileSurface owns structure and state. This stylesheet owns the final
+ * responsive hierarchy used by the canonical dialog and its Storybook states.
+ * It intentionally stays dependency-free and uses Towk semantic tokens only.
+ */
+
+.user-profile-dialog .profile-cover {
+  isolation: isolate;
+}
+
+.user-profile-dialog .profile-cover > .profile-banner-image,
+.user-profile-dialog .profile-cover > .profile-banner-scrim {
+  position: absolute;
+  inset: 0;
+}
+
+.user-profile-dialog .profile-cover > .profile-banner-image {
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.user-profile-dialog .profile-cover > .profile-banner-scrim {
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, black 8%, transparent),
+    color-mix(in srgb, black 34%, transparent)
+  );
+  pointer-events: none;
+}
+
+.user-profile-dialog .profile-cover::before,
+.user-profile-dialog .profile-cover::after,
+.user-profile-dialog .profile-cover > .profile-cover-orbit {
+  z-index: 2;
+}
+
+.user-profile-dialog .profile-cover > .profile-banner-edit {
+  position: absolute;
+  z-index: 4;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  display: inline-grid;
+  min-width: 44px;
+  min-height: 44px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid color-mix(in srgb, white 30%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in srgb, black 66%, transparent);
+  padding: 0.45rem 0.8rem;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 720;
+  line-height: 1.2;
+  box-shadow: 0 0.55rem 1.25rem color-mix(in srgb, black 28%, transparent);
+  backdrop-filter: blur(0.75rem);
+  touch-action: manipulation;
+}
+
+.user-profile-dialog .profile-cover > .profile-banner-edit:hover {
+  background: color-mix(in srgb, black 78%, transparent);
+}
+
+.user-profile-dialog .profile-cover > .profile-banner-edit:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+.user-profile-dialog .profile-fact-term > .profile-fact-icon {
+  border-color: color-mix(in srgb, var(--color-text-top) 24%, transparent);
+  background: color-mix(in srgb, var(--color-text-top) 11%, var(--color-background));
+  color: color-mix(in srgb, var(--color-text-top) 86%, var(--color-muted));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 9%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-text-top) 4%, transparent);
+  opacity: 1;
+}
+
+.user-profile-dialog .profile-name-block .profile-display-name {
+  display: -webkit-box;
+  max-width: 100%;
+  max-height: none;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  text-overflow: ellipsis;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+  word-break: normal;
+}
+
+.user-profile-dialog .profile-name-block .profile-login {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-profile-dialog .profile-identity-body .profile-status-row {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  gap: 0.625rem;
+}
+
+.user-profile-dialog .profile-status-row > .profile-presence-pill {
+  align-self: start;
+  white-space: nowrap;
+}
+
+.user-profile-dialog .profile-status-row > .profile-custom-status {
+  display: grid;
+  min-height: 2.25rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.625rem;
+  border-radius: 0.875rem;
+  padding: 0.48rem 0.75rem;
+  line-height: 1.35;
+}
+
+.user-profile-dialog .profile-status-row > .profile-custom-status > span:first-child {
+  line-height: 1.35;
+}
+
+.user-profile-dialog .profile-status-row > .profile-custom-status > span:last-child {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.user-profile-dialog .profile-identity-body .profile-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.user-profile-dialog .profile-actions > .profile-action {
+  display: grid;
+  min-width: 0;
+  min-height: 3.25rem;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  align-items: center;
+  justify-content: stretch;
+  gap: 0.75rem;
+  border-radius: 0.875rem;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  white-space: normal;
+  touch-action: manipulation;
+}
+
+.user-profile-dialog .profile-actions > .profile-action .profile-action-icon {
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  border-radius: 0.625rem;
+}
+
+.user-profile-dialog .profile-actions > .profile-action .profile-action-label {
+  min-width: 0;
+  line-height: 1.35;
+  hyphens: none;
+  overflow-wrap: break-word;
+  text-align: left;
+  text-wrap: pretty;
+  word-break: normal;
+}
+
+.user-profile-dialog .profile-roles .profile-role-list {
+  align-items: center;
+}
+
+.user-profile-dialog .profile-role-list > .profile-role-chip {
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.user-profile-dialog .profile-role-chip > .profile-role-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-profile-dialog .profile-section-heading h3,
+.user-profile-dialog .profile-section-label h3,
+.user-profile-dialog .profile-fact-label {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.user-profile-dialog .profile-fact {
+  align-items: center;
+}
+
+.user-profile-dialog .profile-fact-value {
+  text-wrap: pretty;
+}
+
+.user-profile-dialog .profile-biography-toggle {
+  gap: 0.625rem;
+  max-width: 100%;
+  min-height: 44px;
+  line-height: 1.3;
+  text-wrap: pretty;
+  word-break: normal;
+}
+
+.user-profile-dialog .profile-biography-toggle > .iconify {
+  flex: none;
+}
+
+@container user-profile (min-width: 30rem) and (max-width: 53.999rem) {
+  .user-profile-dialog .profile-identity-body .profile-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .user-profile-dialog .profile-actions > .profile-action:only-child,
+  .user-profile-dialog .profile-actions > .profile-action.btn-danger {
+    grid-column: 1 / -1;
+  }
+}
+
+@container user-profile (min-width: 54rem) {
+  article.user-profile-dialog > .profile-shell {
+    grid-template-columns: minmax(20.5rem, 22rem) minmax(0, 1fr);
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-profile-dialog .profile-name-block .profile-display-name {
+    font-size: clamp(1.75rem, 2.8cqi, 2.05rem);
+  }
+}
+
+@container user-profile (max-width: 27rem) {
+  .user-profile-dialog .profile-identity-body .profile-status-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-profile-dialog .profile-status-row > .profile-presence-pill {
+    width: fit-content;
+  }
+}
+
+@container user-profile (max-width: 23rem) {
+  .user-profile-dialog .profile-cover > .profile-banner-edit {
+    width: 2.75rem;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 0;
+  }
+
+  .user-profile-dialog .profile-banner-edit-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-actions,
+  .user-profile-dialog .profile-facts-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-profile-dialog .profile-actions > .profile-action {
+    min-height: 3.125rem;
+  }
+
+  .user-profile-dialog .profile-fact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-profile-dialog .profile-fact-term {
+    grid-template-columns: 2.55rem minmax(0, 1fr);
+  }
+
+  .user-profile-dialog .profile-fact-value {
+    grid-column: 1 / -1;
+    margin-top: 0.45rem;
+  }
+}
+
+@media (max-height: 620px) and (min-width: 46rem) {
+  article.user-profile-dialog > .profile-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+    grid-template-columns: minmax(20.5rem, 42%) minmax(0, 1fr);
+  }
+
+  .user-profile-dialog .profile-shell > .profile-identity-panel {
+    border-right: 1px solid var(--color-border);
+    border-bottom: 0;
+  }
+
+  .user-profile-dialog .profile-identity-panel .profile-cover {
+    height: 7.5rem;
+  }
+
+  .user-profile-dialog .profile-identity-panel .profile-identity-body {
+    display: block;
+    padding-top: 0;
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-avatar-shell {
+    width: 6rem;
+    height: 6rem;
+    margin-top: -3.35rem;
+    border-width: 0.3rem;
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-name-block {
+    margin-top: 0.65rem;
+  }
+
+  .user-profile-dialog .profile-name-block .profile-display-name {
+    font-size: clamp(1.4rem, 3.4cqi, 1.8rem);
+    line-height: 1.08;
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-status-row {
+    grid-template-columns: max-content minmax(0, 1fr);
+    margin-top: 0.65rem;
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-actions {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+  }
+
+  .user-profile-dialog .profile-identity-body .profile-roles {
+    margin-top: 0.9rem;
+    padding-top: 0.8rem;
+  }
+
+  .user-profile-dialog .profile-content-panel {
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: 1rem;
+  }
+
+  .user-profile-dialog .profile-content-section + .profile-content-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+
+  .user-profile-dialog .profile-facts-grid,
+  .user-profile-dialog .profile-biography-shell {
+    margin-top: 0.75rem;
+  }
+
+  .user-profile-dialog .profile-biography {
+    min-height: 5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-profile-dialog .profile-banner-edit {
+    transition: none;
+  }
+
+  .user-profile-dialog .profile-action,
+  .user-profile-dialog .profile-biography-toggle {
+    transition: none;
+  }
+
+  .user-profile-dialog .profile-action:active {
+    scale: 1;
+  }
+
+  .user-profile-dialog .profile-biography-toggle:active {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .user-profile-dialog .profile-action,
+  .user-profile-dialog .profile-custom-status,
+  .user-profile-dialog .profile-banner-edit,
+  .user-profile-dialog .profile-fact-icon {
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+}
