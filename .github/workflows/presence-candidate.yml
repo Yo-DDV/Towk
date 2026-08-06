@@ -1,4 +1,4 @@
-name: presence product materialization
+name: presence product publication
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - feat/pwa-presence-leases
 
 concurrency:
-  group: presence-product-${{ github.ref }}
+  group: presence-product-publication
   cancel-in-progress: true
 
 permissions:
@@ -14,17 +14,17 @@ permissions:
   statuses: write
 
 jobs:
-  materialize-test-publish:
-    name: materialize-test-publish
+  qualify-and-publish:
+    name: qualify-and-publish
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - name: Checkout exact branch head
+      - name: Checkout staging branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - name: Merge current main without rewriting history
+      - name: Materialize hardened candidate on current main
         shell: bash
         run: |
           set -euo pipefail
@@ -33,187 +33,13 @@ jobs:
               -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
               merge --no-edit origin/main
 
-      - name: Materialize and harden complete product source
-        shell: bash
-        run: |
-          set -euo pipefail
           cat .github/presence-source/chunk-*.txt | base64 -d > /tmp/presence-source.tar.gz
           tar -xzf /tmp/presence-source.tar.gz -C .
-          python3 - <<'PY'
-          from pathlib import Path
+          base64 -d .github/presence-source/hardening.patch.gz.b64 | gzip -dc > /tmp/presence-hardening.patch
+          test "$(sha256sum /tmp/presence-hardening.patch | cut -d' ' -f1)" = \
+            f201920910a108f5d3c73dedc5208a39e67cd2f7c7494fbbcd5d3df4123eaf51
+          git apply --whitespace=error /tmp/presence-hardening.patch
 
-          tracking_path = Path('apps/frontend/src/lib/presenceTracking.ts')
-          tracking = tracking_path.read_text()
-
-          old_read = """function readStoredMode(): PresenceMode {
-            if (typeof localStorage === 'undefined') return 'auto';
-            const stored = localStorage.getItem(PRESENCE_MODE_STORAGE_KEY);
-            if (
-              stored === 'auto' ||
-              stored === 'away' ||
-              stored === 'doNotDisturb' ||
-              stored === 'invisible'
-            ) {
-              return stored;
-            }
-            return 'auto';
-          }
-          """
-          new_read = """function readStoredMode(): PresenceMode {
-            if (typeof localStorage === 'undefined') return 'auto';
-            try {
-              const stored = localStorage.getItem(PRESENCE_MODE_STORAGE_KEY);
-              if (
-                stored === 'auto' ||
-                stored === 'away' ||
-                stored === 'doNotDisturb' ||
-                stored === 'invisible'
-              ) {
-                return stored;
-              }
-            } catch {
-              // Storage can be unavailable in hardened/private browser contexts.
-            }
-            return 'auto';
-          }
-          """
-          if old_read not in tracking:
-              raise SystemExit('readStoredMode source contract changed')
-          tracking = tracking.replace(old_read, new_read)
-
-          old_store = """function storeMode(mode: PresenceMode) {
-            if (typeof localStorage === 'undefined') return;
-            localStorage.setItem(PRESENCE_MODE_STORAGE_KEY, mode);
-          }
-          """
-          new_store = """function storeMode(mode: PresenceMode) {
-            if (typeof localStorage === 'undefined') return;
-            try {
-              localStorage.setItem(PRESENCE_MODE_STORAGE_KEY, mode);
-            } catch {
-              // Presence remains functional for the current page without persistence.
-            }
-          }
-          """
-          if old_store not in tracking:
-              raise SystemExit('storeMode source contract changed')
-          tracking = tracking.replace(old_store, new_store)
-
-          old_mode = """    options.onResumeLiveEvents?.();
-              syncLifecycleState(previousMode === 'invisible');
-
-              if (mode === 'auto') {
-                if (persist || syncedFromStorage) {
-                  // Explicit Online is a control signal that clears a user-selected
-                  // Away/DND. The immediately following automatic report carries the
-                  // correct active/away state for this page.
-                  const clearRevision = ++reportRevision;
-                  sendPresenceReport(PresenceStatus.Online, true, clearRevision, {
-                    active: isActiveState(currentState),
-                    meaningfulActivity: isActiveState(currentState)
-                  });
-                }
-                reportStatus(
-                  statusForAutoState(currentState),
-                  false,
-                  isActiveState(currentState) && (previousMode === 'invisible' || desiredStatus === null)
-                );
-              } else {
-          """
-          new_mode = """    if (previousMode === 'invisible') options.onResumeLiveEvents?.();
-              syncLifecycleState(previousMode === 'invisible');
-
-              if (mode === 'auto') {
-                if (persist || syncedFromStorage) {
-                  // One explicit Online control report clears a user-selected
-                  // Away/DND while its active flag records the real page state.
-                  // Keeping this atomic avoids request reordering restoring an
-                  // obsolete manual override.
-                  const automaticStatus = statusForAutoState(currentState);
-                  const meaningfulActivity =
-                    isActiveState(currentState) &&
-                    (previousMode === 'invisible' || desiredStatus === null);
-                  const revision = ++reportRevision;
-                  desiredStatus = automaticStatus;
-                  if (meaningfulActivity) pendingMeaningfulActivity = false;
-                  emitLocalStatus(automaticStatus);
-                  sendPresenceReport(PresenceStatus.Online, true, revision, {
-                    active: isActiveState(currentState),
-                    meaningfulActivity
-                  });
-                  scheduleRefresh();
-                } else {
-                  reportStatus(
-                    statusForAutoState(currentState),
-                    false,
-                    isActiveState(currentState) &&
-                      (previousMode === 'invisible' || desiredStatus === null)
-                  );
-                }
-              } else {
-          """
-          if old_mode not in tracking:
-              raise SystemExit('automatic mode source contract changed')
-          tracking = tracking.replace(old_mode, new_mode)
-          tracking_path.write_text(tracking)
-
-          spec_path = Path('apps/frontend/src/lib/presenceTracking.spec.ts')
-          spec = spec_path.read_text()
-          old_manual = """  it('clears a manual mode before resuming automatic presence', () => {
-              startTracking();
-              setPresenceMode('away');
-              setPresenceMode('auto');
-
-              expect(sentStatuses().slice(-2)).toEqual([
-                APIPresenceStatus.ONLINE,
-                APIPresenceStatus.ONLINE
-              ]);
-              expect(sentUserSelectedFlags().slice(-2)).toEqual([true, false]);
-              expect(onResumeLiveEvents).toHaveBeenCalled();
-            });
-          """
-          new_manual = """  it('clears a manual mode with one atomic automatic-mode report', () => {
-              startTracking();
-              setPresenceMode('away');
-              const callsBeforeAuto = mocks.updatePresence.mock.calls.length;
-
-              setPresenceMode('auto');
-
-              expect(mocks.updatePresence).toHaveBeenCalledTimes(callsBeforeAuto + 1);
-              expect(sentStatuses().at(-1)).toBe(APIPresenceStatus.ONLINE);
-              expect(sentUserSelectedFlags().at(-1)).toBe(true);
-              expect(sentOptions().at(-1)).toEqual({
-                active: true,
-                meaningfulActivity: false
-              });
-              expect(onResumeLiveEvents).not.toHaveBeenCalled();
-            });
-          """
-          if old_manual not in spec:
-              raise SystemExit('manual-mode test contract changed')
-          spec = spec.replace(old_manual, new_manual)
-
-          old_storage = """    dispatchStorageMode('auto');
-              expect(sentStatuses().slice(-2)).toEqual([
-                APIPresenceStatus.ONLINE,
-                APIPresenceStatus.ONLINE
-              ]);
-              expect(sentUserSelectedFlags().slice(-2)).toEqual([true, false]);
-            });
-          """
-          new_storage = """    const callsBeforeAuto = mocks.updatePresence.mock.calls.length;
-              dispatchStorageMode('auto');
-              expect(mocks.updatePresence).toHaveBeenCalledTimes(callsBeforeAuto + 1);
-              expect(sentStatuses().at(-1)).toBe(APIPresenceStatus.ONLINE);
-              expect(sentUserSelectedFlags().at(-1)).toBe(true);
-              expect(onResumeLiveEvents).toHaveBeenCalledOnce();
-            });
-          """
-          if old_storage not in spec:
-              raise SystemExit('cross-tab automatic-mode test contract changed')
-          spec = spec.replace(old_storage, new_storage)
-          spec_path.write_text(spec)
-          PY
           gofmt -w \
             cli/internal/core/presence.go \
             cli/internal/core/presence_model.go \
@@ -222,66 +48,10 @@ jobs:
             cli/internal/core/presence_session_test.go \
             cli/internal/connectapi/presence.go \
             cli/internal/connectapi/presence_session_test.go
+
           rm -rf .github/presence-source
           rm -f .github/workflows/presence-candidate.yml
-          test ! -e .github/presence-source
-          test ! -e .github/workflows/presence-candidate.yml
           git diff --check
-
-      - name: Package materialized source for adversarial review
-        shell: bash
-        run: |
-          set -euo pipefail
-          files=(
-            apps/frontend/src/lib/api-client/presence.ts
-            apps/frontend/src/lib/api-client/presence.spec.ts
-            apps/frontend/src/lib/presenceTracking.ts
-            apps/frontend/src/lib/presenceTracking.spec.ts
-            apps/frontend/src/lib/auth/signOut.ts
-            apps/frontend/src/lib/auth/signOut.spec.ts
-            cli/internal/connectapi/presence.go
-            cli/internal/connectapi/presence_session_test.go
-            cli/internal/core/presence.go
-            cli/internal/core/presence_model.go
-            cli/internal/core/presence_session.go
-            cli/internal/core/presence_session_hub.go
-            cli/internal/core/presence_session_test.go
-            docs/fdr/FDR-011-user-presence.md
-            proto/chatto/api/v1/account.proto
-            proto/chatto/api/v1/presence.proto
-          )
-          for file in "${files[@]}"; do test -f "$file"; done
-          tar -czf /tmp/presence-materialized-source.tar.gz "${files[@]}"
-
-      - name: Upload materialized source review bundle
-        id: upload_review
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: presence-materialized-${{ github.sha }}
-          path: /tmp/presence-materialized-source.tar.gz
-          if-no-files-found: error
-          retention-days: 2
-
-      - name: Publish review artifact coordinates
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ARTIFACT_ID: ${{ steps.upload_review.outputs.artifact-id }}
-        run: |
-          set -euo pipefail
-          payload=$(jq -n \
-            --arg state pending \
-            --arg context 'presence-materialized-review' \
-            --arg description "run=${GITHUB_RUN_ID}; artifact=${ARTIFACT_ID}" \
-            --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            '{state:$state,context:$context,description:$description,target_url:$target_url}')
-          curl --fail-with-body --silent --show-error \
-            -X POST \
-            -H 'Accept: application/vnd.github+json' \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H 'X-GitHub-Api-Version: 2022-11-28' \
-            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
-            -d "$payload" >/dev/null
 
       - name: Setup repository toolchain
         uses: ./.github/actions/setup
@@ -293,7 +63,7 @@ jobs:
           mise codegen-proto
           pnpm --dir packages/api-types run build
 
-      - name: Execute focused backend qualification
+      - name: Focused backend qualification
         shell: bash
         run: |
           set -euo pipefail
@@ -302,7 +72,7 @@ jobs:
           go test -race -trimpath ./internal/core ./internal/connectapi -run 'Presence' -count=1
           go vet ./internal/core ./internal/connectapi
 
-      - name: Execute focused frontend qualification
+      - name: Focused frontend qualification
         shell: bash
         run: |
           set -euo pipefail
@@ -320,7 +90,7 @@ jobs:
             src/lib/auth/signOut.spec.ts
           mise build-frontend
 
-      - name: Execute repository quality gate
+      - name: Repository quality gate
         shell: bash
         env:
           TOWK_LOCAL_WORKERS: '4'
@@ -328,37 +98,43 @@ jobs:
           set -euo pipefail
           mise test
 
-      - name: Verify final product tree and authorship boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add -A
-          git diff --cached --check
-          git diff --cached --name-status
-          test -n "$(git diff --cached --name-only)"
-          if git ls-files --cached | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
-            echo 'temporary workflow material remains in the final index' >&2
-            exit 1
-          fi
-          if git diff --cached | grep -Ei 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
-            echo 'forbidden authorship trailer found' >&2
-            exit 1
-          fi
-
-      - name: Commit and publish product code
+      - name: Build clean product commit from current main
         id: publish
         shell: bash
         run: |
           set -euo pipefail
+          git diff --binary origin/main > /tmp/presence-product.patch
+          test -s /tmp/presence-product.patch
+
+          if git diff --name-only origin/main | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
+            echo 'temporary transfer surface leaked into product diff' >&2
+            exit 1
+          fi
+          if git diff origin/main | grep -Ei 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
+            echo 'forbidden authorship trailer found' >&2
+            exit 1
+          fi
+
+          git worktree add /tmp/presence-product origin/main
+          cd /tmp/presence-product
+          git switch -c feat/resilient-pwa-presence
+          git apply --index --whitespace=error /tmp/presence-product.patch
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          if git ls-files | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
+            echo 'temporary transfer surface exists in product tree' >&2
+            exit 1
+          fi
+
           git -c user.name='Yo-DDV' \
               -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
               commit -m 'feat(presence): add resilient PWA presence leases'
           product_sha=$(git rev-parse HEAD)
-          git push origin HEAD:feat/pwa-presence-leases
+          git push origin HEAD:refs/heads/feat/resilient-pwa-presence
           echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
 
       - name: Publish exact product status
-        if: ${{ always() && steps.publish.outputs.product_sha != '' }}
+        if: ${{ steps.publish.outputs.product_sha != '' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -367,7 +143,7 @@ jobs:
           set -euo pipefail
           payload=$(jq -n \
             --arg state success \
-            --arg context 'presence-product-materialization' \
+            --arg context 'presence-product-publication' \
             --arg description "qualified and published by run ${GITHUB_RUN_ID}" \
             --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             '{state:$state,context:$context,description:$description,target_url:$target_url}')
