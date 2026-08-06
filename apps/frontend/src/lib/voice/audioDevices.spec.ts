@@ -3,6 +3,7 @@ import {
   audioDeviceIdForRouteKind,
   audioDeviceMayUseBluetooth,
   audioDeviceRouteKind,
+  audioInputTrackRouteKind,
   friendlyAudioDeviceNames,
   preferredAudioDeviceId
 } from './audioDevices';
@@ -185,5 +186,24 @@ describe('audioDeviceRouteKind', () => {
         device('built-in', 'Built-in microphone')
       ])
     ).toBe(false);
+  });
+});
+
+describe('audioInputTrackRouteKind', () => {
+  it('uses the captured source label when WebKit does not expose a correlatable device id', () => {
+    expect(audioInputTrackRouteKind('iPhone Microphone')).toBe('built-in');
+    expect(audioInputTrackRouteKind('MacBook Pro Microphone')).toBe('built-in');
+    expect(audioInputTrackRouteKind('Built-in Microphone')).toBe('built-in');
+    expect(audioInputTrackRouteKind('Microphone de l’iPhone')).toBe('built-in');
+    expect(audioInputTrackRouteKind('Microphone du MacBook Pro')).toBe('built-in');
+    expect(audioInputTrackRouteKind('MacBook Pro Mikrofon')).toBe('built-in');
+    expect(audioInputTrackRouteKind('Micrófono del iPhone')).toBe('built-in');
+    expect(audioInputTrackRouteKind('Microfone do iPhone')).toBe('built-in');
+    expect(audioInputTrackRouteKind('USB Headset')).toBe('wired');
+    expect(audioInputTrackRouteKind('AirPods Pro')).toBe('bluetooth');
+    expect(audioInputTrackRouteKind('WH-1000XM5')).toBe('bluetooth');
+    expect(audioInputTrackRouteKind('Casque sans fil')).toBe('bluetooth');
+    expect(audioInputTrackRouteKind('Microphone')).toBe('unknown');
+    expect(audioInputTrackRouteKind('MediaStreamAudioDestinationNode')).toBe('unknown');
   });
 });
