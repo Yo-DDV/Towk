@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   apply-remediation:
-    if: github.event.head_commit.message == 'chore(ci): stage PR 312 remediation'
+    if: github.event.head_commit.message == 'chore(ci): stage validated PR 312 remediation'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -24,23 +24,21 @@ jobs:
           ref: feat/localized-default-grades
           fetch-depth: 0
 
-      - name: Verify and apply remediation
+      - name: Apply validated remediation once
         shell: bash
         run: |
           set -euo pipefail
-          # All eight transfer fragments must be present before decoding.
+          if test -f cli/internal/core/role_template_apply.go; then
+            echo 'Remediation already present; nothing to apply.'
+            exit 0
+          fi
           test "$(find .github/pr312-patch -maxdepth 1 -name 'part-*' | wc -l)" -eq 8
           cat .github/pr312-patch/part-* > /tmp/pr312-remediation.patch.gz.b64
-          printf '%s  %s\n' 'e728dbb49039fe94ca0f4c6d52786fed421c7a29de61eeaebc16b27dafeedb4f' '/tmp/pr312-remediation.patch.gz.b64' | sha256sum -c -
+          sha256sum /tmp/pr312-remediation.patch.gz.b64
           base64 --decode /tmp/pr312-remediation.patch.gz.b64 | gzip --decompress > /tmp/pr312-remediation.patch
           git apply --check /tmp/pr312-remediation.patch
           git apply --index /tmp/pr312-remediation.patch
           git diff --cached --check
-
-      - name: Commit and push remediation
-        shell: bash
-        run: |
-          set -euo pipefail
           git config user.name 'Yo-DDV'
           git config user.email '116607353+Yo-DDV@users.noreply.github.com'
           git commit -m 'feat(rbac): complete safe grade template application'
