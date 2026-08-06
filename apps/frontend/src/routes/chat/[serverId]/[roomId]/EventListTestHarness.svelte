@@ -1,6 +1,7 @@
 <script lang="ts">
   import { RoomEventKind } from '$lib/render/eventKinds';
   import type { RoomEventView } from '$lib/render/types';
+  import type { RefreshCurrentWindowResult } from '$lib/state/room';
   import {
     createComposerContext,
     createRoomPermissions,
@@ -28,7 +29,14 @@
     isReconcilingCachedData = false,
     readReceiptsEnabled = true,
     attentionEnabled = true,
-    eventActorId = 'test-user'
+    eventActorId = 'test-user',
+    refreshCurrentWindow = async () => ({
+      hasOlder: false,
+      hasNewer: false,
+      refreshed: false,
+      changed: false
+    }),
+    onSoftRefresh
   }: {
     eventIds: string[];
     roomId?: string;
@@ -49,6 +57,8 @@
     readReceiptsEnabled?: boolean;
     attentionEnabled?: boolean;
     eventActorId?: string;
+    refreshCurrentWindow?: (anchorEventId?: string | null) => Promise<RefreshCurrentWindowResult>;
+    onSoftRefresh?: (result: RefreshCurrentWindowResult, anchored: boolean) => void;
   } = $props();
 
   createComposerContext({ scroll: true });
@@ -88,12 +98,7 @@
   );
 
   const messageStore = {
-    refreshCurrentWindow: async () => ({
-      hasOlder: false,
-      hasNewer: false,
-      refreshed: false,
-      changed: false
-    })
+    refreshCurrentWindow: (anchorEventId?: string | null) => refreshCurrentWindow(anchorEventId)
   };
 </script>
 
@@ -114,6 +119,7 @@
   {updateCounter}
   {pendingHighlightId}
   {attentionEnabled}
+  {onSoftRefresh}
   {scrollToEventId}
   onScrollToEventComplete={onComplete}
 />
