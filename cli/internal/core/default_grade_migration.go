@@ -34,8 +34,8 @@ func (c *ChattoCore) EnsureHelperSystemGrade(ctx context.Context) error {
 		event.Event = &corev1.Event_RbacRoleCreated{
 			RbacRoleCreated: &corev1.RbacRoleCreatedEvent{
 				RoleName:    RoleHelper,
-				DisplayName: "Helper",
-				Description: "Community assistance without moderation or administration powers",
+				DisplayName: "Helper", // i18n-audit-ignore -- system role text is localized by stable role ID
+				Description: "Community assistance without moderation or administration powers", // i18n-audit-ignore -- system role text is localized by stable role ID
 				Rank:        PositionHelper,
 				Pingable:    true,
 				Color:       RoleColorHelper,
