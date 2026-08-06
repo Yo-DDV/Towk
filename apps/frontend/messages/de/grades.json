@@ -80,7 +80,7 @@
       "admin_summary": "Delegierte Verwaltung für besonders vertrauenswürdige Personen"
     },
     "risk": {
-      "standard": "Standard",
+      "standard": "Allgemein",
       "moderation": "Moderation",
       "sensitive": "Sensibel",
       "destructive": "Destruktiv",
