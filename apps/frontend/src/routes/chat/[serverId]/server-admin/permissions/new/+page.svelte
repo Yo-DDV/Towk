@@ -5,7 +5,6 @@
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { createRoleAPI } from '$lib/api-client/roles';
-  import { createPermissionAPI } from '$lib/api-client/permissions';
   import { Panel } from '$lib/components/admin';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
@@ -45,26 +44,13 @@
     });
   }
 
-  function permissionAPI() {
-    const conn = connection();
-    return createPermissionAPI({
-      baseUrl: conn.connectBaseUrl,
-      bearerToken: conn.bearerToken
-    });
-  }
-
   function riskLabel(permission: string): string {
     switch (getPermissionRisk(permission)) {
-      case 'standard':
-        return g['grades.risk.standard']();
-      case 'moderation':
-        return g['grades.risk.moderation']();
-      case 'sensitive':
-        return g['grades.risk.sensitive']();
-      case 'destructive':
-        return g['grades.risk.destructive']();
-      case 'privilege':
-        return g['grades.risk.privilege']();
+      case 'standard': return g['grades.risk.standard']();
+      case 'moderation': return g['grades.risk.moderation']();
+      case 'sensitive': return g['grades.risk.sensitive']();
+      case 'destructive': return g['grades.risk.destructive']();
+      case 'privilege': return g['grades.risk.privilege']();
     }
   }
 
@@ -80,9 +66,7 @@
     }
   }
 
-  $effect(() => {
-    void loadPermissions();
-  });
+  $effect(() => { void loadPermissions(); });
 
   function chooseTemplate(next: GradeTemplateId) {
     if (selectedTemplate === next || creating) return;
@@ -101,61 +85,35 @@
     creating = true;
     error = null;
     const roleName = name.trim();
-    let created = false;
-
     try {
       await roleAPI().createRole({
         name: roleName,
         displayName: displayName.trim(),
         description: description.trim(),
         pingable,
-        color
+        color,
+        templateId: selectedTemplate === 'custom' ? undefined : selectedTemplate
       });
-      created = true;
-
-      for (const permission of template.permissions) {
-        await permissionAPI().setRolePermission({
-          roleName,
-          scope: { tier: 'server' },
-          permission,
-          state: 'allow'
-        });
-      }
     } catch (err) {
-      if (created) {
-        try {
-          await roleAPI().deleteRole(roleName);
-        } catch (rollbackError) {
-          console.error('Failed to roll back partially configured grade:', rollbackError);
-        }
-        error = g['grades.create.permission_setup_failed']();
-      } else {
-        error = localizedErrorMessage(err, m['admin.permissions.load_instance_failed']());
-      }
+      error = localizedErrorMessage(err, g['grades.create.permission_setup_failed']());
       creating = false;
       return;
     }
 
-    goto(
-      resolve('/chat/[serverId]/server-admin/permissions/[name]', {
-        serverId: serverIdToSegment(getActiveServer()),
-        name: roleName
-      })
-    );
+    goto(resolve('/chat/[serverId]/server-admin/permissions/[name]', {
+      serverId: serverIdToSegment(getActiveServer()),
+      name: roleName
+    }));
   }
 </script>
 
-<PageTitle
-  title={m['admin.common.server_admin_page_title']({ title: g['grades.create.title']() })}
-/>
+<PageTitle title={m['admin.common.server_admin_page_title']({ title: g['grades.create.title']() })} />
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <PaneHeader
     title={g['grades.create.title']()}
     subtitle={g['grades.create.subtitle']()}
-    backHref={resolve('/chat/[serverId]/server-admin/permissions', {
-      serverId: serverIdToSegment(getActiveServer())
-    })}
+    backHref={resolve('/chat/[serverId]/server-admin/permissions', { serverId: serverIdToSegment(getActiveServer()) })}
     backLabel={m['admin.permissions.back_to_permissions']()}
     showMobileNav
   />
@@ -169,16 +127,8 @@
       <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
         {#if error}<FormError {error} />{/if}
 
-        <Panel
-          title={g['grades.create.starting_point']()}
-          subtitle={g['grades.create.starting_point_description']()}
-          icon="iconify uil--layer-group"
-        >
-          <div
-            class="grid gap-3 md:grid-cols-3"
-            role="radiogroup"
-            aria-label={g['grades.create.starting_point']()}
-          >
+        <Panel title={g['grades.create.starting_point']()} subtitle={g['grades.create.starting_point_description']()} icon="iconify uil--layer-group">
+          <div class="grid gap-3 md:grid-cols-3" role="radiogroup" aria-label={g['grades.create.starting_point']()}>
             {#each GRADE_TEMPLATES as option (option.id)}
               <button
                 type="button"
@@ -187,9 +137,7 @@
                 disabled={creating}
                 class={[
                   'min-h-32 rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-                  selectedTemplate === option.id
-                    ? 'border-primary bg-primary/10'
-                    : 'border-text/10 bg-surface-100 hover:bg-surface-200'
+                  selectedTemplate === option.id ? 'border-primary bg-primary/10' : 'border-text/10 bg-surface-100 hover:bg-surface-200'
                 ]}
                 onclick={() => chooseTemplate(option.id)}
               >
@@ -206,20 +154,14 @@
         <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
           <Panel title={g['grades.create.identity']()} icon="iconify uil--user-square">
             <RoleForm
-              bind:name
-              bind:displayName
-              bind:description
-              bind:color
-              bind:pingable
+              bind:name bind:displayName bind:description bind:color bind:pingable
               saving={creating}
               submitLabel={g['grades.create.create']()}
               savingLabel={g['grades.create.creating']()}
               onSubmit={createRole}
             />
             {#if name}
-              <p class="mt-3 break-all text-xs text-muted">
-                {g['grades.create.handle_preview']({ handle: name.trim() })}
-              </p>
+              <p class="mt-3 break-all text-xs text-muted">{g['grades.create.handle_preview']({ handle: name.trim() })}</p>
             {/if}
           </Panel>
 
@@ -235,11 +177,7 @@
                       <li class="rounded-lg border border-text/10 bg-surface-100 p-3">
                         <div class="flex items-start justify-between gap-3">
                           <code class="min-w-0 break-all text-xs">{permission}</code>
-                          <span
-                            class="shrink-0 rounded-full bg-surface-200 px-2 py-0.5 text-[0.7rem] text-muted"
-                          >
-                            {riskLabel(permission)}
-                          </span>
+                          <span class="shrink-0 rounded-full bg-surface-200 px-2 py-0.5 text-[0.7rem] text-muted">{riskLabel(permission)}</span>
                         </div>
                         <p class="mt-2 text-sm text-muted">{getPermissionDescription(permission)}</p>
                       </li>
@@ -255,16 +193,12 @@
                     <code class="rounded-md bg-surface-200 px-2 py-1 text-[0.7rem]">{permission}</code>
                   {/each}
                 </div>
-                <p class="mt-3 text-xs leading-relaxed text-muted">
-                  {g['grades.create.member_inheritance_note']()}
-                </p>
+                <p class="mt-3 text-xs leading-relaxed text-muted">{g['grades.create.member_inheritance_note']()}</p>
               </section>
             </Panel>
 
             <Panel title={g['grades.create.advanced']()} icon="iconify uil--sliders-v-alt">
-              <p class="text-sm leading-relaxed text-muted">
-                {g['grades.create.advanced_description']()}
-              </p>
+              <p class="text-sm leading-relaxed text-muted">{g['grades.create.advanced_description']()}</p>
             </Panel>
           </div>
         </div>
