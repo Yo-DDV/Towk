@@ -1,6 +1,7 @@
 /** Permission metadata used by tooltips, templates and explanation surfaces. */
 
 import * as m from '$lib/i18n/messages';
+import { g } from '$lib/i18n/gradeMessages.svelte';
 
 export type PermissionMetadata = {
   description: () => string;
@@ -14,7 +15,7 @@ export const PERMISSION_METADATA: Record<string, PermissionMetadata> = {
   'room.join': { description: m['rbac.permission_descriptions.room_join'], risk: 'standard' },
   'room.list': { description: m['rbac.permission_descriptions.room_list'], risk: 'standard' },
   'room.remove-member': {
-    description: m['grades.permission_descriptions.room_remove_member'],
+    description: g['grades.permission_descriptions.room_remove_member'],
     risk: 'moderation'
   },
   'room.manage': { description: m['rbac.permission_descriptions.room_manage'], risk: 'privilege' },
@@ -22,13 +23,13 @@ export const PERMISSION_METADATA: Record<string, PermissionMetadata> = {
     description: m['rbac.permission_descriptions.room_ban_member'],
     risk: 'moderation'
   },
-  'room.lock': { description: m['grades.permission_descriptions.room_lock'], risk: 'moderation' },
+  'room.lock': { description: g['grades.permission_descriptions.room_lock'], risk: 'moderation' },
   'room.purge-messages': {
-    description: m['grades.permission_descriptions.room_purge_messages'],
+    description: g['grades.permission_descriptions.room_purge_messages'],
     risk: 'destructive'
   },
   'room.bypass-lock': {
-    description: m['grades.permission_descriptions.room_bypass_lock'],
+    description: g['grades.permission_descriptions.room_bypass_lock'],
     risk: 'moderation'
   },
   'message.post': { description: m['rbac.permission_descriptions.message_post'], risk: 'standard' },
@@ -39,7 +40,7 @@ export const PERMISSION_METADATA: Record<string, PermissionMetadata> = {
   'message.attach': { description: m['rbac.permission_descriptions.message_attach'], risk: 'standard' },
   'message.voice': { description: m['rbac.permission_descriptions.message_voice'], risk: 'standard' },
   'message.delete-others': {
-    description: m['grades.permission_descriptions.message_delete_others'],
+    description: g['grades.permission_descriptions.message_delete_others'],
     risk: 'moderation'
   },
   'message.manage': {
