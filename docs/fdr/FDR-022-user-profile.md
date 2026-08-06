@@ -13,6 +13,7 @@ A user's profile carries the public identity they present to the rest of the ser
 - **Login (username)** — editable by the user with a 30-day cooldown between changes. Each successful change records a timestamp; subsequent changes within the window are rejected with a clear error message.
 - **Case-only changes** (e.g., `alice` → `Alice`) bypass the cooldown.
 - **Avatar** — users upload JPEG, PNG, WebP, or GIF content up to 10 MiB. A server advertising `avatar-framing-v1` lets the user choose a square crop or keep the complete source inside the circular avatar before the upload commits. The server validates the framing against the decoded, display-oriented source and applies the same geometry to every animated frame. It then stores static inputs and single-frame GIFs as lossless WebP, and multi-frame GIFs as animated WebP forced to loop continuously. The old avatar binary is retained until the new avatar event commits, then deleted. Users can also delete their avatar (falling back to an initial-letter placeholder).
+- **Profile banner** — users can upload a static JPEG, PNG, or WebP banner up to 8 MiB for the wide 3:1 identity stage behind their avatar. The server validates magic bytes and decoded dimensions, rejects animation and active formats, requires at least 600 × 200 px, caps each side at 8,192 px and decoded area at 24 megapixels, then center-crops and re-encodes a canonical 1,536 × 512 JPEG or WebP. Replacement preserves the previous banner until the new image is valid, and explicit or account deletion removes the stored object from NATS ObjectStore or S3.
 - **Custom status** — users can set an emoji plus short text. The emoji is shown next to their name; the text is shown alongside it where space allows and as hover/accessible text in compact places.
 - **Custom status templates** — the web client offers preset statuses for lunch, vacation, and sick leave plus a custom mode. Presets store reserved text tokens in the same free-form status text field so each client can render the label in its active language. Custom mode stores the user's literal text.
 - **Custom status expiry** — users can optionally choose an expiry date and time. After that instant, projected reads and the web client hide the status automatically. Users can also clear it manually.
@@ -125,10 +126,19 @@ A user's profile carries the public identity they present to the rest of the ser
 
 **Tradeoff:** Framing metadata is a small ConnectRPC HTTP contract outside the protobuf message body and therefore requires an explicit CORS allow-list entry. An old server or old client cannot offer interactive framing; the client falls back to the server's legacy avatar upload and reports that framing is unavailable. The original source is still discarded, so changing the crop later requires another upload.
 
+### 17. Profile banners are private authenticated canonical assets
+
+**Decision:** Profile banners use a versioned deterministic storage key but are served only by the authenticated profile-banner route. The generic public server-asset route refuses this reserved key family. Cookie mutations require the existing signed CSRF token; bearer clients use the normal Authorization contract. A valid upload is decoded and canonicalized before replacing the current object, while deletion is idempotent and participates in account cleanup for both NATS and S3 backends.
+
+**Why:** A stable key avoids adding a new durable pointer or migration while still allowing replacement and cross-device reads. Restricting delivery to the dedicated route prevents a predictable key from bypassing authentication. Server-side image validation bounds CPU, memory, storage, and active-content risk regardless of client checks.
+
+**Tradeoff:** Banner reads require authentication and revalidation rather than a public immutable URL. Old servers expose no banner capability, so new clients hide the editor and retain the neutral generated cover. Originals are discarded; changing composition later requires another upload.
+
 ## Permissions
 
 - Read a detailed profile — authentication on the same server; latest activity is filtered by the target user's privacy preference.
-- Self-edit (display name, avatar, biography, custom status, settings, own login subject to cooldown) — no explicit permission; just authentication.
+- Self-edit (display name, avatar, profile banner, biography, custom status, settings, own login subject to cooldown) — no explicit permission; just authentication.
+- Read a profile banner — authentication on the same server; the generic public asset route cannot serve reserved banner keys.
 - Message/Call actions — returned as viewer-specific capabilities; Call additionally requires configured LiveKit service.
 - Cross-user edit — `user.manage-accounts`.
 - Clear another user's login cooldown — same gate.

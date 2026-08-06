@@ -34,6 +34,7 @@ func (s *HTTPServer) setupAssetRoutes() {
 	s.router.GET("/assets/files/:assetID", s.serveStableAttachment)
 	s.router.HEAD("/assets/files/:assetID", s.serveStableAttachment)
 	s.router.GET("/assets/files/:assetID/image/:dimensions/:fit", s.serveStableTransformedAttachment)
+	s.setupProfileBannerRoutes()
 }
 
 // transformRequest holds the parameters for a transformed asset request.
@@ -101,6 +102,15 @@ func (s *HTTPServer) serveServerAsset(c *gin.Context) {
 	// Trim leading slash
 	if len(path) > 0 && path[0] == '/' {
 		path = path[1:]
+	}
+
+	canonicalAssetID := path
+	if transformIndex := strings.Index(canonicalAssetID, "/t/"); transformIndex >= 0 {
+		canonicalAssetID = canonicalAssetID[:transformIndex]
+	}
+	if core.IsProfileBannerAssetID(canonicalAssetID) {
+		writeLocalizedError(c, http.StatusNotFound, "asset.not_found")
+		return
 	}
 
 	// Check if this is a transform request: path ends with /t/{signedPath}

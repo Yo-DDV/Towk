@@ -107,6 +107,7 @@
     ].join('; ')
   );
 
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- pointer tracking is imperative gesture state
   const activePointers = new Map<number, PointerSample>();
   let pinchSnapshot: PinchSnapshot | null = null;
   let resizeFrame: number | null = null;
@@ -196,8 +197,10 @@
     const previousFocus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!node.open) node.showModal();
+    const focusFrame = requestAnimationFrame(() => stageNode?.focus({ preventScroll: true }));
 
     return () => {
+      cancelAnimationFrame(focusFrame);
       if (!previousFocus?.isConnected) return;
       requestAnimationFrame(() => previousFocus.focus({ preventScroll: true }));
     };
