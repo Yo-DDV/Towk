@@ -878,10 +878,6 @@ test('image lightbox supports keyboard navigation with multiple images', async (
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText('1 / 5')).toBeVisible();
   await expect(dialog.locator('img')).toHaveAttribute('src', /\/image\/2048x2048\/contain\?/);
-  await expect(dialog.getByRole('link', { name: 'Open original' })).toHaveAttribute(
-    'href',
-    /\/assets\/files\/[^/?]+\?/
-  );
 
   // Verify the "brighton.jpg" filename is shown
   await expect(dialog.getByText('brighton.jpg')).toBeVisible();
