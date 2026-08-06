@@ -1,80 +1,177 @@
 # FDR-011: User Presence
 
 **Status:** Active
-**Last reviewed:** 2026-07-25
+**Last reviewed:** 2026-08-06
 
 ## Overview
 
-Every user has a presence status visible to others as a colored dot on their avatar: **Online**, **Away**, **Do Not Disturb**, or **Offline**. Presence is server-wide — a user has one status per Towk server, not per space or room.
+Every user has one server-wide presence status visible to others as a colored dot on their avatar: **Online**, **Away**, **Do Not Disturb**, or **Offline**. Presence is an ephemeral availability hint, not durable account history and not a statement that a browser process is currently executing.
+
+Installed PWAs and mobile browsers can be frozen, suspended, discarded, or disconnected without a reliable final callback. Towk therefore derives public presence from authenticated, expiring session leases rather than treating a foreground WebSocket or a single browser tab as the user.
 
 ## Behavior
 
-- Current clients refresh their own presence through `MyAccountService.UpdatePresence` on the ConnectRPC API.
-- In automatic mode, users start Online. After 5 minutes without keyboard/mouse/touch input, the client transitions to Away.
-- If the browser tab is hidden for 10 seconds, the client also transitions to Away (debounced to avoid flashing during quick tab switches).
-- Any interaction returns the user to Online only while automatic mode is active.
-- Users can explicitly set Away. Explicit Away does not auto-return to Online on activity.
-- Users can set Do Not Disturb for their current live server presence. While DND is active, new notifications are still recorded for that user, but notification sounds and web push are suppressed (see FDR-012). Presence state is not persisted as server-side user/account state.
-- Explicit Away and Do Not Disturb are marked as manually selected in the live presence record. Automatic Online/Away reports from other clients do not overwrite that manual state; an explicit Online selection clears it.
-- Users can choose "Look offline" locally. The client does not report an Offline status; it stops reporting presence to the server and pauses live event subscriptions so the existing presence record expires normally.
-- Disconnecting (closing the tab, network drop) does not send an active Offline signal. After 60 seconds without a heartbeat refresh, the presence entry expires and the user appears Offline.
-- The presence dot updates across the UI as other users' statuses change, in real time.
-- Eligible presence refreshes also advance the profile latest-activity value at most once per five-minute coalescing window. Towk stores only the latest encrypted timestamp, not a presence or activity history.
-- "Look offline" stops presence reporting and therefore does not advance latest activity. Disabling latest-activity visibility removes the stored value and filters it from profile responses.
+- Current clients report presence through `MyAccountService.UpdatePresence` on the ConnectRPC API.
+- Each report carries an opaque browser-installation ID, an ephemeral page-session ID, the requested status, whether the page is active, and whether the report represents meaningful activity.
+- In automatic mode, an active visible/focused page reports Online.
+- A hidden page retains Online for 10 seconds, then reports Away.
+- A visible but unfocused window retains Online for 30 seconds, then reports Away.
+- A visible/focused page reports Away after 10 minutes without keyboard, pointer, wheel, scroll, or touch activity.
+- Meaningful interaction, focus restoration, page resume, or visibility restoration returns automatic mode to Online immediately.
+- Active sessions refresh every 30 seconds. Inactive sessions refresh every 5 minutes, reducing background traffic while remaining well inside the 45-minute recent-session lease.
+- If an active client stops refreshing unexpectedly, its active lease expires after 60 seconds. The account becomes Away when another recent lease still exists.
+- A recently observed installation remains Away for up to 45 minutes after its last successful report, then becomes Offline if no other active or recent session exists.
+- All tabs, installed PWAs, browsers, profiles, and devices authenticated as the same user are aggregated. One active session keeps automatic presence Online; otherwise one recent session keeps it Away.
+- Users can explicitly set Away or Do Not Disturb. These user-selected modes override automatic session aggregation until explicitly cleared or until no recent session remains.
+- Choosing automatic mode explicitly clears a prior user-selected Away/DND before the session aggregate is recalculated.
+- Choosing "Look offline" releases the current browser installation's ephemeral session leases and pauses its live event subscriptions. No durable invisible flag or presence history is stored. Another active device can still keep the account visible.
+- Explicit sign-out releases the browser installation before invalidating authentication. Account/presence deletion removes all active and recent leases so a watcher cannot recreate presence for a deleted account.
+- DND continues to preserve notification records while suppressing alerting behavior according to FDR-012.
+- Presence dots update across the UI in real time only when the aggregated public status changes.
+- Heartbeats and lease refreshes never advance profile latest activity. Only a foreground/resume transition, direct user interaction, or explicit presence choice may advance the privacy-aware latest-activity value.
+- Disabling latest-activity visibility removes the stored value and filters it from profile responses as defined by FDR-022.
+
+## Timing Contract
+
+| Observation | Public automatic status | Boundary |
+| --- | --- | ---: |
+| Visible, focused, recently active page | Online | immediate |
+| Page hidden or installed PWA backgrounded | Online grace, then Away | 10 seconds |
+| Window visible but unfocused | Online grace, then Away | 30 seconds |
+| Visible/focused without meaningful input | Away | 10 minutes |
+| Active lease no longer refreshed | no stale Online beyond | 60 seconds |
+| No active lease, at least one recent lease | Away | up to 45 minutes |
+| No active or recent lease | Offline | after 45 minutes |
+| Authenticated page resumes | Online | next successful report |
+
+The 45-minute boundary is a product decision. It is intentionally longer than a brief application switch or mobile suspension, but bounded so abandoned installations cannot keep an account visible indefinitely.
+
+## Storage and Aggregation
+
+### Public aggregate
+
+`MEMORY_CACHE` stores the public aggregate as:
+
+```text
+presence.{userId}
+```
+
+The value remains the existing `UserPresence` protobuf containing the public status and the `manually_set` marker. `OFFLINE` is represented by absence of this key.
+
+### Session leases
+
+Session-aware clients additionally maintain:
+
+```text
+presence-active.{userId}.{installationId}.{sessionId}
+presence-recent.{userId}.{installationId}.{sessionId}
+```
+
+- active leases have a 60-second per-message TTL;
+- recent leases have a 45-minute per-message TTL;
+- installation IDs are opaque and stable for one browser installation;
+- session IDs are opaque and unique to one page lifetime;
+- IDs are validated and bounded before they can become NATS subjects;
+- creation is serialized across replicas and capped at 8 recent sessions per installation and 32 per user;
+- lease values carry no message content, room information, IP address, device name, operating-system name, or activity history.
+
+A process-wide session hub watches lease membership. Refreshes of an existing key update an in-memory expiry deadline but do not fan out a presence event. The hub uses a stale-entry-tolerant min-heap and revision-guarded OCC deletion to enforce active and recent expiry even when a NATS configuration does not emit a delete marker for per-message TTL age-out. A timer observed before a concurrent refresh cannot delete the refreshed lease. Create/delete/expiry transitions trigger an idempotent reconciliation against the shared KV state, so multiple Towk replicas converge on the same aggregate.
 
 ## Design Decisions
 
-### 1. Server-wide, not per-space
+### 1. Server-wide, not per-room
 
-**Decision:** A user has one presence status across all spaces/rooms in a server.
-**Why:** Anything else is confusing — "I'm online in #design but away in #engineering" doesn't match how presence works in any other chat tool. Per-server matches the user's actual session.
-**Tradeoff:** Users can't selectively appear online for some rooms. They can mute rooms for notification purposes (see FDR-012) but not for presence.
+**Decision:** A user has one presence status across all spaces and rooms in one Towk server.
 
-### 2. Offline is inferred, not stored
+**Why:** Presence describes availability to the server, not selective participation in individual rooms. Room notification preferences remain separate.
 
-**Decision:** Offline is the absence of a live presence record, not a stored state. Current clients refresh the user's presence entry every 30 seconds through ConnectRPC; if all clients disconnect or choose "Look offline", the entry expires after 60 seconds via NATS KV TTL.
-**Why:** A disconnecting client may not get the chance to send a clean "I'm offline" message (browser crash, network drop). Relying on TTL expiry handles all the failure modes uniformly.
-**Tradeoff:** Up to a one-minute delay between "user closed the tab" and "the dot turns gray". This is the standard behavior in most chat apps and matches user expectations.
+**Tradeoff:** Users cannot appear online in one room and away in another.
 
-### 3. User-level live status with heartbeat-driven deduplication
+### 2. Offline is inferred from bounded leases
 
-**Decision:** Presence is stored in `MEMORY_CACHE` as `presence.{userId}`. A per-process PresenceHub watches these keys and emits live events only when the user-level status changes. Current clients write `ONLINE`, `AWAY`, or `DO_NOT_DISTURB` through `MyAccountService.UpdatePresence`; `OFFLINE` is not an accepted update value. The live record carries whether the status was manually selected so automatic updates from other clients cannot clear explicit Away/DND.
-**Why:** Presence is a current-state hint, not durable account history, but explicit availability choices should not be defeated by another idle detector. Closing a tab does not actively write Offline, so another open tab can keep automatic presence alive after the manual TTL expires.
-**Tradeoff:** "Look offline" remains client-local: another active browser/device can still keep the user visible because the invisible client deliberately does not tell the server about that privacy choice.
+**Decision:** Offline remains the absence of public presence, but the inference now uses active and recent session leases rather than one 60-second user key.
 
-### 4. Auto-away has two triggers (idle + tab hidden)
+**Why:** Closing, suspending, freezing, discarding, losing network, or terminating a PWA are indistinguishable to the server. A lease gives a truthful statement: the server has or has not received sufficiently recent evidence.
 
-**Decision:** Automatic mode has two independent triggers that transition to Away: 5 minutes of input inactivity, OR 10 seconds of tab hidden.
-**Why:** Idle-only would miss the very common "switched tabs" case. Tab-hidden-only would mark people as away the moment they alt-tab to look at something. Combining both covers the realistic away cases.
-**Tradeoff:** Some false positives — a user actively listening in another window is technically "away" by our model. Acceptable for the use case.
+**Tradeoff:** A user who really leaves Towk normally remains Away for 45 minutes. This is deliberate and preferable to falsely showing Offline during ordinary mobile app switching.
 
-### 5. DND is live user state
+### 3. Session aggregation replaces last-writer-wins
 
-**Decision:** Do Not Disturb is a live presence status for the user, not durable account state. It expires with presence and is not backed up or replayed from EVT. While present, it silences notification sounds and web push delivery without dropping the underlying notification records. Durable custom statuses live separately as user profile metadata (FDR-022).
-**Why:** Presence controls notification routing and "right now" UI hints. Persisting it as domain/account history would overstate its meaning, while custom statuses communicate user-authored profile context without changing availability.
-**Tradeoff:** The UI has two adjacent concepts: live presence dot and durable custom status. They deliberately answer different questions.
+**Decision:** Current clients identify a browser installation and page session. Public automatic presence is Online if any active lease exists, Away if only recent leases exist, and Offline if neither exists.
 
-### 6. Invisible mode is client-local privacy behavior
+**Why:** A sleeping phone must not overwrite an active desktop, and one hidden tab must not erase another visible tab. Per-session leases provide deterministic multi-tab and multi-device behavior.
 
-**Decision:** "Look offline" is not a server status. The client stops refreshing presence and stops receiving live event streams while the local mode is active. The server and other users only see the existing presence record expire.
-**Why:** Reporting an explicit invisible/offline status would make the server aware of the user's privacy choice and could leak it to other clients or operators through logs, admin tooling, or future APIs. Absence of reporting preserves the privacy property.
-**Tradeoff:** The user's own client loses realtime updates while invisible and must catch up from projected reads after returning to a reporting mode.
+**Tradeoff:** Towk stores additional ephemeral KV keys proportional to concurrently recent page sessions. IDs are bounded, creation is serialized by a short distributed lock, and the server caps leases at 8 sessions per installation and 32 per user. Existing sessions remain refreshable at the cap.
 
-### 7. Per-server tracking, with frontend coordination across servers
+### 4. Three independent automatic transitions
 
-**Decision:** Each connected Towk server tracks its own presence. The frontend's auto-away detector broadcasts the new status to all connected servers in parallel.
-**Why:** Servers are independent and shouldn't have to coordinate among themselves — that would require cross-server discovery and trust. The client is already connected to all of them and can coordinate cheaply. See ADR-025.
-**Tradeoff:** A user signed in from two different devices to the same server may have competing presence writers; the latest write wins until TTL expiry.
+**Decision:** Automatic Away can result from 10 minutes of input inactivity, 10 seconds hidden, or 30 seconds visible-but-unfocused.
 
-### 8. Presence may advance one privacy-aware latest-activity value
+**Why:** These signals represent different user journeys. Separate grace periods avoid status flicker during app switching and false Online state for a covered desktop window.
 
-**Decision:** Successful non-offline presence activity may update one encrypted latest-activity timestamp in `RUNTIME_STATE`. Updates are monotonic and coalesced; no per-heartbeat or historical series is retained. Invisible clients do not report presence and cannot advance the value.
-**Why:** Profiles need a useful approximation of recent activity without turning ephemeral presence into durable monitoring history. Reusing eligible presence refreshes avoids a separate tracking channel.
-**Tradeoff:** The value is approximate and can lag within the coalescing interval. It is not suitable for auditing, attendance, moderation evidence, or billing. The profile owner can disable it, which deletes the stored value before the hidden preference becomes effective.
+**Tradeoff:** Focus and visibility remain approximations. Towk does not claim to know whether the person is physically at the device.
 
-## Permissions
+### 5. DND and explicit Away remain live user intent
 
-Presence status is public. Any authenticated user can see any other authenticated user's presence. Latest activity is a separate profile field, filtered server-side by the target user's visibility preference and unavailable for deleted accounts.
+**Decision:** User-selected Away/DND overrides automatic leases while at least one recent session remains. Explicit automatic/Online clears the override.
+
+**Why:** A second device or tab must not defeat an intentional availability choice.
+
+**Tradeoff:** The choice is live state, not durable account configuration. It disappears after the recent-session horizon when all clients stop reporting.
+
+### 6. Invisible mode releases only the current installation
+
+**Decision:** "Look offline" deletes the current installation's active and recent leases and pauses its live subscriptions. Towk stores no explicit invisible status.
+
+**Why:** This makes the privacy action effective without pretending to hide other independently active devices. It also avoids a durable record of the user's choice.
+
+**Tradeoff:** Another device signed into the same account can keep the aggregate Online or Away. The invisible client must catch up from projected reads when it returns.
+
+### 7. Last activity is not transport liveness
+
+**Decision:** Routine refreshes, retries, reconnects, and background lease maintenance do not change latest activity. The client marks only meaningful foreground/resume transitions and coalesced user interactions.
+
+**Why:** A sleeping phone or surviving timer is not evidence that the person used Towk. Separating the signals avoids a misleading profile timestamp and unnecessary durable writes.
+
+**Tradeoff:** Latest activity is intentionally approximate and can lag until the next bounded report. It is unsuitable for auditing, attendance, moderation evidence, or billing.
+
+### 8. Mixed-version compatibility is additive
+
+**Decision:** Session metadata is carried by additive fields on the existing `UpdatePresenceRequest`. New servers retain the previous single-key path when those fields are absent. Older servers ignore unknown protobuf fields and continue applying their legacy presence behavior.
+
+**Why:** The request remains one authenticated ConnectRPC command, including for remote multi-server clients, without introducing custom CORS headers or a second transport. Generated clients stay schema-driven and rolling upgrades remain possible.
+
+**Tradeoff:** Old clients keep the former 60-second last-writer behavior until upgraded. They can briefly compete with a session-aware aggregate during a mixed-version rollout, but their public key remains TTL-bounded.
+
+## Failure and Recovery
+
+- A failed report does not optimistically create server presence; the last accepted leases remain authoritative.
+- A process crash does not erase shared leases. Other replicas and restarted watchers rebuild from `MEMORY_CACHE`.
+- Duplicate reports are idempotent lease refreshes.
+- Expiry cleanup is guarded by the exact KV revision observed by the watcher. A concurrent refresh wins and installs a new deadline instead of being removed by a stale timer.
+- Explicit sign-out attempts installation release before logout; failure is bounded and does not trap the user because leases still expire automatically.
+- Late reports cannot write another user's presence because caller identity comes from authenticated server context.
+- Invalid, oversized, wildcard-bearing, partially supplied, or over-limit session identifiers are rejected.
+- A lease refresh changes no public event when the aggregate remains unchanged.
+- Returning from suspension immediately refreshes both active and recent evidence.
+
+## Performance
+
+- Active pages use the existing 30-second reporting cadence.
+- Away/hidden/passive pages report only every 5 minutes while JavaScript is allowed to run.
+- No service-worker daemon, silent push, wake lock, or extra polling channel is introduced.
+- Public presence fanout remains deduplicated by `PresenceHub`.
+- Session watchers react to membership changes rather than every refresh write.
+
+## Permissions and Privacy
+
+Presence status is public to authenticated users according to the existing server policy. Presence mutation remains self-only because the authenticated caller ID is authoritative; client-supplied IDs identify only that caller's installation/session.
+
+Latest activity is a separate encrypted profile field filtered server-side by the target user's visibility preference and unavailable for deleted accounts. Session leases are ephemeral infrastructure metadata and are not exported as profile data or durable EVT history.
+
+## Rollback
+
+The change is additive and requires no durable migration. Reverting the session-aware code returns clients to the existing single-key 60-second behavior. `presence-active.*` and `presence-recent.*` keys expire automatically; they do not need destructive cleanup. The existing `presence.{userId}` protobuf and public event contracts remain compatible.
 
 ## Related
 
