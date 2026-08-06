@@ -6,9 +6,9 @@ import "buf/validate/validate.proto";
 
 // Live presence status returned by public read APIs.
 //
-// Offline is a read-side state only. Clients cannot update their presence to
-// Offline through the account presence RPC; they should stop refreshing and let
-// the server's live presence record expire.
+// Offline remains a read-side state for ordinary reports. Session-aware clients
+// may send Offline only together with release_installation to withdraw this
+// browser installation's ephemeral presence leases.
 enum PresenceStatus {
   // No presence status was specified.
   PRESENCE_STATUS_UNSPECIFIED = 0;
@@ -24,19 +24,34 @@ enum PresenceStatus {
 
 // Request to update the current user's live presence status.
 message UpdatePresenceRequest {
-  // Live status to store for the authenticated user. Offline is rejected.
+  // Live status requested for the authenticated user. Offline is accepted only
+  // for an installation-scoped release.
   PresenceStatus status = 1 [(buf.validate.field).enum = {
     defined_only: true
-    not_in: [0, 4]
+    not_in: [0]
   }];
   // True when this update comes from a deliberate user selection rather than
   // automatic idle/refresh updates. Automatic updates do not overwrite an
   // active manually selected Away or Do Not Disturb status from another client.
   bool user_selected = 2;
+  // Stable browser-installation identifier shared with push and realtime state.
+  // New clients send it with every session-aware report.
+  string installation_id = 3 [(buf.validate.field).string.max_len = 96];
+  // Opaque page-lifetime identifier. Multiple tabs from one installation own
+  // independent leases so one tab cannot incorrectly hide another active tab.
+  string session_id = 4 [(buf.validate.field).string.max_len = 96];
+  // Whether this exact page is currently active after lifecycle grace periods.
+  bool active = 5;
+  // True only for foreground/resume or direct user interaction. Routine lease
+  // refreshes leave this false and cannot advance profile latest activity.
+  bool meaningful_activity = 6;
+  // Withdraw every session lease owned by installation_id. This is used by
+  // "Look offline" and requires status Offline with an empty session_id.
+  bool release_installation = 7;
 }
 
 // Result of updating live presence.
 message UpdatePresenceResponse {
-  // Reportable status accepted and stored by the server.
+  // Effective user-level status after aggregating all current installations.
   PresenceStatus status = 1;
 }
