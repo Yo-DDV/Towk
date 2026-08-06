@@ -85,6 +85,30 @@ export function withAssetUrlRetryParam(url: string, retry: string | number): str
   return `${base}${separator}retry=${encodeURIComponent(String(retry))}${hash}`;
 }
 
+function isLightboxImageRefresh(options: AttachmentThumbnailRefreshOptions): boolean {
+  return (
+    options.width === LIGHTBOX_ATTACHMENT_IMAGE_REFRESH.width &&
+    options.height === LIGHTBOX_ATTACHMENT_IMAGE_REFRESH.height &&
+    options.fit === LIGHTBOX_ATTACHMENT_IMAGE_REFRESH.fit
+  );
+}
+
+function withLightboxDisplayFallbacks(
+  fresh: Map<string, RefreshedAttachmentUrls>
+): Map<string, RefreshedAttachmentUrls> {
+  let changed = false;
+  const normalized = new Map<string, RefreshedAttachmentUrls>();
+  for (const [assetId, urls] of fresh) {
+    if (!urls.thumbnailAssetUrl && urls.assetUrl) {
+      changed = true;
+      normalized.set(assetId, { ...urls, thumbnailAssetUrl: urls.assetUrl });
+    } else {
+      normalized.set(assetId, urls);
+    }
+  }
+  return changed ? normalized : fresh;
+}
+
 export async function refreshAttachmentUrlsForAssets(
   api: Pick<AttachmentAPI, 'refreshAssetUrls'>,
   roomId: string,
@@ -92,7 +116,14 @@ export async function refreshAttachmentUrlsForAssets(
   thumbnailOptions = DEFAULT_ATTACHMENT_THUMBNAIL_REFRESH
 ): Promise<Map<string, RefreshedAttachmentUrls>> {
   try {
-    return await api.refreshAssetUrls(roomId, [...assetIds], thumbnailOptions);
+    const fresh = await api.refreshAssetUrls(roomId, [...assetIds], thumbnailOptions);
+    // A GIF or another directly displayable image can legitimately have no
+    // generated thumbnail. Lightbox callers use thumbnailAssetUrl as their
+    // fitted display ticket, so fall back to the refreshed original instead of
+    // dropping the item during a long-lived viewer refresh.
+    return isLightboxImageRefresh(thumbnailOptions)
+      ? withLightboxDisplayFallbacks(fresh)
+      : fresh;
   } catch (error) {
     console.warn('Failed to refresh attachment URLs', error);
     return new Map();
