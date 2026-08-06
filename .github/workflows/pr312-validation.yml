@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   apply-remediation:
-    if: github.event.head_commit.message == 'chore(ci): apply checksummed PR 312 remediation'
+    if: github.event.head_commit.message == 'chore(ci): apply binary PR 312 remediation'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -24,7 +24,7 @@ jobs:
           ref: feat/localized-default-grades
           fetch-depth: 0
 
-      - name: Apply checksummed remediation once
+      - name: Apply binary remediation once
         shell: bash
         run: |
           set -euo pipefail
@@ -32,10 +32,9 @@ jobs:
             echo 'Remediation already present; nothing to apply.'
             exit 0
           fi
-          test "$(find .github/pr312-patch -maxdepth 1 -name 'part-*' | wc -l)" -eq 8
-          cat .github/pr312-patch/part-* > /tmp/pr312-remediation.patch.gz.b64
-          printf '%s  %s\n' '648d6bb8722348876689a21990c15b1fda43a79d9f0a591c6d0dba3252ed4c47' '/tmp/pr312-remediation.patch.gz.b64' | sha256sum -c -
-          base64 --decode /tmp/pr312-remediation.patch.gz.b64 | gzip --decompress > /tmp/pr312-remediation.patch
+          printf '%s  %s\n' 'e728dbb49039fe94ca0f4c6d52786fed421c7a29de61eeaebc16b27dafeedb4f' '.github/pr312-patch/remediation.patch.gz' | sha256sum -c -
+          gzip --test .github/pr312-patch/remediation.patch.gz
+          gzip --decompress --stdout .github/pr312-patch/remediation.patch.gz > /tmp/pr312-remediation.patch
           git apply --check /tmp/pr312-remediation.patch
           git apply --index /tmp/pr312-remediation.patch
           git diff --cached --check
