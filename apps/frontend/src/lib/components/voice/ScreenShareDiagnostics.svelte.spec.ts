@@ -113,13 +113,12 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
         onclose: vi.fn()
       }
     });
-
     await vi.advanceTimersByTimeAsync(0);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(1);
     const panel = document.getElementById('diagnostics-test')!;
     expect(panel.getAttribute('role')).toBe('region');
     expect(panel.getAttribute('aria-modal')).toBeNull();
-    expect(panel.className).toContain('absolute');
+    expect(panel.className).toContain('fixed');
     expect(panel.querySelector('details')).not.toBeNull();
     expect(
       panel.querySelector('[data-testid="screen-share-diagnostics-close"]')?.className
@@ -127,11 +126,16 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(panel.querySelector('summary')?.className).toContain('min-h-[44px]');
     expect(panel.textContent).toContain('Technical details');
     expect(panel.textContent).toContain('Local metrics');
+    expect(panel.textContent).not.toContain('Updated');
     expect(panel.textContent).not.toContain('Transport');
 
+    const technicalDetails = panel.querySelector<HTMLDetailsElement>(
+      '[data-testid="screen-share-diagnostics-details"]'
+    )!;
     (panel.querySelector('summary') as HTMLElement).click();
     await vi.advanceTimersByTimeAsync(0);
 
+    expect(technicalDetails.open).toBe(true);
     expect(panel.textContent).toContain('Transport');
     expect(panel.textContent).toContain('RTP packets');
     expect(panel.textContent).toContain('Jitter-buffer delay');
@@ -141,14 +145,99 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(panel.textContent).toContain('RTP feedback');
     expect(panel.textContent).toContain('AV1');
     expect(panel.querySelectorAll('svg')).toHaveLength(4);
+    for (const cell of panel.querySelectorAll<HTMLElement>(
+      '[data-testid="screen-share-diagnostics-details"] dt, [data-testid="screen-share-diagnostics-details"] dd'
+    )) {
+      const style = getComputedStyle(cell);
+      expect(style.whiteSpace).toBe('nowrap');
+      expect(style.overflow).toBe('hidden');
+      expect(style.textOverflow).toBe('ellipsis');
+    }
+    for (const caption of panel.querySelectorAll<HTMLElement>(
+      'figcaption > span, figcaption > strong'
+    )) {
+      expect(caption.className).toContain('whitespace-nowrap');
+    }
+    for (const heading of panel.querySelectorAll<HTMLElement>('details h3')) {
+      expect(heading.className).toContain('whitespace-nowrap');
+      expect(heading.className).toContain('truncate');
+    }
 
     await vi.advanceTimersByTimeAsync(4_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(3);
+    expect(panel.querySelector('[data-testid="screen-share-diagnostics-details"]')).toBe(
+      technicalDetails
+    );
+    expect(technicalDetails.open).toBe(true);
+    expect(panel.textContent).toContain('Transport');
 
     rendered.unmount();
     await vi.advanceTimersByTimeAsync(4_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(3);
     expect(document.getElementById('diagnostics-test')).toBeNull();
+  });
+
+  it('keeps the compact summary stable and fully visible while values refresh', async () => {
+    vi.useFakeTimers({ now: 1_000 });
+    let sample = 0;
+    const getRTCStatsReport = vi.fn(async () => statsReport(sample++));
+    const rendered = render(ScreenShareDiagnostics, {
+      props: {
+        track: { getRTCStatsReport } as unknown as Track,
+        direction: 'inbound',
+        panelId: 'diagnostics-stable-layout-test',
+        onclose: vi.fn()
+      }
+    });
+    Object.assign(rendered.container.style, {
+      position: 'relative',
+      containerType: 'inline-size',
+      width: '800px',
+      height: '600px'
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+    const panel = document.getElementById('diagnostics-stable-layout-test')!;
+    const summary = panel.querySelector<HTMLElement>(
+      '[data-testid="screen-share-diagnostics-summary"]'
+    )!;
+    const firstMetric = summary.querySelector<HTMLElement>(
+      '[data-screen-share-metric="resolution"]'
+    )!;
+    const scroller = panel.querySelector<HTMLElement>(
+      '[data-testid="screen-share-diagnostics-scroll"]'
+    )!;
+
+    expect(summary.children.length).toBeGreaterThanOrEqual(10);
+    expect(summary.getAttribute('aria-live')).toBe('off');
+    expect(panel.getBoundingClientRect().width).toBeLessThanOrEqual(window.innerWidth);
+    expect(getComputedStyle(summary).gridTemplateColumns.split(' ').length).toBe(
+      panel.getBoundingClientRect().width >= 512 ? 2 : 1
+    );
+    expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
+    expect(summary.querySelector('[data-screen-share-metric="resolution"]')).toBe(firstMetric);
+    expect(scroller.scrollTop).toBe(0);
+    expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + 1);
+    expect(panel.textContent).not.toContain('Updated');
+
+    const viewportPanelHeight = panel.getBoundingClientRect().height;
+    Object.assign(rendered.container.style, { height: '462px' });
+    expect(panel.getBoundingClientRect().height).toBeCloseTo(viewportPanelHeight, 0);
+    expect(panel.getBoundingClientRect().height).toBeLessThanOrEqual(window.innerHeight);
+
+    Object.assign(rendered.container.style, { width: '700px', height: '600px' });
+    expect(getComputedStyle(panel).position).toBe('fixed');
+
+    Object.assign(rendered.container.style, { width: '320px', height: '568px' });
+    const mobilePanelRect = panel.getBoundingClientRect();
+    expect(mobilePanelRect.left).toBeGreaterThanOrEqual(0);
+    expect(mobilePanelRect.right).toBeLessThanOrEqual(window.innerWidth + 1);
+    expect(getComputedStyle(summary).gridTemplateColumns.split(' ')).toHaveLength(1);
+    expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth + 1);
+    rendered.unmount();
   });
 
   it('shows an explicit unavailable state, keeps retrying, and recovers while open', async () => {
@@ -229,12 +318,11 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     const panel = document.getElementById('diagnostics-age-test')!;
     expect(panel.textContent).toContain('1920 × 1080');
     expect(panel.textContent).toContain('Live');
-    expect(panel.textContent).toContain('Updated now');
+    expect(panel.textContent).not.toContain('Updated');
 
     await vi.advanceTimersByTimeAsync(5_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
     expect(panel.textContent).toContain('1920 × 1080');
-    expect(panel.textContent).toContain('Updated 5 s ago');
     expect(panel.textContent).toContain('Collecting');
     expect(panel.textContent).not.toContain('Excellent');
     rendered.unmount();

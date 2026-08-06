@@ -58,6 +58,27 @@ import {
   type ParticipantNetworkQualitySmoothing,
   type ParticipantNetworkWarningMetric
 } from '$lib/voice/participantNetworkQuality';
+import {
+  PARTICIPANT_MEDIA_TELEMETRY_INTERVAL_MS,
+  PARTICIPANT_MEDIA_TELEMETRY_STALE_MS,
+  PARTICIPANT_MEDIA_TELEMETRY_TOPIC,
+  appendParticipantMediaTelemetryHistory,
+  classifyParticipantMediaDiagnosis,
+  collectParticipantMediaTelemetry,
+  createParticipantMediaTelemetrySnapshot,
+  encodeParticipantMediaTelemetry,
+  nextParticipantMediaTelemetrySequence,
+  parseParticipantMediaTelemetry,
+  shouldAcceptParticipantMediaTelemetry,
+  type ParticipantMediaAggregate,
+  type ParticipantMediaDiagnosis,
+  type ParticipantMediaMetric,
+  type ParticipantMediaOutboundCounters,
+  type ParticipantMediaTelemetryHistoryPoint,
+  type ParticipantMediaTelemetryPacket,
+  type ParticipantMediaTelemetrySnapshot,
+  type ParticipantTelemetryAcceptance
+} from '$lib/voice/participantMediaTelemetry';
 import type {
   VoiceCallAPI,
   VoiceCallJoinMode,
@@ -69,7 +90,9 @@ import {
   audioDeviceIdForRouteKind,
   audioDeviceMayUseBluetooth,
   audioDeviceRouteKind,
-  preferredAudioDeviceId
+  audioInputTrackRouteKind,
+  preferredAudioDeviceId,
+  type AudioInputTrackRouteKind
 } from '$lib/voice/audioDevices';
 
 export type CallParticipantInfo = {
@@ -88,6 +111,23 @@ export type CallParticipantInfo = {
   jitterMs: number | null;
   latencyMs: number | null;
   networkWarningMetric: ParticipantNetworkWarningMetric;
+  sourceNetworkHealth?: ParticipantNetworkHealth;
+  sourcePacketLossPercent?: number | null;
+  sourceJitterMs?: number | null;
+  sourceLatencyMs?: number | null;
+  receptionNetworkHealth?: ParticipantNetworkHealth;
+  receptionPacketLossPercent?: number | null;
+  receptionJitterMs?: number | null;
+  receptionLatencyMs?: number | null;
+  reportedDownloadNetworkHealth?: ParticipantNetworkHealth;
+  reportedDownloadPacketLossPercent?: number | null;
+  reportedDownloadJitterMs?: number | null;
+  reportedDownloadLatencyMs?: number | null;
+  sourceMediaTelemetry?: ParticipantMediaMetric[];
+  sourceTelemetryUpdatedAt?: number | null;
+  receptionTelemetrySupported?: boolean;
+  mediaTelemetryHistory?: ParticipantMediaTelemetryHistoryPoint[];
+  mediaTelemetryDiagnosis?: ParticipantMediaDiagnosis;
   connectionState: 'connected' | 'interrupted';
   interruptionDeadline: string | null;
   isCameraEnabled: boolean;
@@ -444,10 +484,27 @@ export class VoiceCallState {
   private participantNetworkQualityInterval: ReturnType<typeof setInterval> | null = null;
   private microphoneRouteReconcileInterval: ReturnType<typeof setInterval> | null = null;
   private microphoneRouteFingerprint: string | null = null;
+  private microphoneSourceRouteKind: AudioInputTrackRouteKind = 'unknown';
   private microphoneRouteRecoveryAttempts = 0;
   private nextMicrophoneRouteRecoveryAt = 0;
   private participantNetworkQualityPollRoom: Room | null = null;
+  private participantMediaTelemetryPollRoom: Room | null = null;
   private participantNetworkQuality = $state<Record<string, ParticipantNetworkQuality>>({});
+  private participantSourceTelemetry = $state<Record<string, ParticipantMediaTelemetrySnapshot>>(
+    {}
+  );
+  private participantMediaTelemetryHistory = $state<
+    Record<string, ParticipantMediaTelemetryHistoryPoint[]>
+  >({});
+  private participantMediaTelemetryAcceptance = new SvelteMap<
+    string,
+    ParticipantTelemetryAcceptance
+  >();
+  private localParticipantMediaTelemetrySequence = 0;
+  private localParticipantMediaTelemetryCounters = new SvelteMap<
+    string,
+    ParticipantMediaOutboundCounters
+  >();
   private participantNetworkCounters = new SvelteMap<string, ParticipantNetworkCounters>();
   private participantNetworkQualitySmoothing = new SvelteMap<
     string,
@@ -952,6 +1009,7 @@ export class VoiceCallState {
       this.attachBrowserNetworkListeners();
       this.updateParticipants();
       void this.refreshSiblingAudioStates();
+      void this.refreshParticipantMediaTelemetry();
       await this.refreshDevices();
       await this.reconcileMicrophoneProcessing(room);
       if (this.consumePendingOwnJoinSound()) {
@@ -1316,10 +1374,9 @@ export class VoiceCallState {
           this.androidAudioInputDeviceIdForUnmute()
         );
         if (this.room === room) {
-          await this.synchronizeAndroidPlaybackForAudioInput(
-            room,
-            this.selectedDeviceId
-          ).catch(() => undefined);
+          await this.synchronizeAndroidPlaybackForAudioInput(room, this.selectedDeviceId).catch(
+            () => undefined
+          );
         }
       });
       if (this.room !== room) return false;
@@ -1529,12 +1586,37 @@ export class VoiceCallState {
 
   private async updateMicrophoneProcessing(
     track: LocalAudioTrack,
-    environment: MicrophoneProcessingEnvironment = this.microphoneProcessingEnvironment(track)
+    environment: MicrophoneProcessingEnvironment = this.microphoneProcessingEnvironment(track),
+    probeSourceRoute = false
   ): Promise<void> {
     this.microphoneRouteFingerprint = microphoneTrackSettingsFingerprint(
       track.getSourceTrackSettings()
     );
     try {
+      if (probeSourceRoute && track.getProcessor()) {
+        // A processed LocalAudioTrack exposes the AudioWorklet destination,
+        // not the newly captured source label. Detach on the stable serialized
+        // path, then classify the real source before deciding whether to
+        // restore enhanced processing. This is also the required clock reset
+        // when the OS coupled an output change to a Bluetooth microphone.
+        const resetStatus = await ensureBackgroundNoiseSuppression(
+          track,
+          this.microphoneProcessingPreferences,
+          {
+            ...environment,
+            routeIdentityKnown: false
+          }
+        );
+        if (track.getProcessor()) {
+          // A failed LiveKit detach can reacquire native capture while keeping
+          // the old processor reference until its lifecycle settles. Do not
+          // reinterpret that stale destination as a safe source or re-enable
+          // the graph during the same route transition.
+          this.microphoneProcessing = resetStatus;
+          return;
+        }
+        environment = this.microphoneProcessingEnvironment(track);
+      }
       this.microphoneProcessing = await ensureBackgroundNoiseSuppression(
         track,
         this.microphoneProcessingPreferences,
@@ -1601,12 +1683,16 @@ export class VoiceCallState {
     }
   }
 
-  private async reconcileMicrophoneProcessing(room: Room): Promise<void> {
+  private async reconcileMicrophoneProcessing(room: Room, probeSourceRoute = false): Promise<void> {
     if (this.room !== room || this.isMuted) return;
     const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
     const track = publication?.track as LocalAudioTrack | undefined;
     if (!track) return;
-    await this.updateMicrophoneProcessing(track);
+    await this.updateMicrophoneProcessing(
+      track,
+      this.microphoneProcessingEnvironment(track),
+      probeSourceRoute
+    );
   }
 
   private async prepareBluetoothMicrophoneTransition(
@@ -1696,6 +1782,10 @@ export class VoiceCallState {
     );
     const routeKinds = routeDevices.map((device) => audioDeviceRouteKind(device));
     const availableRouteKinds = this.audioDevices.map((device) => audioDeviceRouteKind(device));
+    const sourceRouteKind = track.getProcessor()
+      ? this.microphoneSourceRouteKind
+      : audioInputTrackRouteKind(track.mediaStreamTrack.label);
+    if (!track.getProcessor()) this.microphoneSourceRouteKind = sourceRouteKind;
     const usesLogicalRoute = routeKinds.some(
       (kind) => kind === 'default' || kind === 'communications'
     );
@@ -1705,13 +1795,14 @@ export class VoiceCallState {
       // to Bluetooth while LiveKit and the device inventory still retain the
       // logical route id. A logical route is also treated as Bluetooth while
       // any enumerated Bluetooth input could be hidden behind it.
-      bluetoothRoute: routeDevices.some((device) =>
-        audioDeviceMayUseBluetooth(device, this.audioDevices)
-      ),
+      bluetoothRoute:
+        sourceRouteKind === 'bluetooth' ||
+        routeDevices.some((device) => audioDeviceMayUseBluetooth(device, this.audioDevices)),
       documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
       // A logical route is safe for enhanced processing only when the current
       // inventory contains no Bluetooth input that could replace its clock.
       routeIdentityKnown:
+        sourceRouteKind !== 'unknown' ||
         routeKinds.some((kind) => kind !== 'default' && kind !== 'communications') ||
         (usesLogicalRoute && !hasAvailableBluetoothInput)
     };
@@ -1909,10 +2000,9 @@ export class VoiceCallState {
     }
 
     if (this.room && inputResult.status === 'fulfilled' && outputResult.status === 'fulfilled') {
-      await this.synchronizeAndroidPlaybackForAudioInput(
-        this.room,
-        this.selectedDeviceId
-      ).catch(() => undefined);
+      await this.synchronizeAndroidPlaybackForAudioInput(this.room, this.selectedDeviceId).catch(
+        () => undefined
+      );
     }
 
     if (videoInputResult.status === 'fulfilled') {
@@ -2320,10 +2410,7 @@ export class VoiceCallState {
 
       return this.serializeAudioOutputOperation(async () => {
         if (this.room !== room || this.androidPlaybackAudioContext !== audioContext) return false;
-        if (
-          this.androidAudioRoute === route &&
-          this.androidCommunicationInputDeviceId === null
-        ) {
+        if (this.androidAudioRoute === route && this.androidCommunicationInputDeviceId === null) {
           return true;
         }
         const previousRoute = this.androidAudioRoute;
@@ -2473,6 +2560,24 @@ export class VoiceCallState {
   }
 
   private setupRoomEventListeners(room: Room): void {
+    room.on(
+      RoomEvent.DataReceived,
+      (
+        payload: Uint8Array,
+        participant: RemoteParticipant | undefined,
+        _kind: unknown,
+        topic: string | undefined
+      ) => {
+        if (this.room !== room || topic !== PARTICIPANT_MEDIA_TELEMETRY_TOPIC || !participant) {
+          return;
+        }
+        const receivedAt = Date.now();
+        const packet = parseParticipantMediaTelemetry(payload, receivedAt);
+        if (!packet) return;
+        this.applyParticipantSourceTelemetry(participant.identity, packet, receivedAt);
+      }
+    );
+
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
       if (this.room !== room) return;
       this.clearInterruptedParticipant(participant.identity);
@@ -2506,6 +2611,7 @@ export class VoiceCallState {
         );
       }
       this.removeSiblingAudioState(participant.identity);
+      this.removeParticipantMediaTelemetry(participant.identity);
       this.updateParticipants();
     });
 
@@ -2566,10 +2672,21 @@ export class VoiceCallState {
         this.selectedDeviceId = deviceId;
         void this.synchronizeAndroidPlaybackForAudioInput(room, deviceId).catch(() => undefined);
         if (this.explicitMediaDeviceOperationDepth === 0) {
-          void this.serializeAudioInputOperation(() => this.reconcileMicrophoneProcessing(room));
+          void this.serializeAudioInputOperation(() =>
+            this.reconcileMicrophoneProcessing(room, true)
+          );
         }
       } else if (kind === 'audiooutput') {
         this.selectedOutputDeviceId = deviceId;
+        // An OS route change can couple the output to a different microphone
+        // or communication profile even when this engine also exposes
+        // setSinkId(). Explicit Towk changes are already handled by their
+        // serialized operation; every external output change gets one probe.
+        if (this.explicitMediaDeviceOperationDepth === 0) {
+          void this.serializeAudioInputOperation(() =>
+            this.reconcileMicrophoneProcessing(room, true)
+          );
+        }
       } else if (kind === 'videoinput') {
         this.selectedVideoDeviceId = deviceId;
       }
@@ -2682,20 +2799,29 @@ export class VoiceCallState {
       void this.observeMicrophoneRoute(room);
     }, MICROPHONE_ROUTE_RECONCILE_INTERVAL_MS);
     void this.refreshParticipantNetworkQuality();
-    this.participantNetworkQualityInterval = setInterval(() => {
-      void this.refreshParticipantNetworkQuality();
-    }, PARTICIPANT_NETWORK_QUALITY_INTERVAL_MS);
+    this.participantNetworkQualityInterval = setInterval(
+      () => {
+        void this.refreshParticipantNetworkQuality();
+        void this.refreshParticipantMediaTelemetry();
+      },
+      Math.min(PARTICIPANT_NETWORK_QUALITY_INTERVAL_MS, PARTICIPANT_MEDIA_TELEMETRY_INTERVAL_MS)
+    );
   }
 
   private async handleMediaDevicesChanged(room: Room): Promise<void> {
     if (this.room !== room) return;
+    const previousAudioInputFingerprint = audioDeviceInventoryFingerprint(this.audioDevices);
     await this.refreshDevices();
     if (this.room !== room) return;
     if (this.microphoneRouteRecovering) {
       await this.attemptAutomaticMicrophoneRouteRecovery(room, true);
       return;
     }
-    await this.serializeAudioInputOperation(() => this.reconcileMicrophoneProcessing(room));
+    const audioInputChanged =
+      previousAudioInputFingerprint !== audioDeviceInventoryFingerprint(this.audioDevices);
+    await this.serializeAudioInputOperation(() =>
+      this.reconcileMicrophoneProcessing(room, audioInputChanged)
+    );
   }
 
   private async observeMicrophoneRoute(room: Room): Promise<void> {
@@ -2719,7 +2845,7 @@ export class VoiceCallState {
         () => undefined
       );
     }
-    await this.serializeAudioInputOperation(() => this.reconcileMicrophoneProcessing(room));
+    await this.serializeAudioInputOperation(() => this.reconcileMicrophoneProcessing(room, true));
   }
 
   private beginMicrophoneRouteRecovery(): void {
@@ -2802,6 +2928,121 @@ export class VoiceCallState {
     }
     this.localAudioStateRevision += 1;
     this.broadcastLocalAudioState();
+  }
+
+  private async refreshParticipantMediaTelemetry(): Promise<void> {
+    const room = this.room;
+    if (
+      !room ||
+      room.state !== ConnectionState.Connected ||
+      this.participantMediaTelemetryPollRoom === room
+    ) {
+      return;
+    }
+    this.participantMediaTelemetryPollRoom = room;
+    try {
+      const collectedAt = Date.now();
+      const collected = await collectParticipantMediaTelemetry(
+        room.localParticipant,
+        this.localParticipantMediaTelemetryCounters,
+        collectedAt
+      );
+      if (this.room !== room) return;
+      this.localParticipantMediaTelemetryCounters.clear();
+      for (const [key, counters] of collected.counters) {
+        this.localParticipantMediaTelemetryCounters.set(key, counters);
+      }
+      this.localParticipantMediaTelemetrySequence = nextParticipantMediaTelemetrySequence(
+        this.localParticipantMediaTelemetrySequence
+      );
+      const payload = encodeParticipantMediaTelemetry(
+        this.localParticipantMediaTelemetrySequence,
+        collectedAt,
+        collected.metrics,
+        participantNetworkAggregate(
+          aggregateParticipantNetworkQuality(Object.values(this.participantNetworkQuality))
+        )
+      );
+      if (!payload) return;
+      const packet = parseParticipantMediaTelemetry(payload, collectedAt);
+      if (packet) {
+        this.applyParticipantSourceTelemetry(room.localParticipant.identity, packet, collectedAt);
+      }
+      const publishData = (
+        room.localParticipant as unknown as {
+          publishData?: (
+            data: Uint8Array,
+            options: { reliable: boolean; topic: string }
+          ) => Promise<void>;
+        }
+      ).publishData;
+      if (typeof publishData === 'function') {
+        await publishData
+          .call(room.localParticipant, payload, {
+            reliable: false,
+            topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC
+          })
+          .catch(() => undefined);
+      }
+      this.expireParticipantMediaTelemetry(collectedAt);
+    } finally {
+      if (this.participantMediaTelemetryPollRoom === room) {
+        this.participantMediaTelemetryPollRoom = null;
+      }
+    }
+  }
+
+  private applyParticipantSourceTelemetry(
+    identity: string,
+    packet: ParticipantMediaTelemetryPacket,
+    receivedAt: number
+  ): void {
+    const previous = this.participantMediaTelemetryAcceptance.get(identity) ?? null;
+    if (!shouldAcceptParticipantMediaTelemetry(previous, packet, receivedAt)) return;
+    const snapshot = createParticipantMediaTelemetrySnapshot(packet, receivedAt);
+    this.participantMediaTelemetryAcceptance.set(identity, {
+      sequence: packet.sequence,
+      sentAt: packet.sentAt,
+      receivedAt
+    });
+    this.participantSourceTelemetry = {
+      ...this.participantSourceTelemetry,
+      [identity]: snapshot
+    };
+    this.participantMediaTelemetryHistory = {
+      ...this.participantMediaTelemetryHistory,
+      [identity]: appendParticipantMediaTelemetryHistory(
+        this.participantMediaTelemetryHistory[identity] ?? [],
+        receivedAt,
+        snapshot.aggregate,
+        snapshot.receptionAggregate
+      )
+    };
+    this.updateParticipants();
+  }
+
+  private expireParticipantMediaTelemetry(now: number): void {
+    const next = { ...this.participantSourceTelemetry };
+    let changed = false;
+    for (const [identity, snapshot] of Object.entries(next)) {
+      if (now - snapshot.receivedAt <= PARTICIPANT_MEDIA_TELEMETRY_STALE_MS) continue;
+      delete next[identity];
+      changed = true;
+    }
+    if (changed) {
+      this.participantSourceTelemetry = next;
+      this.updateParticipants();
+    }
+  }
+
+  private removeParticipantMediaTelemetry(identity: string): void {
+    const { [identity]: _source, ...remainingSources } = this.participantSourceTelemetry;
+    const { [identity]: _history, ...remainingHistory } = this.participantMediaTelemetryHistory;
+    void _source;
+    void _history;
+    this.participantSourceTelemetry = remainingSources;
+    this.participantMediaTelemetryHistory = remainingHistory;
+    this.participantMediaTelemetryAcceptance.delete(identity);
   }
 
   private async refreshParticipantNetworkQuality(): Promise<void> {
@@ -2926,6 +3167,7 @@ export class VoiceCallState {
         }
       }
       this.participantNetworkQuality = next;
+      this.expireParticipantMediaTelemetry(Date.now());
       this.updateParticipants();
     } finally {
       clearTimeout(staleTimer);
@@ -2957,7 +3199,14 @@ export class VoiceCallState {
       const userId = md.userId ?? p.identity;
       const canControlAudio = this.isControllableSibling(p);
       const siblingAudioState = canControlAudio ? this.siblingAudioStates[p.identity] : undefined;
-      const networkQuality = this.participantNetworkQuality[p.identity];
+      const receptionQuality = this.participantNetworkQuality[p.identity];
+      const sourceTelemetry = this.participantSourceTelemetry[p.identity];
+      const sourceQuality = sourceTelemetry?.aggregate ?? null;
+      const reportedDownloadAggregate = sourceTelemetry?.receptionAggregate ?? null;
+      const participantConnectionAggregate = aggregateParticipantConnectionQuality(
+        sourceQuality,
+        reportedDownloadAggregate
+      );
       return [
         {
           identity: p.identity,
@@ -2970,11 +3219,31 @@ export class VoiceCallState {
           isMuted: isParticipantMuted(p),
           isLocal,
           connectionQuality: p.connectionQuality as CallParticipantInfo['connectionQuality'],
-          networkHealth: networkQuality?.health ?? 'unknown',
-          packetLossPercent: networkQuality?.packetLossPercent ?? null,
-          jitterMs: networkQuality?.jitterMs ?? null,
-          latencyMs: networkQuality?.latencyMs ?? null,
-          networkWarningMetric: networkQuality?.warningMetric ?? null,
+          networkHealth: participantConnectionAggregate?.health ?? 'unknown',
+          packetLossPercent: participantConnectionAggregate?.packetLossPercent ?? null,
+          jitterMs: participantConnectionAggregate?.jitterMs ?? null,
+          latencyMs: participantConnectionAggregate?.latencyMs ?? null,
+          networkWarningMetric: participantMediaWarningMetric(participantConnectionAggregate),
+          sourceNetworkHealth: sourceQuality?.health ?? 'unknown',
+          sourcePacketLossPercent: sourceQuality?.packetLossPercent ?? null,
+          sourceJitterMs: sourceQuality?.jitterMs ?? null,
+          sourceLatencyMs: sourceQuality?.latencyMs ?? null,
+          receptionNetworkHealth: receptionQuality?.health ?? 'unknown',
+          receptionPacketLossPercent: receptionQuality?.packetLossPercent ?? null,
+          receptionJitterMs: receptionQuality?.jitterMs ?? null,
+          receptionLatencyMs: receptionQuality?.latencyMs ?? null,
+          reportedDownloadNetworkHealth: reportedDownloadAggregate?.health ?? 'unknown',
+          reportedDownloadPacketLossPercent: reportedDownloadAggregate?.packetLossPercent ?? null,
+          reportedDownloadJitterMs: reportedDownloadAggregate?.jitterMs ?? null,
+          reportedDownloadLatencyMs: reportedDownloadAggregate?.latencyMs ?? null,
+          sourceMediaTelemetry: sourceTelemetry?.metrics ?? [],
+          sourceTelemetryUpdatedAt: sourceTelemetry?.receivedAt ?? null,
+          receptionTelemetrySupported: sourceTelemetry?.receptionSupported ?? false,
+          mediaTelemetryHistory: this.participantMediaTelemetryHistory[p.identity] ?? [],
+          mediaTelemetryDiagnosis: classifyParticipantMediaDiagnosis(
+            sourceQuality,
+            reportedDownloadAggregate
+          ),
           connectionState: 'connected' as const,
           interruptionDeadline: null,
           isCameraEnabled: isParticipantCameraEnabled(p),
@@ -3141,8 +3410,7 @@ export class VoiceCallState {
           }
         }
         if (this.room !== room) return;
-        this.selectedOutputDeviceId =
-          room.getActiveDevice('audiooutput') ?? pairedOutputDeviceId;
+        this.selectedOutputDeviceId = room.getActiveDevice('audiooutput') ?? pairedOutputDeviceId;
         if (options.persistCoupledSelection) {
           this.explicitAudioOutputDeviceId = pairedOutputDeviceId;
         }
@@ -3395,11 +3663,18 @@ export class VoiceCallState {
     this.e2eeWorker = null;
     this.participants = [];
     this.participantNetworkQuality = {};
+    this.participantSourceTelemetry = {};
+    this.participantMediaTelemetryHistory = {};
+    this.participantMediaTelemetryAcceptance.clear();
+    this.localParticipantMediaTelemetryCounters.clear();
+    this.localParticipantMediaTelemetrySequence = 0;
+    this.participantMediaTelemetryPollRoom = null;
     this.participantNetworkCounters.clear();
     this.participantNetworkQualityFailures.clear();
     this.participantNetworkQualitySmoothing.clear();
     this.participantNetworkQualityPollRoom = null;
     this.microphoneRouteFingerprint = null;
+    this.microphoneSourceRouteKind = 'unknown';
     this.audioLevelCache.clear();
     this.notifyAudioLevelListeners();
   }
@@ -4297,6 +4572,14 @@ function availableDeviceId(
   return devices[0]?.deviceId ?? null;
 }
 
+function audioDeviceInventoryFingerprint(devices: MediaDeviceInfo[]): string {
+  return JSON.stringify(
+    devices
+      .map((device) => [device.deviceId, device.groupId, device.kind, device.label])
+      .sort(([leftDeviceId], [rightDeviceId]) => leftDeviceId.localeCompare(rightDeviceId))
+  );
+}
+
 function microphoneProcessingConstraints(
   preferences: MicrophoneProcessingPreferences
 ): Pick<
@@ -4418,9 +4701,7 @@ function getAudioContextConstructor(): typeof AudioContext | null {
 }
 
 function shouldUseAndroidAudioRouteFallback(): boolean {
-  return (
-    shouldUseAndroidCommunicationDeviceRouting() && getAudioContextConstructor() !== null
-  );
+  return shouldUseAndroidCommunicationDeviceRouting() && getAudioContextConstructor() !== null;
 }
 
 function shouldUseAndroidCommunicationDeviceRouting(): boolean {
@@ -4522,4 +4803,54 @@ function redactSensitiveUrlParts(message: string): string {
     .replace(/access_token=([^&\s]+)/gi, 'access_token=<redacted>')
     .replace(/join_request=([^&\s]+)/gi, 'join_request=<redacted>')
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '<jwt-redacted>');
+}
+
+function participantNetworkAggregate(
+  quality: ParticipantNetworkQuality | null | undefined
+): ParticipantMediaAggregate | null {
+  return quality
+    ? {
+        health: quality.health,
+        latencyMs: quality.latencyMs,
+        jitterMs: quality.jitterMs,
+        packetLossPercent: quality.packetLossPercent
+      }
+    : null;
+}
+
+function aggregateParticipantConnectionQuality(
+  source: ParticipantMediaAggregate | null,
+  download: ParticipantMediaAggregate | null
+): ParticipantMediaAggregate | null {
+  if (!source) return download;
+  if (!download) return source;
+  const severity = (health: ParticipantMediaAggregate['health']) =>
+    health === 'poor'
+      ? 3
+      : health === 'degraded'
+        ? 2
+        : health === 'good'
+          ? 1
+          : health === 'excellent'
+            ? 0
+            : -1;
+  const maximum = (left: number | null, right: number | null) =>
+    left === null ? right : right === null ? left : Math.max(left, right);
+  return {
+    health: severity(download.health) > severity(source.health) ? download.health : source.health,
+    latencyMs: maximum(source.latencyMs, download.latencyMs),
+    jitterMs: maximum(source.jitterMs, download.jitterMs),
+    packetLossPercent: maximum(source.packetLossPercent, download.packetLossPercent)
+  };
+}
+
+function participantMediaWarningMetric(
+  aggregate: ParticipantMediaAggregate | null
+): ParticipantNetworkWarningMetric {
+  if (!aggregate || (aggregate.health !== 'degraded' && aggregate.health !== 'poor')) return null;
+  const lossSeverity = aggregate.packetLossPercent ?? -1;
+  const jitterSeverity = aggregate.jitterMs === null ? -1 : aggregate.jitterMs / 20;
+  const latencySeverity = aggregate.latencyMs === null ? -1 : aggregate.latencyMs / 80;
+  if (latencySeverity > Math.max(lossSeverity, jitterSeverity)) return 'latency';
+  return jitterSeverity > lossSeverity ? 'jitter' : 'packetLoss';
 }

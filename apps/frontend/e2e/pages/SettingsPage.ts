@@ -67,8 +67,11 @@ export class SettingsPage {
    */
   async uploadAvatar(filePath: string): Promise<void> {
     await this.avatarFileInput.setInputFiles(filePath);
+    const framingDialog = this.page.getByRole('dialog', { name: 'Frame your avatar' });
+    await expect(framingDialog).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+    await framingDialog.getByRole('button', { name: 'Apply and upload' }).click();
     await expect(this.page.getByText('Avatar uploaded successfully')).toBeVisible({
-      timeout: 10000
+      timeout: TIMEOUTS.COMPLEX_OPERATION
     });
   }
 

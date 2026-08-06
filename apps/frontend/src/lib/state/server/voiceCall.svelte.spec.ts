@@ -42,6 +42,11 @@ import {
   VideoQuality,
   type RoomOptions
 } from 'livekit-client';
+import {
+  encodeParticipantMediaTelemetry,
+  parseParticipantMediaTelemetry,
+  PARTICIPANT_MEDIA_TELEMETRY_TOPIC
+} from '$lib/voice/participantMediaTelemetry';
 
 const calls: string[] = [];
 let lastRoomOptions: RoomOptions | null = null;
@@ -56,6 +61,7 @@ let lastRoom: {
     setScreenShareEnabled: ReturnType<typeof vi.fn>;
     setCameraEnabled: ReturnType<typeof vi.fn>;
     performRpc: ReturnType<typeof vi.fn>;
+    publishData: ReturnType<typeof vi.fn>;
   };
   getActiveDevice: ReturnType<typeof vi.fn>;
   switchActiveDevice: ReturnType<typeof vi.fn>;
@@ -68,6 +74,8 @@ let microphoneFailure: Error | null = null;
 let microphoneFailuresRemaining: number | null = null;
 let microphoneProcessor: { name: string } | null = null;
 let microphoneTrackSettings: MediaTrackSettings;
+let microphoneSourceTrackLabel = 'Microphone';
+let microphoneProcessedTrackLabel = 'MediaStreamAudioDestinationNode';
 let microphoneSetProcessor = vi.fn(async (processor: { name: string }) => {
   microphoneProcessor = processor;
   Object.assign(processor, {
@@ -96,7 +104,7 @@ let microphonePublication: {
     source: string;
     getProcessor: () => { name: string } | null;
     getSourceTrackSettings: () => MediaTrackSettings;
-    mediaStreamTrack: { getSettings: () => MediaTrackSettings };
+    mediaStreamTrack: { readonly label: string; getSettings: () => MediaTrackSettings };
     setProcessor: typeof microphoneSetProcessor;
     stopProcessor: typeof microphoneStopProcessor;
     restartTrack: typeof microphoneRestartTrack;
@@ -123,6 +131,9 @@ let roomRpcHandlers = new Map<
   }) => Promise<string>
 >();
 let performRpcFailure: Error | null = null;
+let publishDataMock = vi.fn(
+  async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
+);
 let performRpcResponder: (params: {
   destinationIdentity: string;
   method: string;
@@ -191,6 +202,11 @@ vi.mock('livekit-client', () => {
               getProcessor: () => microphoneProcessor,
               getSourceTrackSettings: () => microphoneTrackSettings,
               mediaStreamTrack: {
+                get label() {
+                  return microphoneProcessor
+                    ? microphoneProcessedTrackLabel
+                    : microphoneSourceTrackLabel;
+                },
                 getSettings: () => microphoneTrackSettings
               },
               setProcessor: microphoneSetProcessor,
@@ -257,6 +273,9 @@ vi.mock('livekit-client', () => {
           if (performRpcFailure) throw performRpcFailure;
           return performRpcResponder(params);
         }
+      ),
+      publishData: vi.fn((data: Uint8Array, options: { reliable: boolean; topic: string }) =>
+        publishDataMock(data, options)
       ),
       getTrackPublication: vi.fn((source: string) => {
         if (source === 'microphone') return microphonePublication;
@@ -346,6 +365,7 @@ vi.mock('livekit-client', () => {
       }
     },
     RoomEvent: {
+      DataReceived: 'DataReceived',
       ParticipantConnected: 'ParticipantConnected',
       ParticipantMetadataChanged: 'ParticipantMetadataChanged',
       ParticipantDisconnected: 'ParticipantDisconnected',
@@ -548,6 +568,8 @@ describe('VoiceCallState', () => {
       noiseSuppression: true,
       sampleRate: 48_000
     };
+    microphoneSourceTrackLabel = 'Microphone';
+    microphoneProcessedTrackLabel = 'MediaStreamAudioDestinationNode';
     microphoneSetProcessor = vi.fn(async (processor: { name: string }) => {
       microphoneProcessor = processor;
       Object.assign(processor, {
@@ -590,6 +612,9 @@ describe('VoiceCallState', () => {
     roomEventHandlers = new Map();
     roomRpcHandlers = new Map();
     performRpcFailure = null;
+    publishDataMock = vi.fn(
+      async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
+    );
     performRpcResponder = () =>
       JSON.stringify({ version: 1, microphoneMuted: false, outputMuted: false, revision: 0 });
     localTrackPublications = [];
@@ -1622,10 +1647,7 @@ describe('VoiceCallState', () => {
     await state.setAudioOutputDevice('speakerphone-output');
 
     expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'speakerphone-input');
-    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith(
-      'audiooutput',
-      'speakerphone-output'
-    );
+    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith('audiooutput', 'speakerphone-output');
     expect(state.selectedDeviceId).toBe('speakerphone-input');
     expect(state.selectedOutputDeviceId).toBe('speakerphone-output');
 
@@ -1634,10 +1656,7 @@ describe('VoiceCallState', () => {
     await state.setAudioOutputDevice('earpiece-output');
 
     expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'earpiece-input');
-    expect(lastRoom?.switchActiveDevice).not.toHaveBeenCalledWith(
-      'audiooutput',
-      'earpiece-output'
-    );
+    expect(lastRoom?.switchActiveDevice).not.toHaveBeenCalledWith('audiooutput', 'earpiece-output');
     expect(state.selectedDeviceId).toBe('speakerphone-input');
     expect(state.selectedOutputDeviceId).toBe('speakerphone-output');
 
@@ -1645,10 +1664,7 @@ describe('VoiceCallState', () => {
     roomEventHandlers.get('ActiveDeviceChanged')?.('audioinput', 'earpiece-input');
     await flushPromises();
 
-    expect(lastRoom?.switchActiveDevice).not.toHaveBeenCalledWith(
-      'audiooutput',
-      'earpiece-output'
-    );
+    expect(lastRoom?.switchActiveDevice).not.toHaveBeenCalledWith('audiooutput', 'earpiece-output');
     expect(state.selectedOutputDeviceId).toBe('speakerphone-output');
   });
 
@@ -1919,6 +1935,154 @@ describe('VoiceCallState', () => {
 
     expect(microphoneSetProcessor).toHaveBeenCalledOnce();
     expect(state.microphoneProcessing.noiseSuppression).toBe('rnnoise');
+  });
+
+  it('uses the WebKit source label to restore suppression across opaque route changes', async () => {
+    microphoneTrackSettings = {
+      autoGainControl: true,
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 48_000
+    };
+    microphoneSourceTrackLabel = 'iPhone Microphone';
+    vi.mocked(Room.getLocalDevices).mockImplementation(async () => []);
+    activeDeviceIds.set('audioinput', 'opaque-ios-route');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('rnnoise');
+
+    microphoneSourceTrackLabel = 'AirPods Pro';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audioinput', 'opaque-airpods-route');
+    await flushPromises();
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+
+    microphoneSourceTrackLabel = 'iPhone Microphone';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audioinput', 'opaque-ios-route-2');
+    await flushPromises();
+
+    expect(microphoneSetProcessor).toHaveBeenCalledTimes(2);
+    expect(state.microphoneProcessing.noiseSuppression).toBe('rnnoise');
+  });
+
+  it('reprobes the microphone after an opaque system output change even when setSinkId exists', async () => {
+    microphoneTrackSettings = {
+      autoGainControl: true,
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 48_000
+    };
+    microphoneSourceTrackLabel = 'iPhone Microphone';
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audiooutput') {
+        return [
+          { deviceId: 'built-in-output', kind, label: 'Built-in speaker' } as MediaDeviceInfo
+        ];
+      }
+      return [];
+    });
+    activeDeviceIds.set('audioinput', 'opaque-ios-route');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    expect(state.isAudioOutputSelectionSupported).toBe(true);
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+
+    microphoneSourceTrackLabel = 'AirPods Pro';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audiooutput', 'system-bluetooth-output');
+    await flushPromises();
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+  });
+
+  it('reprobes the microphone when a named Bluetooth output becomes active', async () => {
+    microphoneTrackSettings = {
+      autoGainControl: true,
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 48_000
+    };
+    microphoneSourceTrackLabel = 'MacBook Pro Microphone';
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audioinput') return [];
+      if (kind === 'audiooutput') {
+        return [
+          {
+            deviceId: 'built-in-output',
+            kind,
+            label: 'Built-in speaker'
+          } as MediaDeviceInfo,
+          {
+            deviceId: 'airpods-output',
+            kind,
+            label: 'AirPods Pro'
+          } as MediaDeviceInfo
+        ];
+      }
+      return [];
+    });
+    activeDeviceIds.set('audioinput', 'opaque-webkit-route');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    expect(state.isAudioOutputSelectionSupported).toBe(true);
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+
+    state.selectedOutputDeviceId = 'built-in-output';
+    microphoneSourceTrackLabel = 'AirPods Pro';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audiooutput', 'airpods-output');
+    await flushPromises();
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+  });
+
+  it('does not duplicate the microphone probe inside an explicit output switch', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    lastRoom?.switchActiveDevice.mockImplementationOnce(
+      async (kind: MediaDeviceKind, deviceId: string) => {
+        activeDeviceIds.set(kind, deviceId);
+        roomEventHandlers.get('ActiveDeviceChanged')?.(kind, deviceId);
+      }
+    );
+
+    await state.setAudioOutputDevice('external-speaker');
+
+    expect(microphoneStopProcessor).not.toHaveBeenCalled();
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.selectedOutputDeviceId).toBe('external-speaker');
+  });
+
+  it('stays native when a route probe reacquires capture but the old processor is still referenced', async () => {
+    delete (HTMLMediaElement.prototype as Partial<HTMLMediaElement>).setSinkId;
+    microphoneSourceTrackLabel = 'iPhone Microphone';
+    vi.mocked(Room.getLocalDevices).mockImplementation(async () => []);
+    activeDeviceIds.set('audioinput', 'opaque-ios-route');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+
+    microphoneStopProcessor.mockRejectedValueOnce(
+      new DOMException('route changed while detaching', 'OverconstrainedError')
+    );
+    microphoneSourceTrackLabel = 'AirPods Pro';
+    roomEventHandlers.get('ActiveDeviceChanged')?.('audiooutput', 'system-bluetooth-output');
+    await flushPromises(20);
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(microphoneRestartTrack).toHaveBeenCalledOnce();
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
   });
 
   it('keeps a logical default route native when a Bluetooth input is available', async () => {
@@ -3825,6 +3989,50 @@ describe('VoiceCallState', () => {
     });
   });
 
+  it('does not rebuild enhanced processing when device enumeration only changes order', async () => {
+    const firstInput = {
+      deviceId: 'audio-input-1',
+      groupId: 'built-in-audio',
+      kind: 'audioinput',
+      label: 'Built-in microphone'
+    } as MediaDeviceInfo;
+    const secondInput = {
+      deviceId: 'usb-microphone',
+      groupId: 'usb-audio',
+      kind: 'audioinput',
+      label: 'USB microphone'
+    } as MediaDeviceInfo;
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audioinput') return [firstInput, secondInput];
+      if (kind === 'audiooutput') {
+        return [{ deviceId: 'audio-output-1', kind, label: 'Speaker' } as MediaDeviceInfo];
+      }
+      if (kind === 'videoinput') {
+        return [{ deviceId: 'video-input-1', kind, label: 'Camera' } as MediaDeviceInfo];
+      }
+      return [];
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind === 'audioinput') return [secondInput, firstInput];
+      if (kind === 'audiooutput') {
+        return [{ deviceId: 'audio-output-1', kind, label: 'Speaker' } as MediaDeviceInfo];
+      }
+      if (kind === 'videoinput') {
+        return [{ deviceId: 'video-input-1', kind, label: 'Camera' } as MediaDeviceInfo];
+      }
+      return [];
+    });
+    roomEventHandlers.get('MediaDevicesChanged')?.();
+    await flushPromises(20);
+
+    expect(microphoneStopProcessor).not.toHaveBeenCalled();
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+  });
+
   it('reconciles enhanced processing from LiveKit active-device changes without devicechange', async () => {
     microphoneTrackSettings = {
       autoGainControl: false,
@@ -5039,7 +5247,75 @@ describe('VoiceCallState', () => {
     await state.leave();
   });
 
-  it('reports the worst current quality across microphone and screen-share tracks', async () => {
+  it('waits for the LiveKit room to connect before publishing participant telemetry', async () => {
+    connectGate = deferredVoid();
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    const joining = state.join('wss://livekit.example.test', 'R1');
+    await vi.waitFor(() => expect(calls).toContain('connect'));
+    await flushPromises();
+    expect(publishDataMock).not.toHaveBeenCalled();
+
+    connectGate.resolve();
+    await joining;
+    await vi.waitFor(() => expect(publishDataMock).toHaveBeenCalledOnce());
+    const [payload, options] = publishDataMock.mock.calls[0]!;
+    expect(options).toEqual({ reliable: false, topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC });
+    expect(parseParticipantMediaTelemetry(payload, Date.now())).toMatchObject({
+      receptionSupported: true
+    });
+    await state.leave();
+  });
+
+  it("shows each participant's self-reported download statistics on every other device", async () => {
+    const remoteParticipant = {
+      identity: 'remote-device-2',
+      name: 'Same Account',
+      metadata:
+        '{"userId":"same-account","participantId":"remote-device-2","deviceIndex":2,"login":"same-account"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    };
+    mockRemoteParticipants.set(remoteParticipant.identity, remoteParticipant);
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const now = Date.now();
+    const payload = encodeParticipantMediaTelemetry(1, now, [], {
+      health: 'degraded',
+      latencyMs: 310,
+      jitterMs: 72,
+      packetLossPercent: 4.2
+    })!;
+    roomEventHandlers.get('DataReceived')?.(
+      payload,
+      remoteParticipant,
+      undefined,
+      PARTICIPANT_MEDIA_TELEMETRY_TOPIC
+    );
+
+    expect(
+      state.participants.find((participant) => participant.identity === remoteParticipant.identity)
+    ).toMatchObject({
+      userId: 'same-account',
+      deviceIndex: 2,
+      sourceMediaTelemetry: [],
+      receptionTelemetrySupported: true,
+      networkHealth: 'degraded',
+      networkWarningMetric: 'packetLoss',
+      reportedDownloadNetworkHealth: 'degraded',
+      reportedDownloadLatencyMs: 310,
+      reportedDownloadJitterMs: 72,
+      reportedDownloadPacketLossPercent: 4.2
+    });
+    await state.leave();
+  });
+
+  it('reports the worst current reception quality across microphone and screen-share tracks', async () => {
     const microphoneStats = vi.fn(async () =>
       inboundNetworkStatsReport({ packetsLost: 0, packetsReceived: 1_000, jitter: 0.008 })
     );
@@ -5084,16 +5360,15 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'poor',
-      packetLossPercent: 20,
-      jitterMs: 160,
-      networkWarningMetric: 'packetLoss'
+      receptionNetworkHealth: 'poor',
+      receptionPacketLossPercent: 20,
+      receptionJitterMs: 160
     });
 
     await state.leave();
   });
 
-  it('clears a participant quality sample when every active track stops reporting stats', async () => {
+  it('clears a participant reception quality sample when every active track stops reporting stats', async () => {
     const getRTCStatsReport = vi
       .fn<() => Promise<RTCStatsReport | undefined>>()
       .mockResolvedValueOnce(
@@ -5123,14 +5398,14 @@ describe('VoiceCallState', () => {
     await flushPromises();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
     ).refreshParticipantNetworkQuality();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5139,10 +5414,9 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'unknown',
-      packetLossPercent: null,
-      jitterMs: null,
-      networkWarningMetric: null
+      receptionNetworkHealth: 'unknown',
+      receptionPacketLossPercent: null,
+      receptionJitterMs: null
     });
 
     await state.leave();
@@ -5198,14 +5472,14 @@ describe('VoiceCallState', () => {
     ).refreshParticipantNetworkQuality();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'poor' });
+    ).toMatchObject({ receptionNetworkHealth: 'poor' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
     ).refreshParticipantNetworkQuality();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'poor' });
+    ).toMatchObject({ receptionNetworkHealth: 'poor' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5213,16 +5487,15 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'unknown',
-      packetLossPercent: null,
-      jitterMs: null,
-      networkWarningMetric: null
+      receptionNetworkHealth: 'unknown',
+      receptionPacketLossPercent: null,
+      receptionJitterMs: null
     });
 
     await state.leave();
   });
 
-  it('expires a participant quality sample when a WebRTC stats read never settles', async () => {
+  it('expires a participant reception quality sample when a WebRTC stats read never settles', async () => {
     vi.useFakeTimers({ now: 1_000 });
     const stalledReport = deferredValue<RTCStatsReport>();
     const getRTCStatsReport = vi
@@ -5254,7 +5527,7 @@ describe('VoiceCallState', () => {
     await flushPromises();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     const poll = (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5267,10 +5540,9 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'unknown',
-      packetLossPercent: null,
-      jitterMs: null,
-      networkWarningMetric: null
+      receptionNetworkHealth: 'unknown',
+      receptionPacketLossPercent: null,
+      receptionJitterMs: null
     });
 
     stalledReport.resolve(
@@ -5280,10 +5552,9 @@ describe('VoiceCallState', () => {
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
     ).toMatchObject({
-      networkHealth: 'unknown',
-      packetLossPercent: null,
-      jitterMs: null,
-      networkWarningMetric: null
+      receptionNetworkHealth: 'unknown',
+      receptionPacketLossPercent: null,
+      receptionJitterMs: null
     });
     await state.leave();
   });
@@ -5323,7 +5594,7 @@ describe('VoiceCallState', () => {
     await flushPromises();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     const poll = (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5342,7 +5613,7 @@ describe('VoiceCallState', () => {
 
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'unknown' });
+    ).toMatchObject({ receptionNetworkHealth: 'unknown' });
 
     await (
       state as unknown as { refreshParticipantNetworkQuality: () => Promise<void> }
@@ -5350,7 +5621,7 @@ describe('VoiceCallState', () => {
     expect(screenShareStats).toHaveBeenCalledOnce();
     expect(
       state.participants.find((participant) => participant.identity === 'remote-user')
-    ).toMatchObject({ networkHealth: 'excellent' });
+    ).toMatchObject({ receptionNetworkHealth: 'excellent' });
 
     await state.leave();
   });

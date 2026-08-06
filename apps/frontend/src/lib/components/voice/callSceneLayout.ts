@@ -38,7 +38,11 @@ function squareGrid(
   );
   const rankedCandidates = readableCandidates.length > 0 ? readableCandidates : candidates;
   const largestTile = Math.max(...rankedCandidates.map((candidate) => candidate.tileSize));
-  const balancedTwoParticipantThreshold = tileCount === 2 ? 0.85 : 0.96;
+  // A Fold in landscape can expose a portrait-shaped call region once the
+  // desktop shell and call dock consume their columns. Keep two readable
+  // participants side by side unless stacking makes each tile materially
+  // larger; this avoids treating that landscape viewport like a phone portrait.
+  const balancedTwoParticipantThreshold = tileCount === 2 ? 0.8 : 0.96;
   const nearLargest = rankedCandidates.filter(
     (candidate) => candidate.tileSize >= largestTile * balancedTwoParticipantThreshold
   );

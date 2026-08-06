@@ -17,6 +17,15 @@ const { mocks } = vi.hoisted(() => ({
       setActiveRoomScope: vi.fn(),
       setActiveServer: vi.fn()
     },
+    onNotificationClick: vi.fn(
+      (
+        _callback: (
+          url: string,
+          notificationId?: string
+        ) => boolean | void | Promise<boolean | void>
+      ) => vi.fn()
+    ),
+    reconcileNotificationClick: vi.fn(() => Promise.resolve(true)),
     originClient: {
       showConnectionLostIcon: false,
       showConnectionLostBanner: false,
@@ -61,7 +70,11 @@ vi.mock('$lib/hooks', () => ({
 }));
 
 vi.mock('$lib/notifications/pushNotifications', () => ({
-  onNotificationClick: vi.fn(() => vi.fn())
+  onNotificationClick: mocks.onNotificationClick
+}));
+
+vi.mock('$lib/notifications/reconcileNotificationClick', () => ({
+  reconcileNotificationClick: mocks.reconcileNotificationClick
 }));
 
 vi.mock('$lib/notifications/notificationNavigationUi', () => ({
@@ -147,6 +160,42 @@ function renderLayout() {
     }
   });
 }
+
+describe('root layout notification clicks', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.goto.mockResolvedValue(undefined);
+    mocks.reconcileNotificationClick.mockResolvedValue(true);
+    installMobileMatchMedia();
+    resetSidebar();
+  });
+
+  it('reconciles the clicked notification even when SPA navigation is same-route', async () => {
+    renderLayout();
+    await tick();
+    const callback = mocks.onNotificationClick.mock.calls[0]?.[0];
+    if (!callback) throw new Error('notification click callback was not registered');
+
+    await expect(
+      callback(`${window.location.origin}/chat/-/room-1`, 'notification-1')
+    ).resolves.toBe(true);
+
+    expect(mocks.reconcileNotificationClick).toHaveBeenCalledWith('notification-1');
+    expect(mocks.goto).toHaveBeenCalledWith('/chat/-/room-1');
+  });
+
+  it('propagates SPA navigation failures so the service worker can use its fallback', async () => {
+    mocks.goto.mockRejectedValueOnce(new Error('navigation failed'));
+    renderLayout();
+    await tick();
+    const callback = mocks.onNotificationClick.mock.calls[0]?.[0];
+    if (!callback) throw new Error('notification click callback was not registered');
+
+    await expect(
+      callback(`${window.location.origin}/chat/-/room-1`, 'notification-1')
+    ).rejects.toThrow('navigation failed');
+  });
+});
 
 function pointer(type: string, x: number, y = 120) {
   return new PointerEvent(type, {

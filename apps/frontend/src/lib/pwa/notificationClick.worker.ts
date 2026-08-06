@@ -34,11 +34,15 @@ interface NotificationClickLogger {
 }
 
 export type NotificationClickRouteResult = 'client' | 'navigate' | 'open';
+export type NotificationClickDeliveryResult =
+  | NotificationClickRouteResult
+  | 'client-unconsumed';
 
 export interface NotificationClickRouteOptions {
   ackTimeoutMs?: number;
   createMessageChannel?: () => NotificationClickMessageChannel;
   logger?: NotificationClickLogger;
+  notificationId?: string;
 }
 
 function sameOriginURLForPath(origin: string, pathname: string, search = '', hash = ''): string {
@@ -67,45 +71,58 @@ function createDefaultMessageChannel(): NotificationClickMessageChannel {
   return new MessageChannel();
 }
 
-function isNotificationClickAck(message: unknown): boolean {
-  return (
-    typeof message === 'object' &&
-    message !== null &&
-    'type' in message &&
-    message.type === NOTIFICATION_CLICK_ACK_MESSAGE_TYPE
-  );
+function notificationClickAckConsumed(message: unknown): boolean | null {
+  if (
+    typeof message !== 'object' ||
+    message === null ||
+    !('type' in message) ||
+    message.type !== NOTIFICATION_CLICK_ACK_MESSAGE_TYPE
+  ) {
+    return null;
+  }
+  return 'notificationConsumed' in message && message.notificationConsumed === true;
 }
 
 function notifyClientAndWaitForAck(
   client: NotificationClickClient,
   url: string,
+  notificationId: string | undefined,
   options: Required<Pick<NotificationClickRouteOptions, 'ackTimeoutMs' | 'createMessageChannel'>>
-): Promise<boolean> {
-  if (typeof client.postMessage !== 'function') return Promise.resolve(false);
+): Promise<boolean | null> {
+  if (typeof client.postMessage !== 'function') return Promise.resolve(null);
   const postMessage = client.postMessage;
 
   return new Promise((resolve) => {
     const channel = options.createMessageChannel();
     let settled = false;
-    const timeout = setTimeout(() => finish(false), options.ackTimeoutMs);
+    const timeout = setTimeout(() => finish(null), options.ackTimeoutMs);
 
-    function finish(acknowledged: boolean) {
+    function finish(notificationConsumed: boolean | null) {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
       channel.port1.onmessage = null;
       channel.port1.close?.();
-      resolve(acknowledged);
+      resolve(notificationConsumed);
     }
 
     channel.port1.onmessage = (event) => {
-      if (isNotificationClickAck(event.data)) finish(true);
+      const notificationConsumed = notificationClickAckConsumed(event.data);
+      if (notificationConsumed !== null) finish(notificationConsumed);
     };
 
     try {
-      postMessage.call(client, { type: NOTIFICATION_CLICK_MESSAGE_TYPE, url }, [channel.port2]);
+      postMessage.call(
+        client,
+        {
+          type: NOTIFICATION_CLICK_MESSAGE_TYPE,
+          url,
+          ...(notificationId ? { notificationId } : {})
+        },
+        [channel.port2]
+      );
     } catch {
-      finish(false);
+      finish(null);
     }
   });
 }
@@ -128,8 +145,12 @@ export async function routeNotificationClick(
   origin: string,
   clients: NotificationClickClients,
   options: NotificationClickRouteOptions = {}
-): Promise<NotificationClickRouteResult> {
+): Promise<NotificationClickDeliveryResult> {
   const url = normalizeNotificationClickUrl(rawUrl, origin);
+  const notificationId =
+    typeof options.notificationId === 'string' && options.notificationId.trim() !== ''
+      ? options.notificationId
+      : undefined;
 
   const ackOptions = {
     ackTimeoutMs: options.ackTimeoutMs ?? NOTIFICATION_CLICK_ACK_TIMEOUT_MS,
@@ -143,9 +164,14 @@ export async function routeNotificationClick(
   for (const client of clientList) {
     const initiallyFocusedClient = await focusClient(client, options.logger);
     const focusedClient = initiallyFocusedClient ?? client;
-    const acknowledged = await notifyClientAndWaitForAck(focusedClient, url, ackOptions);
-    if (acknowledged) {
-      return 'client';
+    const notificationConsumed = await notifyClientAndWaitForAck(
+      focusedClient,
+      url,
+      notificationId,
+      ackOptions
+    );
+    if (notificationConsumed !== null) {
+      return !notificationId || notificationConsumed ? 'client' : 'client-unconsumed';
     }
 
     try {

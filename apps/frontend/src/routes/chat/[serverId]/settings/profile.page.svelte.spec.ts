@@ -7,12 +7,33 @@ import { q } from '$lib/test-utils';
 const avatarDataUrl =
   'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
 
+function pngFile(width: number, height: number, name: string): File {
+  const bytes = new Uint8Array(24);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  bytes.set([0x00, 0x00, 0x00, 0x0d], 8);
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12);
+  bytes[16] = (width >>> 24) & 0xff;
+  bytes[17] = (width >>> 16) & 0xff;
+  bytes[18] = (width >>> 8) & 0xff;
+  bytes[19] = width & 0xff;
+  bytes[20] = (height >>> 24) & 0xff;
+  bytes[21] = (height >>> 16) & 0xff;
+  bytes[22] = (height >>> 8) & 0xff;
+  bytes[23] = height & 0xff;
+  return new File([bytes], name, { type: 'image/png' });
+}
+
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
   updateProfile: vi.fn(),
   uploadAvatar: vi.fn(),
   deleteAvatar: vi.fn(),
+  serverInfo: {
+    loading: false,
+    error: null,
+    supportsCapability: vi.fn(() => false)
+  },
   currentUser: {
     user: {
       id: 'user-1',
@@ -33,7 +54,8 @@ vi.mock('$lib/state/activeServer.svelte', () => ({
 vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
     getStore: () => ({
-      currentUser: mocks.currentUser
+      currentUser: mocks.currentUser,
+      serverInfo: mocks.serverInfo
     })
   }
 }));
@@ -164,9 +186,7 @@ describe('Profile settings page', () => {
     await settle();
 
     const input = q(container, 'input[type="file"]') as HTMLInputElement;
-    const file = new File([new Uint8Array([137, 80, 78, 71])], 'avatar.png', {
-      type: 'image/png'
-    });
+    const file = pngFile(640, 640, 'avatar.png');
     Object.defineProperty(input, 'files', {
       configurable: true,
       value: [file]

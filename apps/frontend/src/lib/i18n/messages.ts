@@ -1322,9 +1322,6 @@ const msg_voice_participant_high_jitter = (
 const msg_voice_participant_high_latency = (
   inputs: Parameters<LocaleMessages['voice_participant_high_latency']>[0]
 ): LocalizedString => messages().voice_participant_high_latency(inputs);
-const msg_voice_participant_connection_metrics = (
-  inputs: Parameters<LocaleMessages['voice_participant_connection_metrics']>[0]
-): LocalizedString => messages().voice_participant_connection_metrics(inputs);
 const msg_voice_connection_metric_unavailable = (): LocalizedString => messages().voice_connection_metric_unavailable(empty());
 const msg_voice_screen_share = (): LocalizedString => messages().voice_screen_share(empty());
 const msg_voice_screen_title = (
@@ -1538,6 +1535,42 @@ const msg_voice_push_channel_body_unknown = (): LocalizedString => messages().vo
 const msg_voice_jitter_value = (
   inputs: Parameters<LocaleMessages['voice_jitter_value']>[0]
 ): LocalizedString => messages().voice_jitter_value(inputs);
+const msg_voice_media_telemetry_open = (): LocalizedString => messages().voice_media_telemetry_open(empty());
+const msg_voice_media_telemetry_close = (): LocalizedString => messages().voice_media_telemetry_close(empty());
+const msg_voice_media_telemetry_title = (
+  inputs: Parameters<LocaleMessages['voice_media_telemetry_title']>[0]
+): LocalizedString => messages().voice_media_telemetry_title(inputs);
+const msg_voice_media_telemetry_source = (): LocalizedString => messages().voice_media_telemetry_source(empty());
+const msg_voice_media_telemetry_reception = (): LocalizedString => messages().voice_media_telemetry_reception(empty());
+const msg_voice_media_telemetry_source_hint = (): LocalizedString => messages().voice_media_telemetry_source_hint(empty());
+const msg_voice_media_telemetry_reception_hint = (): LocalizedString => messages().voice_media_telemetry_reception_hint(empty());
+const msg_voice_media_telemetry_diagnosis_source = (): LocalizedString => messages().voice_media_telemetry_diagnosis_source(empty());
+const msg_voice_media_telemetry_diagnosis_receiver = (): LocalizedString => messages().voice_media_telemetry_diagnosis_receiver(empty());
+const msg_voice_media_telemetry_diagnosis_shared = (): LocalizedString => messages().voice_media_telemetry_diagnosis_shared(empty());
+const msg_voice_media_telemetry_diagnosis_unknown = (): LocalizedString => messages().voice_media_telemetry_diagnosis_unknown(empty());
+const msg_voice_media_telemetry_history = (): LocalizedString => messages().voice_media_telemetry_history(empty());
+const msg_voice_media_telemetry_history_window = (): LocalizedString => messages().voice_media_telemetry_history_window(empty());
+const msg_voice_media_telemetry_history_label = (): LocalizedString => messages().voice_media_telemetry_history_label(empty());
+const msg_voice_media_telemetry_history_empty = (): LocalizedString => messages().voice_media_telemetry_history_empty(empty());
+const msg_voice_media_telemetry_paths = (): LocalizedString => messages().voice_media_telemetry_paths(empty());
+const msg_voice_media_telemetry_microphone = (): LocalizedString => messages().voice_media_telemetry_microphone(empty());
+const msg_voice_media_telemetry_camera = (): LocalizedString => messages().voice_media_telemetry_camera(empty());
+const msg_voice_media_telemetry_screen = (): LocalizedString => messages().voice_media_telemetry_screen(empty());
+const msg_voice_media_telemetry_bitrate = (): LocalizedString => messages().voice_media_telemetry_bitrate(empty());
+const msg_voice_media_telemetry_packet_loss = (): LocalizedString => messages().voice_media_telemetry_packet_loss(empty());
+const msg_voice_media_telemetry_jitter = (): LocalizedString => messages().voice_media_telemetry_jitter(empty());
+const msg_voice_media_telemetry_latency = (): LocalizedString => messages().voice_media_telemetry_latency(empty());
+const msg_voice_media_telemetry_fps = (): LocalizedString => messages().voice_media_telemetry_fps(empty());
+const msg_voice_media_telemetry_resolution = (): LocalizedString => messages().voice_media_telemetry_resolution(empty());
+const msg_voice_media_telemetry_limited_by = (): LocalizedString => messages().voice_media_telemetry_limited_by(empty());
+const msg_voice_media_telemetry_unavailable = (): LocalizedString => messages().voice_media_telemetry_unavailable(empty());
+const msg_voice_media_telemetry_source_idle = (): LocalizedString => messages().voice_media_telemetry_source_idle(empty());
+const msg_voice_media_telemetry_reception_idle = (): LocalizedString => messages().voice_media_telemetry_reception_idle(empty());
+const msg_voice_media_telemetry_reception_unavailable = (): LocalizedString => messages().voice_media_telemetry_reception_unavailable(empty());
+const msg_voice_media_telemetry_privacy = (): LocalizedString => messages().voice_media_telemetry_privacy(empty());
+const msg_voice_media_telemetry_limit_bandwidth = (): LocalizedString => messages().voice_media_telemetry_limit_bandwidth(empty());
+const msg_voice_media_telemetry_limit_cpu = (): LocalizedString => messages().voice_media_telemetry_limit_cpu(empty());
+const msg_voice_media_telemetry_limit_other = (): LocalizedString => messages().voice_media_telemetry_limit_other(empty());
 const msg_composer_attach_file = (): LocalizedString => messages().composer_attach_file(empty());
 const msg_composer_send = (): LocalizedString => messages().composer_send(empty());
 const msg_composer_send_enter = (): LocalizedString => messages().composer_send_enter(empty());
@@ -3364,7 +3397,6 @@ export { msg_voice_participant_reconnecting as 'voice.participant_reconnecting' 
 export { msg_voice_participant_packet_loss as 'voice.participant_packet_loss' };
 export { msg_voice_participant_high_jitter as 'voice.participant_high_jitter' };
 export { msg_voice_participant_high_latency as 'voice.participant_high_latency' };
-export { msg_voice_participant_connection_metrics as 'voice.participant_connection_metrics' };
 export { msg_voice_connection_metric_unavailable as 'voice.connection_metric_unavailable' };
 export { msg_voice_screen_share as 'voice.screen_share' };
 export { msg_voice_screen_title as 'voice.screen_title' };
@@ -3544,6 +3576,40 @@ export { msg_voice_push_view_conversation as 'voice.push.view_conversation' };
 export { msg_voice_push_join as 'voice.push.join' };
 export { msg_voice_push_channel_body_unknown as 'voice.push.channel_body_unknown' };
 export { msg_voice_jitter_value as 'voice.jitter_value' };
+export { msg_voice_media_telemetry_open as 'voice.media_telemetry_open' };
+export { msg_voice_media_telemetry_close as 'voice.media_telemetry_close' };
+export { msg_voice_media_telemetry_title as 'voice.media_telemetry_title' };
+export { msg_voice_media_telemetry_source as 'voice.media_telemetry_source' };
+export { msg_voice_media_telemetry_reception as 'voice.media_telemetry_reception' };
+export { msg_voice_media_telemetry_source_hint as 'voice.media_telemetry_source_hint' };
+export { msg_voice_media_telemetry_reception_hint as 'voice.media_telemetry_reception_hint' };
+export { msg_voice_media_telemetry_diagnosis_source as 'voice.media_telemetry_diagnosis_source' };
+export { msg_voice_media_telemetry_diagnosis_receiver as 'voice.media_telemetry_diagnosis_receiver' };
+export { msg_voice_media_telemetry_diagnosis_shared as 'voice.media_telemetry_diagnosis_shared' };
+export { msg_voice_media_telemetry_diagnosis_unknown as 'voice.media_telemetry_diagnosis_unknown' };
+export { msg_voice_media_telemetry_history as 'voice.media_telemetry_history' };
+export { msg_voice_media_telemetry_history_window as 'voice.media_telemetry_history_window' };
+export { msg_voice_media_telemetry_history_label as 'voice.media_telemetry_history_label' };
+export { msg_voice_media_telemetry_history_empty as 'voice.media_telemetry_history_empty' };
+export { msg_voice_media_telemetry_paths as 'voice.media_telemetry_paths' };
+export { msg_voice_media_telemetry_microphone as 'voice.media_telemetry_microphone' };
+export { msg_voice_media_telemetry_camera as 'voice.media_telemetry_camera' };
+export { msg_voice_media_telemetry_screen as 'voice.media_telemetry_screen' };
+export { msg_voice_media_telemetry_bitrate as 'voice.media_telemetry_bitrate' };
+export { msg_voice_media_telemetry_packet_loss as 'voice.media_telemetry_packet_loss' };
+export { msg_voice_media_telemetry_jitter as 'voice.media_telemetry_jitter' };
+export { msg_voice_media_telemetry_latency as 'voice.media_telemetry_latency' };
+export { msg_voice_media_telemetry_fps as 'voice.media_telemetry_fps' };
+export { msg_voice_media_telemetry_resolution as 'voice.media_telemetry_resolution' };
+export { msg_voice_media_telemetry_limited_by as 'voice.media_telemetry_limited_by' };
+export { msg_voice_media_telemetry_unavailable as 'voice.media_telemetry_unavailable' };
+export { msg_voice_media_telemetry_source_idle as 'voice.media_telemetry_source_idle' };
+export { msg_voice_media_telemetry_reception_idle as 'voice.media_telemetry_reception_idle' };
+export { msg_voice_media_telemetry_reception_unavailable as 'voice.media_telemetry_reception_unavailable' };
+export { msg_voice_media_telemetry_privacy as 'voice.media_telemetry_privacy' };
+export { msg_voice_media_telemetry_limit_bandwidth as 'voice.media_telemetry_limit_bandwidth' };
+export { msg_voice_media_telemetry_limit_cpu as 'voice.media_telemetry_limit_cpu' };
+export { msg_voice_media_telemetry_limit_other as 'voice.media_telemetry_limit_other' };
 export { msg_composer_attach_file as 'composer.attach_file' };
 export { msg_composer_send as 'composer.send' };
 export { msg_composer_send_enter as 'composer.send_enter' };

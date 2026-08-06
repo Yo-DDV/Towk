@@ -204,6 +204,47 @@ describe('MessageAttachments', () => {
     expect(image.getAttribute('src')).toBe(transparentGif);
   });
 
+  it('keeps an already displayed GIF stable across proactive signed URL refreshes', async () => {
+    let finishRefresh!: (urls: Map<string, RefreshedAttachmentUrls>) => void;
+    attachmentMocks.refreshAssetUrls.mockReturnValue(
+      new Promise<Map<string, RefreshedAttachmentUrls>>((resolve) => {
+        finishRefresh = resolve;
+      })
+    );
+    const { container } = renderAttachment(
+      imageAttachment({
+        filename: 'stable.gif',
+        contentType: 'image/gif',
+        assetUrl: { url: transparentGif, expiresAt: '2020-01-01T00:00:00Z' },
+        thumbnailAssetUrl: null
+      })
+    );
+    const { image } = imageFrame(container, 'stable.gif');
+    image.dispatchEvent(new Event('load'));
+
+    await vi.waitFor(() => expect(attachmentMocks.refreshAssetUrls).toHaveBeenCalledOnce());
+    finishRefresh(
+      new Map([
+        [
+          'att_1',
+          {
+            assetUrl: {
+              url: `${transparentGif}#fresh-ticket`,
+              expiresAt: '2027-05-29T15:00:00Z'
+            },
+            thumbnailAssetUrl: null,
+            videoThumbnailAssetUrl: null,
+            variantAssetUrls: new Map()
+          }
+        ]
+      ])
+    );
+    await tick();
+    await tick();
+
+    expect(image.getAttribute('src')).toBe(transparentGif);
+  });
+
   it('uses a subtle attachment remove control when deletion is allowed', () => {
     const { container } = renderAttachment(
       imageAttachment({
