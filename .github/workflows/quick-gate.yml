@@ -79,6 +79,25 @@ jobs:
           bash tools/verify-compose-resource-envelope.sh
           bash tools/runtime-image-process_test.sh
 
+  pr312-source:
+    name: pr312-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr312-source
+          path: |
+            .
+            !.git/**
+          include-hidden-files: true
+          retention-days: 1
+
   pr312-frontend:
     name: pr312-frontend
     runs-on: ubuntu-latest
