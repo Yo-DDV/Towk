@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file chatto/api/v1/presence.proto.
  */
 export const file_chatto_api_v1_presence: GenFile = /*@__PURE__*/
-  fileDesc("ChxjaGF0dG8vYXBpL3YxL3ByZXNlbmNlLnByb3RvEg1jaGF0dG8uYXBpLnYxImsKFVVwZGF0ZVByZXNlbmNlUmVxdWVzdBI7CgZzdGF0dXMYASABKA4yHS5jaGF0dG8uYXBpLnYxLlByZXNlbmNlU3RhdHVzQgy6SAmCAQYQASAAIAQSFQoNdXNlcl9zZWxlY3RlZBgCIAEoCCJHChZVcGRhdGVQcmVzZW5jZVJlc3BvbnNlEi0KBnN0YXR1cxgBIAEoDjIdLmNoYXR0by5hcGkudjEuUHJlc2VuY2VTdGF0dXMqqAEKDlByZXNlbmNlU3RhdHVzEh8KG1BSRVNFTkNFX1NUQVRVU19VTlNQRUNJRklFRBAAEhoKFlBSRVNFTkNFX1NUQVRVU19PTkxJTkUQARIYChRQUkVTRU5DRV9TVEFUVVNfQVdBWRACEiIKHlBSRVNFTkNFX1NUQVRVU19ET19OT1RfRElTVFVSQhADEhsKF1BSRVNFTkNFX1NUQVRVU19PRkZMSU5FEARCqQEKEWNvbS5jaGF0dG8uYXBpLnYxQg1QcmVzZW5jZVByb3RvUAFaL2htYW5zLmRlL2NoYXR0by9pbnRlcm5hbC9wYi9jaGF0dG8vYXBpL3YxO2FwaXYxogIDQ0FYqgINQ2hhdHRvLkFwaS5WMcoCDUNoYXR0b1xBcGlcVjHiAhlDaGF0dG9cQXBpXFYxXEdQQk1ldGFkYXRh6gIPQ2hhdHRvOjpBcGk6OlYxYgZwcm90bzM", [file_buf_validate_validate]);
+  fileDesc("ChxjaGF0dG8vYXBpL3YxL3ByZXNlbmNlLnByb3RvEg1jaGF0dG8uYXBpLnYxIvMBChVVcGRhdGVQcmVzZW5jZVJlcXVlc3QSOQoGc3RhdHVzGAEgASgOMh0uY2hhdHRvLmFwaS52MS5QcmVzZW5jZVN0YXR1c0IKukgHggEEEAEgABIVCg11c2VyX3NlbGVjdGVkGAIgASgIEiAKD2luc3RhbGxhdGlvbl9pZBgDIAEoCUIHukgEcgIYYBIbCgpzZXNzaW9uX2lkGAQgASgJQge6SARyAhhgEg4KBmFjdGl2ZRgFIAEoCBIbChNtZWFuaW5nZnVsX2FjdGl2aXR5GAYgASgIEhwKFHJlbGVhc2VfaW5zdGFsbGF0aW9uGAcgASgIIkcKFlVwZGF0ZVByZXNlbmNlUmVzcG9uc2USLQoGc3RhdHVzGAEgASgOMh0uY2hhdHRvLmFwaS52MS5QcmVzZW5jZVN0YXR1cyqoAQoOUHJlc2VuY2VTdGF0dXMSHwobUFJFU0VOQ0VfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWUFJFU0VOQ0VfU1RBVFVTX09OTElORRABEhgKFFBSRVNFTkNFX1NUQVRVU19BV0FZEAISIgoeUFJFU0VOQ0VfU1RBVFVTX0RPX05PVF9ESVNUVVJCEAMSGwoXUFJFU0VOQ0VfU1RBVFVTX09GRkxJTkUQBEKpAQoRY29tLmNoYXR0by5hcGkudjFCDVByZXNlbmNlUHJvdG9QAVovaG1hbnMuZGUvY2hhdHRvL2ludGVybmFsL3BiL2NoYXR0by9hcGkvdjE7YXBpdjGiAgNDQViqAg1DaGF0dG8uQXBpLlYxygINQ2hhdHRvXEFwaVxWMeICGUNoYXR0b1xBcGlcVjFcR1BCTWV0YWRhdGHqAg9DaGF0dG86OkFwaTo6VjFiBnByb3RvMw", [file_buf_validate_validate]);
 
 /**
  * Request to update the current user's live presence status.
@@ -20,7 +20,8 @@ export const file_chatto_api_v1_presence: GenFile = /*@__PURE__*/
  */
 export type UpdatePresenceRequest = Message<"chatto.api.v1.UpdatePresenceRequest"> & {
   /**
-   * Live status to store for the authenticated user. Offline is rejected.
+   * Live status requested for the authenticated user. Offline is accepted only
+   * for an installation-scoped release.
    *
    * @generated from field: chatto.api.v1.PresenceStatus status = 1;
    */
@@ -34,6 +35,45 @@ export type UpdatePresenceRequest = Message<"chatto.api.v1.UpdatePresenceRequest
    * @generated from field: bool user_selected = 2;
    */
   userSelected: boolean;
+
+  /**
+   * Stable browser-installation identifier shared with push and realtime state.
+   * New clients send it with every session-aware report.
+   *
+   * @generated from field: string installation_id = 3;
+   */
+  installationId: string;
+
+  /**
+   * Opaque page-lifetime identifier. Multiple tabs from one installation own
+   * independent leases so one tab cannot incorrectly hide another active tab.
+   *
+   * @generated from field: string session_id = 4;
+   */
+  sessionId: string;
+
+  /**
+   * Whether this exact page is currently active after lifecycle grace periods.
+   *
+   * @generated from field: bool active = 5;
+   */
+  active: boolean;
+
+  /**
+   * True only for foreground/resume or direct user interaction. Routine lease
+   * refreshes leave this false and cannot advance profile latest activity.
+   *
+   * @generated from field: bool meaningful_activity = 6;
+   */
+  meaningfulActivity: boolean;
+
+  /**
+   * Withdraw every session lease owned by installation_id. This is used by
+   * "Look offline" and requires status Offline with an empty session_id.
+   *
+   * @generated from field: bool release_installation = 7;
+   */
+  releaseInstallation: boolean;
 };
 
 /**
@@ -50,7 +90,7 @@ export const UpdatePresenceRequestSchema: GenMessage<UpdatePresenceRequest> = /*
  */
 export type UpdatePresenceResponse = Message<"chatto.api.v1.UpdatePresenceResponse"> & {
   /**
-   * Reportable status accepted and stored by the server.
+   * Effective user-level status after aggregating all current installations.
    *
    * @generated from field: chatto.api.v1.PresenceStatus status = 1;
    */
@@ -67,9 +107,9 @@ export const UpdatePresenceResponseSchema: GenMessage<UpdatePresenceResponse> = 
 /**
  * Live presence status returned by public read APIs.
  *
- * Offline is a read-side state only. Clients cannot update their presence to
- * Offline through the account presence RPC; they should stop refreshing and let
- * the server's live presence record expire.
+ * Offline remains a read-side state for ordinary reports. Session-aware clients
+ * may send Offline only together with release_installation to withdraw this
+ * browser installation's ephemeral presence leases.
  *
  * @generated from enum chatto.api.v1.PresenceStatus
  */

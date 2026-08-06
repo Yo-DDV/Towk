@@ -460,9 +460,9 @@ export const MyAccountService: GenService<{
     output: typeof DisconnectExternalIdentityResponseSchema;
   },
   /**
-   * Updates the current user's live presence status. This state is transient:
-   * clients should refresh it periodically while visible, and should stop
-   * calling this RPC when the user chooses to appear offline.
+   * Updates the current user's transient live presence and refreshes its
+   * authenticated session leases. Session-aware clients report both active and
+   * recent evidence; legacy clients retain the single-key compatibility path.
    *
    * @generated from rpc chatto.api.v1.MyAccountService.UpdatePresence
    */

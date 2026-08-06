@@ -1535,9 +1535,9 @@ Fit mode used when generating transformed image URLs.
 
 Live presence status returned by public read APIs.
 
-Offline is a read-side state only. Clients cannot update their presence to
-Offline through the account presence RPC; they should stop refreshing and let
-the server's live presence record expire.
+Offline remains a read-side state for ordinary reports. Session-aware clients
+may send Offline only together with release_installation to withdraw this
+browser installation's ephemeral presence leases.
 
 | Name | Number | Description |
 | --- | --- | --- |

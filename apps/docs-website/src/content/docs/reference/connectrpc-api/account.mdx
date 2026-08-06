@@ -289,9 +289,9 @@ Result of disconnecting a provider identity.
 
 ### UpdatePresence
 
-Updates the current user's live presence status. This state is transient:
-clients should refresh it periodically while visible, and should stop
-calling this RPC when the user chooses to appear offline.
+Updates the current user's transient live presence and refreshes its
+authenticated session leases. Session-aware clients report both active and
+recent evidence; legacy clients retain the single-key compatibility path.
 
 ```http
 POST /api/connect/chatto.api.v1.MyAccountService/UpdatePresence
@@ -305,8 +305,13 @@ Request to update the current user's live presence status.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `status` | [`PresenceStatus`](/reference/connectrpc-api/types/#chatto-api-v1-PresenceStatus) | Live status to store for the authenticated user. Offline is rejected. |
+| `status` | [`PresenceStatus`](/reference/connectrpc-api/types/#chatto-api-v1-PresenceStatus) | Live status requested for the authenticated user. Offline is accepted only for an installation-scoped release. |
 | `user_selected` | `bool` | True when this update comes from a deliberate user selection rather than automatic idle/refresh updates. Automatic updates do not overwrite an active manually selected Away or Do Not Disturb status from another client. |
+| `installation_id` | `string` | Stable browser-installation identifier shared with push and realtime state. New clients send it with every session-aware report. |
+| `session_id` | `string` | Opaque page-lifetime identifier. Multiple tabs from one installation own independent leases so one tab cannot incorrectly hide another active tab. |
+| `active` | `bool` | Whether this exact page is currently active after lifecycle grace periods. |
+| `meaningful_activity` | `bool` | True only for foreground/resume or direct user interaction. Routine lease refreshes leave this false and cannot advance profile latest activity. |
+| `release_installation` | `bool` | Withdraw every session lease owned by installation_id. This is used by "Look offline" and requires status Offline with an empty session_id. |
 
 
 <a id="chatto-api-v1-UpdatePresenceResponse"></a>
@@ -317,7 +322,7 @@ Result of updating live presence.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `status` | [`PresenceStatus`](/reference/connectrpc-api/types/#chatto-api-v1-PresenceStatus) | Reportable status accepted and stored by the server. |
+| `status` | [`PresenceStatus`](/reference/connectrpc-api/types/#chatto-api-v1-PresenceStatus) | Effective user-level status after aggregating all current installations. |
 
 
 <a id="chatto-api-v1-MyAccountService-UpdateCustomStatus"></a>
