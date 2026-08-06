@@ -2,9 +2,25 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "grades": {
     "system_roles": {
+      "owner": {
+        "display_name": "Propriétaire",
+        "description": "Contrôle intégral de l’instance. Les permissions RBAC du propriétaire sont toujours accordées ; la lecture des messages directs exige toujours d’y participer."
+      },
+      "admin": {
+        "display_name": "Administrateur",
+        "description": "Administration déléguée avancée des paramètres, salons, grades, permissions, comptes et outils d’audit. N’équivaut pas au propriétaire."
+      },
+      "moderator": {
+        "display_name": "Modérateur",
+        "description": "Modère les salons publics en supprimant des messages, en retirant ou bannissant des membres et en verrouillant les discussions. Ne gère ni les comptes ni les grades et ne purge pas l’historique par défaut."
+      },
       "helper": {
         "display_name": "Assistant",
         "description": "Aide les membres et peut être mentionné pour obtenir de l’aide. Aucun droit de modération ou d’administration par défaut."
+      },
+      "everyone": {
+        "display_name": "Membres",
+        "description": "Tous les utilisateurs authentifiés et leurs permissions ordinaires héritées."
       }
     },
     "templates": {
