@@ -431,6 +431,10 @@
 </FormSection>
 
 <style>
+  .profile-details-card {
+    align-self: start;
+  }
+
   .profile-details-card,
   .profile-details-loading {
     box-shadow:
