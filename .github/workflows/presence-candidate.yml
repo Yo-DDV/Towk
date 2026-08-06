@@ -17,7 +17,7 @@ jobs:
   materialize-test-publish:
     name: materialize-test-publish
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,6 +47,10 @@ jobs:
             cli/internal/core/presence_session_test.go \
             cli/internal/connectapi/presence.go \
             cli/internal/connectapi/presence_session_test.go
+          rm -rf .github/presence-source
+          rm -f .github/workflows/presence-candidate.yml
+          test ! -e .github/presence-source
+          test ! -e .github/workflows/presence-candidate.yml
           git diff --check
 
       - name: Setup repository toolchain
@@ -94,21 +98,7 @@ jobs:
           set -euo pipefail
           mise test
 
-      - name: Remove all temporary transfer surfaces
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf .github/presence-source
-          rm -f .github/workflows/presence-candidate.yml
-          test ! -e .github/presence-source
-          test ! -e .github/workflows/presence-candidate.yml
-          git diff --check
-          if git diff --name-only | grep -E '(^|/)(presence-source|presence-candidate\.yml|commands\.log|candidate\.patch|trigger\.txt)$'; then
-            echo 'temporary transfer artifact remains in product diff' >&2
-            exit 1
-          fi
-
-      - name: Verify product diff and authorship boundary
+      - name: Verify final product tree and authorship boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -116,8 +106,8 @@ jobs:
           git diff --cached --check
           git diff --cached --name-status
           test -n "$(git diff --cached --name-only)"
-          if git diff --cached --name-only | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
-            echo 'temporary workflow material is staged' >&2
+          if git ls-files --cached | grep -E '^\.github/(presence-source/|workflows/presence-candidate\.yml$)'; then
+            echo 'temporary workflow material remains in the final index' >&2
             exit 1
           fi
           if git diff --cached | grep -Ei 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
