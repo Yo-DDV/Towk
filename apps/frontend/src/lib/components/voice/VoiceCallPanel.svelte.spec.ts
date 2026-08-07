@@ -157,6 +157,20 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(table?.querySelectorAll('thead th')).toHaveLength(3);
     expect(table?.querySelectorAll('tbody tr')).toHaveLength(3);
     expect(table?.querySelectorAll('th[scope="row"]')).toHaveLength(3);
+    expect(table?.querySelectorAll('col')).toHaveLength(3);
+    expect(table?.querySelectorAll('th[scope="col"]:not(:first-child) .rounded-full')).toHaveLength(
+      0
+    );
+    expect(
+      Array.from(table?.querySelectorAll('th[scope="col"]:not(:first-child)') ?? []).every(
+        (cell) => cell.className.includes('border-l') && cell.className.includes('text-center')
+      )
+    ).toBe(true);
+    expect(
+      Array.from(table?.querySelectorAll('td') ?? []).every(
+        (cell) => cell.className.includes('border-l') && cell.className.includes('text-center')
+      )
+    ).toBe(true);
     expect(table?.textContent).toContain('Upload statistics');
     expect(table?.textContent).toContain('Download statistics');
     expect(table?.textContent).toContain('640 ms');
