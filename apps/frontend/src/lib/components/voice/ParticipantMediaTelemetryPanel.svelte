@@ -418,14 +418,15 @@
       role="dialog"
       aria-modal="true"
       aria-label={m['voice.media_telemetry_title']({ name: participantName })}
-      class="telemetry-compact telemetry-glass @container flex max-h-[min(36rem,calc(100dvh-1rem))] w-[min(36rem,calc(100vw-1rem))] min-w-0 flex-col overflow-hidden rounded-2xl border border-text/15 text-text shadow-2xl"
+      class="telemetry-compact telemetry-glass @container relative flex max-h-[min(36rem,calc(100dvh-1rem))] w-[min(34rem,calc(100vw-1rem))] min-w-0 flex-col overflow-hidden rounded-3xl border border-text/15 text-text"
       data-diagnosis={diagnosis}
       data-testid="participant-media-telemetry-compact"
     >
-      <header class="flex min-h-[64px] shrink-0 items-center gap-2 border-b border-text/10 px-2.5">
-        <span class="iconify shrink-0 text-lg text-accent uil--chart-line" aria-hidden="true"></span>
-        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold">
-          {m['voice.media_telemetry_title']({ name: participantName })}
+      <header class="telemetry-header flex min-h-[64px] shrink-0 items-center gap-2 border-b border-text/10 px-2.5">
+        <span class="iconify shrink-0 text-lg text-text/70 uil--chart-line" aria-hidden="true"></span>
+        <h2 class="min-w-0 flex-1 text-sm font-semibold">
+          <span class="hidden truncate sm:block">{m['voice.media_telemetry_title']({ name: participantName })}</span>
+          <span class="block truncate sm:hidden">{participantName}</span>
         </h2>
         <span
           class={[
@@ -499,7 +500,7 @@
           data-testid="participant-media-telemetry-expand"
           onclick={expand}
         >
-          <span class="iconify text-lg text-accent uil--expand-arrows-alt" aria-hidden="true"></span>
+          <span class="iconify text-lg text-text/70 uil--expand-arrows-alt" aria-hidden="true"></span>
           {m['voice.media_telemetry_open']()}
         </button>
       </div>
@@ -511,14 +512,15 @@
       role="dialog"
       aria-modal="true"
       aria-label={m['voice.media_telemetry_title']({ name: participantName })}
-      class="telemetry-panel telemetry-glass @container flex h-[min(100dvh,52rem)] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-2xl border border-text/15 text-text shadow-2xl sm:h-auto sm:max-h-[min(52rem,calc(100dvh-2rem))] sm:max-w-[min(68rem,calc(100vw-2rem))] sm:rounded-2xl"
+      class="telemetry-panel telemetry-glass @container relative flex h-[min(100dvh,52rem)] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-3xl border border-text/15 text-text sm:h-auto sm:max-h-[min(52rem,calc(100dvh-2rem))] sm:max-w-[min(60rem,calc(100vw-2rem))] sm:rounded-3xl"
       data-diagnosis={diagnosis}
       data-testid="participant-media-telemetry-panel"
     >
-      <header class="flex min-h-[64px] shrink-0 items-center gap-2.5 border-b border-text/10 px-2.5 sm:px-3.5">
-        <span class="iconify shrink-0 text-lg text-accent uil--chart-line" aria-hidden="true"></span>
-        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">
-          {m['voice.media_telemetry_title']({ name: participantName })}
+      <header class="telemetry-header flex min-h-[68px] shrink-0 items-center gap-2.5 border-b border-text/10 px-3 sm:px-4">
+        <span class="iconify shrink-0 text-lg text-text/70 uil--chart-line" aria-hidden="true"></span>
+        <h2 class="min-w-0 flex-1 text-sm font-semibold sm:text-base">
+          <span class="hidden truncate sm:block">{m['voice.media_telemetry_title']({ name: participantName })}</span>
+          <span class="block truncate sm:hidden">{participantName}</span>
         </h2>
         <span
           class={[
@@ -548,12 +550,12 @@
         data-testid="participant-media-telemetry-scroll"
       >
         <div class="grid gap-3 @min-[540px]:grid-cols-2">
-          <section class="telemetry-card rounded-xl border border-text/10 p-3" data-telemetry-card="upload">
+          <section class="telemetry-card rounded-2xl p-3.5" data-telemetry-card="upload">
             <div class="flex items-center gap-2">
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent" aria-hidden="true">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface-300/60 text-text/75" aria-hidden="true">
                 <span class="iconify text-base uil--upload"></span>
               </span>
-              <h3 class="text-xs font-semibold tracking-wide text-accent uppercase">{m['voice.media_telemetry_source']()}</h3>
+              <h3 class="text-xs font-semibold tracking-wide text-text uppercase">{m['voice.media_telemetry_source']()}</h3>
             </div>
             <p class="mt-1.5 text-xs leading-relaxed text-muted">{m['voice.media_telemetry_source_hint']()}</p>
             {#if sourceAggregate}
@@ -572,12 +574,12 @@
             {/if}
           </section>
 
-          <section class="telemetry-card rounded-xl border border-text/10 p-3" data-telemetry-card="download">
+          <section class="telemetry-card rounded-2xl p-3.5" data-telemetry-card="download">
             <div class="flex items-center gap-2">
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning" aria-hidden="true">
+              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-surface-300/60 text-text/75" aria-hidden="true">
                 <span class="iconify text-base uil--download-alt"></span>
               </span>
-              <h3 class="text-xs font-semibold tracking-wide text-warning uppercase">{m['voice.media_telemetry_reception']()}</h3>
+              <h3 class="text-xs font-semibold tracking-wide text-text uppercase">{m['voice.media_telemetry_reception']()}</h3>
             </div>
             <p class="mt-1.5 text-xs leading-relaxed text-muted">{m['voice.media_telemetry_reception_hint']()}</p>
             {#if receptionAggregate}
@@ -597,7 +599,7 @@
           </section>
         </div>
 
-        <section class="telemetry-card mt-3 rounded-xl border border-text/10 p-3">
+        <section class="telemetry-card mt-3 rounded-2xl p-3.5">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-xs font-semibold tracking-wide text-text uppercase">{m['voice.media_telemetry_history']()}</h3>
             <span class="shrink-0 text-[0.6875rem] text-muted">{m['voice.media_telemetry_history_window']()}</span>
@@ -605,7 +607,7 @@
           {#if history.length && charts.some((chart) => chart.hasValues)}
             <div class="mt-3 grid gap-3 @min-[680px]:grid-cols-2">
               {#each charts as chart (chart.id)}
-                <article class="chart-card min-w-0 rounded-xl border border-text/10 p-3" data-testid={`participant-media-telemetry-chart-${chart.id}`}>
+              <article class="chart-card min-w-0 rounded-2xl p-3" data-testid={`participant-media-telemetry-chart-${chart.id}`}>
                   <h4 class="text-xs font-semibold">{chart.label} ({chart.unit})</h4>
                   <div class="mt-2 flex flex-wrap gap-1.5 text-[0.6875rem] tabular-nums">
                     <span class="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-surface-300/65 px-2 py-1 font-medium text-accent" data-telemetry-series="upload">
@@ -658,9 +660,9 @@
         <section class="mt-3">
           <h3 class="text-xs font-semibold tracking-wide text-text uppercase">{m['voice.media_telemetry_paths']()}</h3>
           {#if sourceMetrics.length}
-            <div class="mt-2 grid gap-2 @min-[620px]:grid-cols-2">
+            <div class="telemetry-path-grid mt-2 grid gap-2" data-testid="participant-media-telemetry-paths-grid">
               {#each sourceMetrics as metric (metric.kind)}
-                <article class="telemetry-card rounded-xl border border-text/10 p-3">
+                <article class="telemetry-card rounded-2xl p-3">
                   <header class="flex min-h-0 items-center gap-2 border-0 p-0">
                     <span class={['iconify shrink-0 text-base text-accent', metricIcon(metric.kind)]} aria-hidden="true"></span>
                     <h4 class="text-sm font-semibold">{metricLabel(metric.kind)}</h4>
@@ -688,7 +690,7 @@
           {/if}
         </section>
 
-        <p class="telemetry-card mt-3 rounded-xl border border-text/10 p-2.5 text-[0.6875rem] leading-4 text-muted">{m['voice.media_telemetry_privacy']()}</p>
+        <p class="telemetry-card mt-3 rounded-2xl p-2.5 text-[0.6875rem] leading-4 text-muted">{m['voice.media_telemetry_privacy']()}</p>
       </div>
     </div>
   {/if}
@@ -699,19 +701,33 @@
   .telemetry-glass {
     isolation: isolate;
     background-color: var(--color-surface-100);
-    background-color: color-mix(in srgb, var(--color-surface-100) 88%, transparent);
-    -webkit-backdrop-filter: blur(22px) saturate(118%);
-    backdrop-filter: blur(22px) saturate(118%);
-    box-shadow: 0 28px 72px rgb(0 0 0 / 0.38), inset 0 1px 0 rgb(255 255 255 / 0.055);
+    background-color: color-mix(in srgb, var(--color-surface-100) 76%, transparent);
+    -webkit-backdrop-filter: blur(30px) saturate(136%);
+    backdrop-filter: blur(30px) saturate(136%);
+    box-shadow:
+      0 32px 80px rgb(0 0 0 / 0.42),
+      0 10px 28px rgb(0 0 0 / 0.2),
+      inset 0 1px 0 color-mix(in srgb, var(--color-text) 11%, transparent),
+      inset 0 -1px 0 rgb(0 0 0 / 0.16);
+  }
+  .telemetry-header {
+    background-color: color-mix(in srgb, var(--color-surface-200) 28%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 5%, transparent);
   }
   .telemetry-card, .metric-tile, .chart-card, .chart-plot {
+    border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
     background-color: var(--color-surface-200);
-    background-color: color-mix(in srgb, var(--color-surface-200) 74%, transparent);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035);
+    background-color: color-mix(in srgb, var(--color-surface-200) 58%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--color-text) 5%, transparent),
+      0 8px 22px rgb(0 0 0 / 0.08);
   }
   .metric-tile, .chart-plot {
     background-color: var(--color-surface-100);
-    background-color: color-mix(in srgb, var(--color-surface-100) 64%, transparent);
+    background-color: color-mix(in srgb, var(--color-surface-100) 48%, transparent);
+  }
+  .telemetry-path-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
   }
   .telemetry-panel { padding-top: env(safe-area-inset-top); transform-origin: bottom center; }
   .telemetry-compact { margin-bottom: env(safe-area-inset-bottom); transform-origin: bottom center; }

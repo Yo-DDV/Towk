@@ -327,6 +327,74 @@
           packetLossPercent: 12.4,
           latencyMs: 640,
           networkWarningMetric: 'packetLoss',
+          sourceNetworkHealth: 'degraded',
+          sourcePacketLossPercent: 2,
+          sourceJitterMs: 21,
+          sourceLatencyMs: 26.2,
+          sourceMediaTelemetry: [
+            {
+              kind: 'microphone',
+              health: 'degraded',
+              bitrateKbps: 35,
+              packetLossPercent: 2,
+              jitterMs: 21,
+              latencyMs: 26.2,
+              framesPerSecond: null,
+              width: null,
+              height: null,
+              qualityLimitationReason: null
+            }
+          ],
+          sourceTelemetryUpdatedAt: Date.now(),
+          receptionTelemetrySupported: false,
+          mediaTelemetryDiagnosis: 'source',
+          mediaTelemetryHistory: [
+            {
+              bucketAt: Date.now() - 25_000,
+              sourceHealth: 'good',
+              receptionHealth: 'unknown',
+              sourceLatencyMs: 35,
+              receptionLatencyMs: null,
+              sourcePacketLossPercent: 0,
+              receptionPacketLossPercent: null
+            },
+            {
+              bucketAt: Date.now() - 20_000,
+              sourceHealth: 'good',
+              receptionHealth: 'unknown',
+              sourceLatencyMs: 24,
+              receptionLatencyMs: null,
+              sourcePacketLossPercent: 0,
+              receptionPacketLossPercent: null
+            },
+            {
+              bucketAt: Date.now() - 15_000,
+              sourceHealth: 'good',
+              receptionHealth: 'unknown',
+              sourceLatencyMs: 24,
+              receptionLatencyMs: null,
+              sourcePacketLossPercent: 0,
+              receptionPacketLossPercent: null
+            },
+            {
+              bucketAt: Date.now() - 10_000,
+              sourceHealth: 'good',
+              receptionHealth: 'unknown',
+              sourceLatencyMs: 24,
+              receptionLatencyMs: null,
+              sourcePacketLossPercent: 0,
+              receptionPacketLossPercent: null
+            },
+            {
+              bucketAt: Date.now() - 5_000,
+              sourceHealth: 'degraded',
+              receptionHealth: 'unknown',
+              sourceLatencyMs: 26.2,
+              receptionLatencyMs: null,
+              sourcePacketLossPercent: 2,
+              receptionPacketLossPercent: null
+            }
+          ],
           canControlAudio: true,
           siblingMicrophoneMuted: true,
           siblingOutputMuted: true
