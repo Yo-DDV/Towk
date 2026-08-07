@@ -45,7 +45,7 @@ func TestDefaultGradeTemplates(t *testing.T) {
 
 func TestDefaultAdminPermissionsAreExplicitAndSafe(t *testing.T) {
 	permissions := DefaultAdminPermissions()
-	for _, required := range []Permission{PermRoomLock, PermRoomBypassLock, PermMessageManage, PermRoleManage} {
+	for _, required := range []Permission{PermRoomRemoveMember, PermRoomLock, PermRoomBypassLock, PermMessageManage, PermRoleManage} {
 		if !slices.Contains(permissions, required) {
 			t.Errorf("admin default missing %s", required)
 		}
@@ -53,8 +53,8 @@ func TestDefaultAdminPermissionsAreExplicitAndSafe(t *testing.T) {
 	if slices.Contains(permissions, PermRoomPurgeMessages) {
 		t.Fatal("admin default must not include room.purge-messages")
 	}
-	if slices.Contains(permissions, PermRoomRemoveMember) || slices.Contains(permissions, PermMessageDeleteOthers) {
-		t.Fatal("admin should inherit narrow aliases from broad permissions, not duplicate them")
+	if slices.Contains(permissions, PermMessageDeleteOthers) {
+		t.Fatal("admin should inherit message.delete-others from message.manage")
 	}
 }
 

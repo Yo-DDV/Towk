@@ -8,15 +8,15 @@
       },
       "admin": {
         "display_name": "Administrador",
-        "description": "Administração delegada avançada de definições, canais, funções, permissões, contas e ferramentas de auditoria. Não equivale ao proprietário."
+      "description": "Administração delegada avançada de configurações, canais, funções, permissões, contas e ferramentas de auditoria. Não equivale ao proprietário."
       },
       "moderator": {
         "display_name": "Moderador",
-        "description": "Modera canais públicos eliminando mensagens, removendo ou banindo membros e bloqueando discussões. Não gere contas ou funções e não apaga o histórico por predefinição."
+      "description": "Modera canais públicos eliminando mensagens, removendo ou banindo membros e bloqueando discussões. Não administra contas ou funções e não apaga o histórico por padrão."
       },
       "helper": {
         "display_name": "Assistente",
-        "description": "Ajuda os membros e pode ser mencionado para prestar assistência. Sem poderes de moderação ou administração por predefinição."
+      "description": "Ajuda os membros e pode ser mencionado para prestar assistência. Sem poderes de moderação ou administração por padrão."
       },
       "everyone": {
         "display_name": "Membros",

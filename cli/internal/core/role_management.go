@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
@@ -120,37 +121,77 @@ func (c *ChattoCore) AdminCreateServerRole(ctx context.Context, actorID string, 
 	return c.createServerRole(ctx, actorID, input.Name, input.DisplayName, input.Description, pingable, input.Color)
 }
 
-// AdminCreateServerRoleFromTemplate creates a custom role and applies a
-// versioned server-scope baseline. If a permission write fails, the role is
-// removed before returning so callers never receive a partially configured
-// success response.
+// AdminCreateServerRoleFromTemplate creates a custom role and its versioned
+// server-scope baseline in one OCC-protected RBAC batch. No observer can see a
+// role without its baseline, and a mention-handle collision aborts the complete
+// command before any durable event is appended.
 func (c *ChattoCore) AdminCreateServerRoleFromTemplate(ctx context.Context, actorID string, input AdminRoleInput, templateID string) (*RoleWithPermissions, error) {
-	template, ok := GradeTemplateByID(templateID)
-	if !ok || template.RoleName == RoleOwner || template.RoleName == RoleEveryone || template.RoleName == RoleAdmin {
-		return nil, fmt.Errorf("%w: unsupported role template %q", ErrInvalidArgument, templateID)
-	}
-	if input.Pingable == nil {
-		input.Pingable = &template.Pingable
-	}
-	if input.Color == nil && template.Color != "" {
-		color := template.Color
-		input.Color = &color
-	}
-	role, err := c.AdminCreateServerRole(ctx, actorID, input)
-	if err != nil {
+	if err := c.requireCanManageAdminRoles(ctx, actorID); err != nil {
 		return nil, err
 	}
-	for _, permission := range template.Permissions {
-		if err := c.requireCanManageAdminRoles(ctx, actorID); err != nil {
-			_ = c.DeleteServerRole(ctx, SystemActorID, role.Name)
+	template, ok := GradeTemplateByID(templateID)
+	if !ok || (template.ID != GradeTemplateHelperV1 && template.ID != GradeTemplateModeratorV1) {
+		return nil, fmt.Errorf("%w: unsupported role template %q", ErrInvalidArgument, templateID)
+	}
+	if err := ValidateRoleName(input.Name); err != nil {
+		return nil, ErrInvalidRoleName
+	}
+	if IsSystemRole(input.Name) {
+		return nil, ErrRoleAlreadyExists
+	}
+	if err := validateRoleMetadata(input.DisplayName, input.Description); err != nil {
+		return nil, err
+	}
+
+	pingable := template.Pingable
+	if input.Pingable != nil {
+		pingable = *input.Pingable
+	}
+	color := template.Color
+	if input.Color != nil {
+		var err error
+		color, err = normalizeRoleColor(*input.Color)
+		if err != nil {
 			return nil, err
 		}
-		if err := c.GrantServerPermission(ctx, actorID, role.Name, permission); err != nil {
-			_ = c.DeleteServerRole(ctx, SystemActorID, role.Name)
-			return nil, fmt.Errorf("apply template %s permission %s: %w", templateID, permission, err)
-		}
 	}
-	return c.GetServerRole(ctx, role.Name)
+
+	if _, err := c.appendRBACBatchWithMentionableCheck(ctx, func() ([]events.BatchEntry, error) {
+		if err := c.requireCanManageAdminRoles(ctx, actorID); err != nil {
+			return nil, err
+		}
+		if c.RBAC.RoleExists(input.Name) || c.roleNameConflictsWithMentionHandle(input.Name) {
+			return nil, ErrRoleAlreadyExists
+		}
+		if err := c.requireRoleMentionHandleAvailable(input.Name); err != nil {
+			return nil, err
+		}
+		position := c.RBAC.NextAvailablePosition()
+		resolvedColor := color
+		if resolvedColor == "" {
+			resolvedColor = defaultRoleColor(input.Name, position)
+		}
+		roleEvent := newEvent(actorID, &corev1.Event{Event: &corev1.Event_RbacRoleCreated{
+			RbacRoleCreated: &corev1.RbacRoleCreatedEvent{
+				RoleName: input.Name, DisplayName: input.DisplayName, Description: input.Description,
+				Rank: position, Pingable: pingable, Color: resolvedColor,
+			},
+		}})
+		entries := []events.BatchEntry{{Subject: rbacSubjectForEvent(roleEvent), Event: roleEvent}}
+		for _, permission := range template.Permissions {
+			if err := validatePermissionScope(permission, ScopeServer); err != nil {
+				return nil, fmt.Errorf("template %s permission %s: %w", template.ID, permission, err)
+			}
+			permissionEvent := newEvent(actorID, &corev1.Event{Event: &corev1.Event_RbacPermissionGranted{
+				RbacPermissionGranted: rbacRolePermissionGrantedEvent(ScopeServer, "", input.Name, permission),
+			}})
+			entries = append(entries, events.BatchEntry{Subject: rbacSubjectForEvent(permissionEvent), Event: permissionEvent})
+		}
+		return entries, nil
+	}); err != nil {
+		return nil, err
+	}
+	return c.GetServerRole(ctx, input.Name)
 }
 
 func (c *ChattoCore) AdminUpdateServerRole(ctx context.Context, actorID string, input AdminRoleUpdateInput) (*RoleWithPermissions, error) {

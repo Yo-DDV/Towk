@@ -1,121 +1,80 @@
-name: pr312 finalize
+name: quick gate
 
 on:
   pull_request:
-    types: [edited, reopened, synchronize]
+    types: [opened, reopened, synchronize, ready_for_review]
     branches:
       - main
+      - "release-[0-9]*"
 
 concurrency:
-  group: pr312-finalize-${{ github.run_id }}
-  cancel-in-progress: false
+  group: quick-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  finalize:
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/localized-default-grades'
+  quick-gate:
+    name: quick-gate
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 2
     steps:
-      - name: Checkout canonical branch
+      - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: feat/localized-default-grades
-          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Resolve and apply verified remediation
+      - name: Check README fact-checker syntax
+        run: node --check tools/fact-check-readmes.mjs
+
+      - name: Verify English README facts
         env:
-          GH_TOKEN: ${{ github.token }}
+          TOWK_README_LOCALE: en
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify French README facts
+        env:
+          TOWK_README_LOCALE: fr
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify German README facts
+        env:
+          TOWK_README_LOCALE: de
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify Spanish README facts
+        env:
+          TOWK_README_LOCALE: es
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify Portuguese README facts
+        env:
+          TOWK_README_LOCALE: pt
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Check repository and README presentation
+        run: |
+          set -euo pipefail
+          empty_tree="$(git hash-object -t tree /dev/null)"
+          git diff --check "${empty_tree}" HEAD
+          node --check tools/check-public-surface.mjs
+          node tools/check-public-surface.mjs
+          node --check tools/check-readme-presentation.mjs
+          node tools/check-readme-presentation.mjs
+
+      - name: Test README metrics generators
+        run: |
+          set -euo pipefail
+          node --check tools/generate-readme-project-pulse.mjs
+          node --test tools/generate-readme-project-pulse.test.mjs
+          node --check tools/update-readme-project-pulse-copy.mjs
+
+      - name: Run shell and image guards
         shell: bash
         run: |
           set -euo pipefail
-          if test ! -f cli/internal/core/role_template_apply.go; then
-            expected='e728dbb49039fe94ca0f4c6d52786fed421c7a29de61eeaebc16b27dafeedb4f'
-            candidates=(
-              1e35f3e90ca24587fd326d4dd22691a7b7b1f3c1
-              e48dc924ec8f40fef22afb51aa6678a4b35ca534
-              7d0e6631c54c546bd0ad67c817e7ecf1a45e25d6
-              375a78746f092feafd1984b11e0ee78544869d59
-              9145e241129f1e155aeba24f317c1ca88658a3f9
-              598688bf217b623d794f4ed2559bb59010ef6ad3
-              5c9a808aeba763650d46e6454ce075bc339524a8
-              691eee03c4fbc84aff82f9a88e34a08456d06507
-              d0a366db0ff3c2fbc777f0cc58311e9b8c83e1ea
-              f55cef7f9a86e2234d08e0515da720e9ec5ca5ea
-              d68aa8e2e9c006be424e8ec8825fdf8d47f3f3b8
-              18a0ba52d0ccf1a5f838248b7cb710e936448e9b
-            )
-            found=''
-            for blob in "${candidates[@]}"; do
-              response="$(mktemp)"
-              if curl --fail --silent --show-error \
-                -H 'Accept: application/vnd.github+json' \
-                -H "Authorization: Bearer ${GH_TOKEN}" \
-                -H 'X-GitHub-Api-Version: 2022-11-28' \
-                "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/blobs/${blob}" > "${response}"; then
-                jq -r '.content' "${response}" | tr -d '\n' | base64 --decode > /tmp/pr312-candidate || true
-                if test "$(sha256sum /tmp/pr312-candidate | awk '{print $1}')" = "${expected}" && gzip --test /tmp/pr312-candidate; then
-                  cp /tmp/pr312-candidate /tmp/pr312-remediation.patch.gz
-                  found="${blob}"
-                  break
-                fi
-              fi
-            done
-            test -n "${found}"
-            gzip --decompress --stdout /tmp/pr312-remediation.patch.gz > /tmp/pr312-remediation.patch
-            git apply --check /tmp/pr312-remediation.patch
-            git apply /tmp/pr312-remediation.patch
-          fi
-
-      - name: Remove temporary transfer assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf .github/pr312-patch
-          rm -f .github/workflows/pr312-validation.yml
-          git show origin/main:.github/workflows/quick-gate.yml > .github/workflows/quick-gate.yml
-          changed_go="$(git diff --name-only -- '*.go')"
-          if test -n "${changed_go}"; then
-            gofmt -w ${changed_go}
-          fi
-          git diff --check
-          test -f cli/internal/core/role_template_apply.go
-          test -f cli/internal/core/role_template_apply_test.go
-          test -f apps/frontend/src/lib/components/rbac/ApplyRoleTemplateDialog.svelte
-          ! git status --short | grep -E 'pr312-patch|pr312-validation'
-
-      - name: Setup environment
-        uses: ./.github/actions/setup
-
-      - name: Validate frontend
-        shell: bash
-        run: |
-          set -euo pipefail
-          pnpm run check:frontend
-          pnpm run lint:frontend
-          pnpm --filter towk-frontend exec vitest run \
-            src/lib/components/rbac/gradeTemplates.spec.ts \
-            'src/routes/chat/[serverId]/[roomId]/memberRoleSections.spec.ts'
-          pnpm run build:frontend
-
-      - name: Validate backend
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd cli
-          go test -trimpath -p 1 -tags test_endpoints ./internal/core ./internal/connectapi
-          go vet ./internal/core ./internal/connectapi
-
-      - name: Commit and push clean implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add -A
-          git diff --cached --check
-          ! git diff --cached --name-only | grep -E '(^|/)pr312-|\.github/pr312-patch|pr312-validation\.yml'
-          ! git diff --cached | grep -Ei 'ChatGPT|Codex|Generated-by|Co-authored-by|Assisted-by'
-          git -c user.name='Yo-DDV' -c user.email='116607353+Yo-DDV@users.noreply.github.com' \
-            commit -m 'feat(rbac): complete localized default grade templates'
-          git push origin HEAD:feat/localized-default-grades
+          bash -n tools/verify-compose-project-name.sh tools/verify-compose-resource-envelope.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
+          bash tools/verify-compose-project-name.sh
+          bash tools/verify-compose-resource-envelope.sh
+          bash tools/runtime-image-process_test.sh

@@ -11,7 +11,10 @@ import (
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
 )
 
-const roleTemplateHeader = "Towk-Role-Template"
+const (
+	roleTemplateHeader      = "Towk-Role-Template"
+	roleTemplateStateHeader = "Towk-Role-Template-State"
+)
 
 type roleService struct{ api *API }
 type publicRoleService struct{ api *API }
@@ -110,10 +113,16 @@ func (s *roleService) CreateRole(ctx context.Context, req *connect.Request[admin
 func (s *roleService) UpdateRole(ctx context.Context, req *connect.Request[adminv1.UpdateRoleRequest]) (*connect.Response[adminv1.UpdateRoleResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil { return nil, err }
-	role, err := s.api.core.AdminUpdateServerRole(ctx, caller.UserID, core.AdminRoleUpdateInput{
-		Name: req.Msg.GetName(), DisplayName: req.Msg.DisplayName, Description: req.Msg.Description,
-		Pingable: req.Msg.Pingable, Color: req.Msg.Color,
-	})
+	templateID := strings.TrimSpace(req.Header().Get(roleTemplateHeader))
+	var role *core.RoleWithPermissions
+	if templateID != "" {
+		role, err = s.api.core.AdminApplyServerRoleTemplate(ctx, caller.UserID, req.Msg.GetName(), templateID, strings.TrimSpace(req.Header().Get(roleTemplateStateHeader)))
+	} else {
+		role, err = s.api.core.AdminUpdateServerRole(ctx, caller.UserID, core.AdminRoleUpdateInput{
+			Name: req.Msg.GetName(), DisplayName: req.Msg.DisplayName, Description: req.Msg.Description,
+			Pingable: req.Msg.Pingable, Color: req.Msg.Color,
+		})
+	}
 	if err != nil { return nil, connectError(err) }
 	return connect.NewResponse(&adminv1.UpdateRoleResponse{Role: adminAPIRole(role)}), nil
 }

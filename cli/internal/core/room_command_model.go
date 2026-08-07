@@ -199,6 +199,11 @@ func (s *RoomCommandModel) UnbanMember(ctx context.Context, input RoomUnbanInput
 
 func (s *RoomCommandModel) ListActiveRoomBans(ctx context.Context, input RoomBanListInput) ([]RoomBan, error) {
 	if err := requireAuthenticatedActor(input.ActorID); err != nil { return nil, err }
+	if input.RoomID == nil {
+		canListAll, err := s.core.PermResolver().HasServerPermission(ctx, input.ActorID, PermRoomMemberBan)
+		if err != nil { return nil, err }
+		if !canListAll { return nil, ErrPermissionDenied }
+	}
 	bans, err := s.core.ListActiveRoomBans(ctx, input.RoomID)
 	if err != nil { return nil, err }
 	filtered := make([]RoomBan, 0, len(bans))

@@ -363,29 +363,17 @@ func TestInitServerDefaults(t *testing.T) {
 	// InitServerDefaults is called during setupTestCore, so we can verify its effects
 
 	t.Run("admin has expected server permissions", func(t *testing.T) {
-		// Admin-specific defaults include administration, room administration,
-		// and message management. Ordinary posting defaults come from everyone.
-		for _, perm := range PermissionsForScope(ScopeServer) {
-			if perm.Category == CategoryMessage && perm.Permission != PermMessageManage {
-				continue
-			}
-			if perm.Permission == PermRoomLock ||
-				perm.Permission == PermRoomPurgeMessages ||
-				perm.Permission == PermRoomBypassLock {
-				continue
-			}
-			if got := core.RBAC.GetDecision(ScopeServer, "", RoleAdmin, perm.Permission); got != DecisionAllow {
-				t.Errorf("admin decision for %s = %s, want %s", perm.Permission, got, DecisionAllow)
-			}
+		wantAllows := make(map[Permission]struct{}, len(DefaultAdminPermissions()))
+		for _, permission := range DefaultAdminPermissions() {
+			wantAllows[permission] = struct{}{}
 		}
-		for _, perm := range []Permission{PermRoomLock, PermRoomPurgeMessages, PermRoomBypassLock} {
-			if got := core.RBAC.GetDecision(ScopeServer, "", RoleAdmin, perm); got != DecisionNone {
-				t.Errorf("admin server decision for delegated permission %s = %s, want %s", perm, got, DecisionNone)
+		for _, metadata := range PermissionsForScope(ScopeServer) {
+			want := DecisionNone
+			if _, ok := wantAllows[metadata.Permission]; ok {
+				want = DecisionAllow
 			}
-		}
-		for _, perm := range []Permission{PermMessagePost, PermMessagePostInThread, PermMessageReact, PermMessageEcho} {
-			if got := core.RBAC.GetDecision(ScopeServer, "", RoleAdmin, perm); got != DecisionNone {
-				t.Errorf("admin server decision for %s = %s, want %s", perm, got, DecisionNone)
+			if got := core.RBAC.GetDecision(ScopeServer, "", RoleAdmin, metadata.Permission); got != want {
+				t.Errorf("admin decision for %s = %s, want %s", metadata.Permission, got, want)
 			}
 		}
 	})

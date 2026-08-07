@@ -80,7 +80,7 @@
       "admin_summary": "Administration déléguée réservée à un niveau de confiance très élevé"
     },
     "risk": {
-      "standard": "Standard",
+    "standard": "Général",
       "moderation": "Modération",
       "sensitive": "Sensible",
       "destructive": "Destructif",

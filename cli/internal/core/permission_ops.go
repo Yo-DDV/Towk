@@ -132,7 +132,7 @@ func (c *ChattoCore) GrantUserRoomPermission(ctx context.Context, actorID, roomI
 	if _, err := c.GetUser(ctx, userID); err != nil {
 		return err
 	}
-	if _, err := c.GetRoom(ctx, KindChannel, roomID); err != nil {
+	if _, err := c.FindRoomByID(ctx, roomID); err != nil {
 		return err
 	}
 	event := newEvent(actorID, &corev1.Event{Event: &corev1.Event_RbacPermissionGranted{
@@ -149,7 +149,7 @@ func (c *ChattoCore) DenyUserRoomPermission(ctx context.Context, actorID, roomID
 	if _, err := c.GetUser(ctx, userID); err != nil {
 		return err
 	}
-	if _, err := c.GetRoom(ctx, KindChannel, roomID); err != nil {
+	if _, err := c.FindRoomByID(ctx, roomID); err != nil {
 		return err
 	}
 	event := newEvent(actorID, &corev1.Event{Event: &corev1.Event_RbacPermissionDenied{
@@ -166,7 +166,7 @@ func (c *ChattoCore) ClearUserRoomPermissionState(ctx context.Context, actorID, 
 	if _, err := c.GetUser(ctx, userID); err != nil {
 		return err
 	}
-	if _, err := c.GetRoom(ctx, KindChannel, roomID); err != nil {
+	if _, err := c.FindRoomByID(ctx, roomID); err != nil {
 		return err
 	}
 	event := newEvent(actorID, &corev1.Event{Event: &corev1.Event_RbacPermissionCleared{

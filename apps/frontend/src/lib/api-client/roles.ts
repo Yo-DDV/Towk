@@ -7,6 +7,9 @@ import type { Role as APIRole } from '@towk/api-types/api/v1/roles_pb';
 import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 
 const roleTemplateHeader = 'Towk-Role-Template';
+const roleTemplateStateHeader = 'Towk-Role-Template-State';
+
+export type VersionedGradeTemplateId = 'helper.v1' | 'moderator.v1';
 
 export type RoleAPIConfig = {
   baseUrl: string;
@@ -49,7 +52,7 @@ export type CreateRoleInput = {
   description: string;
   pingable: boolean;
   color: string;
-  templateId?: 'helper.v1' | 'moderator.v1';
+  templateId?: VersionedGradeTemplateId;
 };
 
 export type UpdateRoleInput = {
@@ -113,7 +116,7 @@ export function createRoleAPI(config: RoleAPIConfig) {
     },
 
     async createRole(input: CreateRoleInput): Promise<ServerRole> {
-      const requestHeaders = headers();
+      const requestHeaders = new Headers(headers());
       if (input.templateId) requestHeaders.set(roleTemplateHeader, input.templateId);
       const { templateId: _templateId, ...request } = input;
       const response = await adminClient.createRole(request, { headers: requestHeaders });
@@ -122,6 +125,21 @@ export function createRoleAPI(config: RoleAPIConfig) {
 
     async updateRole(input: UpdateRoleInput): Promise<ServerRole> {
       const response = await adminClient.updateRole(input, { headers: headers() });
+      return requiredAdminRole(response.role);
+    },
+
+    async applyRoleTemplate(
+      name: string,
+      templateId: VersionedGradeTemplateId,
+      stateToken: string
+    ): Promise<ServerRole> {
+      const requestHeaders = new Headers(headers());
+      requestHeaders.set(roleTemplateHeader, templateId);
+      requestHeaders.set(roleTemplateStateHeader, stateToken);
+      const response = await adminClient.updateRole(
+        { name },
+        { headers: requestHeaders }
+      );
       return requiredAdminRole(response.role);
     },
 

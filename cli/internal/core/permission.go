@@ -280,6 +280,7 @@ func DefaultAdminPermissions() []Permission {
 		PermRoomList,
 		PermRoomJoin,
 		PermRoomManage,
+		PermRoomRemoveMember,
 		PermRoomMemberBan,
 		PermRoomLock,
 		PermRoomBypassLock,
