@@ -50,7 +50,10 @@ func TestIsSystemRole(t *testing.T) {
 		role string
 		want bool
 	}{
+		{"owner is system role", RoleOwner, true},
 		{"admin is system role", RoleAdmin, true},
+		{"moderator is system role", RoleModerator, true},
+		{"helper is system role", RoleHelper, true},
 		{"everyone is system role", RoleEveryone, true},
 		{"custom is not system role", "custom", false},
 		{"empty is not system role", "", false},
@@ -1366,7 +1369,7 @@ func TestChattoCore_CreateServerRole_PositionAssignment(t *testing.T) {
 	})
 
 	t.Run("multiple custom roles can be created", func(t *testing.T) {
-		roles := []string{"helper", "triage", "support"}
+		roles := []string{"guide", "triage", "support"}
 		for _, name := range roles {
 			_, err := core.CreateServerRole(ctx, SystemActorID, name, name, "Test role")
 			if err != nil {
@@ -1555,26 +1558,26 @@ func TestChattoCore_ListRoles(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	// Initially should have 4 default roles (owner, admin, moderator, everyone) created by CreateSpace
+	// Initially should have 5 default roles (owner, admin, moderator, helper, everyone).
 	roles, err := core.ListServerRoles(ctx)
 	if err != nil {
 		t.Fatalf("Failed to list roles: %v", err)
 	}
-	if len(roles) != 4 {
-		t.Errorf("Expected 4 default roles, got %d", len(roles))
+	if len(roles) != 5 {
+		t.Errorf("Expected 5 default roles, got %d", len(roles))
 	}
 
 	// Create some additional roles
 	core.CreateServerRole(ctx, SystemActorID, "testmod", "Test Mod", "Test mod role")
 	core.CreateServerRole(ctx, SystemActorID, "vip", "VIP", "VIP role")
 
-	// List again - should have 6 total (4 default + 2 custom)
+	// List again - should have 7 total (5 default + 2 custom)
 	roles, err = core.ListServerRoles(ctx)
 	if err != nil {
 		t.Fatalf("Failed to list roles: %v", err)
 	}
-	if len(roles) != 6 {
-		t.Errorf("Expected 6 roles, got %d", len(roles))
+	if len(roles) != 7 {
+		t.Errorf("Expected 7 roles, got %d", len(roles))
 	}
 }
 

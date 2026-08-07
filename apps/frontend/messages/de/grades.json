@@ -1,0 +1,91 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "grades": {
+    "system_roles": {
+      "owner": {
+        "display_name": "Eigentümer",
+        "description": "Vollständige Kontrolle über die Instanz. RBAC-Berechtigungen des Eigentümers werden immer gewährt; Direktnachrichten bleiben an die Teilnahme gebunden."
+      },
+      "admin": {
+        "display_name": "Administrator",
+        "description": "Erweiterte delegierte Verwaltung von Einstellungen, Kanälen, Rollen, Berechtigungen, Konten und Auditwerkzeugen. Entspricht nicht dem Eigentümer."
+      },
+      "moderator": {
+        "display_name": "Moderator",
+        "description": "Moderiert öffentliche Kanäle, indem Nachrichten gelöscht, Mitglieder entfernt oder gesperrt und Diskussionen gesperrt werden. Verwaltet standardmäßig weder Konten noch Rollen und löscht keinen gesamten Verlauf."
+      },
+      "helper": {
+        "display_name": "Helfer",
+        "description": "Unterstützt Mitglieder und kann für Hilfe erwähnt werden. Standardmäßig keine Moderations- oder Verwaltungsrechte."
+      },
+      "everyone": {
+        "display_name": "Mitglieder",
+        "description": "Alle authentifizierten Benutzer und ihre normalen geerbten Berechtigungen."
+      }
+    },
+    "templates": {
+      "moderator": {
+        "title": "Moderator",
+        "description": "Löscht Nachrichten anderer, entfernt oder sperrt Kanalmitglieder und sperrt Diskussionen, ohne Konten oder Rollen zu verwalten.",
+        "default_name": "Moderationsteam",
+        "default_description": "Moderiert öffentliche Kanäle und achtet auf die Gemeinschaftsregeln."
+      },
+      "helper": {
+        "title": "Helfer",
+        "description": "Kennzeichnet Personen, die die Gemeinschaft unterstützen. Fügt keine Moderations- oder Verwaltungsrechte hinzu.",
+        "default_name": "Helfer",
+        "default_description": "Hilft Mitgliedern, Antworten zu finden und die Gemeinschaft zu nutzen."
+      },
+      "custom": {
+        "title": "Benutzerdefiniert",
+        "description": "Beginnt ohne zusätzliche Berechtigungen und lässt jede Entscheidung manuell konfigurieren. Normale Mitgliederrechte werden weiterhin geerbt."
+      }
+    },
+    "permission_descriptions": {
+      "room_remove_member": "Ein ausdrücklich hinzugefügtes Mitglied aus einem Kanal entfernen, ohne es zu sperren. Ein erneuter Beitritt bleibt möglich, wenn erlaubt.",
+      "room_lock": "Neue Aktivitäten in Kanälen sperren oder wieder freigeben.",
+      "room_purge_messages": "Den Nachrichtenverlauf dauerhaft löschen, den Kanal selbst jedoch erhalten.",
+      "room_bypass_lock": "Erlaubte Inhalte hinzufügen, während ein Kanal gesperrt ist.",
+      "message_delete_others": "Nachrichten anderer Benutzer löschen, ohne sie umschreiben zu können."
+    },
+    "create": {
+      "title": "Rolle erstellen",
+      "subtitle": "Wähle einen sicheren Ausgangspunkt und prüfe vor der Erstellung die genauen Berechtigungen.",
+      "starting_point": "Ausgangspunkt",
+      "starting_point_description": "Vorlagen fügen nur die unten aufgeführten Berechtigungen hinzu. Normale Mitgliederrechte werden separat geerbt.",
+      "identity": "Rollenidentität",
+      "permissions": "Berechtigungsvorschau",
+      "added_permissions": "Durch diese Rolle hinzugefügt",
+      "inherited_permissions": "Von Mitgliedern geerbt",
+      "no_added_permissions": "Keine zusätzlichen Berechtigungen",
+      "advanced": "Erweiterte Anpassung",
+      "advanced_description": "Server-, Gruppen- und Kanalentscheidungen können nach der Erstellung weiter angepasst werden.",
+      "create": "Rolle erstellen",
+      "creating": "Rolle wird erstellt...",
+      "permission_setup_failed": "Die Rolle konnte nicht vollständig konfiguriert werden und wurde entfernt. Bitte erneut versuchen.",
+      "template_changed": "Die vorgeschlagene Identität wurde an die ausgewählte Vorlage angepasst.",
+      "handle_preview": "Dauerhafter Handle: @{handle}",
+      "member_inheritance_note": "Alle zugewiesenen Benutzer behalten außerdem die von Mitgliedern geerbten Berechtigungen."
+    },
+    "overview": {
+      "title": "Rollen und Berechtigungen",
+      "subtitle": "Definiere Verantwortlichkeiten, ohne mehr Rechte als nötig zu vergeben.",
+      "default_grades": "Standardrollen",
+      "advanced_admin": "Erweiterte Verwaltung",
+      "custom_grades": "Benutzerdefinierte Rollen",
+      "helper_summary": "Unterstützung der Gemeinschaft ohne Moderationsrechte",
+      "moderator_summary": "Kanalmoderation ohne Konto- oder Rollenverwaltung",
+      "members_summary": "Normale Berechtigungen für alle authentifizierten Benutzer",
+      "owner_summary": "Vollständige RBAC-Autorität; Direktnachrichten bleiben an die Teilnahme gebunden",
+      "admin_summary": "Delegierte Verwaltung für besonders vertrauenswürdige Personen"
+    },
+    "risk": {
+      "standard": "Allgemein",
+      "moderation": "Moderation",
+      "sensitive": "Sensibel",
+      "destructive": "Destruktiv",
+      "privilege": "Rechteverwaltung",
+      "legacy": "Umfassende historische Berechtigung"
+    }
+  }
+}

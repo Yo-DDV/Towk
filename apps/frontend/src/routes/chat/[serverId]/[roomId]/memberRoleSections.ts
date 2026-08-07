@@ -1,5 +1,6 @@
 import type { ServerRole } from '$lib/api-client/roles';
 import type { RoomMember } from '$lib/state/room/members.svelte';
+import { roleDisplayPriority } from '$lib/rbacLabels';
 
 export type MemberRoleSection = {
   role: ServerRole;
@@ -20,7 +21,13 @@ export function displayRoleForMember(
     if (roleName === 'everyone') continue;
     const role = rolesByName.get(roleName);
     if (!role || !safeRoleColor(role.color)) continue;
-    if (!selected || role.position > selected.position) selected = role;
+    if (
+      !selected ||
+      roleDisplayPriority(role.name, role.position) >
+        roleDisplayPriority(selected.name, selected.position)
+    ) {
+      selected = role;
+    }
   }
   return selected;
 }
@@ -46,7 +53,11 @@ export function groupMembersByDisplayRole(
 
   const sections = roles
     .filter((role) => role.name !== 'everyone' && membersByRole.has(role.name))
-    .sort((left, right) => right.position - left.position || left.name.localeCompare(right.name))
+    .sort(
+      (left, right) =>
+        roleDisplayPriority(right.name, right.position) -
+          roleDisplayPriority(left.name, left.position) || left.name.localeCompare(right.name)
+    )
     .map((role) => ({ role, members: membersByRole.get(role.name)! }));
 
   return { sections, ungrouped };

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "grades": {
+    "system_roles": {
+      "owner": {
+        "display_name": "Propriétaire",
+        "description": "Contrôle intégral de l’instance. Les permissions RBAC du propriétaire sont toujours accordées ; la lecture des messages directs exige toujours d’y participer."
+      },
+      "admin": {
+        "display_name": "Administrateur",
+        "description": "Administration déléguée avancée des paramètres, salons, grades, permissions, comptes et outils d’audit. N’équivaut pas au propriétaire."
+      },
+      "moderator": {
+        "display_name": "Modérateur",
+        "description": "Modère les salons publics en supprimant des messages, en retirant ou bannissant des membres et en verrouillant les discussions. Ne gère ni les comptes ni les grades et ne purge pas l’historique par défaut."
+      },
+      "helper": {
+        "display_name": "Assistant",
+        "description": "Aide les membres et peut être mentionné pour obtenir de l’aide. Aucun droit de modération ou d’administration par défaut."
+      },
+      "everyone": {
+        "display_name": "Membres",
+        "description": "Tous les utilisateurs authentifiés et leurs permissions ordinaires héritées."
+      }
+    },
+    "templates": {
+      "moderator": {
+        "title": "Modérateur",
+        "description": "Supprime les messages d’autrui, retire ou bannit des membres de salons et verrouille les discussions sans gérer les comptes ni les grades.",
+        "default_name": "Équipe de modération",
+        "default_description": "Modère les salons publics et veille au respect des règles communautaires."
+      },
+      "helper": {
+        "title": "Assistant",
+        "description": "Identifie les personnes qui aident la communauté. N’ajoute aucun droit de modération ou d’administration.",
+        "default_name": "Assistants",
+        "default_description": "Aide les membres à trouver des réponses et à utiliser la communauté."
+      },
+      "custom": {
+        "title": "Personnalisé",
+        "description": "Commence sans permission supplémentaire et configure chaque décision manuellement. Les droits ordinaires des Membres restent hérités."
+      }
+    },
+    "permission_descriptions": {
+      "room_remove_member": "Retirer un membre explicite d’un salon sans le bannir. Il pourra revenir si ses droits l’autorisent.",
+      "room_lock": "Verrouiller ou déverrouiller les nouvelles activités dans les salons.",
+      "room_purge_messages": "Effacer définitivement l’historique des messages tout en conservant le salon.",
+      "room_bypass_lock": "Ajouter le contenu autorisé pendant qu’un salon est verrouillé.",
+      "message_delete_others": "Supprimer les messages d’autres utilisateurs sans pouvoir les réécrire."
+    },
+    "create": {
+      "title": "Créer un grade",
+      "subtitle": "Choisissez un point de départ sûr, puis vérifiez précisément les permissions avant de créer le grade.",
+      "starting_point": "Point de départ",
+      "starting_point_description": "Les modèles ajoutent uniquement les permissions affichées ci-dessous. Les droits ordinaires des Membres sont hérités séparément.",
+      "identity": "Identité du grade",
+      "permissions": "Aperçu des permissions",
+      "added_permissions": "Ajouté par ce grade",
+      "inherited_permissions": "Hérité des Membres",
+      "no_added_permissions": "Aucune permission supplémentaire",
+      "advanced": "Personnalisation avancée",
+      "advanced_description": "Vous pourrez affiner les décisions du serveur, des groupes et des salons après la création.",
+      "create": "Créer le grade",
+      "creating": "Création du grade...",
+      "permission_setup_failed": "Le grade n’a pas pu être entièrement configuré et a été supprimé. Réessayez.",
+      "template_changed": "L’identité suggérée a été adaptée au modèle sélectionné.",
+      "handle_preview": "Handle permanent : @{handle}",
+      "member_inheritance_note": "Chaque titulaire conserve également les permissions héritées des Membres."
+    },
+    "overview": {
+      "title": "Grades et permissions",
+      "subtitle": "Définissez clairement les responsabilités de votre équipe sans accorder plus de pouvoir que nécessaire.",
+      "default_grades": "Grades par défaut",
+      "advanced_admin": "Administration avancée",
+      "custom_grades": "Grades personnalisés",
+      "helper_summary": "Assistance communautaire sans pouvoir de modération",
+      "moderator_summary": "Modération des salons sans administration des comptes ou grades",
+      "members_summary": "Permissions ordinaires héritées par chaque utilisateur authentifié",
+      "owner_summary": "Autorité RBAC complète ; la lecture des messages directs exige toujours d’y participer",
+      "admin_summary": "Administration déléguée réservée à un niveau de confiance très élevé"
+    },
+    "risk": {
+    "standard": "Général",
+      "moderation": "Modération",
+      "sensitive": "Sensible",
+      "destructive": "Destructif",
+      "privilege": "Gestion des privilèges",
+      "legacy": "Permission historique à large portée"
+    }
+  }
+}

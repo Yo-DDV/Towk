@@ -40,7 +40,7 @@ func (c *ChattoCore) seedDefaultRBAC(ctx context.Context) error {
 		}
 		return err
 	}
-	c.logger.Info("Seeded default RBAC roles and permissions", "events", len(entries))
+	c.logger.Info("Seeded default RBAC grades and permissions", "events", len(entries))
 	return nil
 }
 
@@ -49,7 +49,7 @@ func defaultRBACRoles() map[string]*corev1.Role {
 		RoleOwner: {
 			Name:        RoleOwner,
 			DisplayName: "Owner",
-			Description: "Full server control", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
+			Description: "Full server control", // i18n-audit-ignore -- localized by stable system role ID
 			Position:    PositionOwner,
 			Pingable:    false,
 			Color:       RoleColorOwner,
@@ -57,23 +57,31 @@ func defaultRBACRoles() map[string]*corev1.Role {
 		RoleAdmin: {
 			Name:        RoleAdmin,
 			DisplayName: "Admin",
-			Description: "Full administrative access to the server", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
+			Description: "Advanced delegated server administration", // i18n-audit-ignore -- localized by stable system role ID
 			Position:    PositionAdmin,
 			Pingable:    false,
 			Color:       RoleColorAdmin,
 		},
 		RoleModerator: {
 			Name:        RoleModerator,
-			Description: "View access to admin panels without management permissions", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
 			DisplayName: "Moderator",
+			Description: "Community moderation without account or role administration", // i18n-audit-ignore -- localized by stable system role ID
 			Position:    PositionModerator,
 			Pingable:    true,
 			Color:       RoleColorModerator,
 		},
+		RoleHelper: {
+			Name:        RoleHelper,
+			DisplayName: "Helper",
+			Description: "Community assistance without moderation or administration powers", // i18n-audit-ignore -- localized by stable system role ID
+			Position:    PositionHelper,
+			Pingable:    true,
+			Color:       RoleColorHelper,
+		},
 		RoleEveryone: {
 			Name:        RoleEveryone,
-			DisplayName: "Everyone",
-			Description: "All authenticated users", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
+			DisplayName: "Members",
+			Description: "All authenticated users", // i18n-audit-ignore -- localized by stable system role ID
 			Position:    PositionEveryone,
 			Pingable:    false,
 			Color:       "",
@@ -88,6 +96,7 @@ func defaultRBACDecisions() []rbacSeedDecision {
 	}{
 		{RoleAdmin, DefaultAdminPermissions()},
 		{RoleModerator, DefaultModeratorPermissions()},
+		{RoleHelper, DefaultHelperPermissions()},
 		{RoleEveryone, DefaultSeedEveryonePermissions()},
 	}
 	var decisions []rbacSeedDecision

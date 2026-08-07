@@ -27,5 +27,5 @@ const (
 // IsSystemRole returns true if the role name is a system role that cannot be
 // deleted. Custom roles must avoid these names.
 func IsSystemRole(name string) bool {
-	return name == RoleOwner || name == RoleAdmin || name == RoleModerator || name == RoleEveryone
+	return name == RoleOwner || name == RoleAdmin || name == RoleModerator || name == RoleHelper || name == RoleEveryone
 }

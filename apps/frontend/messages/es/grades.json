@@ -1,0 +1,91 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "grades": {
+    "system_roles": {
+      "owner": {
+        "display_name": "Propietario",
+        "description": "Control total de la instancia. Los permisos RBAC del propietario siempre se conceden; leer mensajes directos sigue exigiendo participar en ellos."
+      },
+      "admin": {
+        "display_name": "Administrador",
+        "description": "Administración delegada avanzada de ajustes, canales, roles, permisos, cuentas y herramientas de auditoría. No equivale al propietario."
+      },
+      "moderator": {
+        "display_name": "Moderador",
+        "description": "Modera los canales públicos eliminando mensajes, retirando o bloqueando miembros y cerrando debates. No administra cuentas ni roles y no purga el historial de forma predeterminada."
+      },
+      "helper": {
+        "display_name": "Ayudante",
+        "description": "Ayuda a los miembros y puede recibir menciones para ofrecer asistencia. Sin permisos de moderación o administración de forma predeterminada."
+      },
+      "everyone": {
+        "display_name": "Miembros",
+        "description": "Todos los usuarios autenticados y sus permisos normales heredados."
+      }
+    },
+    "templates": {
+      "moderator": {
+        "title": "Moderador",
+        "description": "Elimina mensajes ajenos, retira o bloquea miembros de canales y cierra debates sin administrar cuentas ni roles.",
+        "default_name": "Equipo de moderación",
+        "default_description": "Modera los canales públicos y vela por las normas de la comunidad."
+      },
+      "helper": {
+        "title": "Ayudante",
+        "description": "Identifica a las personas que ayudan a la comunidad. No añade permisos de moderación ni administración.",
+        "default_name": "Ayudantes",
+        "default_description": "Ayuda a los miembros a encontrar respuestas y utilizar la comunidad."
+      },
+      "custom": {
+        "title": "Personalizado",
+        "description": "Empieza sin permisos adicionales y configura cada decisión manualmente. Se siguen heredando los permisos normales de Miembros."
+      }
+    },
+    "permission_descriptions": {
+      "room_remove_member": "Retirar a un miembro explícito de un canal sin bloquearlo. Podrá volver si sus permisos lo permiten.",
+      "room_lock": "Bloquear o desbloquear nueva actividad en los canales.",
+      "room_purge_messages": "Borrar definitivamente el historial de mensajes y conservar el canal.",
+      "room_bypass_lock": "Añadir contenido permitido mientras un canal está bloqueado.",
+      "message_delete_others": "Eliminar mensajes de otros usuarios sin poder reescribirlos."
+    },
+    "create": {
+      "title": "Crear un rol",
+      "subtitle": "Elige un punto de partida seguro y revisa los permisos exactos antes de crear el rol.",
+      "starting_point": "Punto de partida",
+      "starting_point_description": "Las plantillas solo añaden los permisos indicados. Los permisos normales de Miembros se heredan por separado.",
+      "identity": "Identidad del rol",
+      "permissions": "Vista previa de permisos",
+      "added_permissions": "Añadido por este rol",
+      "inherited_permissions": "Heredado de Miembros",
+      "no_added_permissions": "Sin permisos adicionales",
+      "advanced": "Personalización avanzada",
+      "advanced_description": "Podrás ajustar las decisiones del servidor, grupos y canales después de la creación.",
+      "create": "Crear rol",
+      "creating": "Creando rol...",
+      "permission_setup_failed": "No se pudo configurar completamente el rol y se eliminó. Inténtalo de nuevo.",
+      "template_changed": "La identidad sugerida se adaptó a la plantilla seleccionada.",
+      "handle_preview": "Identificador permanente: @{handle}",
+      "member_inheritance_note": "Cada persona asignada también conserva los permisos heredados de Miembros."
+    },
+    "overview": {
+      "title": "Roles y permisos",
+      "subtitle": "Define las responsabilidades del equipo sin conceder más poder del necesario.",
+      "default_grades": "Roles predeterminados",
+      "advanced_admin": "Administración avanzada",
+      "custom_grades": "Roles personalizados",
+      "helper_summary": "Asistencia a la comunidad sin poder de moderación",
+      "moderator_summary": "Moderación de canales sin administración de cuentas o roles",
+      "members_summary": "Permisos normales heredados por cada usuario autenticado",
+      "owner_summary": "Autoridad RBAC completa; leer mensajes directos sigue exigiendo participar",
+      "admin_summary": "Administración delegada para personas de máxima confianza"
+    },
+    "risk": {
+      "standard": "Estándar",
+      "moderation": "Moderación",
+      "sensitive": "Sensible",
+      "destructive": "Destructivo",
+      "privilege": "Gestión de privilegios",
+      "legacy": "Permiso histórico de amplio alcance"
+    }
+  }
+}

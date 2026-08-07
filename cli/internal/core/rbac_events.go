@@ -253,6 +253,70 @@ func (c *ChattoCore) appendRBACEventWithMentionableCheck(ctx context.Context, ev
 	return 0, fmt.Errorf("mentionable RBAC OCC retry exhausted after %d attempts: %w", maxRBACMutationRetries, events.ErrConflict)
 }
 
+// appendRBACBatchWithMentionableCheck appends a role definition and its
+// permission facts under the same event-subject OCC guard.  Mentionable and
+// RBAC projections are both caught up before the builder runs, so a role-name
+// collision cannot leave a partially visible template-created role behind.
+func (c *ChattoCore) appendRBACBatchWithMentionableCheck(
+	ctx context.Context,
+	build func() ([]events.BatchEntry, error),
+) (uint64, error) {
+	filter := events.EventSubjectFilter()
+
+	for attempt := 0; attempt < maxRBACMutationRetries; attempt++ {
+		filterSeq, err := c.EventPublisher.LastSubjectSeq(ctx, filter)
+		if err != nil {
+			return 0, fmt.Errorf("read mentionable OCC filter seq: %w", err)
+		}
+		if err := c.mentionables.waitFor(ctx, events.SubjectPosition(filter, filterSeq)); err != nil {
+			return 0, fmt.Errorf("wait for mentionables projection: %w", err)
+		}
+
+		rbacSeq, err := c.EventPublisher.LastSubjectSeq(ctx, events.RBACSubjectFilter())
+		if err != nil {
+			return 0, fmt.Errorf("read RBAC OCC filter seq: %w", err)
+		}
+		if err := c.rbacModel.waitFor(ctx, events.SubjectPosition(events.RBACSubjectFilter(), rbacSeq)); err != nil {
+			return 0, fmt.Errorf("wait for RBAC projection: %w", err)
+		}
+
+		entries, err := build()
+		if err != nil {
+			return 0, err
+		}
+		if len(entries) == 0 {
+			return 0, errRBACNoop
+		}
+		chunk := append([]events.BatchEntry(nil), entries...)
+		chunk[0].HasOCC = true
+		chunk[0].ExpectedSeq = filterSeq
+		chunk[0].FilterSubject = filter
+
+		seqs, err := c.EventPublisher.AppendBatch(ctx, chunk)
+		if err == nil {
+			lastSeq := seqs[len(seqs)-1]
+			lastSubject := chunk[len(chunk)-1].Subject
+			if err := c.rbacModel.waitFor(ctx, events.SubjectPosition(lastSubject, lastSeq)); err != nil {
+				return 0, fmt.Errorf("wait for RBAC projection: %w", err)
+			}
+			if err := c.mentionables.waitFor(ctx, events.SubjectPosition(lastSubject, lastSeq)); err != nil {
+				return 0, fmt.Errorf("wait for mentionables projection: %w", err)
+			}
+			return lastSeq, nil
+		}
+		if !errors.Is(err, events.ErrConflict) {
+			return 0, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(mentionableRetryDelay(attempt)):
+		}
+	}
+	return 0, fmt.Errorf("mentionable RBAC batch OCC retry exhausted after %d attempts: %w", maxRBACMutationRetries, events.ErrConflict)
+}
+
 func (c *ChattoCore) appendRBACBatch(ctx context.Context, entries []events.BatchEntry, check func() error) (uint64, error) {
 	if len(entries) == 0 {
 		return 0, nil
