@@ -95,9 +95,9 @@ type MyAccountServiceClient interface {
 	StartExternalIdentityLink(context.Context, *connect.Request[v1.StartExternalIdentityLinkRequest]) (*connect.Response[v1.StartExternalIdentityLinkResponse], error)
 	// Disconnects a provider identity from the authenticated account.
 	DisconnectExternalIdentity(context.Context, *connect.Request[v1.DisconnectExternalIdentityRequest]) (*connect.Response[v1.DisconnectExternalIdentityResponse], error)
-	// Updates the current user's live presence status. This state is transient:
-	// clients should refresh it periodically while visible, and should stop
-	// calling this RPC when the user chooses to appear offline.
+	// Updates the current user's transient live presence and refreshes its
+	// authenticated session leases. Session-aware clients report both active and
+	// recent evidence; legacy clients retain the single-key compatibility path.
 	UpdatePresence(context.Context, *connect.Request[v1.UpdatePresenceRequest]) (*connect.Response[v1.UpdatePresenceResponse], error)
 	// Updates or replaces the current user's custom status. Emoji and text are
 	// required, and expires_at must be omitted or in the future.
@@ -306,9 +306,9 @@ type MyAccountServiceHandler interface {
 	StartExternalIdentityLink(context.Context, *connect.Request[v1.StartExternalIdentityLinkRequest]) (*connect.Response[v1.StartExternalIdentityLinkResponse], error)
 	// Disconnects a provider identity from the authenticated account.
 	DisconnectExternalIdentity(context.Context, *connect.Request[v1.DisconnectExternalIdentityRequest]) (*connect.Response[v1.DisconnectExternalIdentityResponse], error)
-	// Updates the current user's live presence status. This state is transient:
-	// clients should refresh it periodically while visible, and should stop
-	// calling this RPC when the user chooses to appear offline.
+	// Updates the current user's transient live presence and refreshes its
+	// authenticated session leases. Session-aware clients report both active and
+	// recent evidence; legacy clients retain the single-key compatibility path.
 	UpdatePresence(context.Context, *connect.Request[v1.UpdatePresenceRequest]) (*connect.Response[v1.UpdatePresenceResponse], error)
 	// Updates or replaces the current user's custom status. Emoji and text are
 	// required, and expires_at must be omitted or in the future.

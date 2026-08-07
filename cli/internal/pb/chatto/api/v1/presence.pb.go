@@ -24,9 +24,9 @@ const (
 
 // Live presence status returned by public read APIs.
 //
-// Offline is a read-side state only. Clients cannot update their presence to
-// Offline through the account presence RPC; they should stop refreshing and let
-// the server's live presence record expire.
+// Offline remains a read-side state for ordinary reports. Session-aware clients
+// may send Offline only together with release_installation to withdraw this
+// browser installation's ephemeral presence leases.
 type PresenceStatus int32
 
 const (
@@ -90,14 +90,29 @@ func (PresenceStatus) EnumDescriptor() ([]byte, []int) {
 // Request to update the current user's live presence status.
 type UpdatePresenceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Live status to store for the authenticated user. Offline is rejected.
+	// Live status requested for the authenticated user. Offline is accepted only
+	// for an installation-scoped release.
 	Status PresenceStatus `protobuf:"varint,1,opt,name=status,proto3,enum=chatto.api.v1.PresenceStatus" json:"status,omitempty"`
 	// True when this update comes from a deliberate user selection rather than
 	// automatic idle/refresh updates. Automatic updates do not overwrite an
 	// active manually selected Away or Do Not Disturb status from another client.
-	UserSelected  bool `protobuf:"varint,2,opt,name=user_selected,json=userSelected,proto3" json:"user_selected,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	UserSelected bool `protobuf:"varint,2,opt,name=user_selected,json=userSelected,proto3" json:"user_selected,omitempty"`
+	// Stable browser-installation identifier shared with push and realtime state.
+	// New clients send it with every session-aware report.
+	InstallationId string `protobuf:"bytes,3,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
+	// Opaque page-lifetime identifier. Multiple tabs from one installation own
+	// independent leases so one tab cannot incorrectly hide another active tab.
+	SessionId string `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// Whether this exact page is currently active after lifecycle grace periods.
+	Active bool `protobuf:"varint,5,opt,name=active,proto3" json:"active,omitempty"`
+	// True only for foreground/resume or direct user interaction. Routine lease
+	// refreshes leave this false and cannot advance profile latest activity.
+	MeaningfulActivity bool `protobuf:"varint,6,opt,name=meaningful_activity,json=meaningfulActivity,proto3" json:"meaningful_activity,omitempty"`
+	// Withdraw every session lease owned by installation_id. This is used by
+	// "Look offline" and requires status Offline with an empty session_id.
+	ReleaseInstallation bool `protobuf:"varint,7,opt,name=release_installation,json=releaseInstallation,proto3" json:"release_installation,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UpdatePresenceRequest) Reset() {
@@ -144,10 +159,45 @@ func (x *UpdatePresenceRequest) GetUserSelected() bool {
 	return false
 }
 
+func (x *UpdatePresenceRequest) GetInstallationId() string {
+	if x != nil {
+		return x.InstallationId
+	}
+	return ""
+}
+
+func (x *UpdatePresenceRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *UpdatePresenceRequest) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+func (x *UpdatePresenceRequest) GetMeaningfulActivity() bool {
+	if x != nil {
+		return x.MeaningfulActivity
+	}
+	return false
+}
+
+func (x *UpdatePresenceRequest) GetReleaseInstallation() bool {
+	if x != nil {
+		return x.ReleaseInstallation
+	}
+	return false
+}
+
 // Result of updating live presence.
 type UpdatePresenceResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Reportable status accepted and stored by the server.
+	// Effective user-level status after aggregating all current installations.
 	Status        PresenceStatus `protobuf:"varint,1,opt,name=status,proto3,enum=chatto.api.v1.PresenceStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -194,10 +244,17 @@ var File_chatto_api_v1_presence_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_presence_proto_rawDesc = "" +
 	"\n" +
-	"\x1cchatto/api/v1/presence.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\"\x81\x01\n" +
-	"\x15UpdatePresenceRequest\x12C\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x1d.chatto.api.v1.PresenceStatusB\f\xbaH\t\x82\x01\x06\x10\x01 \x00 \x04R\x06status\x12#\n" +
-	"\ruser_selected\x18\x02 \x01(\bR\fuserSelected\"O\n" +
+	"\x1cchatto/api/v1/presence.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\"\xd5\x02\n" +
+	"\x15UpdatePresenceRequest\x12A\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x1d.chatto.api.v1.PresenceStatusB\n" +
+	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\x06status\x12#\n" +
+	"\ruser_selected\x18\x02 \x01(\bR\fuserSelected\x120\n" +
+	"\x0finstallation_id\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x18`R\x0einstallationId\x12&\n" +
+	"\n" +
+	"session_id\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x18`R\tsessionId\x12\x16\n" +
+	"\x06active\x18\x05 \x01(\bR\x06active\x12/\n" +
+	"\x13meaningful_activity\x18\x06 \x01(\bR\x12meaningfulActivity\x121\n" +
+	"\x14release_installation\x18\a \x01(\bR\x13releaseInstallation\"O\n" +
 	"\x16UpdatePresenceResponse\x125\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x1d.chatto.api.v1.PresenceStatusR\x06status*\xa8\x01\n" +
 	"\x0ePresenceStatus\x12\x1f\n" +
