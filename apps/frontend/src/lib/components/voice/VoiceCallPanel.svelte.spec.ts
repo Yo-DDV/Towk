@@ -163,9 +163,12 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(table?.textContent).toContain('12.4%');
     expect(table?.textContent).toContain('82 ms');
     expect(table?.textContent).toContain('51 ms');
-    expect(table?.className).toContain('sm:w-[36rem]');
+    expect(table?.className).toContain('w-full');
+    expect(table?.className).not.toContain('sm:w-[36rem]');
+    expect(tooltip.getBoundingClientRect().width).toBeLessThanOrEqual(370);
     for (const heading of table?.querySelectorAll('thead th:not(:first-child) > span') ?? []) {
-      expect((heading as HTMLElement).className).toContain('sm:whitespace-nowrap');
+      expect((heading as HTMLElement).className).toContain('max-w-full');
+      expect((heading as HTMLElement).className).not.toContain('sm:whitespace-nowrap');
     }
   });
 

@@ -1871,26 +1871,26 @@ retained only for non-joined projections that still consume this component.
     anchor={connectionTooltip.anchor}
     placement="top"
     id={participantConnectionTooltipId(connectionTooltipParticipant)}
-    class="!max-w-none !rounded-lg !border-text/15 !bg-surface-100/95 !p-1.5 !shadow-2xl"
+    class="!w-[min(23rem,calc(100vw-1rem))] !max-w-none !rounded-2xl !border-text/15 !bg-surface-100/88 !p-2 !shadow-2xl !backdrop-blur-xl"
   >
     <table
-      class="w-[min(20rem,calc(100vw-1.75rem))] table-fixed border-separate border-spacing-0 text-left sm:w-[36rem]"
+      class="w-full table-fixed overflow-hidden rounded-xl border-separate border-spacing-0 bg-surface-200/35 text-left"
       aria-label={participantConnectionLabel(connectionTooltipParticipant)}
       data-testid="call-connection-metrics-table"
     >
       <thead>
         <tr>
-          <th class="w-[42%] px-2 py-1" scope="col">
+          <th class="w-[38%] px-2 py-1.5" scope="col">
             <span class="sr-only">{participantConnectionLabel(connectionTooltipParticipant)}</span>
           </th>
-          <th class="px-2 py-1 text-right text-[0.6875rem] font-semibold text-accent" scope="col">
-            <span class="inline-flex items-center justify-end gap-1 sm:whitespace-nowrap">
+          <th class="px-1.5 py-1.5 text-center text-[0.625rem] leading-tight font-semibold text-text/70" scope="col">
+            <span class="inline-flex min-h-8 max-w-full items-center justify-center gap-1">
               <span class="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true"></span>
               {m['voice.media_telemetry_source']()}
             </span>
           </th>
-          <th class="px-2 py-1 text-right text-[0.6875rem] font-semibold text-warning" scope="col">
-            <span class="inline-flex items-center justify-end gap-1 sm:whitespace-nowrap">
+          <th class="px-1.5 py-1.5 text-center text-[0.625rem] leading-tight font-semibold text-text/70" scope="col">
+            <span class="inline-flex min-h-8 max-w-full items-center justify-center gap-1">
               <span class="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true"></span>
               {m['voice.media_telemetry_reception']()}
             </span>
@@ -1901,18 +1901,18 @@ retained only for non-joined projections that still consume this component.
         {#each participantConnectionMetricRows(connectionTooltipParticipant) as row (row.label)}
           <tr>
             <th
-              class="border-t border-text/10 px-2 py-1.5 text-[0.6875rem] font-medium text-text/80"
+              class="border-t border-text/10 px-2 py-1.5 text-[0.6875rem] leading-tight font-medium text-text/70"
               scope="row"
             >
               {row.label}
             </th>
             <td
-              class="border-t border-text/10 px-2 py-1.5 text-right text-xs font-semibold text-text tabular-nums"
+              class="border-t border-text/10 px-1.5 py-1.5 text-right text-xs font-semibold text-text tabular-nums"
             >
               {row.upload}
             </td>
             <td
-              class="border-t border-text/10 px-2 py-1.5 text-right text-xs font-semibold text-text tabular-nums"
+              class="border-t border-text/10 px-1.5 py-1.5 text-right text-xs font-semibold text-text tabular-nums"
             >
               {row.download}
             </td>

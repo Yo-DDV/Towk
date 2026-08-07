@@ -119,6 +119,16 @@ describe('ParticipantMediaTelemetryPanel', () => {
     expect(downloadCard.className).not.toContain('inset_2px');
     expect(getComputedStyle(uploadCard).backgroundImage).toBe('none');
     expect(getComputedStyle(downloadCard).backgroundImage).toBe('none');
+    expect(uploadCard.querySelector('h3')?.className).not.toContain('text-accent');
+    expect(downloadCard.querySelector('h3')?.className).not.toContain('text-warning');
+
+    const pathsGrid = panel.querySelector<HTMLElement>(
+      '[data-testid="participant-media-telemetry-paths-grid"]'
+    )!;
+    const onlyPath = pathsGrid.firstElementChild as HTMLElement;
+    expect(pathsGrid).not.toBeNull();
+    expect(onlyPath).not.toBeNull();
+    expect(Math.abs(pathsGrid.getBoundingClientRect().width - onlyPath.getBoundingClientRect().width)).toBeLessThanOrEqual(2);
 
     expect(
       panel.querySelectorAll('[data-testid^="participant-media-telemetry-chart-"]')
