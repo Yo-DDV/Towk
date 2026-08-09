@@ -1,0 +1,113 @@
+name: native notification contract
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/native-notifications.yml"
+      - "proto/chatto/api/v1/native_notifications.proto"
+      - "cli/internal/pb/chatto/api/v1/native_notifications.pb.go"
+      - "cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go"
+      - "packages/api-types/src/chatto/api/v1/native_notifications_pb.ts"
+      - "cli/internal/core/native_notifications*.go"
+      - "cli/internal/connectapi/native_notifications*.go"
+      - "apps/frontend/src/lib/notifications/desktopNotifications*"
+      - "apps/frontend/src/lib/notifications/pushNotifications*"
+      - "apps/frontend/src/lib/components/NotificationSync.svelte*"
+      - "docs/adr/ADR-*.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-notifications-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Lint protobuf contract
+        run: cd proto && mise x -- buf lint
+
+      - name: Regenerate protobuf bindings and API documentation
+        run: mise codegen-proto
+
+      - name: Capture deterministic codegen patch
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --binary -- \
+            cli/internal/pb/chatto/api/v1/native_notifications.pb.go \
+            cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go \
+            packages/api-types/src/chatto/api/v1/native_notifications_pb.ts \
+            apps/docs-website/src/generated/connectrpc-api/api.raw.mdx \
+            > native-notification-codegen.patch
+
+      - name: Upload generated bindings for review
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: native-notification-codegen
+          path: |
+            native-notification-codegen.patch
+            cli/internal/pb/chatto/api/v1/native_notifications.pb.go
+            cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go
+            packages/api-types/src/chatto/api/v1/native_notifications_pb.ts
+            apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Require generated sources to be committed
+        run: git diff --exit-code
+
+  targeted-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Run native notification Go tests when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd cli
+          packages=()
+          for package in ./internal/core ./internal/connectapi; do
+            if find "${package#./}" -maxdepth 1 -name 'native_notifications*_test.go' -print -quit | grep -q .; then
+              packages+=("$package")
+            fi
+          done
+          if ((${#packages[@]})); then
+            go test -trimpath -race -count=1 "${packages[@]}"
+          fi
+
+      - name: Run native shell frontend tests when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          tests=(apps/frontend/src/lib/notifications/desktopNotifications.spec.ts apps/frontend/src/lib/notifications/pushNotifications.spec.ts)
+          existing=()
+          for test_file in "${tests[@]}"; do
+            [[ -f "$test_file" ]] && existing+=("$test_file")
+          done
+          if ((${#existing[@]})); then
+            pnpm --filter towk-frontend exec vitest --run "${existing[@]}"
+          fi
