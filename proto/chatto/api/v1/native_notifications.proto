@@ -8,6 +8,12 @@ import "google/protobuf/timestamp.proto";
 // Native notification endpoint and preference commands for the authenticated
 // user. This contract is separate from browser Web Push subscriptions.
 service NativeNotificationService {
+  // Returns the server capability required before a native client asks the
+  // user to choose a distributor. The VAPID value is a public key, never a
+  // transport credential.
+  rpc GetNativeNotificationConfig(GetNativeNotificationConfigRequest)
+      returns (GetNativeNotificationConfigResponse);
+
   // Registers or idempotently refreshes one native application installation.
   rpc RegisterNativeEndpoint(RegisterNativeEndpointRequest) returns (RegisterNativeEndpointResponse);
 
@@ -63,6 +69,22 @@ enum NativeDeliveryStatus {
   NATIVE_DELIVERY_STATUS_RETRYABLE_FAILURE = 4;
   NATIVE_DELIVERY_STATUS_EXPIRED = 5;
   NATIVE_DELIVERY_STATUS_PERMANENTLY_INVALID = 6;
+}
+
+message GetNativeNotificationConfigRequest {}
+
+// Public capability metadata. This response contains no publisher token,
+// endpoint, topic, device identity, or private key.
+message GetNativeNotificationConfigResponse {
+  bool enabled = 1;
+  bool android_unifiedpush_enabled = 2;
+  bool linux_agent_enabled = 3;
+  bool windows_agent_enabled = 4;
+  string vapid_public_key = 5;
+  // Frozen interoperable suite name from the architecture decision.
+  string hpke_suite = 6;
+  uint32 max_signal_bytes = 7;
+  uint32 max_signal_age_seconds = 8;
 }
 
 // Explicit delivery preferences stored per application installation.
