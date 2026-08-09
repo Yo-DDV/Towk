@@ -1,0 +1,56 @@
+name: materialize native notification bindings
+
+on:
+  push:
+    branches:
+      - feat/native-notification-foundation
+    paths:
+      - ".github/workflows/native-notifications-codegen-commit.yml"
+      - "proto/chatto/api/v1/native_notifications.proto"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-notification-codegen-commit
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: github.repository_owner == 'Yo-DDV'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/native-notification-foundation
+          fetch-depth: 2
+          persist-credentials: true
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Generate bindings and documentation
+        run: mise codegen-proto
+
+      - name: Commit deterministic generated files
+        shell: bash
+        run: |
+          set -euo pipefail
+          generated=(
+            cli/internal/pb/chatto/api/v1/native_notifications.pb.go
+            cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go
+            packages/api-types/src/chatto/api/v1/native_notifications_pb.ts
+            apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
+          )
+          git add -- "${generated[@]}"
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          export GIT_AUTHOR_NAME="$(git log -1 --format='%an')"
+          export GIT_AUTHOR_EMAIL="$(git log -1 --format='%ae')"
+          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+          export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+          git commit -m "chore(api): regenerate native notification bindings"
+          git push origin HEAD:feat/native-notification-foundation
