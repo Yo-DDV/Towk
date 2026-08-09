@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -312,7 +313,7 @@ func boolPointer(value bool) *bool {
 }
 
 func notificationMarshal(notification *corev1.Notification) ([]byte, error) {
-	return notification.MarshalVT()
+	return proto.Marshal(notification)
 }
 
 func TestNativeOutboxExpiredNotificationIsNotEnqueued(t *testing.T) {
