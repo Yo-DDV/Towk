@@ -10,6 +10,7 @@ on:
       - "cli/internal/pb/chatto/api/v1/native_notifications.pb.go"
       - "cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go"
       - "packages/api-types/src/chatto/api/v1/native_notifications_pb.ts"
+      - "cli/internal/config/native_notifications*.go"
       - "cli/internal/core/native_notifications*.go"
       - "cli/internal/connectapi/native_notifications*.go"
       - "apps/frontend/src/lib/notifications/desktopNotifications*"
@@ -37,8 +38,8 @@ jobs:
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
 
-      - name: Lint protobuf contract
-        run: cd proto && mise x -- buf lint
+      - name: Lint native protobuf contract
+        run: cd proto && mise x -- buf lint --path chatto/api/v1/native_notifications.proto
 
       - name: Regenerate protobuf bindings and API documentation
         run: mise codegen-proto
@@ -90,7 +91,7 @@ jobs:
           set -euo pipefail
           cd cli
           packages=()
-          for package in ./internal/core ./internal/connectapi; do
+          for package in ./internal/config ./internal/core ./internal/connectapi; do
             if find "${package#./}" -maxdepth 1 -name 'native_notifications*_test.go' -print -quit | grep -q .; then
               packages+=("$package")
             fi
