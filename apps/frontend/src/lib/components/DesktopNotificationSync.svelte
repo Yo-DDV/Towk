@@ -66,22 +66,6 @@ server scoping, navigation, dismissal and call admission.
     });
   }
 
-  $effect(() => {
-    if (!desktopBridge()) return;
-
-    for (const server of serverRegistry.servers) {
-      const stores = serverRegistry.tryGetStore(server.id);
-      if (!stores?.isAuthenticated) continue;
-      for (const notification of stores.notifications.allNotificationSignals) {
-        requestDesktopNotification(
-          server.id,
-          notification,
-          stores.notifications.getNavigationPath(server.id, notification)
-        );
-      }
-    }
-  });
-
   // Preserve the server-provided silent flag until NotificationSync hydrates
   // the authoritative item into the per-server store.
   $effect(() => {
@@ -103,6 +87,18 @@ server scoping, navigation, dismissal and call admission.
         const nativeId = nativeDesktopNotificationId(server.id, event.event.notificationId);
         if (!nativeId) return;
         silentByNotification.set(nativeId, 'silent' in event.event && event.event.silent === true);
+        void resolveNotification(server.id, event.event.notificationId)
+          .then((notification) => {
+            if (!notification) return;
+            requestDesktopNotification(
+              server.id,
+              notification,
+              stores.notifications.getNavigationPath(server.id, notification)
+            );
+          })
+          .catch((error) => {
+            console.error('Failed to hydrate resident desktop notification:', error);
+          });
       };
       untrack(() => bus.handlers.add(handler));
       cleanups.push(() => untrack(() => bus.handlers.delete(handler)));
@@ -211,7 +207,15 @@ server scoping, navigation, dismissal and call admission.
     for (const server of serverRegistry.servers) {
       const stores = serverRegistry.tryGetStore(server.id);
       if (!stores?.isAuthenticated) continue;
-      void stores.notifications.fetch();
+      void stores.notifications.fetch().then(() => {
+        for (const notification of stores.notifications.allNotificationSignals) {
+          requestDesktopNotification(
+            server.id,
+            notification,
+            stores.notifications.getNavigationPath(server.id, notification)
+          );
+        }
+      });
       if (stores.serverInfo.livekitUrl) void stores.activeCallRooms.load();
     }
   }
