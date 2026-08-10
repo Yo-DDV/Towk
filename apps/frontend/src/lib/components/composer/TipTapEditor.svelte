@@ -607,7 +607,7 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
     return transformMarkdownOutsideCode(markdown, decodeSerializedTextEntities);
   }
 
-  function restoreUnmatchedLiteralEscapes(markdown: string): string {
+  function restoreLiteralTextEscapes(markdown: string): string {
     return transformMarkdownOutsideCode(
       markdown,
       (text) => {
@@ -623,6 +623,38 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
         for (let index = 0; index < text.length; index += 1) {
           const char = text[index];
           const next = text[index + 1];
+
+          if (char === '\\') {
+            let runEnd = index + 1;
+            while (text[runEnd] === '\\') runEnd += 1;
+
+            const runLength = runEnd - index;
+            const escapedChar = text[runEnd];
+            const beforeRun = text[index - 1] ?? '';
+            const afterEscapedChar = text[runEnd + 1] ?? '';
+            const intrawordUnderscore =
+              escapedChar === '_' &&
+              /[a-zA-Z0-9]/.test(beforeRun) &&
+              /[a-zA-Z0-9]/.test(afterEscapedChar);
+
+            // The renderer already treats this exact snake_case boundary as
+            // literal text, so TipTap's extra Markdown escape is unnecessary.
+            if (intrawordUnderscore) {
+              result += `${'\\'.repeat(Math.floor(runLength / 2))}_`;
+              index = runEnd;
+              continue;
+            }
+
+            // TipTap's Markdown serializer doubles literal backslashes. The
+            // message renderer deliberately treats backslashes as literal, so
+            // keeping the transport escape would show a character the user did
+            // not enter.
+            if (runLength % 2 === 0) {
+              result += '\\'.repeat(runLength / 2);
+              index = runEnd - 1;
+              continue;
+            }
+          }
 
           if (char === '\\' && next === '`') {
             let runEnd = index + 1;
@@ -695,7 +727,7 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
     return normalizeSerializedHardBreaksBeforeLists(
       encodeSerializedHeadingClosingHashes(
         trimSerializedTrailingEmptyParagraph(
-          restoreUnmatchedLiteralEscapes(decodeSerializedMarkdownText(e.getMarkdown())),
+          restoreLiteralTextEscapes(decodeSerializedMarkdownText(e.getMarkdown())),
           e
         )
       )
