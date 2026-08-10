@@ -6,8 +6,8 @@ The shell owns OS presentation and foreground suppression; this component owns
 server scoping, navigation, dismissal and call admission.
 -->
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { onMount, untrack } from 'svelte';
   import { NotificationItemKind, type NotificationItem } from '$lib/api-client/notifications';
   import type { EventHandler } from '$lib/eventBus.svelte';
   import * as m from '$lib/i18n/messages';
@@ -24,11 +24,11 @@ server scoping, navigation, dismissal and call admission.
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getVoiceCallJoinErrorMessage } from '$lib/state/server/voiceCall.svelte';
 
-	// These are operational caches, not UI state. Keeping them non-reactive
-	// prevents the notification effect from retriggering itself when it
-	// remembers a notification that it has just dispatched.
-	const requested = new Set<string>();
-	const silentByNotification = new Map<string, boolean>();
+  // These are operational caches, not UI state. Keeping them non-reactive
+  // prevents the notification effect from retriggering itself when it
+  // remembers a notification that it has just dispatched.
+  const requested = new Set<string>();
+  const silentByNotification = new Map<string, boolean>();
   let activationQueue: Promise<void> = Promise.resolve();
 
   function boundedRemember(notificationId: string): void {
@@ -104,8 +104,8 @@ server scoping, navigation, dismissal and call admission.
         if (!nativeId) return;
         silentByNotification.set(nativeId, 'silent' in event.event && event.event.silent === true);
       };
-      bus.handlers.add(handler);
-      cleanups.push(() => bus.handlers.delete(handler));
+      untrack(() => bus.handlers.add(handler));
+      cleanups.push(() => untrack(() => bus.handlers.delete(handler)));
     }
 
     return () => {
