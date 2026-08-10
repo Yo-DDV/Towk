@@ -23,8 +23,8 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Native client platform. macOS and iOS values are reserved for later phases;
-// their presence is not a claim of implemented delivery.
+// Native clients outside the Android and Linux phase are reserved for forward
+// compatibility and are rejected by the current server implementation.
 type NativeNotificationPlatform int32
 
 const (
@@ -83,28 +83,27 @@ func (NativeNotificationPlatform) EnumDescriptor() ([]byte, []int) {
 	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{0}
 }
 
-// Delivery transport selected by a native installation.
 type NativeNotificationTransport int32
 
 const (
 	NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED NativeNotificationTransport = 0
-	// Android UnifiedPush endpoint distributed by the operator-hosted ntfy app.
-	NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_UNIFIED_PUSH NativeNotificationTransport = 1
-	// Authenticated Towk realtime session used by resident desktop agents.
-	NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_LOCAL_REALTIME NativeNotificationTransport = 2
+	// Android wake signals sent through the Towk-operated FCM relay.
+	NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_ANDROID_MANAGED_FCM NativeNotificationTransport = 1
+	// Linux notifications derived from the authenticated instance WebSocket.
+	NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_LINUX_RESIDENT_WEBSOCKET NativeNotificationTransport = 2
 )
 
 // Enum value maps for NativeNotificationTransport.
 var (
 	NativeNotificationTransport_name = map[int32]string{
 		0: "NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED",
-		1: "NATIVE_NOTIFICATION_TRANSPORT_UNIFIED_PUSH",
-		2: "NATIVE_NOTIFICATION_TRANSPORT_LOCAL_REALTIME",
+		1: "NATIVE_NOTIFICATION_TRANSPORT_ANDROID_MANAGED_FCM",
+		2: "NATIVE_NOTIFICATION_TRANSPORT_LINUX_RESIDENT_WEBSOCKET",
 	}
 	NativeNotificationTransport_value = map[string]int32{
-		"NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED":    0,
-		"NATIVE_NOTIFICATION_TRANSPORT_UNIFIED_PUSH":   1,
-		"NATIVE_NOTIFICATION_TRANSPORT_LOCAL_REALTIME": 2,
+		"NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED":              0,
+		"NATIVE_NOTIFICATION_TRANSPORT_ANDROID_MANAGED_FCM":      1,
+		"NATIVE_NOTIFICATION_TRANSPORT_LINUX_RESIDENT_WEBSOCKET": 2,
 	}
 )
 
@@ -135,7 +134,6 @@ func (NativeNotificationTransport) EnumDescriptor() ([]byte, []int) {
 	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{1}
 }
 
-// Last known lifecycle state of an endpoint.
 type NativeEndpointState int32
 
 const (
@@ -188,8 +186,6 @@ func (NativeEndpointState) EnumDescriptor() ([]byte, []int) {
 	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{2}
 }
 
-// Last transport outcome. The Towk API remains authoritative for content and
-// read/dismiss state regardless of this value.
 type NativeDeliveryStatus int32
 
 const (
@@ -287,21 +283,19 @@ func (*GetNativeNotificationConfigRequest) Descriptor() ([]byte, []int) {
 	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{0}
 }
 
-// Public capability metadata. This response contains no publisher token,
-// endpoint, topic, device identity, or private key.
 type GetNativeNotificationConfigResponse struct {
-	state                     protoimpl.MessageState `protogen:"open.v1"`
-	Enabled                   bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	AndroidUnifiedpushEnabled bool                   `protobuf:"varint,2,opt,name=android_unifiedpush_enabled,json=androidUnifiedpushEnabled,proto3" json:"android_unifiedpush_enabled,omitempty"`
-	LinuxAgentEnabled         bool                   `protobuf:"varint,3,opt,name=linux_agent_enabled,json=linuxAgentEnabled,proto3" json:"linux_agent_enabled,omitempty"`
-	WindowsAgentEnabled       bool                   `protobuf:"varint,4,opt,name=windows_agent_enabled,json=windowsAgentEnabled,proto3" json:"windows_agent_enabled,omitempty"`
-	VapidPublicKey            string                 `protobuf:"bytes,5,opt,name=vapid_public_key,json=vapidPublicKey,proto3" json:"vapid_public_key,omitempty"`
-	// Frozen interoperable suite name from the architecture decision.
-	HpkeSuite           string `protobuf:"bytes,6,opt,name=hpke_suite,json=hpkeSuite,proto3" json:"hpke_suite,omitempty"`
-	MaxSignalBytes      uint32 `protobuf:"varint,7,opt,name=max_signal_bytes,json=maxSignalBytes,proto3" json:"max_signal_bytes,omitempty"`
-	MaxSignalAgeSeconds uint32 `protobuf:"varint,8,opt,name=max_signal_age_seconds,json=maxSignalAgeSeconds,proto3" json:"max_signal_age_seconds,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled                       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	AndroidManagedFcmEnabled      bool                   `protobuf:"varint,2,opt,name=android_managed_fcm_enabled,json=androidManagedFcmEnabled,proto3" json:"android_managed_fcm_enabled,omitempty"`
+	LinuxResidentWebsocketEnabled bool                   `protobuf:"varint,3,opt,name=linux_resident_websocket_enabled,json=linuxResidentWebsocketEnabled,proto3" json:"linux_resident_websocket_enabled,omitempty"`
+	ManagedFcmRelayUrl            string                 `protobuf:"bytes,4,opt,name=managed_fcm_relay_url,json=managedFcmRelayUrl,proto3" json:"managed_fcm_relay_url,omitempty"`
+	SignalEncryptionSuite         string                 `protobuf:"bytes,5,opt,name=signal_encryption_suite,json=signalEncryptionSuite,proto3" json:"signal_encryption_suite,omitempty"`
+	MaxSignalBytes                uint32                 `protobuf:"varint,6,opt,name=max_signal_bytes,json=maxSignalBytes,proto3" json:"max_signal_bytes,omitempty"`
+	MaxSignalAgeSeconds           uint32                 `protobuf:"varint,7,opt,name=max_signal_age_seconds,json=maxSignalAgeSeconds,proto3" json:"max_signal_age_seconds,omitempty"`
+	ManagedFcmEnrollmentState     string                 `protobuf:"bytes,8,opt,name=managed_fcm_enrollment_state,json=managedFcmEnrollmentState,proto3" json:"managed_fcm_enrollment_state,omitempty"`
+	ManagedFcmInstanceId          string                 `protobuf:"bytes,9,opt,name=managed_fcm_instance_id,json=managedFcmInstanceId,proto3" json:"managed_fcm_instance_id,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *GetNativeNotificationConfigResponse) Reset() {
@@ -341,37 +335,30 @@ func (x *GetNativeNotificationConfigResponse) GetEnabled() bool {
 	return false
 }
 
-func (x *GetNativeNotificationConfigResponse) GetAndroidUnifiedpushEnabled() bool {
+func (x *GetNativeNotificationConfigResponse) GetAndroidManagedFcmEnabled() bool {
 	if x != nil {
-		return x.AndroidUnifiedpushEnabled
+		return x.AndroidManagedFcmEnabled
 	}
 	return false
 }
 
-func (x *GetNativeNotificationConfigResponse) GetLinuxAgentEnabled() bool {
+func (x *GetNativeNotificationConfigResponse) GetLinuxResidentWebsocketEnabled() bool {
 	if x != nil {
-		return x.LinuxAgentEnabled
+		return x.LinuxResidentWebsocketEnabled
 	}
 	return false
 }
 
-func (x *GetNativeNotificationConfigResponse) GetWindowsAgentEnabled() bool {
+func (x *GetNativeNotificationConfigResponse) GetManagedFcmRelayUrl() string {
 	if x != nil {
-		return x.WindowsAgentEnabled
-	}
-	return false
-}
-
-func (x *GetNativeNotificationConfigResponse) GetVapidPublicKey() string {
-	if x != nil {
-		return x.VapidPublicKey
+		return x.ManagedFcmRelayUrl
 	}
 	return ""
 }
 
-func (x *GetNativeNotificationConfigResponse) GetHpkeSuite() string {
+func (x *GetNativeNotificationConfigResponse) GetSignalEncryptionSuite() string {
 	if x != nil {
-		return x.HpkeSuite
+		return x.SignalEncryptionSuite
 	}
 	return ""
 }
@@ -390,7 +377,108 @@ func (x *GetNativeNotificationConfigResponse) GetMaxSignalAgeSeconds() uint32 {
 	return 0
 }
 
-// Explicit delivery preferences stored per application installation.
+func (x *GetNativeNotificationConfigResponse) GetManagedFcmEnrollmentState() string {
+	if x != nil {
+		return x.ManagedFcmEnrollmentState
+	}
+	return ""
+}
+
+func (x *GetNativeNotificationConfigResponse) GetManagedFcmInstanceId() string {
+	if x != nil {
+		return x.ManagedFcmInstanceId
+	}
+	return ""
+}
+
+type EnrollManagedFCMRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrollManagedFCMRequest) Reset() {
+	*x = EnrollManagedFCMRequest{}
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollManagedFCMRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollManagedFCMRequest) ProtoMessage() {}
+
+func (x *EnrollManagedFCMRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrollManagedFCMRequest.ProtoReflect.Descriptor instead.
+func (*EnrollManagedFCMRequest) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{2}
+}
+
+type EnrollManagedFCMResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	EnrollmentState string                 `protobuf:"bytes,1,opt,name=enrollment_state,json=enrollmentState,proto3" json:"enrollment_state,omitempty"`
+	InstanceId      string                 `protobuf:"bytes,2,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *EnrollManagedFCMResponse) Reset() {
+	*x = EnrollManagedFCMResponse{}
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollManagedFCMResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollManagedFCMResponse) ProtoMessage() {}
+
+func (x *EnrollManagedFCMResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrollManagedFCMResponse.ProtoReflect.Descriptor instead.
+func (*EnrollManagedFCMResponse) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *EnrollManagedFCMResponse) GetEnrollmentState() string {
+	if x != nil {
+		return x.EnrollmentState
+	}
+	return ""
+}
+
+func (x *EnrollManagedFCMResponse) GetInstanceId() string {
+	if x != nil {
+		return x.InstanceId
+	}
+	return ""
+}
+
 type NativeEndpointPreferences struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
@@ -402,7 +490,7 @@ type NativeEndpointPreferences struct {
 
 func (x *NativeEndpointPreferences) Reset() {
 	*x = NativeEndpointPreferences{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[2]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -414,7 +502,7 @@ func (x *NativeEndpointPreferences) String() string {
 func (*NativeEndpointPreferences) ProtoMessage() {}
 
 func (x *NativeEndpointPreferences) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[2]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -427,7 +515,7 @@ func (x *NativeEndpointPreferences) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NativeEndpointPreferences.ProtoReflect.Descriptor instead.
 func (*NativeEndpointPreferences) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{2}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *NativeEndpointPreferences) GetEnabled() bool {
@@ -451,7 +539,6 @@ func (x *NativeEndpointPreferences) GetCalls() bool {
 	return false
 }
 
-// Patch for endpoint preferences. Absent fields retain their current value.
 type NativeEndpointPreferencesPatch struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       *bool                  `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
@@ -463,7 +550,7 @@ type NativeEndpointPreferencesPatch struct {
 
 func (x *NativeEndpointPreferencesPatch) Reset() {
 	*x = NativeEndpointPreferencesPatch{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[3]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -475,7 +562,7 @@ func (x *NativeEndpointPreferencesPatch) String() string {
 func (*NativeEndpointPreferencesPatch) ProtoMessage() {}
 
 func (x *NativeEndpointPreferencesPatch) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[3]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -488,7 +575,7 @@ func (x *NativeEndpointPreferencesPatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NativeEndpointPreferencesPatch.ProtoReflect.Descriptor instead.
 func (*NativeEndpointPreferencesPatch) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{3}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *NativeEndpointPreferencesPatch) GetEnabled() bool {
@@ -512,41 +599,32 @@ func (x *NativeEndpointPreferencesPatch) GetCalls() bool {
 	return false
 }
 
-// One native installation owned by the authenticated user.
 type NativeEndpoint struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Stable opaque identifier derived from the owner and logical installation.
-	EndpointId string `protobuf:"bytes,1,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
-	// Stable application-installation identifier generated by the native client.
+	state          protoimpl.MessageState      `protogen:"open.v1"`
+	EndpointId     string                      `protobuf:"bytes,1,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
 	InstallationId string                      `protobuf:"bytes,2,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
 	Platform       NativeNotificationPlatform  `protobuf:"varint,3,opt,name=platform,proto3,enum=chatto.api.v1.NativeNotificationPlatform" json:"platform,omitempty"`
 	Transport      NativeNotificationTransport `protobuf:"varint,4,opt,name=transport,proto3,enum=chatto.api.v1.NativeNotificationTransport" json:"transport,omitempty"`
-	// Native application identifier, for example com.yoddv.towk.android.
-	AppId string `protobuf:"bytes,5,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	// UnifiedPush endpoint when transport is UNIFIED_PUSH. It is returned only to
-	// its authenticated owner and must not be logged or exposed in diagnostics.
-	UnifiedpushEndpoint *string `protobuf:"bytes,6,opt,name=unifiedpush_endpoint,json=unifiedpushEndpoint,proto3,oneof" json:"unifiedpush_endpoint,omitempty"`
-	// RFC 8291 P-256 public key supplied by the UnifiedPush distributor.
-	WebPushPublicKey *string `protobuf:"bytes,7,opt,name=web_push_public_key,json=webPushPublicKey,proto3,oneof" json:"web_push_public_key,omitempty"`
-	// RFC 9180 P-256 public key generated by the Android installation. The
-	// corresponding private key never leaves Android Keystore.
-	ClientPublicKey    []byte                     `protobuf:"bytes,8,opt,name=client_public_key,json=clientPublicKey,proto3,oneof" json:"client_public_key,omitempty"`
-	Locale             string                     `protobuf:"bytes,9,opt,name=locale,proto3" json:"locale,omitempty"`
-	CreatedAt          *timestamppb.Timestamp     `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	LastSeenAt         *timestamppb.Timestamp     `protobuf:"bytes,11,opt,name=last_seen_at,json=lastSeenAt,proto3" json:"last_seen_at,omitempty"`
-	DisabledAt         *timestamppb.Timestamp     `protobuf:"bytes,12,opt,name=disabled_at,json=disabledAt,proto3,oneof" json:"disabled_at,omitempty"`
-	State              NativeEndpointState        `protobuf:"varint,13,opt,name=state,proto3,enum=chatto.api.v1.NativeEndpointState" json:"state,omitempty"`
-	LastDeliveryStatus NativeDeliveryStatus       `protobuf:"varint,14,opt,name=last_delivery_status,json=lastDeliveryStatus,proto3,enum=chatto.api.v1.NativeDeliveryStatus" json:"last_delivery_status,omitempty"`
-	Preferences        *NativeEndpointPreferences `protobuf:"bytes,15,opt,name=preferences,proto3" json:"preferences,omitempty"`
-	// Monotonic transport generation used for optimistic concurrency.
-	Generation    uint64 `protobuf:"varint,16,opt,name=generation,proto3" json:"generation,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AppId          string                      `protobuf:"bytes,5,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	// Present only for the endpoint owner. Never written to logs.
+	FcmInstallationId string `protobuf:"bytes,6,opt,name=fcm_installation_id,json=fcmInstallationId,proto3" json:"fcm_installation_id,omitempty"`
+	// Public installation encryption key. The private key stays on the client.
+	ClientPublicKey    []byte                     `protobuf:"bytes,7,opt,name=client_public_key,json=clientPublicKey,proto3" json:"client_public_key,omitempty"`
+	Locale             string                     `protobuf:"bytes,8,opt,name=locale,proto3" json:"locale,omitempty"`
+	CreatedAt          *timestamppb.Timestamp     `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	LastSeenAt         *timestamppb.Timestamp     `protobuf:"bytes,10,opt,name=last_seen_at,json=lastSeenAt,proto3" json:"last_seen_at,omitempty"`
+	DisabledAt         *timestamppb.Timestamp     `protobuf:"bytes,11,opt,name=disabled_at,json=disabledAt,proto3" json:"disabled_at,omitempty"`
+	State              NativeEndpointState        `protobuf:"varint,12,opt,name=state,proto3,enum=chatto.api.v1.NativeEndpointState" json:"state,omitempty"`
+	LastDeliveryStatus NativeDeliveryStatus       `protobuf:"varint,13,opt,name=last_delivery_status,json=lastDeliveryStatus,proto3,enum=chatto.api.v1.NativeDeliveryStatus" json:"last_delivery_status,omitempty"`
+	Preferences        *NativeEndpointPreferences `protobuf:"bytes,14,opt,name=preferences,proto3" json:"preferences,omitempty"`
+	Generation         uint64                     `protobuf:"varint,15,opt,name=generation,proto3" json:"generation,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *NativeEndpoint) Reset() {
 	*x = NativeEndpoint{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[4]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -558,7 +636,7 @@ func (x *NativeEndpoint) String() string {
 func (*NativeEndpoint) ProtoMessage() {}
 
 func (x *NativeEndpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[4]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -571,7 +649,7 @@ func (x *NativeEndpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NativeEndpoint.ProtoReflect.Descriptor instead.
 func (*NativeEndpoint) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{4}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *NativeEndpoint) GetEndpointId() string {
@@ -609,16 +687,9 @@ func (x *NativeEndpoint) GetAppId() string {
 	return ""
 }
 
-func (x *NativeEndpoint) GetUnifiedpushEndpoint() string {
-	if x != nil && x.UnifiedpushEndpoint != nil {
-		return *x.UnifiedpushEndpoint
-	}
-	return ""
-}
-
-func (x *NativeEndpoint) GetWebPushPublicKey() string {
-	if x != nil && x.WebPushPublicKey != nil {
-		return *x.WebPushPublicKey
+func (x *NativeEndpoint) GetFcmInstallationId() string {
+	if x != nil {
+		return x.FcmInstallationId
 	}
 	return ""
 }
@@ -687,24 +758,22 @@ func (x *NativeEndpoint) GetGeneration() uint64 {
 }
 
 type RegisterNativeEndpointRequest struct {
-	state               protoimpl.MessageState          `protogen:"open.v1"`
-	InstallationId      string                          `protobuf:"bytes,1,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
-	Platform            NativeNotificationPlatform      `protobuf:"varint,2,opt,name=platform,proto3,enum=chatto.api.v1.NativeNotificationPlatform" json:"platform,omitempty"`
-	Transport           NativeNotificationTransport     `protobuf:"varint,3,opt,name=transport,proto3,enum=chatto.api.v1.NativeNotificationTransport" json:"transport,omitempty"`
-	AppId               string                          `protobuf:"bytes,4,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	UnifiedpushEndpoint *string                         `protobuf:"bytes,5,opt,name=unifiedpush_endpoint,json=unifiedpushEndpoint,proto3,oneof" json:"unifiedpush_endpoint,omitempty"`
-	WebPushPublicKey    *string                         `protobuf:"bytes,6,opt,name=web_push_public_key,json=webPushPublicKey,proto3,oneof" json:"web_push_public_key,omitempty"`
-	WebPushAuthSecret   *string                         `protobuf:"bytes,7,opt,name=web_push_auth_secret,json=webPushAuthSecret,proto3,oneof" json:"web_push_auth_secret,omitempty"`
-	ClientPublicKey     []byte                          `protobuf:"bytes,8,opt,name=client_public_key,json=clientPublicKey,proto3,oneof" json:"client_public_key,omitempty"`
-	Locale              *string                         `protobuf:"bytes,9,opt,name=locale,proto3,oneof" json:"locale,omitempty"`
-	Preferences         *NativeEndpointPreferencesPatch `protobuf:"bytes,10,opt,name=preferences,proto3,oneof" json:"preferences,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state             protoimpl.MessageState          `protogen:"open.v1"`
+	InstallationId    string                          `protobuf:"bytes,1,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
+	Platform          NativeNotificationPlatform      `protobuf:"varint,2,opt,name=platform,proto3,enum=chatto.api.v1.NativeNotificationPlatform" json:"platform,omitempty"`
+	Transport         NativeNotificationTransport     `protobuf:"varint,3,opt,name=transport,proto3,enum=chatto.api.v1.NativeNotificationTransport" json:"transport,omitempty"`
+	AppId             string                          `protobuf:"bytes,4,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
+	FcmInstallationId string                          `protobuf:"bytes,5,opt,name=fcm_installation_id,json=fcmInstallationId,proto3" json:"fcm_installation_id,omitempty"`
+	ClientPublicKey   []byte                          `protobuf:"bytes,6,opt,name=client_public_key,json=clientPublicKey,proto3" json:"client_public_key,omitempty"`
+	Locale            string                          `protobuf:"bytes,7,opt,name=locale,proto3" json:"locale,omitempty"`
+	Preferences       *NativeEndpointPreferencesPatch `protobuf:"bytes,8,opt,name=preferences,proto3" json:"preferences,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RegisterNativeEndpointRequest) Reset() {
 	*x = RegisterNativeEndpointRequest{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[5]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -716,7 +785,7 @@ func (x *RegisterNativeEndpointRequest) String() string {
 func (*RegisterNativeEndpointRequest) ProtoMessage() {}
 
 func (x *RegisterNativeEndpointRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[5]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -729,7 +798,7 @@ func (x *RegisterNativeEndpointRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterNativeEndpointRequest.ProtoReflect.Descriptor instead.
 func (*RegisterNativeEndpointRequest) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{5}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RegisterNativeEndpointRequest) GetInstallationId() string {
@@ -760,23 +829,9 @@ func (x *RegisterNativeEndpointRequest) GetAppId() string {
 	return ""
 }
 
-func (x *RegisterNativeEndpointRequest) GetUnifiedpushEndpoint() string {
-	if x != nil && x.UnifiedpushEndpoint != nil {
-		return *x.UnifiedpushEndpoint
-	}
-	return ""
-}
-
-func (x *RegisterNativeEndpointRequest) GetWebPushPublicKey() string {
-	if x != nil && x.WebPushPublicKey != nil {
-		return *x.WebPushPublicKey
-	}
-	return ""
-}
-
-func (x *RegisterNativeEndpointRequest) GetWebPushAuthSecret() string {
-	if x != nil && x.WebPushAuthSecret != nil {
-		return *x.WebPushAuthSecret
+func (x *RegisterNativeEndpointRequest) GetFcmInstallationId() string {
+	if x != nil {
+		return x.FcmInstallationId
 	}
 	return ""
 }
@@ -789,8 +844,8 @@ func (x *RegisterNativeEndpointRequest) GetClientPublicKey() []byte {
 }
 
 func (x *RegisterNativeEndpointRequest) GetLocale() string {
-	if x != nil && x.Locale != nil {
-		return *x.Locale
+	if x != nil {
+		return x.Locale
 	}
 	return ""
 }
@@ -811,7 +866,7 @@ type RegisterNativeEndpointResponse struct {
 
 func (x *RegisterNativeEndpointResponse) Reset() {
 	*x = RegisterNativeEndpointResponse{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[6]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -823,7 +878,7 @@ func (x *RegisterNativeEndpointResponse) String() string {
 func (*RegisterNativeEndpointResponse) ProtoMessage() {}
 
 func (x *RegisterNativeEndpointResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[6]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -836,7 +891,7 @@ func (x *RegisterNativeEndpointResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterNativeEndpointResponse.ProtoReflect.Descriptor instead.
 func (*RegisterNativeEndpointResponse) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{6}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RegisterNativeEndpointResponse) GetEndpoint() *NativeEndpoint {
@@ -847,21 +902,19 @@ func (x *RegisterNativeEndpointResponse) GetEndpoint() *NativeEndpoint {
 }
 
 type RotateNativeEndpointRequest struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	EndpointId          string                 `protobuf:"bytes,1,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
-	ExpectedGeneration  uint64                 `protobuf:"varint,2,opt,name=expected_generation,json=expectedGeneration,proto3" json:"expected_generation,omitempty"`
-	UnifiedpushEndpoint string                 `protobuf:"bytes,3,opt,name=unifiedpush_endpoint,json=unifiedpushEndpoint,proto3" json:"unifiedpush_endpoint,omitempty"`
-	WebPushPublicKey    string                 `protobuf:"bytes,4,opt,name=web_push_public_key,json=webPushPublicKey,proto3" json:"web_push_public_key,omitempty"`
-	WebPushAuthSecret   string                 `protobuf:"bytes,5,opt,name=web_push_auth_secret,json=webPushAuthSecret,proto3" json:"web_push_auth_secret,omitempty"`
-	ClientPublicKey     []byte                 `protobuf:"bytes,6,opt,name=client_public_key,json=clientPublicKey,proto3" json:"client_public_key,omitempty"`
-	Locale              *string                `protobuf:"bytes,7,opt,name=locale,proto3,oneof" json:"locale,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	EndpointId         string                 `protobuf:"bytes,1,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
+	ExpectedGeneration uint64                 `protobuf:"varint,2,opt,name=expected_generation,json=expectedGeneration,proto3" json:"expected_generation,omitempty"`
+	FcmInstallationId  string                 `protobuf:"bytes,3,opt,name=fcm_installation_id,json=fcmInstallationId,proto3" json:"fcm_installation_id,omitempty"`
+	ClientPublicKey    []byte                 `protobuf:"bytes,4,opt,name=client_public_key,json=clientPublicKey,proto3" json:"client_public_key,omitempty"`
+	Locale             string                 `protobuf:"bytes,5,opt,name=locale,proto3" json:"locale,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *RotateNativeEndpointRequest) Reset() {
 	*x = RotateNativeEndpointRequest{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[7]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -873,7 +926,7 @@ func (x *RotateNativeEndpointRequest) String() string {
 func (*RotateNativeEndpointRequest) ProtoMessage() {}
 
 func (x *RotateNativeEndpointRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[7]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -886,7 +939,7 @@ func (x *RotateNativeEndpointRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateNativeEndpointRequest.ProtoReflect.Descriptor instead.
 func (*RotateNativeEndpointRequest) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{7}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RotateNativeEndpointRequest) GetEndpointId() string {
@@ -903,23 +956,9 @@ func (x *RotateNativeEndpointRequest) GetExpectedGeneration() uint64 {
 	return 0
 }
 
-func (x *RotateNativeEndpointRequest) GetUnifiedpushEndpoint() string {
+func (x *RotateNativeEndpointRequest) GetFcmInstallationId() string {
 	if x != nil {
-		return x.UnifiedpushEndpoint
-	}
-	return ""
-}
-
-func (x *RotateNativeEndpointRequest) GetWebPushPublicKey() string {
-	if x != nil {
-		return x.WebPushPublicKey
-	}
-	return ""
-}
-
-func (x *RotateNativeEndpointRequest) GetWebPushAuthSecret() string {
-	if x != nil {
-		return x.WebPushAuthSecret
+		return x.FcmInstallationId
 	}
 	return ""
 }
@@ -932,8 +971,8 @@ func (x *RotateNativeEndpointRequest) GetClientPublicKey() []byte {
 }
 
 func (x *RotateNativeEndpointRequest) GetLocale() string {
-	if x != nil && x.Locale != nil {
-		return *x.Locale
+	if x != nil {
+		return x.Locale
 	}
 	return ""
 }
@@ -947,7 +986,7 @@ type RotateNativeEndpointResponse struct {
 
 func (x *RotateNativeEndpointResponse) Reset() {
 	*x = RotateNativeEndpointResponse{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[8]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -959,7 +998,7 @@ func (x *RotateNativeEndpointResponse) String() string {
 func (*RotateNativeEndpointResponse) ProtoMessage() {}
 
 func (x *RotateNativeEndpointResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[8]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -972,7 +1011,7 @@ func (x *RotateNativeEndpointResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateNativeEndpointResponse.ProtoReflect.Descriptor instead.
 func (*RotateNativeEndpointResponse) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{8}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RotateNativeEndpointResponse) GetEndpoint() *NativeEndpoint {
@@ -983,17 +1022,16 @@ func (x *RotateNativeEndpointResponse) GetEndpoint() *NativeEndpoint {
 }
 
 type UnregisterNativeEndpointRequest struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	EndpointId string                 `protobuf:"bytes,1,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
-	// Prevents a stale logout from revoking a newer post-reinstall endpoint.
-	ExpectedGeneration uint64 `protobuf:"varint,2,opt,name=expected_generation,json=expectedGeneration,proto3" json:"expected_generation,omitempty"`
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	EndpointId         string                 `protobuf:"bytes,1,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
+	ExpectedGeneration uint64                 `protobuf:"varint,2,opt,name=expected_generation,json=expectedGeneration,proto3" json:"expected_generation,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
 func (x *UnregisterNativeEndpointRequest) Reset() {
 	*x = UnregisterNativeEndpointRequest{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[9]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1005,7 +1043,7 @@ func (x *UnregisterNativeEndpointRequest) String() string {
 func (*UnregisterNativeEndpointRequest) ProtoMessage() {}
 
 func (x *UnregisterNativeEndpointRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[9]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1018,7 +1056,7 @@ func (x *UnregisterNativeEndpointRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnregisterNativeEndpointRequest.ProtoReflect.Descriptor instead.
 func (*UnregisterNativeEndpointRequest) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{9}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UnregisterNativeEndpointRequest) GetEndpointId() string {
@@ -1044,7 +1082,7 @@ type UnregisterNativeEndpointResponse struct {
 
 func (x *UnregisterNativeEndpointResponse) Reset() {
 	*x = UnregisterNativeEndpointResponse{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[10]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1056,7 +1094,7 @@ func (x *UnregisterNativeEndpointResponse) String() string {
 func (*UnregisterNativeEndpointResponse) ProtoMessage() {}
 
 func (x *UnregisterNativeEndpointResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[10]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1069,7 +1107,7 @@ func (x *UnregisterNativeEndpointResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnregisterNativeEndpointResponse.ProtoReflect.Descriptor instead.
 func (*UnregisterNativeEndpointResponse) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{10}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UnregisterNativeEndpointResponse) GetUnregistered() bool {
@@ -1087,7 +1125,7 @@ type ListNativeEndpointsRequest struct {
 
 func (x *ListNativeEndpointsRequest) Reset() {
 	*x = ListNativeEndpointsRequest{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[11]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1099,7 +1137,7 @@ func (x *ListNativeEndpointsRequest) String() string {
 func (*ListNativeEndpointsRequest) ProtoMessage() {}
 
 func (x *ListNativeEndpointsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[11]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1112,7 +1150,7 @@ func (x *ListNativeEndpointsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNativeEndpointsRequest.ProtoReflect.Descriptor instead.
 func (*ListNativeEndpointsRequest) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{11}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{13}
 }
 
 type ListNativeEndpointsResponse struct {
@@ -1124,7 +1162,7 @@ type ListNativeEndpointsResponse struct {
 
 func (x *ListNativeEndpointsResponse) Reset() {
 	*x = ListNativeEndpointsResponse{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[12]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1136,7 +1174,7 @@ func (x *ListNativeEndpointsResponse) String() string {
 func (*ListNativeEndpointsResponse) ProtoMessage() {}
 
 func (x *ListNativeEndpointsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[12]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1149,7 +1187,7 @@ func (x *ListNativeEndpointsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNativeEndpointsResponse.ProtoReflect.Descriptor instead.
 func (*ListNativeEndpointsResponse) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{12}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListNativeEndpointsResponse) GetEndpoints() []*NativeEndpoint {
@@ -1170,7 +1208,7 @@ type UpdateNativeEndpointPreferencesRequest struct {
 
 func (x *UpdateNativeEndpointPreferencesRequest) Reset() {
 	*x = UpdateNativeEndpointPreferencesRequest{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[13]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1182,7 +1220,7 @@ func (x *UpdateNativeEndpointPreferencesRequest) String() string {
 func (*UpdateNativeEndpointPreferencesRequest) ProtoMessage() {}
 
 func (x *UpdateNativeEndpointPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[13]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1195,7 +1233,7 @@ func (x *UpdateNativeEndpointPreferencesRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use UpdateNativeEndpointPreferencesRequest.ProtoReflect.Descriptor instead.
 func (*UpdateNativeEndpointPreferencesRequest) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{13}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UpdateNativeEndpointPreferencesRequest) GetEndpointId() string {
@@ -1228,7 +1266,7 @@ type UpdateNativeEndpointPreferencesResponse struct {
 
 func (x *UpdateNativeEndpointPreferencesResponse) Reset() {
 	*x = UpdateNativeEndpointPreferencesResponse{}
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[14]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1240,7 +1278,7 @@ func (x *UpdateNativeEndpointPreferencesResponse) String() string {
 func (*UpdateNativeEndpointPreferencesResponse) ProtoMessage() {}
 
 func (x *UpdateNativeEndpointPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[14]
+	mi := &file_chatto_api_v1_native_notifications_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1253,7 +1291,7 @@ func (x *UpdateNativeEndpointPreferencesResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use UpdateNativeEndpointPreferencesResponse.ProtoReflect.Descriptor instead.
 func (*UpdateNativeEndpointPreferencesResponse) Descriptor() ([]byte, []int) {
-	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{14}
+	return file_chatto_api_v1_native_notifications_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UpdateNativeEndpointPreferencesResponse) GetEndpoint() *NativeEndpoint {
@@ -1268,17 +1306,22 @@ var File_chatto_api_v1_native_notifications_proto protoreflect.FileDescriptor
 const file_chatto_api_v1_native_notifications_proto_rawDesc = "" +
 	"\n" +
 	"(chatto/api/v1/native_notifications.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"$\n" +
-	"\"GetNativeNotificationConfigRequest\"\x8b\x03\n" +
+	"\"GetNativeNotificationConfigRequest\"\x89\x04\n" +
 	"#GetNativeNotificationConfigResponse\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\x12>\n" +
-	"\x1bandroid_unifiedpush_enabled\x18\x02 \x01(\bR\x19androidUnifiedpushEnabled\x12.\n" +
-	"\x13linux_agent_enabled\x18\x03 \x01(\bR\x11linuxAgentEnabled\x122\n" +
-	"\x15windows_agent_enabled\x18\x04 \x01(\bR\x13windowsAgentEnabled\x12(\n" +
-	"\x10vapid_public_key\x18\x05 \x01(\tR\x0evapidPublicKey\x12\x1d\n" +
-	"\n" +
-	"hpke_suite\x18\x06 \x01(\tR\thpkeSuite\x12(\n" +
-	"\x10max_signal_bytes\x18\a \x01(\rR\x0emaxSignalBytes\x123\n" +
-	"\x16max_signal_age_seconds\x18\b \x01(\rR\x13maxSignalAgeSeconds\"g\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12=\n" +
+	"\x1bandroid_managed_fcm_enabled\x18\x02 \x01(\bR\x18androidManagedFcmEnabled\x12G\n" +
+	" linux_resident_websocket_enabled\x18\x03 \x01(\bR\x1dlinuxResidentWebsocketEnabled\x121\n" +
+	"\x15managed_fcm_relay_url\x18\x04 \x01(\tR\x12managedFcmRelayUrl\x126\n" +
+	"\x17signal_encryption_suite\x18\x05 \x01(\tR\x15signalEncryptionSuite\x12(\n" +
+	"\x10max_signal_bytes\x18\x06 \x01(\rR\x0emaxSignalBytes\x123\n" +
+	"\x16max_signal_age_seconds\x18\a \x01(\rR\x13maxSignalAgeSeconds\x12?\n" +
+	"\x1cmanaged_fcm_enrollment_state\x18\b \x01(\tR\x19managedFcmEnrollmentState\x125\n" +
+	"\x17managed_fcm_instance_id\x18\t \x01(\tR\x14managedFcmInstanceId\"\x19\n" +
+	"\x17EnrollManagedFCMRequest\"f\n" +
+	"\x18EnrollManagedFCMResponse\x12)\n" +
+	"\x10enrollment_state\x18\x01 \x01(\tR\x0fenrollmentState\x12\x1f\n" +
+	"\vinstance_id\x18\x02 \x01(\tR\n" +
+	"instanceId\"g\n" +
 	"\x19NativeEndpointPreferences\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
 	"\bmessages\x18\x02 \x01(\bR\bmessages\x12\x14\n" +
@@ -1290,71 +1333,49 @@ const file_chatto_api_v1_native_notifications_proto_rawDesc = "" +
 	"\n" +
 	"\b_enabledB\v\n" +
 	"\t_messagesB\b\n" +
-	"\x06_calls\"\xc6\a\n" +
+	"\x06_calls\"\xa9\x06\n" +
 	"\x0eNativeEndpoint\x12\x1f\n" +
 	"\vendpoint_id\x18\x01 \x01(\tR\n" +
 	"endpointId\x12'\n" +
 	"\x0finstallation_id\x18\x02 \x01(\tR\x0einstallationId\x12E\n" +
 	"\bplatform\x18\x03 \x01(\x0e2).chatto.api.v1.NativeNotificationPlatformR\bplatform\x12H\n" +
 	"\ttransport\x18\x04 \x01(\x0e2*.chatto.api.v1.NativeNotificationTransportR\ttransport\x12\x15\n" +
-	"\x06app_id\x18\x05 \x01(\tR\x05appId\x126\n" +
-	"\x14unifiedpush_endpoint\x18\x06 \x01(\tH\x00R\x13unifiedpushEndpoint\x88\x01\x01\x122\n" +
-	"\x13web_push_public_key\x18\a \x01(\tH\x01R\x10webPushPublicKey\x88\x01\x01\x12/\n" +
-	"\x11client_public_key\x18\b \x01(\fH\x02R\x0fclientPublicKey\x88\x01\x01\x12\x16\n" +
-	"\x06locale\x18\t \x01(\tR\x06locale\x129\n" +
+	"\x06app_id\x18\x05 \x01(\tR\x05appId\x12.\n" +
+	"\x13fcm_installation_id\x18\x06 \x01(\tR\x11fcmInstallationId\x12*\n" +
+	"\x11client_public_key\x18\a \x01(\fR\x0fclientPublicKey\x12\x16\n" +
+	"\x06locale\x18\b \x01(\tR\x06locale\x129\n" +
 	"\n" +
-	"created_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12<\n" +
-	"\flast_seen_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"lastSeenAt\x12@\n" +
-	"\vdisabled_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampH\x03R\n" +
-	"disabledAt\x88\x01\x01\x128\n" +
-	"\x05state\x18\r \x01(\x0e2\".chatto.api.v1.NativeEndpointStateR\x05state\x12U\n" +
-	"\x14last_delivery_status\x18\x0e \x01(\x0e2#.chatto.api.v1.NativeDeliveryStatusR\x12lastDeliveryStatus\x12J\n" +
-	"\vpreferences\x18\x0f \x01(\v2(.chatto.api.v1.NativeEndpointPreferencesR\vpreferences\x12\x1e\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12<\n" +
+	"\flast_seen_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastSeenAt\x12;\n" +
+	"\vdisabled_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"disabledAt\x128\n" +
+	"\x05state\x18\f \x01(\x0e2\".chatto.api.v1.NativeEndpointStateR\x05state\x12U\n" +
+	"\x14last_delivery_status\x18\r \x01(\x0e2#.chatto.api.v1.NativeDeliveryStatusR\x12lastDeliveryStatus\x12J\n" +
+	"\vpreferences\x18\x0e \x01(\v2(.chatto.api.v1.NativeEndpointPreferencesR\vpreferences\x12\x1e\n" +
 	"\n" +
-	"generation\x18\x10 \x01(\x04R\n" +
-	"generationB\x17\n" +
-	"\x15_unifiedpush_endpointB\x16\n" +
-	"\x14_web_push_public_keyB\x14\n" +
-	"\x12_client_public_keyB\x0e\n" +
-	"\f_disabled_at\"\xb9\x06\n" +
+	"generation\x18\x0f \x01(\x04R\n" +
+	"generation\"\xb9\x04\n" +
 	"\x1dRegisterNativeEndpointRequest\x12G\n" +
-	"\x0finstallation_id\x18\x01 \x01(\tB\x1e\xbaH\x1br\x19\x10\x10\x18\x80\x012\x12^[A-Za-z0-9._~-]+$R\x0einstallationId\x12Q\n" +
-	"\bplatform\x18\x02 \x01(\x0e2).chatto.api.v1.NativeNotificationPlatformB\n" +
-	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\bplatform\x12T\n" +
-	"\ttransport\x18\x03 \x01(\x0e2*.chatto.api.v1.NativeNotificationTransportB\n" +
-	"\xbaH\a\x82\x01\x04\x10\x01 \x00R\ttransport\x124\n" +
-	"\x06app_id\x18\x04 \x01(\tB\x1d\xbaH\x1ar\x18\x10\x01\x18\x80\x012\x11^[A-Za-z0-9._-]+$R\x05appId\x12@\n" +
-	"\x14unifiedpush_endpoint\x18\x05 \x01(\tB\b\xbaH\x05r\x03\x18\x80 H\x00R\x13unifiedpushEndpoint\x88\x01\x01\x12<\n" +
-	"\x13web_push_public_key\x18\x06 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x02H\x01R\x10webPushPublicKey\x88\x01\x01\x12>\n" +
-	"\x14web_push_auth_secret\x18\a \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01H\x02R\x11webPushAuthSecret\x88\x01\x01\x129\n" +
-	"\x11client_public_key\x18\b \x01(\fB\b\xbaH\x05z\x03\x18\x80\x02H\x03R\x0fclientPublicKey\x88\x01\x01\x12$\n" +
-	"\x06locale\x18\t \x01(\tB\a\xbaH\x04r\x02\x18\x10H\x04R\x06locale\x88\x01\x01\x12T\n" +
-	"\vpreferences\x18\n" +
-	" \x01(\v2-.chatto.api.v1.NativeEndpointPreferencesPatchH\x05R\vpreferences\x88\x01\x01B\x17\n" +
-	"\x15_unifiedpush_endpointB\x16\n" +
-	"\x14_web_push_public_keyB\x17\n" +
-	"\x15_web_push_auth_secretB\x14\n" +
-	"\x12_client_public_keyB\t\n" +
-	"\a_localeB\x0e\n" +
-	"\f_preferences\"[\n" +
+	"\x0finstallation_id\x18\x01 \x01(\tB\x1e\xbaH\x1br\x19\x10\x10\x18\x80\x012\x12^[A-Za-z0-9._~-]+$R\x0einstallationId\x12O\n" +
+	"\bplatform\x18\x02 \x01(\x0e2).chatto.api.v1.NativeNotificationPlatformB\b\xbaH\x05\x82\x01\x02 \x00R\bplatform\x12R\n" +
+	"\ttransport\x18\x03 \x01(\x0e2*.chatto.api.v1.NativeNotificationTransportB\b\xbaH\x05\x82\x01\x02 \x00R\ttransport\x124\n" +
+	"\x06app_id\x18\x04 \x01(\tB\x1d\xbaH\x1ar\x18\x10\x01\x18\x80\x012\x11^[A-Za-z0-9._-]+$R\x05appId\x12L\n" +
+	"\x13fcm_installation_id\x18\x05 \x01(\tB\x1c\xbaH\x19r\x17\x10\x14\x18\x80\x012\x10^[A-Za-z0-9_-]+$R\x11fcmInstallationId\x124\n" +
+	"\x11client_public_key\x18\x06 \x01(\fB\b\xbaH\x05z\x03\x18\x80\x02R\x0fclientPublicKey\x12\x1f\n" +
+	"\x06locale\x18\a \x01(\tB\a\xbaH\x04r\x02\x18\x10R\x06locale\x12O\n" +
+	"\vpreferences\x18\b \x01(\v2-.chatto.api.v1.NativeEndpointPreferencesPatchR\vpreferences\"[\n" +
 	"\x1eRegisterNativeEndpointResponse\x129\n" +
-	"\bendpoint\x18\x01 \x01(\v2\x1d.chatto.api.v1.NativeEndpointR\bendpoint\"\xb5\x03\n" +
+	"\bendpoint\x18\x01 \x01(\v2\x1d.chatto.api.v1.NativeEndpointR\bendpoint\"\xbc\x02\n" +
 	"\x1bRotateNativeEndpointRequest\x12<\n" +
 	"\vendpoint_id\x18\x01 \x01(\tB\x1b\xbaH\x18r\x16\x10\x10\x18@2\x10^[A-Za-z0-9_-]+$R\n" +
 	"endpointId\x128\n" +
-	"\x13expected_generation\x18\x02 \x01(\x04B\a\xbaH\x042\x02 \x00R\x12expectedGeneration\x12=\n" +
-	"\x14unifiedpush_endpoint\x18\x03 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\x80 R\x13unifiedpushEndpoint\x129\n" +
-	"\x13web_push_public_key\x18\x04 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\x80\x02R\x10webPushPublicKey\x12;\n" +
-	"\x14web_push_auth_secret\x18\x05 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\x80\x01R\x11webPushAuthSecret\x126\n" +
-	"\x11client_public_key\x18\x06 \x01(\fB\n" +
-	"\xbaH\az\x05\x10\x01\x18\x80\x02R\x0fclientPublicKey\x12$\n" +
-	"\x06locale\x18\a \x01(\tB\a\xbaH\x04r\x02\x18\x10H\x00R\x06locale\x88\x01\x01B\t\n" +
-	"\a_locale\"Y\n" +
+	"\x13expected_generation\x18\x02 \x01(\x04B\a\xbaH\x042\x02 \x00R\x12expectedGeneration\x12L\n" +
+	"\x13fcm_installation_id\x18\x03 \x01(\tB\x1c\xbaH\x19r\x17\x10\x14\x18\x80\x012\x10^[A-Za-z0-9_-]+$R\x11fcmInstallationId\x126\n" +
+	"\x11client_public_key\x18\x04 \x01(\fB\n" +
+	"\xbaH\az\x05\x10\x01\x18\x80\x02R\x0fclientPublicKey\x12\x1f\n" +
+	"\x06locale\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x18\x10R\x06locale\"Y\n" +
 	"\x1cRotateNativeEndpointResponse\x129\n" +
 	"\bendpoint\x18\x01 \x01(\v2\x1d.chatto.api.v1.NativeEndpointR\bendpoint\"\x99\x01\n" +
 	"\x1fUnregisterNativeEndpointRequest\x12<\n" +
@@ -1379,11 +1400,11 @@ const file_chatto_api_v1_native_notifications_proto_rawDesc = "" +
 	"\"NATIVE_NOTIFICATION_PLATFORM_LINUX\x10\x02\x12(\n" +
 	"$NATIVE_NOTIFICATION_PLATFORM_WINDOWS\x10\x03\x12&\n" +
 	"\"NATIVE_NOTIFICATION_PLATFORM_MACOS\x10\x04\x12$\n" +
-	" NATIVE_NOTIFICATION_PLATFORM_IOS\x10\x05*\xae\x01\n" +
+	" NATIVE_NOTIFICATION_PLATFORM_IOS\x10\x05*\xbf\x01\n" +
 	"\x1bNativeNotificationTransport\x12-\n" +
-	")NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED\x10\x00\x12.\n" +
-	"*NATIVE_NOTIFICATION_TRANSPORT_UNIFIED_PUSH\x10\x01\x120\n" +
-	",NATIVE_NOTIFICATION_TRANSPORT_LOCAL_REALTIME\x10\x02*\xb1\x01\n" +
+	")NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED\x10\x00\x125\n" +
+	"1NATIVE_NOTIFICATION_TRANSPORT_ANDROID_MANAGED_FCM\x10\x01\x12:\n" +
+	"6NATIVE_NOTIFICATION_TRANSPORT_LINUX_RESIDENT_WEBSOCKET\x10\x02*\xb1\x01\n" +
 	"\x13NativeEndpointState\x12%\n" +
 	"!NATIVE_ENDPOINT_STATE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cNATIVE_ENDPOINT_STATE_ACTIVE\x10\x01\x12\"\n" +
@@ -1396,9 +1417,10 @@ const file_chatto_api_v1_native_notifications_proto_rawDesc = "" +
 	"-NATIVE_DELIVERY_STATUS_DELIVERED_TO_TRANSPORT\x10\x03\x12,\n" +
 	"(NATIVE_DELIVERY_STATUS_RETRYABLE_FAILURE\x10\x04\x12\"\n" +
 	"\x1eNATIVE_DELIVERY_STATUS_EXPIRED\x10\x05\x12.\n" +
-	"*NATIVE_DELIVERY_STATUS_PERMANENTLY_INVALID\x10\x062\x88\x06\n" +
+	"*NATIVE_DELIVERY_STATUS_PERMANENTLY_INVALID\x10\x062\xed\x06\n" +
 	"\x19NativeNotificationService\x12\x84\x01\n" +
-	"\x1bGetNativeNotificationConfig\x121.chatto.api.v1.GetNativeNotificationConfigRequest\x1a2.chatto.api.v1.GetNativeNotificationConfigResponse\x12u\n" +
+	"\x1bGetNativeNotificationConfig\x121.chatto.api.v1.GetNativeNotificationConfigRequest\x1a2.chatto.api.v1.GetNativeNotificationConfigResponse\x12c\n" +
+	"\x10EnrollManagedFCM\x12&.chatto.api.v1.EnrollManagedFCMRequest\x1a'.chatto.api.v1.EnrollManagedFCMResponse\x12u\n" +
 	"\x16RegisterNativeEndpoint\x12,.chatto.api.v1.RegisterNativeEndpointRequest\x1a-.chatto.api.v1.RegisterNativeEndpointResponse\x12o\n" +
 	"\x14RotateNativeEndpoint\x12*.chatto.api.v1.RotateNativeEndpointRequest\x1a+.chatto.api.v1.RotateNativeEndpointResponse\x12{\n" +
 	"\x18UnregisterNativeEndpoint\x12..chatto.api.v1.UnregisterNativeEndpointRequest\x1a/.chatto.api.v1.UnregisterNativeEndpointResponse\x12l\n" +
@@ -1419,7 +1441,7 @@ func file_chatto_api_v1_native_notifications_proto_rawDescGZIP() []byte {
 }
 
 var file_chatto_api_v1_native_notifications_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_chatto_api_v1_native_notifications_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_chatto_api_v1_native_notifications_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_chatto_api_v1_native_notifications_proto_goTypes = []any{
 	(NativeNotificationPlatform)(0),                 // 0: chatto.api.v1.NativeNotificationPlatform
 	(NativeNotificationTransport)(0),                // 1: chatto.api.v1.NativeNotificationTransport
@@ -1427,52 +1449,56 @@ var file_chatto_api_v1_native_notifications_proto_goTypes = []any{
 	(NativeDeliveryStatus)(0),                       // 3: chatto.api.v1.NativeDeliveryStatus
 	(*GetNativeNotificationConfigRequest)(nil),      // 4: chatto.api.v1.GetNativeNotificationConfigRequest
 	(*GetNativeNotificationConfigResponse)(nil),     // 5: chatto.api.v1.GetNativeNotificationConfigResponse
-	(*NativeEndpointPreferences)(nil),               // 6: chatto.api.v1.NativeEndpointPreferences
-	(*NativeEndpointPreferencesPatch)(nil),          // 7: chatto.api.v1.NativeEndpointPreferencesPatch
-	(*NativeEndpoint)(nil),                          // 8: chatto.api.v1.NativeEndpoint
-	(*RegisterNativeEndpointRequest)(nil),           // 9: chatto.api.v1.RegisterNativeEndpointRequest
-	(*RegisterNativeEndpointResponse)(nil),          // 10: chatto.api.v1.RegisterNativeEndpointResponse
-	(*RotateNativeEndpointRequest)(nil),             // 11: chatto.api.v1.RotateNativeEndpointRequest
-	(*RotateNativeEndpointResponse)(nil),            // 12: chatto.api.v1.RotateNativeEndpointResponse
-	(*UnregisterNativeEndpointRequest)(nil),         // 13: chatto.api.v1.UnregisterNativeEndpointRequest
-	(*UnregisterNativeEndpointResponse)(nil),        // 14: chatto.api.v1.UnregisterNativeEndpointResponse
-	(*ListNativeEndpointsRequest)(nil),              // 15: chatto.api.v1.ListNativeEndpointsRequest
-	(*ListNativeEndpointsResponse)(nil),             // 16: chatto.api.v1.ListNativeEndpointsResponse
-	(*UpdateNativeEndpointPreferencesRequest)(nil),  // 17: chatto.api.v1.UpdateNativeEndpointPreferencesRequest
-	(*UpdateNativeEndpointPreferencesResponse)(nil), // 18: chatto.api.v1.UpdateNativeEndpointPreferencesResponse
-	(*timestamppb.Timestamp)(nil),                   // 19: google.protobuf.Timestamp
+	(*EnrollManagedFCMRequest)(nil),                 // 6: chatto.api.v1.EnrollManagedFCMRequest
+	(*EnrollManagedFCMResponse)(nil),                // 7: chatto.api.v1.EnrollManagedFCMResponse
+	(*NativeEndpointPreferences)(nil),               // 8: chatto.api.v1.NativeEndpointPreferences
+	(*NativeEndpointPreferencesPatch)(nil),          // 9: chatto.api.v1.NativeEndpointPreferencesPatch
+	(*NativeEndpoint)(nil),                          // 10: chatto.api.v1.NativeEndpoint
+	(*RegisterNativeEndpointRequest)(nil),           // 11: chatto.api.v1.RegisterNativeEndpointRequest
+	(*RegisterNativeEndpointResponse)(nil),          // 12: chatto.api.v1.RegisterNativeEndpointResponse
+	(*RotateNativeEndpointRequest)(nil),             // 13: chatto.api.v1.RotateNativeEndpointRequest
+	(*RotateNativeEndpointResponse)(nil),            // 14: chatto.api.v1.RotateNativeEndpointResponse
+	(*UnregisterNativeEndpointRequest)(nil),         // 15: chatto.api.v1.UnregisterNativeEndpointRequest
+	(*UnregisterNativeEndpointResponse)(nil),        // 16: chatto.api.v1.UnregisterNativeEndpointResponse
+	(*ListNativeEndpointsRequest)(nil),              // 17: chatto.api.v1.ListNativeEndpointsRequest
+	(*ListNativeEndpointsResponse)(nil),             // 18: chatto.api.v1.ListNativeEndpointsResponse
+	(*UpdateNativeEndpointPreferencesRequest)(nil),  // 19: chatto.api.v1.UpdateNativeEndpointPreferencesRequest
+	(*UpdateNativeEndpointPreferencesResponse)(nil), // 20: chatto.api.v1.UpdateNativeEndpointPreferencesResponse
+	(*timestamppb.Timestamp)(nil),                   // 21: google.protobuf.Timestamp
 }
 var file_chatto_api_v1_native_notifications_proto_depIdxs = []int32{
 	0,  // 0: chatto.api.v1.NativeEndpoint.platform:type_name -> chatto.api.v1.NativeNotificationPlatform
 	1,  // 1: chatto.api.v1.NativeEndpoint.transport:type_name -> chatto.api.v1.NativeNotificationTransport
-	19, // 2: chatto.api.v1.NativeEndpoint.created_at:type_name -> google.protobuf.Timestamp
-	19, // 3: chatto.api.v1.NativeEndpoint.last_seen_at:type_name -> google.protobuf.Timestamp
-	19, // 4: chatto.api.v1.NativeEndpoint.disabled_at:type_name -> google.protobuf.Timestamp
+	21, // 2: chatto.api.v1.NativeEndpoint.created_at:type_name -> google.protobuf.Timestamp
+	21, // 3: chatto.api.v1.NativeEndpoint.last_seen_at:type_name -> google.protobuf.Timestamp
+	21, // 4: chatto.api.v1.NativeEndpoint.disabled_at:type_name -> google.protobuf.Timestamp
 	2,  // 5: chatto.api.v1.NativeEndpoint.state:type_name -> chatto.api.v1.NativeEndpointState
 	3,  // 6: chatto.api.v1.NativeEndpoint.last_delivery_status:type_name -> chatto.api.v1.NativeDeliveryStatus
-	6,  // 7: chatto.api.v1.NativeEndpoint.preferences:type_name -> chatto.api.v1.NativeEndpointPreferences
+	8,  // 7: chatto.api.v1.NativeEndpoint.preferences:type_name -> chatto.api.v1.NativeEndpointPreferences
 	0,  // 8: chatto.api.v1.RegisterNativeEndpointRequest.platform:type_name -> chatto.api.v1.NativeNotificationPlatform
 	1,  // 9: chatto.api.v1.RegisterNativeEndpointRequest.transport:type_name -> chatto.api.v1.NativeNotificationTransport
-	7,  // 10: chatto.api.v1.RegisterNativeEndpointRequest.preferences:type_name -> chatto.api.v1.NativeEndpointPreferencesPatch
-	8,  // 11: chatto.api.v1.RegisterNativeEndpointResponse.endpoint:type_name -> chatto.api.v1.NativeEndpoint
-	8,  // 12: chatto.api.v1.RotateNativeEndpointResponse.endpoint:type_name -> chatto.api.v1.NativeEndpoint
-	8,  // 13: chatto.api.v1.ListNativeEndpointsResponse.endpoints:type_name -> chatto.api.v1.NativeEndpoint
-	7,  // 14: chatto.api.v1.UpdateNativeEndpointPreferencesRequest.preferences:type_name -> chatto.api.v1.NativeEndpointPreferencesPatch
-	8,  // 15: chatto.api.v1.UpdateNativeEndpointPreferencesResponse.endpoint:type_name -> chatto.api.v1.NativeEndpoint
+	9,  // 10: chatto.api.v1.RegisterNativeEndpointRequest.preferences:type_name -> chatto.api.v1.NativeEndpointPreferencesPatch
+	10, // 11: chatto.api.v1.RegisterNativeEndpointResponse.endpoint:type_name -> chatto.api.v1.NativeEndpoint
+	10, // 12: chatto.api.v1.RotateNativeEndpointResponse.endpoint:type_name -> chatto.api.v1.NativeEndpoint
+	10, // 13: chatto.api.v1.ListNativeEndpointsResponse.endpoints:type_name -> chatto.api.v1.NativeEndpoint
+	9,  // 14: chatto.api.v1.UpdateNativeEndpointPreferencesRequest.preferences:type_name -> chatto.api.v1.NativeEndpointPreferencesPatch
+	10, // 15: chatto.api.v1.UpdateNativeEndpointPreferencesResponse.endpoint:type_name -> chatto.api.v1.NativeEndpoint
 	4,  // 16: chatto.api.v1.NativeNotificationService.GetNativeNotificationConfig:input_type -> chatto.api.v1.GetNativeNotificationConfigRequest
-	9,  // 17: chatto.api.v1.NativeNotificationService.RegisterNativeEndpoint:input_type -> chatto.api.v1.RegisterNativeEndpointRequest
-	11, // 18: chatto.api.v1.NativeNotificationService.RotateNativeEndpoint:input_type -> chatto.api.v1.RotateNativeEndpointRequest
-	13, // 19: chatto.api.v1.NativeNotificationService.UnregisterNativeEndpoint:input_type -> chatto.api.v1.UnregisterNativeEndpointRequest
-	15, // 20: chatto.api.v1.NativeNotificationService.ListNativeEndpoints:input_type -> chatto.api.v1.ListNativeEndpointsRequest
-	17, // 21: chatto.api.v1.NativeNotificationService.UpdateNativeEndpointPreferences:input_type -> chatto.api.v1.UpdateNativeEndpointPreferencesRequest
-	5,  // 22: chatto.api.v1.NativeNotificationService.GetNativeNotificationConfig:output_type -> chatto.api.v1.GetNativeNotificationConfigResponse
-	10, // 23: chatto.api.v1.NativeNotificationService.RegisterNativeEndpoint:output_type -> chatto.api.v1.RegisterNativeEndpointResponse
-	12, // 24: chatto.api.v1.NativeNotificationService.RotateNativeEndpoint:output_type -> chatto.api.v1.RotateNativeEndpointResponse
-	14, // 25: chatto.api.v1.NativeNotificationService.UnregisterNativeEndpoint:output_type -> chatto.api.v1.UnregisterNativeEndpointResponse
-	16, // 26: chatto.api.v1.NativeNotificationService.ListNativeEndpoints:output_type -> chatto.api.v1.ListNativeEndpointsResponse
-	18, // 27: chatto.api.v1.NativeNotificationService.UpdateNativeEndpointPreferences:output_type -> chatto.api.v1.UpdateNativeEndpointPreferencesResponse
-	22, // [22:28] is the sub-list for method output_type
-	16, // [16:22] is the sub-list for method input_type
+	6,  // 17: chatto.api.v1.NativeNotificationService.EnrollManagedFCM:input_type -> chatto.api.v1.EnrollManagedFCMRequest
+	11, // 18: chatto.api.v1.NativeNotificationService.RegisterNativeEndpoint:input_type -> chatto.api.v1.RegisterNativeEndpointRequest
+	13, // 19: chatto.api.v1.NativeNotificationService.RotateNativeEndpoint:input_type -> chatto.api.v1.RotateNativeEndpointRequest
+	15, // 20: chatto.api.v1.NativeNotificationService.UnregisterNativeEndpoint:input_type -> chatto.api.v1.UnregisterNativeEndpointRequest
+	17, // 21: chatto.api.v1.NativeNotificationService.ListNativeEndpoints:input_type -> chatto.api.v1.ListNativeEndpointsRequest
+	19, // 22: chatto.api.v1.NativeNotificationService.UpdateNativeEndpointPreferences:input_type -> chatto.api.v1.UpdateNativeEndpointPreferencesRequest
+	5,  // 23: chatto.api.v1.NativeNotificationService.GetNativeNotificationConfig:output_type -> chatto.api.v1.GetNativeNotificationConfigResponse
+	7,  // 24: chatto.api.v1.NativeNotificationService.EnrollManagedFCM:output_type -> chatto.api.v1.EnrollManagedFCMResponse
+	12, // 25: chatto.api.v1.NativeNotificationService.RegisterNativeEndpoint:output_type -> chatto.api.v1.RegisterNativeEndpointResponse
+	14, // 26: chatto.api.v1.NativeNotificationService.RotateNativeEndpoint:output_type -> chatto.api.v1.RotateNativeEndpointResponse
+	16, // 27: chatto.api.v1.NativeNotificationService.UnregisterNativeEndpoint:output_type -> chatto.api.v1.UnregisterNativeEndpointResponse
+	18, // 28: chatto.api.v1.NativeNotificationService.ListNativeEndpoints:output_type -> chatto.api.v1.ListNativeEndpointsResponse
+	20, // 29: chatto.api.v1.NativeNotificationService.UpdateNativeEndpointPreferences:output_type -> chatto.api.v1.UpdateNativeEndpointPreferencesResponse
+	23, // [23:30] is the sub-list for method output_type
+	16, // [16:23] is the sub-list for method input_type
 	16, // [16:16] is the sub-list for extension type_name
 	16, // [16:16] is the sub-list for extension extendee
 	0,  // [0:16] is the sub-list for field type_name
@@ -1483,17 +1509,14 @@ func file_chatto_api_v1_native_notifications_proto_init() {
 	if File_chatto_api_v1_native_notifications_proto != nil {
 		return
 	}
-	file_chatto_api_v1_native_notifications_proto_msgTypes[3].OneofWrappers = []any{}
-	file_chatto_api_v1_native_notifications_proto_msgTypes[4].OneofWrappers = []any{}
 	file_chatto_api_v1_native_notifications_proto_msgTypes[5].OneofWrappers = []any{}
-	file_chatto_api_v1_native_notifications_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_api_v1_native_notifications_proto_rawDesc), len(file_chatto_api_v1_native_notifications_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

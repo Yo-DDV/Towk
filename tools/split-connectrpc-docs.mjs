@@ -86,7 +86,13 @@ const categories = [
         description: 'Notification listing, counts, checks, and dismissal RPCs.'
       },
       {
-        name: 'PushNotificationService',
+ name: 'NativeNotificationService',
+ slug: 'native-notifications',
+ title: 'Native Notifications',
+ description: 'Android managed FCM and Linux resident WebSocket endpoint RPCs.'
+ },
+ {
+ name: 'PushNotificationService',
         slug: 'push-notifications',
         title: 'Push Notifications',
         description: 'Web Push subscription RPCs.'

@@ -49,6 +49,20 @@
     "general": {
       "subtitle": "Identidad del servidor, marca y mensajes."
     },
+    "notifications": {
+      "title": "Notificaciones de Android",
+      "description": "Las notificaciones de Android en segundo plano requieren registrarse en el relé FCM gestionado por TOWK. El relé solo transporta una señal de activación cifrada; el contenido se obtiene directamente de este servidor.",
+      "required": "Este servidor no está registrado. Las notificaciones de Android no estarán disponibles hasta que un administrador complete el registro.",
+      "privacy": "El registro está activo. El relé no puede leer mensajes, salas, personas que llaman ni contenido de notificaciones.",
+      "operator_disabled": "El operador no ha activado las notificaciones FCM gestionadas en la configuración del servidor.",
+      "status": "Estado del registro",
+      "relay": "Relé",
+      "enroll": "Registrar este servidor",
+      "enrolled": "Registro en el relé FCM completado",
+      "load_failed": "No se pudo cargar el estado de registro de las notificaciones",
+      "enroll_failed": "No se pudo registrar este servidor en el relé FCM",
+      "retry": "Reintentar"
+    },
     "members": {
       "title": "Miembros",
       "subtitle": "Ver y administrar los miembros del servidor y sus roles",

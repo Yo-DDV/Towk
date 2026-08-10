@@ -10,11 +10,12 @@ import (
 
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
+	"hmans.de/chatto/internal/nativepushinstance"
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
 )
 
 const (
-	nativeNotificationHPKESuite       = "DHKEM_P256_HKDF_SHA256/HKDF_SHA256/AES_256_GCM"
+	nativeNotificationHPKESuite      = "DHKEM_P256_HKDF_SHA256/HKDF_SHA256/AES_256_GCM"
 	nativeNotificationMaxSignalBytes = 4096
 	nativeNotificationMaxSignalAge   = 15 * 60
 )
@@ -23,34 +24,68 @@ func (a *API) GetNativeNotificationConfig(
 	ctx context.Context,
 	_ *connect.Request[apiv1.GetNativeNotificationConfigRequest],
 ) (*connect.Response[apiv1.GetNativeNotificationConfigResponse], error) {
-	if _, err := a.currentUserFromRequest(ctx); err != nil {
+	if _, err := requireCaller(ctx); err != nil {
 		return nil, err
 	}
 	nativeConfig, err := config.LoadNativeNotificationsConfig()
 	if err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("native notifications are misconfigured"))
 	}
-	pushConfigured := a.config.Push.IsConfigured()
 	response := &apiv1.GetNativeNotificationConfigResponse{
-		Enabled:                  nativeConfig.Enabled,
-		AndroidUnifiedpushEnabled: nativeConfig.Enabled && nativeConfig.AndroidUnifiedPush && pushConfigured,
-		LinuxAgentEnabled:        nativeConfig.Enabled && nativeConfig.LinuxAgent,
-		WindowsAgentEnabled:      nativeConfig.Enabled && nativeConfig.WindowsAgent,
-		HpkeSuite:                nativeNotificationHPKESuite,
-		MaxSignalBytes:           nativeNotificationMaxSignalBytes,
-		MaxSignalAgeSeconds:      nativeNotificationMaxSignalAge,
+		Enabled:                       nativeConfig.Enabled,
+		AndroidManagedFcmEnabled:      nativeConfig.Enabled && nativeConfig.AndroidManagedFCM,
+		LinuxResidentWebsocketEnabled: nativeConfig.Enabled && nativeConfig.LinuxResidentWebSocket,
+		ManagedFcmRelayUrl:            nativeConfig.ManagedFCMRelayURL,
+		SignalEncryptionSuite:         nativeNotificationHPKESuite,
+		MaxSignalBytes:                nativeNotificationMaxSignalBytes,
+		MaxSignalAgeSeconds:           nativeNotificationMaxSignalAge,
 	}
-	if response.AndroidUnifiedpushEnabled {
-		response.VapidPublicKey = a.config.Push.VAPIDPublicKey
+	if response.AndroidManagedFcmEnabled {
+		response.ManagedFcmEnrollmentState = "required"
+		if state, stateErr := nativepushinstance.LoadEnrollmentState(nativeConfig.EnrollmentStateFile); stateErr == nil && state.RelayURL == nativeConfig.ManagedFCMRelayURL && state.BaseURL == strings.TrimSuffix(a.config.Webserver.URL, "/") {
+			response.ManagedFcmEnrollmentState = "active"
+			response.ManagedFcmInstanceId = state.InstanceID
+		}
 	}
 	return connect.NewResponse(response), nil
+}
+
+func (a *API) EnrollManagedFCM(ctx context.Context, _ *connect.Request[apiv1.EnrollManagedFCMRequest]) (*connect.Response[apiv1.EnrollManagedFCMResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	allowed, permissionErr := a.core.HasServerPermission(ctx, caller.UserID, core.PermServerManage)
+	if permissionErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, errors.New("permission check failed"))
+	}
+	if !allowed {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("server management permission is required"))
+	}
+	nativeConfig, err := config.LoadNativeNotificationsConfig()
+	if err != nil || !nativeConfig.Enabled || !nativeConfig.AndroidManagedFCM {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("managed FCM notifications are not enabled"))
+	}
+	identity, err := nativepushinstance.LoadOrCreateIdentity(nativeConfig.IdentityFile)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, errors.New("native notification identity is unavailable"))
+	}
+	relay, err := nativepushinstance.NewRelayClient(nativeConfig.ManagedFCMRelayURL, nativeConfig.EnrollmentStateFile, identity, nil)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("managed FCM relay is misconfigured"))
+	}
+	state, err := relay.Enroll(ctx, a.config.Webserver.URL)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("managed FCM relay enrollment failed"))
+	}
+	return connect.NewResponse(&apiv1.EnrollManagedFCMResponse{EnrollmentState: "active", InstanceId: state.InstanceID}), nil
 }
 
 func (a *API) RegisterNativeEndpoint(
 	ctx context.Context,
 	req *connect.Request[apiv1.RegisterNativeEndpointRequest],
 ) (*connect.Response[apiv1.RegisterNativeEndpointResponse], error) {
-	user, err := a.currentUserFromRequest(ctx)
+	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -62,17 +97,15 @@ func (a *API) RegisterNativeEndpoint(
 	if err != nil {
 		return nil, err
 	}
-	record, err := a.core.RegisterNativeEndpoint(ctx, user.GetId(), core.NativeEndpointRegistration{
-		InstallationID:      req.Msg.GetInstallationId(),
-		Platform:            platform,
-		Transport:           transport,
-		AppID:               req.Msg.GetAppId(),
-		UnifiedPushEndpoint: req.Msg.GetUnifiedpushEndpoint(),
-		WebPushPublicKey:    req.Msg.GetWebPushPublicKey(),
-		WebPushAuthSecret:   req.Msg.GetWebPushAuthSecret(),
-		ClientPublicKey:     append([]byte(nil), req.Msg.GetClientPublicKey()...),
-		Locale:              req.Msg.GetLocale(),
-		Preferences:         nativePreferencesPatchFromProto(req.Msg.GetPreferences()),
+	record, err := a.core.RegisterNativeEndpoint(ctx, caller.UserID, core.NativeEndpointRegistration{
+		InstallationID:    req.Msg.GetInstallationId(),
+		Platform:          platform,
+		Transport:         transport,
+		AppID:             req.Msg.GetAppId(),
+		FCMInstallationID: req.Msg.GetFcmInstallationId(),
+		ClientPublicKey:   append([]byte(nil), req.Msg.GetClientPublicKey()...),
+		Locale:            req.Msg.GetLocale(),
+		Preferences:       nativePreferencesPatchFromProto(req.Msg.GetPreferences()),
 	})
 	if err != nil {
 		return nil, nativeNotificationConnectError(err)
@@ -84,16 +117,14 @@ func (a *API) RotateNativeEndpoint(
 	ctx context.Context,
 	req *connect.Request[apiv1.RotateNativeEndpointRequest],
 ) (*connect.Response[apiv1.RotateNativeEndpointResponse], error) {
-	user, err := a.currentUserFromRequest(ctx)
+	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	record, err := a.core.RotateNativeEndpoint(ctx, user.GetId(), req.Msg.GetEndpointId(), req.Msg.GetExpectedGeneration(), core.NativeEndpointRegistration{
-		UnifiedPushEndpoint: req.Msg.GetUnifiedpushEndpoint(),
-		WebPushPublicKey:    req.Msg.GetWebPushPublicKey(),
-		WebPushAuthSecret:   req.Msg.GetWebPushAuthSecret(),
-		ClientPublicKey:     append([]byte(nil), req.Msg.GetClientPublicKey()...),
-		Locale:              req.Msg.GetLocale(),
+	record, err := a.core.RotateNativeEndpoint(ctx, caller.UserID, req.Msg.GetEndpointId(), req.Msg.GetExpectedGeneration(), core.NativeEndpointRegistration{
+		FCMInstallationID: req.Msg.GetFcmInstallationId(),
+		ClientPublicKey:   append([]byte(nil), req.Msg.GetClientPublicKey()...),
+		Locale:            req.Msg.GetLocale(),
 	})
 	if err != nil {
 		return nil, nativeNotificationConnectError(err)
@@ -105,11 +136,11 @@ func (a *API) UnregisterNativeEndpoint(
 	ctx context.Context,
 	req *connect.Request[apiv1.UnregisterNativeEndpointRequest],
 ) (*connect.Response[apiv1.UnregisterNativeEndpointResponse], error) {
-	user, err := a.currentUserFromRequest(ctx)
+	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	unregistered, err := a.core.UnregisterNativeEndpoint(ctx, user.GetId(), req.Msg.GetEndpointId(), req.Msg.GetExpectedGeneration())
+	unregistered, err := a.core.UnregisterNativeEndpoint(ctx, caller.UserID, req.Msg.GetEndpointId(), req.Msg.GetExpectedGeneration())
 	if err != nil {
 		return nil, nativeNotificationConnectError(err)
 	}
@@ -120,11 +151,11 @@ func (a *API) ListNativeEndpoints(
 	ctx context.Context,
 	_ *connect.Request[apiv1.ListNativeEndpointsRequest],
 ) (*connect.Response[apiv1.ListNativeEndpointsResponse], error) {
-	user, err := a.currentUserFromRequest(ctx)
+	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	records, err := a.core.ListNativeEndpoints(ctx, user.GetId(), true)
+	records, err := a.core.ListNativeEndpoints(ctx, caller.UserID, true)
 	if err != nil {
 		return nil, nativeNotificationConnectError(err)
 	}
@@ -139,7 +170,7 @@ func (a *API) UpdateNativeEndpointPreferences(
 	ctx context.Context,
 	req *connect.Request[apiv1.UpdateNativeEndpointPreferencesRequest],
 ) (*connect.Response[apiv1.UpdateNativeEndpointPreferencesResponse], error) {
-	user, err := a.currentUserFromRequest(ctx)
+	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +179,7 @@ func (a *API) UpdateNativeEndpointPreferences(
 	}
 	record, err := a.core.UpdateNativeEndpointPreferences(
 		ctx,
-		user.GetId(),
+		caller.UserID,
 		req.Msg.GetEndpointId(),
 		req.Msg.GetExpectedGeneration(),
 		nativePreferencesPatchFromProto(req.Msg.Preferences),
@@ -165,8 +196,6 @@ func nativePlatformFromProto(platform apiv1.NativeNotificationPlatform) (core.Na
 		return core.NativeNotificationPlatformAndroid, nil
 	case apiv1.NativeNotificationPlatform_NATIVE_NOTIFICATION_PLATFORM_LINUX:
 		return core.NativeNotificationPlatformLinux, nil
-	case apiv1.NativeNotificationPlatform_NATIVE_NOTIFICATION_PLATFORM_WINDOWS:
-		return core.NativeNotificationPlatformWindows, nil
 	default:
 		return "", connect.NewError(connect.CodeInvalidArgument, errors.New("native notification platform is unsupported"))
 	}
@@ -174,10 +203,10 @@ func nativePlatformFromProto(platform apiv1.NativeNotificationPlatform) (core.Na
 
 func nativeTransportFromProto(transport apiv1.NativeNotificationTransport) (core.NativeNotificationTransport, error) {
 	switch transport {
-	case apiv1.NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_UNIFIED_PUSH:
-		return core.NativeNotificationTransportUnifiedPush, nil
-	case apiv1.NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_LOCAL_REALTIME:
-		return core.NativeNotificationTransportLocalRealtime, nil
+	case apiv1.NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_ANDROID_MANAGED_FCM:
+		return core.NativeNotificationTransportManagedFCM, nil
+	case apiv1.NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_LINUX_RESIDENT_WEBSOCKET:
+		return core.NativeNotificationTransportLinuxResidentWebSocket, nil
 	default:
 		return "", connect.NewError(connect.CodeInvalidArgument, errors.New("native notification transport is unsupported"))
 	}
@@ -219,13 +248,8 @@ func nativeEndpointToProto(record *core.NativeEndpointRecord) *apiv1.NativeEndpo
 	if record.DisabledAt != nil {
 		endpoint.DisabledAt = timestamppb.New(*record.DisabledAt)
 	}
-	if strings.TrimSpace(record.UnifiedPushEndpoint) != "" {
-		value := record.UnifiedPushEndpoint
-		endpoint.UnifiedpushEndpoint = &value
-	}
-	if strings.TrimSpace(record.WebPushPublicKey) != "" {
-		value := record.WebPushPublicKey
-		endpoint.WebPushPublicKey = &value
+	if strings.TrimSpace(record.FCMInstallationID) != "" {
+		endpoint.FcmInstallationId = record.FCMInstallationID
 	}
 	if len(record.ClientPublicKey) != 0 {
 		value := append([]byte(nil), record.ClientPublicKey...)
@@ -249,10 +273,10 @@ func nativePlatformToProto(platform core.NativeNotificationPlatform) apiv1.Nativ
 
 func nativeTransportToProto(transport core.NativeNotificationTransport) apiv1.NativeNotificationTransport {
 	switch transport {
-	case core.NativeNotificationTransportUnifiedPush:
-		return apiv1.NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_UNIFIED_PUSH
-	case core.NativeNotificationTransportLocalRealtime:
-		return apiv1.NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_LOCAL_REALTIME
+	case core.NativeNotificationTransportManagedFCM:
+		return apiv1.NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_ANDROID_MANAGED_FCM
+	case core.NativeNotificationTransportLinuxResidentWebSocket:
+		return apiv1.NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_LINUX_RESIDENT_WEBSOCKET
 	default:
 		return apiv1.NativeNotificationTransport_NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED
 	}

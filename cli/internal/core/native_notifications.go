@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/nats-io/nats.go/jetstream"
 
@@ -53,8 +54,8 @@ const (
 type NativeNotificationTransport string
 
 const (
-	NativeNotificationTransportUnifiedPush NativeNotificationTransport = "unified_push"
-	NativeNotificationTransportLocalRealtime NativeNotificationTransport = "local_realtime"
+	NativeNotificationTransportManagedFCM             NativeNotificationTransport = "android_managed_fcm"
+	NativeNotificationTransportLinuxResidentWebSocket NativeNotificationTransport = "linux_resident_websocket"
 )
 
 type NativeEndpointState string
@@ -93,33 +94,29 @@ type NativeEndpointRegistration struct {
 	Platform          NativeNotificationPlatform
 	Transport         NativeNotificationTransport
 	AppID             string
-	UnifiedPushEndpoint string
-	WebPushPublicKey  string
-	WebPushAuthSecret string
+	FCMInstallationID string
 	ClientPublicKey   []byte
 	Locale            string
 	Preferences       NativeEndpointPreferencesPatch
 }
 
 type NativeEndpointRecord struct {
-	EndpointID          string                         `json:"endpoint_id"`
-	UserID              string                         `json:"user_id"`
-	InstallationID      string                         `json:"installation_id"`
-	Platform            NativeNotificationPlatform     `json:"platform"`
-	Transport           NativeNotificationTransport    `json:"transport"`
-	AppID               string                         `json:"app_id"`
-	UnifiedPushEndpoint string                         `json:"unifiedpush_endpoint,omitempty"`
-	WebPushPublicKey    string                         `json:"web_push_public_key,omitempty"`
-	WebPushAuthSecret   string                         `json:"web_push_auth_secret,omitempty"`
-	ClientPublicKey     []byte                         `json:"client_public_key,omitempty"`
-	Locale              string                         `json:"locale"`
-	CreatedAt           time.Time                      `json:"created_at"`
-	LastSeenAt          time.Time                      `json:"last_seen_at"`
-	DisabledAt          *time.Time                     `json:"disabled_at,omitempty"`
-	State               NativeEndpointState            `json:"state"`
-	LastDeliveryStatus  NativeDeliveryStatus           `json:"last_delivery_status"`
-	Preferences         NativeEndpointPreferences      `json:"preferences"`
-	Generation          uint64                         `json:"generation"`
+	EndpointID         string                      `json:"endpoint_id"`
+	UserID             string                      `json:"user_id"`
+	InstallationID     string                      `json:"installation_id"`
+	Platform           NativeNotificationPlatform  `json:"platform"`
+	Transport          NativeNotificationTransport `json:"transport"`
+	AppID              string                      `json:"app_id"`
+	FCMInstallationID  string                      `json:"managed_fcm_endpoint,omitempty"`
+	ClientPublicKey    []byte                      `json:"client_public_key,omitempty"`
+	Locale             string                      `json:"locale"`
+	CreatedAt          time.Time                   `json:"created_at"`
+	LastSeenAt         time.Time                   `json:"last_seen_at"`
+	DisabledAt         *time.Time                  `json:"disabled_at,omitempty"`
+	State              NativeEndpointState         `json:"state"`
+	LastDeliveryStatus NativeDeliveryStatus        `json:"last_delivery_status"`
+	Preferences        NativeEndpointPreferences   `json:"preferences"`
+	Generation         uint64                      `json:"generation"`
 }
 
 type NativeNotificationKind string
@@ -150,8 +147,9 @@ type NativeNotificationOutboxItem struct {
 	ExpiresAt          time.Time              `json:"expires_at"`
 	NextAttemptAt      time.Time              `json:"next_attempt_at"`
 	Attempts           int                    `json:"attempts"`
+	Counter            int64                  `json:"counter"`
 	LeaseOwner         string                 `json:"lease_owner,omitempty"`
-	LeaseUntil         *time.Time              `json:"lease_until,omitempty"`
+	LeaseUntil         *time.Time             `json:"lease_until,omitempty"`
 	LastErrorClass     string                 `json:"last_error_class,omitempty"`
 }
 
@@ -248,26 +246,26 @@ func validateNativeIdentifier(name, value string, minimum, maximum int, allowTil
 func canonicalNativeEndpoint(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || len(raw) > 4096 {
-		return "", invalidArgument("UnifiedPush endpoint length is invalid")
+		return "", invalidArgument("ManagedFCM endpoint length is invalid")
 	}
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Opaque != "" || parsed.Host == "" {
-		return "", invalidArgument("UnifiedPush endpoint must be an absolute URL")
+		return "", invalidArgument("ManagedFCM endpoint must be an absolute URL")
 	}
 	if parsed.User != nil || parsed.Fragment != "" || parsed.RawQuery != "" {
-		return "", invalidArgument("UnifiedPush endpoint must not contain credentials, a query, or a fragment")
+		return "", invalidArgument("ManagedFCM endpoint must not contain credentials, a query, or a fragment")
 	}
 	parsed.Scheme = strings.ToLower(parsed.Scheme)
 	host := strings.ToLower(parsed.Hostname())
 	if host == "" {
-		return "", invalidArgument("UnifiedPush endpoint host is required")
+		return "", invalidArgument("ManagedFCM endpoint host is required")
 	}
 	loopback := host == "localhost"
 	if ip := net.ParseIP(host); ip != nil {
 		loopback = ip.IsLoopback()
 	}
 	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && loopback) {
-		return "", invalidArgument("UnifiedPush endpoint must use HTTPS outside loopback tests")
+		return "", invalidArgument("ManagedFCM endpoint must use HTTPS outside loopback tests")
 	}
 	port := parsed.Port()
 	if parsed.Scheme == "https" && port == "443" || parsed.Scheme == "http" && port == "80" {
@@ -282,7 +280,7 @@ func canonicalNativeEndpoint(raw string) (string, error) {
 		parsed.Host = host
 	}
 	if parsed.Path == "" || parsed.Path == "/" {
-		return "", invalidArgument("UnifiedPush endpoint path is required")
+		return "", invalidArgument("ManagedFCM endpoint path is required")
 	}
 	return parsed.String(), nil
 }
@@ -297,6 +295,19 @@ func decodeWebPushPublicKey(encoded string) ([]byte, error) {
 		return nil, invalidArgument("Web Push public key is not on P-256")
 	}
 	return decoded, nil
+}
+
+func canonicalFCMInstallationID(raw string) (string, error) {
+	token := strings.TrimSpace(raw)
+	if token == "" || len(token) < 20 || len(token) > 128 {
+		return "", invalidArgument("FCM installation ID length invalid")
+	}
+	for _, r := range token {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '-' && r != '_' {
+			return "", invalidArgument("FCM installation ID contains unsupported characters")
+		}
+	}
+	return token, nil
 }
 
 func validateClientPublicKey(publicKey []byte) error {
@@ -322,33 +333,24 @@ func normalizeNativeEndpointRegistration(registration NativeEndpointRegistration
 	registration.Locale = normalizeNativeLocale(registration.Locale)
 
 	switch registration.Transport {
-	case NativeNotificationTransportUnifiedPush:
+	case NativeNotificationTransportManagedFCM:
 		if registration.Platform != NativeNotificationPlatformAndroid {
-			return NativeEndpointRegistration{}, fmt.Errorf("%w: UnifiedPush is Android-only", ErrNativeEndpointUnsupported)
+			return NativeEndpointRegistration{}, fmt.Errorf("%w: managed FCM is Android-only", ErrNativeEndpointUnsupported)
 		}
-		endpoint, err := canonicalNativeEndpoint(registration.UnifiedPushEndpoint)
+		token, err := canonicalFCMInstallationID(registration.FCMInstallationID)
 		if err != nil {
 			return NativeEndpointRegistration{}, err
 		}
-		registration.UnifiedPushEndpoint = endpoint
-		if _, err := decodeWebPushPublicKey(registration.WebPushPublicKey); err != nil {
-			return NativeEndpointRegistration{}, err
-		}
-		auth, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(registration.WebPushAuthSecret))
-		if err != nil || len(auth) != 16 {
-			return NativeEndpointRegistration{}, invalidArgument("Web Push auth secret must decode to 16 bytes")
-		}
-		registration.WebPushPublicKey = strings.TrimSpace(registration.WebPushPublicKey)
-		registration.WebPushAuthSecret = strings.TrimSpace(registration.WebPushAuthSecret)
+		registration.FCMInstallationID = token
 		if err := validateClientPublicKey(registration.ClientPublicKey); err != nil {
 			return NativeEndpointRegistration{}, err
 		}
 		registration.ClientPublicKey = append([]byte(nil), registration.ClientPublicKey...)
-	case NativeNotificationTransportLocalRealtime:
-		if registration.Platform != NativeNotificationPlatformLinux && registration.Platform != NativeNotificationPlatformWindows {
+	case NativeNotificationTransportLinuxResidentWebSocket:
+		if registration.Platform != NativeNotificationPlatformLinux {
 			return NativeEndpointRegistration{}, fmt.Errorf("%w: local realtime is supported only for resident desktop agents", ErrNativeEndpointUnsupported)
 		}
-		if registration.UnifiedPushEndpoint != "" || registration.WebPushPublicKey != "" || registration.WebPushAuthSecret != "" || len(registration.ClientPublicKey) != 0 {
+		if registration.FCMInstallationID != "" || len(registration.ClientPublicKey) != 0 {
 			return NativeEndpointRegistration{}, invalidArgument("local realtime endpoints must not include push transport material")
 		}
 	default:
@@ -360,9 +362,7 @@ func normalizeNativeEndpointRegistration(registration NativeEndpointRegistration
 func nativeEndpointTransportEqual(record *NativeEndpointRecord, registration NativeEndpointRegistration) bool {
 	return record.Platform == registration.Platform &&
 		record.Transport == registration.Transport &&
-		record.UnifiedPushEndpoint == registration.UnifiedPushEndpoint &&
-		record.WebPushPublicKey == registration.WebPushPublicKey &&
-		record.WebPushAuthSecret == registration.WebPushAuthSecret &&
+		record.FCMInstallationID == registration.FCMInstallationID &&
 		bytes.Equal(record.ClientPublicKey, registration.ClientPublicKey)
 }
 
@@ -422,23 +422,21 @@ func (c *ChattoCore) RegisterNativeEndpoint(ctx context.Context, userID string, 
 			}
 			now := time.Now().UTC()
 			record := &NativeEndpointRecord{
-				EndpointID:          endpointID,
-				UserID:              userID,
-				InstallationID:      registration.InstallationID,
-				Platform:            registration.Platform,
-				Transport:           registration.Transport,
-				AppID:               registration.AppID,
-				UnifiedPushEndpoint: registration.UnifiedPushEndpoint,
-				WebPushPublicKey:    registration.WebPushPublicKey,
-				WebPushAuthSecret:   registration.WebPushAuthSecret,
-				ClientPublicKey:     append([]byte(nil), registration.ClientPublicKey...),
-				Locale:              registration.Locale,
-				CreatedAt:           now,
-				LastSeenAt:          now,
-				State:               NativeEndpointStateActive,
-				LastDeliveryStatus:  NativeDeliveryStatusNeverAttempted,
-				Preferences:         applyNativeEndpointPreferencesPatch(defaultNativeEndpointPreferences(), registration.Preferences),
-				Generation:          1,
+				EndpointID:         endpointID,
+				UserID:             userID,
+				InstallationID:     registration.InstallationID,
+				Platform:           registration.Platform,
+				Transport:          registration.Transport,
+				AppID:              registration.AppID,
+				FCMInstallationID:  registration.FCMInstallationID,
+				ClientPublicKey:    append([]byte(nil), registration.ClientPublicKey...),
+				Locale:             registration.Locale,
+				CreatedAt:          now,
+				LastSeenAt:         now,
+				State:              NativeEndpointStateActive,
+				LastDeliveryStatus: NativeDeliveryStatusNeverAttempted,
+				Preferences:        applyNativeEndpointPreferencesPatch(defaultNativeEndpointPreferences(), registration.Preferences),
+				Generation:         1,
 			}
 			data, marshalErr := marshalNativeEndpoint(record)
 			if marshalErr != nil {
@@ -467,9 +465,7 @@ func (c *ChattoCore) RegisterNativeEndpoint(ctx context.Context, userID string, 
 		transportChanged := !nativeEndpointTransportEqual(record, registration)
 		record.Platform = registration.Platform
 		record.Transport = registration.Transport
-		record.UnifiedPushEndpoint = registration.UnifiedPushEndpoint
-		record.WebPushPublicKey = registration.WebPushPublicKey
-		record.WebPushAuthSecret = registration.WebPushAuthSecret
+		record.FCMInstallationID = registration.FCMInstallationID
 		record.ClientPublicKey = append(record.ClientPublicKey[:0], registration.ClientPublicKey...)
 		record.Locale = registration.Locale
 		record.LastSeenAt = now
@@ -583,9 +579,7 @@ func (c *ChattoCore) RotateNativeEndpoint(ctx context.Context, userID, endpointI
 			return nil, ErrNativeEndpointConflict
 		}
 		now := time.Now().UTC()
-		record.UnifiedPushEndpoint = registration.UnifiedPushEndpoint
-		record.WebPushPublicKey = registration.WebPushPublicKey
-		record.WebPushAuthSecret = registration.WebPushAuthSecret
+		record.FCMInstallationID = registration.FCMInstallationID
 		record.ClientPublicKey = append(record.ClientPublicKey[:0], registration.ClientPublicKey...)
 		record.Locale = registration.Locale
 		record.LastSeenAt = now
@@ -698,9 +692,7 @@ func (c *ChattoCore) UpdateNativeEndpointPreferences(ctx context.Context, userID
 }
 
 func clearNativeEndpointTransportMaterial(record *NativeEndpointRecord) {
-	record.UnifiedPushEndpoint = ""
-	record.WebPushPublicKey = ""
-	record.WebPushAuthSecret = ""
+	record.FCMInstallationID = ""
 	for i := range record.ClientPublicKey {
 		record.ClientPublicKey[i] = 0
 	}
@@ -828,7 +820,7 @@ func nativeNotificationCollapseKey(notification *corev1.Notification) string {
 }
 
 func nativeEndpointAcceptsNotification(endpoint *NativeEndpointRecord, kind NativeNotificationKind) bool {
-	if endpoint == nil || endpoint.State != NativeEndpointStateActive || endpoint.Transport != NativeNotificationTransportUnifiedPush || !endpoint.Preferences.Enabled {
+	if endpoint == nil || endpoint.State != NativeEndpointStateActive || endpoint.Transport != NativeNotificationTransportManagedFCM || !endpoint.Preferences.Enabled {
 		return false
 	}
 	if kind == NativeNotificationKindCall {
@@ -868,6 +860,7 @@ func (c *ChattoCore) EnqueueNativeNotification(ctx context.Context, notification
 			CreatedAt:          createdAt,
 			ExpiresAt:          expiresAt,
 			NextAttemptAt:      time.Now().UTC(),
+			Counter:            time.Now().UTC().UnixNano(),
 		}
 		created, err := c.ensureNativeOutboxItem(ctx, item)
 		if err != nil {
@@ -1196,7 +1189,7 @@ func (c *ChattoCore) ReconcileNativeNotificationOutbox(ctx context.Context, maxi
 		if err != nil {
 			return reconciled, err
 		}
-		if endpoint.State != NativeEndpointStateActive || endpoint.Transport != NativeNotificationTransportUnifiedPush {
+		if endpoint.State != NativeEndpointStateActive || endpoint.Transport != NativeNotificationTransportManagedFCM {
 			continue
 		}
 		if _, already := seenUsers[endpoint.UserID]; already {

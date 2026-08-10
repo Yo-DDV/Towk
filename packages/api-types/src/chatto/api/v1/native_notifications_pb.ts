@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file chatto/api/v1/native_notifications.proto.
  */
 export const file_chatto_api_v1_native_notifications: GenFile = /*@__PURE__*/
-  fileDesc("CihjaGF0dG8vYXBpL3YxL25hdGl2ZV9ub3RpZmljYXRpb25zLnByb3RvEg1jaGF0dG8uYXBpLnYxIiQKIkdldE5hdGl2ZU5vdGlmaWNhdGlvbkNvbmZpZ1JlcXVlc3Qi/wEKI0dldE5hdGl2ZU5vdGlmaWNhdGlvbkNvbmZpZ1Jlc3BvbnNlEg8KB2VuYWJsZWQYASABKAgSIwobYW5kcm9pZF91bmlmaWVkcHVzaF9lbmFibGVkGAIgASgIEhsKE2xpbnV4X2FnZW50X2VuYWJsZWQYAyABKAgSHQoVd2luZG93c19hZ2VudF9lbmFibGVkGAQgASgIEhgKEHZhcGlkX3B1YmxpY19rZXkYBSABKAkSEgoKaHBrZV9zdWl0ZRgGIAEoCRIYChBtYXhfc2lnbmFsX2J5dGVzGAcgASgNEh4KFm1heF9zaWduYWxfYWdlX3NlY29uZHMYCCABKA0iTQoZTmF0aXZlRW5kcG9pbnRQcmVmZXJlbmNlcxIPCgdlbmFibGVkGAEgASgIEhAKCG1lc3NhZ2VzGAIgASgIEg0KBWNhbGxzGAMgASgIIoQBCh5OYXRpdmVFbmRwb2ludFByZWZlcmVuY2VzUGF0Y2gSFAoHZW5hYmxlZBgBIAEoCEgAiAEBEhUKCG1lc3NhZ2VzGAIgASgISAGIAQESEgoFY2FsbHMYAyABKAhIAogBAUIKCghfZW5hYmxlZEILCglfbWVzc2FnZXNCCAoGX2NhbGxzIvcFCg5OYXRpdmVFbmRwb2ludBITCgtlbmRwb2ludF9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSOwoIcGxhdGZvcm0YAyABKA4yKS5jaGF0dG8uYXBpLnYxLk5hdGl2ZU5vdGlmaWNhdGlvblBsYXRmb3JtEj0KCXRyYW5zcG9ydBgEIAEoDjIqLmNoYXR0by5hcGkudjEuTmF0aXZlTm90aWZpY2F0aW9uVHJhbnNwb3J0Eg4KBmFwcF9pZBgFIAEoCRIhChR1bmlmaWVkcHVzaF9lbmRwb2ludBgGIAEoCUgAiAEBEiAKE3dlYl9wdXNoX3B1YmxpY19rZXkYByABKAlIAYgBARIeChFjbGllbnRfcHVibGljX2tleRgIIAEoDEgCiAEBEg4KBmxvY2FsZRgJIAEoCRIuCgpjcmVhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxsYXN0X3NlZW5fYXQYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjQKC2Rpc2FibGVkX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgDiAEBEjEKBXN0YXRlGA0gASgOMiIuY2hhdHRvLmFwaS52MS5OYXRpdmVFbmRwb2ludFN0YXRlEkEKFGxhc3RfZGVsaXZlcnlfc3RhdHVzGA4gASgOMiMuY2hhdHRvLmFwaS52MS5OYXRpdmVEZWxpdmVyeVN0YXR1cxI9CgtwcmVmZXJlbmNlcxgPIAEoCzIoLmNoYXR0by5hcGkudjEuTmF0aXZlRW5kcG9pbnRQcmVmZXJlbmNlcxISCgpnZW5lcmF0aW9uGBAgASgEQhcKFV91bmlmaWVkcHVzaF9lbmRwb2ludEIWChRfd2ViX3B1c2hfcHVibGljX2tleUIUChJfY2xpZW50X3B1YmxpY19rZXlCDgoMX2Rpc2FibGVkX2F0Iq0FCh1SZWdpc3Rlck5hdGl2ZUVuZHBvaW50UmVxdWVzdBI3Cg9pbnN0YWxsYXRpb25faWQYASABKAlCHrpIG3IZEBAYgAEyEl5bQS1aYS16MC05Ll9+LV0rJBJHCghwbGF0Zm9ybRgCIAEoDjIpLmNoYXR0by5hcGkudjEuTmF0aXZlTm90aWZpY2F0aW9uUGxhdGZvcm1CCrpIB4IBBBABIAASSQoJdHJhbnNwb3J0GAMgASgOMiouY2hhdHRvLmFwaS52MS5OYXRpdmVOb3RpZmljYXRpb25UcmFuc3BvcnRCCrpIB4IBBBABIAASLQoGYXBwX2lkGAQgASgJQh26SBpyGBABGIABMhFeW0EtWmEtejAtOS5fLV0rJBIrChR1bmlmaWVkcHVzaF9lbmRwb2ludBgFIAEoCUIIukgFcgMYgCBIAIgBARIqChN3ZWJfcHVzaF9wdWJsaWNfa2V5GAYgASgJQgi6SAVyAxiAAkgBiAEBEisKFHdlYl9wdXNoX2F1dGhfc2VjcmV0GAcgASgJQgi6SAVyAxiAAUgCiAEBEigKEWNsaWVudF9wdWJsaWNfa2V5GAggASgMQgi6SAV6AxiAAkgDiAEBEhwKBmxvY2FsZRgJIAEoCUIHukgEcgIYEEgEiAEBEkcKC3ByZWZlcmVuY2VzGAogASgLMi0uY2hhdHRvLmFwaS52MS5OYXRpdmVFbmRwb2ludFByZWZlcmVuY2VzUGF0Y2hIBYgBAUIXChVfdW5pZmllZHB1c2hfZW5kcG9pbnRCFgoUX3dlYl9wdXNoX3B1YmxpY19rZXlCFwoVX3dlYl9wdXNoX2F1dGhfc2VjcmV0QhQKEl9jbGllbnRfcHVibGljX2tleUIJCgdfbG9jYWxlQg4KDF9wcmVmZXJlbmNlcyJRCh5SZWdpc3Rlck5hdGl2ZUVuZHBvaW50UmVzcG9uc2USLwoIZW5kcG9pbnQYASABKAsyHS5jaGF0dG8uYXBpLnYxLk5hdGl2ZUVuZHBvaW50IsICChtSb3RhdGVOYXRpdmVFbmRwb2ludFJlcXVlc3QSMAoLZW5kcG9pbnRfaWQYASABKAlCG7pIGHIWEBAYQDIQXltBLVphLXowLTlfLV0rJBIkChNleHBlY3RlZF9nZW5lcmF0aW9uGAIgASgEQge6SAQyAiAAEigKFHVuaWZpZWRwdXNoX2VuZHBvaW50GAMgASgJQgq6SAdyBRABGIAgEicKE3dlYl9wdXNoX3B1YmxpY19rZXkYBCABKAlCCrpIB3IFEAEYgAISKAoUd2ViX3B1c2hfYXV0aF9zZWNyZXQYBSABKAlCCrpIB3IFEAEYgAESJQoRY2xpZW50X3B1YmxpY19rZXkYBiABKAxCCrpIB3oFEAEYgAISHAoGbG9jYWxlGAcgASgJQge6SARyAhgQSACIAQFCCQoHX2xvY2FsZSJPChxSb3RhdGVOYXRpdmVFbmRwb2ludFJlc3BvbnNlEi8KCGVuZHBvaW50GAEgASgLMh0uY2hhdHRvLmFwaS52MS5OYXRpdmVFbmRwb2ludCJ5Ch9VbnJlZ2lzdGVyTmF0aXZlRW5kcG9pbnRSZXF1ZXN0EjAKC2VuZHBvaW50X2lkGAEgASgJQhu6SBhyFhAQGEAyEF5bQS1aYS16MC05Xy1dKyQSJAoTZXhwZWN0ZWRfZ2VuZXJhdGlvbhgCIAEoBEIHukgEMgIgACI4CiBVbnJlZ2lzdGVyTmF0aXZlRW5kcG9pbnRSZXNwb25zZRIUCgx1bnJlZ2lzdGVyZWQYASABKAgiHAoaTGlzdE5hdGl2ZUVuZHBvaW50c1JlcXVlc3QiTwobTGlzdE5hdGl2ZUVuZHBvaW50c1Jlc3BvbnNlEjAKCWVuZHBvaW50cxgBIAMoCzIdLmNoYXR0by5hcGkudjEuTmF0aXZlRW5kcG9pbnQizAEKJlVwZGF0ZU5hdGl2ZUVuZHBvaW50UHJlZmVyZW5jZXNSZXF1ZXN0EjAKC2VuZHBvaW50X2lkGAEgASgJQhu6SBhyFhAQGEAyEF5bQS1aYS16MC05Xy1dKyQSJAoTZXhwZWN0ZWRfZ2VuZXJhdGlvbhgCIAEoBEIHukgEMgIgABJKCgtwcmVmZXJlbmNlcxgDIAEoCzItLmNoYXR0by5hcGkudjEuTmF0aXZlRW5kcG9pbnRQcmVmZXJlbmNlc1BhdGNoQga6SAPIAQEiWgonVXBkYXRlTmF0aXZlRW5kcG9pbnRQcmVmZXJlbmNlc1Jlc3BvbnNlEi8KCGVuZHBvaW50GAEgASgLMh0uY2hhdHRvLmFwaS52MS5OYXRpdmVFbmRwb2ludCqUAgoaTmF0aXZlTm90aWZpY2F0aW9uUGxhdGZvcm0SLAooTkFUSVZFX05PVElGSUNBVElPTl9QTEFURk9STV9VTlNQRUNJRklFRBAAEigKJE5BVElWRV9OT1RJRklDQVRJT05fUExBVEZPUk1fQU5EUk9JRBABEiYKIk5BVElWRV9OT1RJRklDQVRJT05fUExBVEZPUk1fTElOVVgQAhIoCiROQVRJVkVfTk9USUZJQ0FUSU9OX1BMQVRGT1JNX1dJTkRPV1MQAxImCiJOQVRJVkVfTk9USUZJQ0FUSU9OX1BMQVRGT1JNX01BQ09TEAQSJAogTkFUSVZFX05PVElGSUNBVElPTl9QTEFURk9STV9JT1MQBSquAQobTmF0aXZlTm90aWZpY2F0aW9uVHJhbnNwb3J0Ei0KKU5BVElWRV9OT1RJRklDQVRJT05fVFJBTlNQT1JUX1VOU1BFQ0lGSUVEEAASLgoqTkFUSVZFX05PVElGSUNBVElPTl9UUkFOU1BPUlRfVU5JRklFRF9QVVNIEAESMAosTkFUSVZFX05PVElGSUNBVElPTl9UUkFOU1BPUlRfTE9DQUxfUkVBTFRJTUUQAiqxAQoTTmF0aXZlRW5kcG9pbnRTdGF0ZRIlCiFOQVRJVkVfRU5EUE9JTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIgChxOQVRJVkVfRU5EUE9JTlRfU1RBVEVfQUNUSVZFEAESIgoeTkFUSVZFX0VORFBPSU5UX1NUQVRFX0RJU0FCTEVEEAISLQopTkFUSVZFX0VORFBPSU5UX1NUQVRFX1BFUk1BTkVOVExZX0lOVkFMSUQQAyrDAgoUTmF0aXZlRGVsaXZlcnlTdGF0dXMSJgoiTkFUSVZFX0RFTElWRVJZX1NUQVRVU19VTlNQRUNJRklFRBAAEioKJk5BVElWRV9ERUxJVkVSWV9TVEFUVVNfTkVWRVJfQVRURU1QVEVEEAESIgoeTkFUSVZFX0RFTElWRVJZX1NUQVRVU19QRU5ESU5HEAISMQotTkFUSVZFX0RFTElWRVJZX1NUQVRVU19ERUxJVkVSRURfVE9fVFJBTlNQT1JUEAMSLAooTkFUSVZFX0RFTElWRVJZX1NUQVRVU19SRVRSWUFCTEVfRkFJTFVSRRAEEiIKHk5BVElWRV9ERUxJVkVSWV9TVEFUVVNfRVhQSVJFRBAFEi4KKk5BVElWRV9ERUxJVkVSWV9TVEFUVVNfUEVSTUFORU5UTFlfSU5WQUxJRBAGMogGChlOYXRpdmVOb3RpZmljYXRpb25TZXJ2aWNlEoQBChtHZXROYXRpdmVOb3RpZmljYXRpb25Db25maWcSMS5jaGF0dG8uYXBpLnYxLkdldE5hdGl2ZU5vdGlmaWNhdGlvbkNvbmZpZ1JlcXVlc3QaMi5jaGF0dG8uYXBpLnYxLkdldE5hdGl2ZU5vdGlmaWNhdGlvbkNvbmZpZ1Jlc3BvbnNlEnUKFlJlZ2lzdGVyTmF0aXZlRW5kcG9pbnQSLC5jaGF0dG8uYXBpLnYxLlJlZ2lzdGVyTmF0aXZlRW5kcG9pbnRSZXF1ZXN0Gi0uY2hhdHRvLmFwaS52MS5SZWdpc3Rlck5hdGl2ZUVuZHBvaW50UmVzcG9uc2USbwoUUm90YXRlTmF0aXZlRW5kcG9pbnQSKi5jaGF0dG8uYXBpLnYxLlJvdGF0ZU5hdGl2ZUVuZHBvaW50UmVxdWVzdBorLmNoYXR0by5hcGkudjEuUm90YXRlTmF0aXZlRW5kcG9pbnRSZXNwb25zZRJ7ChhVbnJlZ2lzdGVyTmF0aXZlRW5kcG9pbnQSLi5jaGF0dG8uYXBpLnYxLlVucmVnaXN0ZXJOYXRpdmVFbmRwb2ludFJlcXVlc3QaLy5jaGF0dG8uYXBpLnYxLlVucmVnaXN0ZXJOYXRpdmVFbmRwb2ludFJlc3BvbnNlEmwKE0xpc3ROYXRpdmVFbmRwb2ludHMSKS5jaGF0dG8uYXBpLnYxLkxpc3ROYXRpdmVFbmRwb2ludHNSZXF1ZXN0GiouY2hhdHRvLmFwaS52MS5MaXN0TmF0aXZlRW5kcG9pbnRzUmVzcG9uc2USkAEKH1VwZGF0ZU5hdGl2ZUVuZHBvaW50UHJlZmVyZW5jZXMSNS5jaGF0dG8uYXBpLnYxLlVwZGF0ZU5hdGl2ZUVuZHBvaW50UHJlZmVyZW5jZXNSZXF1ZXN0GjYuY2hhdHRvLmFwaS52MS5VcGRhdGVOYXRpdmVFbmRwb2ludFByZWZlcmVuY2VzUmVzcG9uc2VCtAEKEWNvbS5jaGF0dG8uYXBpLnYxQhhOYXRpdmVOb3RpZmljYXRpb25zUHJvdG9QAVovaG1hbnMuZGUvY2hhdHRvL2ludGVybmFsL3BiL2NoYXR0by9hcGkvdjE7YXBpdjGiAgNDQViqAg1DaGF0dG8uQXBpLlYxygINQ2hhdHRvXEFwaVxWMeICGUNoYXR0b1xBcGlcVjFcR1BCTWV0YWRhdGHqAg9DaGF0dG86OkFwaTo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_timestamp]);
+  fileDesc("CihjaGF0dG8vYXBpL3YxL25hdGl2ZV9ub3RpZmljYXRpb25zLnByb3RvEg1jaGF0dG8uYXBpLnYxIiQKIkdldE5hdGl2ZU5vdGlmaWNhdGlvbkNvbmZpZ1JlcXVlc3QixgIKI0dldE5hdGl2ZU5vdGlmaWNhdGlvbkNvbmZpZ1Jlc3BvbnNlEg8KB2VuYWJsZWQYASABKAgSIwobYW5kcm9pZF9tYW5hZ2VkX2ZjbV9lbmFibGVkGAIgASgIEigKIGxpbnV4X3Jlc2lkZW50X3dlYnNvY2tldF9lbmFibGVkGAMgASgIEh0KFW1hbmFnZWRfZmNtX3JlbGF5X3VybBgEIAEoCRIfChdzaWduYWxfZW5jcnlwdGlvbl9zdWl0ZRgFIAEoCRIYChBtYXhfc2lnbmFsX2J5dGVzGAYgASgNEh4KFm1heF9zaWduYWxfYWdlX3NlY29uZHMYByABKA0SJAocbWFuYWdlZF9mY21fZW5yb2xsbWVudF9zdGF0ZRgIIAEoCRIfChdtYW5hZ2VkX2ZjbV9pbnN0YW5jZV9pZBgJIAEoCSIZChdFbnJvbGxNYW5hZ2VkRkNNUmVxdWVzdCJJChhFbnJvbGxNYW5hZ2VkRkNNUmVzcG9uc2USGAoQZW5yb2xsbWVudF9zdGF0ZRgBIAEoCRITCgtpbnN0YW5jZV9pZBgCIAEoCSJNChlOYXRpdmVFbmRwb2ludFByZWZlcmVuY2VzEg8KB2VuYWJsZWQYASABKAgSEAoIbWVzc2FnZXMYAiABKAgSDQoFY2FsbHMYAyABKAgihAEKHk5hdGl2ZUVuZHBvaW50UHJlZmVyZW5jZXNQYXRjaBIUCgdlbmFibGVkGAEgASgISACIAQESFQoIbWVzc2FnZXMYAiABKAhIAYgBARISCgVjYWxscxgDIAEoCEgCiAEBQgoKCF9lbmFibGVkQgsKCV9tZXNzYWdlc0IICgZfY2FsbHMi7gQKDk5hdGl2ZUVuZHBvaW50EhMKC2VuZHBvaW50X2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCRI7CghwbGF0Zm9ybRgDIAEoDjIpLmNoYXR0by5hcGkudjEuTmF0aXZlTm90aWZpY2F0aW9uUGxhdGZvcm0SPQoJdHJhbnNwb3J0GAQgASgOMiouY2hhdHRvLmFwaS52MS5OYXRpdmVOb3RpZmljYXRpb25UcmFuc3BvcnQSDgoGYXBwX2lkGAUgASgJEhsKE2ZjbV9pbnN0YWxsYXRpb25faWQYBiABKAkSGQoRY2xpZW50X3B1YmxpY19rZXkYByABKAwSDgoGbG9jYWxlGAggASgJEi4KCmNyZWF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3Rfc2Vlbl9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZGlzYWJsZWRfYXQYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKBXN0YXRlGAwgASgOMiIuY2hhdHRvLmFwaS52MS5OYXRpdmVFbmRwb2ludFN0YXRlEkEKFGxhc3RfZGVsaXZlcnlfc3RhdHVzGA0gASgOMiMuY2hhdHRvLmFwaS52MS5OYXRpdmVEZWxpdmVyeVN0YXR1cxI9CgtwcmVmZXJlbmNlcxgOIAEoCzIoLmNoYXR0by5hcGkudjEuTmF0aXZlRW5kcG9pbnRQcmVmZXJlbmNlcxISCgpnZW5lcmF0aW9uGA8gASgEItQDCh1SZWdpc3Rlck5hdGl2ZUVuZHBvaW50UmVxdWVzdBI3Cg9pbnN0YWxsYXRpb25faWQYASABKAlCHrpIG3IZEBAYgAEyEl5bQS1aYS16MC05Ll9+LV0rJBJFCghwbGF0Zm9ybRgCIAEoDjIpLmNoYXR0by5hcGkudjEuTmF0aXZlTm90aWZpY2F0aW9uUGxhdGZvcm1CCLpIBYIBAiAAEkcKCXRyYW5zcG9ydBgDIAEoDjIqLmNoYXR0by5hcGkudjEuTmF0aXZlTm90aWZpY2F0aW9uVHJhbnNwb3J0Qgi6SAWCAQIgABItCgZhcHBfaWQYBCABKAlCHbpIGnIYEAEYgAEyEV5bQS1aYS16MC05Ll8tXSskEjkKE2ZjbV9pbnN0YWxsYXRpb25faWQYBSABKAlCHLpIGXIXEBQYgAEyEF5bQS1aYS16MC05Xy1dKyQSIwoRY2xpZW50X3B1YmxpY19rZXkYBiABKAxCCLpIBXoDGIACEhcKBmxvY2FsZRgHIAEoCUIHukgEcgIYEBJCCgtwcmVmZXJlbmNlcxgIIAEoCzItLmNoYXR0by5hcGkudjEuTmF0aXZlRW5kcG9pbnRQcmVmZXJlbmNlc1BhdGNoIlEKHlJlZ2lzdGVyTmF0aXZlRW5kcG9pbnRSZXNwb25zZRIvCghlbmRwb2ludBgBIAEoCzIdLmNoYXR0by5hcGkudjEuTmF0aXZlRW5kcG9pbnQi8AEKG1JvdGF0ZU5hdGl2ZUVuZHBvaW50UmVxdWVzdBIwCgtlbmRwb2ludF9pZBgBIAEoCUIbukgYchYQEBhAMhBeW0EtWmEtejAtOV8tXSskEiQKE2V4cGVjdGVkX2dlbmVyYXRpb24YAiABKARCB7pIBDICIAASOQoTZmNtX2luc3RhbGxhdGlvbl9pZBgDIAEoCUIcukgZchcQFBiAATIQXltBLVphLXowLTlfLV0rJBIlChFjbGllbnRfcHVibGljX2tleRgEIAEoDEIKukgHegUQARiAAhIXCgZsb2NhbGUYBSABKAlCB7pIBHICGBAiTwocUm90YXRlTmF0aXZlRW5kcG9pbnRSZXNwb25zZRIvCghlbmRwb2ludBgBIAEoCzIdLmNoYXR0by5hcGkudjEuTmF0aXZlRW5kcG9pbnQieQofVW5yZWdpc3Rlck5hdGl2ZUVuZHBvaW50UmVxdWVzdBIwCgtlbmRwb2ludF9pZBgBIAEoCUIbukgYchYQEBhAMhBeW0EtWmEtejAtOV8tXSskEiQKE2V4cGVjdGVkX2dlbmVyYXRpb24YAiABKARCB7pIBDICIAAiOAogVW5yZWdpc3Rlck5hdGl2ZUVuZHBvaW50UmVzcG9uc2USFAoMdW5yZWdpc3RlcmVkGAEgASgIIhwKGkxpc3ROYXRpdmVFbmRwb2ludHNSZXF1ZXN0Ik8KG0xpc3ROYXRpdmVFbmRwb2ludHNSZXNwb25zZRIwCgllbmRwb2ludHMYASADKAsyHS5jaGF0dG8uYXBpLnYxLk5hdGl2ZUVuZHBvaW50IswBCiZVcGRhdGVOYXRpdmVFbmRwb2ludFByZWZlcmVuY2VzUmVxdWVzdBIwCgtlbmRwb2ludF9pZBgBIAEoCUIbukgYchYQEBhAMhBeW0EtWmEtejAtOV8tXSskEiQKE2V4cGVjdGVkX2dlbmVyYXRpb24YAiABKARCB7pIBDICIAASSgoLcHJlZmVyZW5jZXMYAyABKAsyLS5jaGF0dG8uYXBpLnYxLk5hdGl2ZUVuZHBvaW50UHJlZmVyZW5jZXNQYXRjaEIGukgDyAEBIloKJ1VwZGF0ZU5hdGl2ZUVuZHBvaW50UHJlZmVyZW5jZXNSZXNwb25zZRIvCghlbmRwb2ludBgBIAEoCzIdLmNoYXR0by5hcGkudjEuTmF0aXZlRW5kcG9pbnQqlAIKGk5hdGl2ZU5vdGlmaWNhdGlvblBsYXRmb3JtEiwKKE5BVElWRV9OT1RJRklDQVRJT05fUExBVEZPUk1fVU5TUEVDSUZJRUQQABIoCiROQVRJVkVfTk9USUZJQ0FUSU9OX1BMQVRGT1JNX0FORFJPSUQQARImCiJOQVRJVkVfTk9USUZJQ0FUSU9OX1BMQVRGT1JNX0xJTlVYEAISKAokTkFUSVZFX05PVElGSUNBVElPTl9QTEFURk9STV9XSU5ET1dTEAMSJgoiTkFUSVZFX05PVElGSUNBVElPTl9QTEFURk9STV9NQUNPUxAEEiQKIE5BVElWRV9OT1RJRklDQVRJT05fUExBVEZPUk1fSU9TEAUqvwEKG05hdGl2ZU5vdGlmaWNhdGlvblRyYW5zcG9ydBItCilOQVRJVkVfTk9USUZJQ0FUSU9OX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEjUKMU5BVElWRV9OT1RJRklDQVRJT05fVFJBTlNQT1JUX0FORFJPSURfTUFOQUdFRF9GQ00QARI6CjZOQVRJVkVfTk9USUZJQ0FUSU9OX1RSQU5TUE9SVF9MSU5VWF9SRVNJREVOVF9XRUJTT0NLRVQQAiqxAQoTTmF0aXZlRW5kcG9pbnRTdGF0ZRIlCiFOQVRJVkVfRU5EUE9JTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIgChxOQVRJVkVfRU5EUE9JTlRfU1RBVEVfQUNUSVZFEAESIgoeTkFUSVZFX0VORFBPSU5UX1NUQVRFX0RJU0FCTEVEEAISLQopTkFUSVZFX0VORFBPSU5UX1NUQVRFX1BFUk1BTkVOVExZX0lOVkFMSUQQAyrDAgoUTmF0aXZlRGVsaXZlcnlTdGF0dXMSJgoiTkFUSVZFX0RFTElWRVJZX1NUQVRVU19VTlNQRUNJRklFRBAAEioKJk5BVElWRV9ERUxJVkVSWV9TVEFUVVNfTkVWRVJfQVRURU1QVEVEEAESIgoeTkFUSVZFX0RFTElWRVJZX1NUQVRVU19QRU5ESU5HEAISMQotTkFUSVZFX0RFTElWRVJZX1NUQVRVU19ERUxJVkVSRURfVE9fVFJBTlNQT1JUEAMSLAooTkFUSVZFX0RFTElWRVJZX1NUQVRVU19SRVRSWUFCTEVfRkFJTFVSRRAEEiIKHk5BVElWRV9ERUxJVkVSWV9TVEFUVVNfRVhQSVJFRBAFEi4KKk5BVElWRV9ERUxJVkVSWV9TVEFUVVNfUEVSTUFORU5UTFlfSU5WQUxJRBAGMu0GChlOYXRpdmVOb3RpZmljYXRpb25TZXJ2aWNlEoQBChtHZXROYXRpdmVOb3RpZmljYXRpb25Db25maWcSMS5jaGF0dG8uYXBpLnYxLkdldE5hdGl2ZU5vdGlmaWNhdGlvbkNvbmZpZ1JlcXVlc3QaMi5jaGF0dG8uYXBpLnYxLkdldE5hdGl2ZU5vdGlmaWNhdGlvbkNvbmZpZ1Jlc3BvbnNlEmMKEEVucm9sbE1hbmFnZWRGQ00SJi5jaGF0dG8uYXBpLnYxLkVucm9sbE1hbmFnZWRGQ01SZXF1ZXN0GicuY2hhdHRvLmFwaS52MS5FbnJvbGxNYW5hZ2VkRkNNUmVzcG9uc2USdQoWUmVnaXN0ZXJOYXRpdmVFbmRwb2ludBIsLmNoYXR0by5hcGkudjEuUmVnaXN0ZXJOYXRpdmVFbmRwb2ludFJlcXVlc3QaLS5jaGF0dG8uYXBpLnYxLlJlZ2lzdGVyTmF0aXZlRW5kcG9pbnRSZXNwb25zZRJvChRSb3RhdGVOYXRpdmVFbmRwb2ludBIqLmNoYXR0by5hcGkudjEuUm90YXRlTmF0aXZlRW5kcG9pbnRSZXF1ZXN0GisuY2hhdHRvLmFwaS52MS5Sb3RhdGVOYXRpdmVFbmRwb2ludFJlc3BvbnNlEnsKGFVucmVnaXN0ZXJOYXRpdmVFbmRwb2ludBIuLmNoYXR0by5hcGkudjEuVW5yZWdpc3Rlck5hdGl2ZUVuZHBvaW50UmVxdWVzdBovLmNoYXR0by5hcGkudjEuVW5yZWdpc3Rlck5hdGl2ZUVuZHBvaW50UmVzcG9uc2USbAoTTGlzdE5hdGl2ZUVuZHBvaW50cxIpLmNoYXR0by5hcGkudjEuTGlzdE5hdGl2ZUVuZHBvaW50c1JlcXVlc3QaKi5jaGF0dG8uYXBpLnYxLkxpc3ROYXRpdmVFbmRwb2ludHNSZXNwb25zZRKQAQofVXBkYXRlTmF0aXZlRW5kcG9pbnRQcmVmZXJlbmNlcxI1LmNoYXR0by5hcGkudjEuVXBkYXRlTmF0aXZlRW5kcG9pbnRQcmVmZXJlbmNlc1JlcXVlc3QaNi5jaGF0dG8uYXBpLnYxLlVwZGF0ZU5hdGl2ZUVuZHBvaW50UHJlZmVyZW5jZXNSZXNwb25zZUK0AQoRY29tLmNoYXR0by5hcGkudjFCGE5hdGl2ZU5vdGlmaWNhdGlvbnNQcm90b1ABWi9obWFucy5kZS9jaGF0dG8vaW50ZXJuYWwvcGIvY2hhdHRvL2FwaS92MTthcGl2MaICA0NBWKoCDUNoYXR0by5BcGkuVjHKAg1DaGF0dG9cQXBpXFYx4gIZQ2hhdHRvXEFwaVxWMVxHUEJNZXRhZGF0YeoCD0NoYXR0bzo6QXBpOjpWMWIGcHJvdG8z", [file_buf_validate_validate, file_google_protobuf_timestamp]);
 
 /**
  * @generated from message chatto.api.v1.GetNativeNotificationConfigRequest
@@ -29,9 +29,6 @@ export const GetNativeNotificationConfigRequestSchema: GenMessage<GetNativeNotif
   messageDesc(file_chatto_api_v1_native_notifications, 0);
 
 /**
- * Public capability metadata. This response contains no publisher token,
- * endpoint, topic, device identity, or private key.
- *
  * @generated from message chatto.api.v1.GetNativeNotificationConfigResponse
  */
 export type GetNativeNotificationConfigResponse = Message<"chatto.api.v1.GetNativeNotificationConfigResponse"> & {
@@ -41,41 +38,44 @@ export type GetNativeNotificationConfigResponse = Message<"chatto.api.v1.GetNati
   enabled: boolean;
 
   /**
-   * @generated from field: bool android_unifiedpush_enabled = 2;
+   * @generated from field: bool android_managed_fcm_enabled = 2;
    */
-  androidUnifiedpushEnabled: boolean;
+  androidManagedFcmEnabled: boolean;
 
   /**
-   * @generated from field: bool linux_agent_enabled = 3;
+   * @generated from field: bool linux_resident_websocket_enabled = 3;
    */
-  linuxAgentEnabled: boolean;
+  linuxResidentWebsocketEnabled: boolean;
 
   /**
-   * @generated from field: bool windows_agent_enabled = 4;
+   * @generated from field: string managed_fcm_relay_url = 4;
    */
-  windowsAgentEnabled: boolean;
+  managedFcmRelayUrl: string;
 
   /**
-   * @generated from field: string vapid_public_key = 5;
+   * @generated from field: string signal_encryption_suite = 5;
    */
-  vapidPublicKey: string;
+  signalEncryptionSuite: string;
 
   /**
-   * Frozen interoperable suite name from the architecture decision.
-   *
-   * @generated from field: string hpke_suite = 6;
-   */
-  hpkeSuite: string;
-
-  /**
-   * @generated from field: uint32 max_signal_bytes = 7;
+   * @generated from field: uint32 max_signal_bytes = 6;
    */
   maxSignalBytes: number;
 
   /**
-   * @generated from field: uint32 max_signal_age_seconds = 8;
+   * @generated from field: uint32 max_signal_age_seconds = 7;
    */
   maxSignalAgeSeconds: number;
+
+  /**
+   * @generated from field: string managed_fcm_enrollment_state = 8;
+   */
+  managedFcmEnrollmentState: string;
+
+  /**
+   * @generated from field: string managed_fcm_instance_id = 9;
+   */
+  managedFcmInstanceId: string;
 };
 
 /**
@@ -86,8 +86,41 @@ export const GetNativeNotificationConfigResponseSchema: GenMessage<GetNativeNoti
   messageDesc(file_chatto_api_v1_native_notifications, 1);
 
 /**
- * Explicit delivery preferences stored per application installation.
- *
+ * @generated from message chatto.api.v1.EnrollManagedFCMRequest
+ */
+export type EnrollManagedFCMRequest = Message<"chatto.api.v1.EnrollManagedFCMRequest"> & {
+};
+
+/**
+ * Describes the message chatto.api.v1.EnrollManagedFCMRequest.
+ * Use `create(EnrollManagedFCMRequestSchema)` to create a new message.
+ */
+export const EnrollManagedFCMRequestSchema: GenMessage<EnrollManagedFCMRequest> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_native_notifications, 2);
+
+/**
+ * @generated from message chatto.api.v1.EnrollManagedFCMResponse
+ */
+export type EnrollManagedFCMResponse = Message<"chatto.api.v1.EnrollManagedFCMResponse"> & {
+  /**
+   * @generated from field: string enrollment_state = 1;
+   */
+  enrollmentState: string;
+
+  /**
+   * @generated from field: string instance_id = 2;
+   */
+  instanceId: string;
+};
+
+/**
+ * Describes the message chatto.api.v1.EnrollManagedFCMResponse.
+ * Use `create(EnrollManagedFCMResponseSchema)` to create a new message.
+ */
+export const EnrollManagedFCMResponseSchema: GenMessage<EnrollManagedFCMResponse> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_native_notifications, 3);
+
+/**
  * @generated from message chatto.api.v1.NativeEndpointPreferences
  */
 export type NativeEndpointPreferences = Message<"chatto.api.v1.NativeEndpointPreferences"> & {
@@ -112,11 +145,9 @@ export type NativeEndpointPreferences = Message<"chatto.api.v1.NativeEndpointPre
  * Use `create(NativeEndpointPreferencesSchema)` to create a new message.
  */
 export const NativeEndpointPreferencesSchema: GenMessage<NativeEndpointPreferences> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 2);
+  messageDesc(file_chatto_api_v1_native_notifications, 4);
 
 /**
- * Patch for endpoint preferences. Absent fields retain their current value.
- *
  * @generated from message chatto.api.v1.NativeEndpointPreferencesPatch
  */
 export type NativeEndpointPreferencesPatch = Message<"chatto.api.v1.NativeEndpointPreferencesPatch"> & {
@@ -141,24 +172,18 @@ export type NativeEndpointPreferencesPatch = Message<"chatto.api.v1.NativeEndpoi
  * Use `create(NativeEndpointPreferencesPatchSchema)` to create a new message.
  */
 export const NativeEndpointPreferencesPatchSchema: GenMessage<NativeEndpointPreferencesPatch> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 3);
+  messageDesc(file_chatto_api_v1_native_notifications, 5);
 
 /**
- * One native installation owned by the authenticated user.
- *
  * @generated from message chatto.api.v1.NativeEndpoint
  */
 export type NativeEndpoint = Message<"chatto.api.v1.NativeEndpoint"> & {
   /**
-   * Stable opaque identifier derived from the owner and logical installation.
-   *
    * @generated from field: string endpoint_id = 1;
    */
   endpointId: string;
 
   /**
-   * Stable application-installation identifier generated by the native client.
-   *
    * @generated from field: string installation_id = 2;
    */
   installationId: string;
@@ -174,74 +199,61 @@ export type NativeEndpoint = Message<"chatto.api.v1.NativeEndpoint"> & {
   transport: NativeNotificationTransport;
 
   /**
-   * Native application identifier, for example com.yoddv.towk.android.
-   *
    * @generated from field: string app_id = 5;
    */
   appId: string;
 
   /**
-   * UnifiedPush endpoint when transport is UNIFIED_PUSH. It is returned only to
-   * its authenticated owner and must not be logged or exposed in diagnostics.
+   * Present only for the endpoint owner. Never written to logs.
    *
-   * @generated from field: optional string unifiedpush_endpoint = 6;
+   * @generated from field: string fcm_installation_id = 6;
    */
-  unifiedpushEndpoint?: string | undefined;
+  fcmInstallationId: string;
 
   /**
-   * RFC 8291 P-256 public key supplied by the UnifiedPush distributor.
+   * Public installation encryption key. The private key stays on the client.
    *
-   * @generated from field: optional string web_push_public_key = 7;
+   * @generated from field: bytes client_public_key = 7;
    */
-  webPushPublicKey?: string | undefined;
+  clientPublicKey: Uint8Array;
 
   /**
-   * RFC 9180 P-256 public key generated by the Android installation. The
-   * corresponding private key never leaves Android Keystore.
-   *
-   * @generated from field: optional bytes client_public_key = 8;
-   */
-  clientPublicKey?: Uint8Array | undefined;
-
-  /**
-   * @generated from field: string locale = 9;
+   * @generated from field: string locale = 8;
    */
   locale: string;
 
   /**
-   * @generated from field: google.protobuf.Timestamp created_at = 10;
+   * @generated from field: google.protobuf.Timestamp created_at = 9;
    */
   createdAt?: Timestamp | undefined;
 
   /**
-   * @generated from field: google.protobuf.Timestamp last_seen_at = 11;
+   * @generated from field: google.protobuf.Timestamp last_seen_at = 10;
    */
   lastSeenAt?: Timestamp | undefined;
 
   /**
-   * @generated from field: optional google.protobuf.Timestamp disabled_at = 12;
+   * @generated from field: google.protobuf.Timestamp disabled_at = 11;
    */
   disabledAt?: Timestamp | undefined;
 
   /**
-   * @generated from field: chatto.api.v1.NativeEndpointState state = 13;
+   * @generated from field: chatto.api.v1.NativeEndpointState state = 12;
    */
   state: NativeEndpointState;
 
   /**
-   * @generated from field: chatto.api.v1.NativeDeliveryStatus last_delivery_status = 14;
+   * @generated from field: chatto.api.v1.NativeDeliveryStatus last_delivery_status = 13;
    */
   lastDeliveryStatus: NativeDeliveryStatus;
 
   /**
-   * @generated from field: chatto.api.v1.NativeEndpointPreferences preferences = 15;
+   * @generated from field: chatto.api.v1.NativeEndpointPreferences preferences = 14;
    */
   preferences?: NativeEndpointPreferences | undefined;
 
   /**
-   * Monotonic transport generation used for optimistic concurrency.
-   *
-   * @generated from field: uint64 generation = 16;
+   * @generated from field: uint64 generation = 15;
    */
   generation: bigint;
 };
@@ -251,7 +263,7 @@ export type NativeEndpoint = Message<"chatto.api.v1.NativeEndpoint"> & {
  * Use `create(NativeEndpointSchema)` to create a new message.
  */
 export const NativeEndpointSchema: GenMessage<NativeEndpoint> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 4);
+  messageDesc(file_chatto_api_v1_native_notifications, 6);
 
 /**
  * @generated from message chatto.api.v1.RegisterNativeEndpointRequest
@@ -278,32 +290,22 @@ export type RegisterNativeEndpointRequest = Message<"chatto.api.v1.RegisterNativ
   appId: string;
 
   /**
-   * @generated from field: optional string unifiedpush_endpoint = 5;
+   * @generated from field: string fcm_installation_id = 5;
    */
-  unifiedpushEndpoint?: string | undefined;
+  fcmInstallationId: string;
 
   /**
-   * @generated from field: optional string web_push_public_key = 6;
+   * @generated from field: bytes client_public_key = 6;
    */
-  webPushPublicKey?: string | undefined;
+  clientPublicKey: Uint8Array;
 
   /**
-   * @generated from field: optional string web_push_auth_secret = 7;
+   * @generated from field: string locale = 7;
    */
-  webPushAuthSecret?: string | undefined;
+  locale: string;
 
   /**
-   * @generated from field: optional bytes client_public_key = 8;
-   */
-  clientPublicKey?: Uint8Array | undefined;
-
-  /**
-   * @generated from field: optional string locale = 9;
-   */
-  locale?: string | undefined;
-
-  /**
-   * @generated from field: optional chatto.api.v1.NativeEndpointPreferencesPatch preferences = 10;
+   * @generated from field: chatto.api.v1.NativeEndpointPreferencesPatch preferences = 8;
    */
   preferences?: NativeEndpointPreferencesPatch | undefined;
 };
@@ -313,7 +315,7 @@ export type RegisterNativeEndpointRequest = Message<"chatto.api.v1.RegisterNativ
  * Use `create(RegisterNativeEndpointRequestSchema)` to create a new message.
  */
 export const RegisterNativeEndpointRequestSchema: GenMessage<RegisterNativeEndpointRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 5);
+  messageDesc(file_chatto_api_v1_native_notifications, 7);
 
 /**
  * @generated from message chatto.api.v1.RegisterNativeEndpointResponse
@@ -330,7 +332,7 @@ export type RegisterNativeEndpointResponse = Message<"chatto.api.v1.RegisterNati
  * Use `create(RegisterNativeEndpointResponseSchema)` to create a new message.
  */
 export const RegisterNativeEndpointResponseSchema: GenMessage<RegisterNativeEndpointResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 6);
+  messageDesc(file_chatto_api_v1_native_notifications, 8);
 
 /**
  * @generated from message chatto.api.v1.RotateNativeEndpointRequest
@@ -347,29 +349,19 @@ export type RotateNativeEndpointRequest = Message<"chatto.api.v1.RotateNativeEnd
   expectedGeneration: bigint;
 
   /**
-   * @generated from field: string unifiedpush_endpoint = 3;
+   * @generated from field: string fcm_installation_id = 3;
    */
-  unifiedpushEndpoint: string;
+  fcmInstallationId: string;
 
   /**
-   * @generated from field: string web_push_public_key = 4;
-   */
-  webPushPublicKey: string;
-
-  /**
-   * @generated from field: string web_push_auth_secret = 5;
-   */
-  webPushAuthSecret: string;
-
-  /**
-   * @generated from field: bytes client_public_key = 6;
+   * @generated from field: bytes client_public_key = 4;
    */
   clientPublicKey: Uint8Array;
 
   /**
-   * @generated from field: optional string locale = 7;
+   * @generated from field: string locale = 5;
    */
-  locale?: string | undefined;
+  locale: string;
 };
 
 /**
@@ -377,7 +369,7 @@ export type RotateNativeEndpointRequest = Message<"chatto.api.v1.RotateNativeEnd
  * Use `create(RotateNativeEndpointRequestSchema)` to create a new message.
  */
 export const RotateNativeEndpointRequestSchema: GenMessage<RotateNativeEndpointRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 7);
+  messageDesc(file_chatto_api_v1_native_notifications, 9);
 
 /**
  * @generated from message chatto.api.v1.RotateNativeEndpointResponse
@@ -394,7 +386,7 @@ export type RotateNativeEndpointResponse = Message<"chatto.api.v1.RotateNativeEn
  * Use `create(RotateNativeEndpointResponseSchema)` to create a new message.
  */
 export const RotateNativeEndpointResponseSchema: GenMessage<RotateNativeEndpointResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 8);
+  messageDesc(file_chatto_api_v1_native_notifications, 10);
 
 /**
  * @generated from message chatto.api.v1.UnregisterNativeEndpointRequest
@@ -406,8 +398,6 @@ export type UnregisterNativeEndpointRequest = Message<"chatto.api.v1.UnregisterN
   endpointId: string;
 
   /**
-   * Prevents a stale logout from revoking a newer post-reinstall endpoint.
-   *
    * @generated from field: uint64 expected_generation = 2;
    */
   expectedGeneration: bigint;
@@ -418,7 +408,7 @@ export type UnregisterNativeEndpointRequest = Message<"chatto.api.v1.UnregisterN
  * Use `create(UnregisterNativeEndpointRequestSchema)` to create a new message.
  */
 export const UnregisterNativeEndpointRequestSchema: GenMessage<UnregisterNativeEndpointRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 9);
+  messageDesc(file_chatto_api_v1_native_notifications, 11);
 
 /**
  * @generated from message chatto.api.v1.UnregisterNativeEndpointResponse
@@ -435,7 +425,7 @@ export type UnregisterNativeEndpointResponse = Message<"chatto.api.v1.Unregister
  * Use `create(UnregisterNativeEndpointResponseSchema)` to create a new message.
  */
 export const UnregisterNativeEndpointResponseSchema: GenMessage<UnregisterNativeEndpointResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 10);
+  messageDesc(file_chatto_api_v1_native_notifications, 12);
 
 /**
  * @generated from message chatto.api.v1.ListNativeEndpointsRequest
@@ -448,7 +438,7 @@ export type ListNativeEndpointsRequest = Message<"chatto.api.v1.ListNativeEndpoi
  * Use `create(ListNativeEndpointsRequestSchema)` to create a new message.
  */
 export const ListNativeEndpointsRequestSchema: GenMessage<ListNativeEndpointsRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 11);
+  messageDesc(file_chatto_api_v1_native_notifications, 13);
 
 /**
  * @generated from message chatto.api.v1.ListNativeEndpointsResponse
@@ -465,7 +455,7 @@ export type ListNativeEndpointsResponse = Message<"chatto.api.v1.ListNativeEndpo
  * Use `create(ListNativeEndpointsResponseSchema)` to create a new message.
  */
 export const ListNativeEndpointsResponseSchema: GenMessage<ListNativeEndpointsResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 12);
+  messageDesc(file_chatto_api_v1_native_notifications, 14);
 
 /**
  * @generated from message chatto.api.v1.UpdateNativeEndpointPreferencesRequest
@@ -492,7 +482,7 @@ export type UpdateNativeEndpointPreferencesRequest = Message<"chatto.api.v1.Upda
  * Use `create(UpdateNativeEndpointPreferencesRequestSchema)` to create a new message.
  */
 export const UpdateNativeEndpointPreferencesRequestSchema: GenMessage<UpdateNativeEndpointPreferencesRequest> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 13);
+  messageDesc(file_chatto_api_v1_native_notifications, 15);
 
 /**
  * @generated from message chatto.api.v1.UpdateNativeEndpointPreferencesResponse
@@ -509,11 +499,11 @@ export type UpdateNativeEndpointPreferencesResponse = Message<"chatto.api.v1.Upd
  * Use `create(UpdateNativeEndpointPreferencesResponseSchema)` to create a new message.
  */
 export const UpdateNativeEndpointPreferencesResponseSchema: GenMessage<UpdateNativeEndpointPreferencesResponse> = /*@__PURE__*/
-  messageDesc(file_chatto_api_v1_native_notifications, 14);
+  messageDesc(file_chatto_api_v1_native_notifications, 16);
 
 /**
- * Native client platform. macOS and iOS values are reserved for later phases;
- * their presence is not a claim of implemented delivery.
+ * Native clients outside the Android and Linux phase are reserved for forward
+ * compatibility and are rejected by the current server implementation.
  *
  * @generated from enum chatto.api.v1.NativeNotificationPlatform
  */
@@ -556,8 +546,6 @@ export const NativeNotificationPlatformSchema: GenEnum<NativeNotificationPlatfor
   enumDesc(file_chatto_api_v1_native_notifications, 0);
 
 /**
- * Delivery transport selected by a native installation.
- *
  * @generated from enum chatto.api.v1.NativeNotificationTransport
  */
 export enum NativeNotificationTransport {
@@ -567,18 +555,18 @@ export enum NativeNotificationTransport {
   UNSPECIFIED = 0,
 
   /**
-   * Android UnifiedPush endpoint distributed by the operator-hosted ntfy app.
+   * Android wake signals sent through the Towk-operated FCM relay.
    *
-   * @generated from enum value: NATIVE_NOTIFICATION_TRANSPORT_UNIFIED_PUSH = 1;
+   * @generated from enum value: NATIVE_NOTIFICATION_TRANSPORT_ANDROID_MANAGED_FCM = 1;
    */
-  UNIFIED_PUSH = 1,
+  ANDROID_MANAGED_FCM = 1,
 
   /**
-   * Authenticated Towk realtime session used by resident desktop agents.
+   * Linux notifications derived from the authenticated instance WebSocket.
    *
-   * @generated from enum value: NATIVE_NOTIFICATION_TRANSPORT_LOCAL_REALTIME = 2;
+   * @generated from enum value: NATIVE_NOTIFICATION_TRANSPORT_LINUX_RESIDENT_WEBSOCKET = 2;
    */
-  LOCAL_REALTIME = 2,
+  LINUX_RESIDENT_WEBSOCKET = 2,
 }
 
 /**
@@ -588,8 +576,6 @@ export const NativeNotificationTransportSchema: GenEnum<NativeNotificationTransp
   enumDesc(file_chatto_api_v1_native_notifications, 1);
 
 /**
- * Last known lifecycle state of an endpoint.
- *
  * @generated from enum chatto.api.v1.NativeEndpointState
  */
 export enum NativeEndpointState {
@@ -621,9 +607,6 @@ export const NativeEndpointStateSchema: GenEnum<NativeEndpointState> = /*@__PURE
   enumDesc(file_chatto_api_v1_native_notifications, 2);
 
 /**
- * Last transport outcome. The Towk API remains authoritative for content and
- * read/dismiss state regardless of this value.
- *
  * @generated from enum chatto.api.v1.NativeDeliveryStatus
  */
 export enum NativeDeliveryStatus {
@@ -670,17 +653,13 @@ export const NativeDeliveryStatusSchema: GenEnum<NativeDeliveryStatus> = /*@__PU
   enumDesc(file_chatto_api_v1_native_notifications, 3);
 
 /**
- * Native notification endpoint and preference commands for the authenticated
- * user. This contract is separate from browser Web Push subscriptions.
+ * NativeNotificationService registers application installations for native
+ * notification transports. Web Push remains owned by PushService.
  *
  * @generated from service chatto.api.v1.NativeNotificationService
  */
 export const NativeNotificationService: GenService<{
   /**
-   * Returns the server capability required before a native client asks the
-   * user to choose a distributor. The VAPID value is a public key, never a
-   * transport credential.
-   *
    * @generated from rpc chatto.api.v1.NativeNotificationService.GetNativeNotificationConfig
    */
   getNativeNotificationConfig: {
@@ -689,8 +668,14 @@ export const NativeNotificationService: GenService<{
     output: typeof GetNativeNotificationConfigResponseSchema;
   },
   /**
-   * Registers or idempotently refreshes one native application installation.
-   *
+   * @generated from rpc chatto.api.v1.NativeNotificationService.EnrollManagedFCM
+   */
+  enrollManagedFCM: {
+    methodKind: "unary";
+    input: typeof EnrollManagedFCMRequestSchema;
+    output: typeof EnrollManagedFCMResponseSchema;
+  },
+  /**
    * @generated from rpc chatto.api.v1.NativeNotificationService.RegisterNativeEndpoint
    */
   registerNativeEndpoint: {
@@ -699,8 +684,6 @@ export const NativeNotificationService: GenService<{
     output: typeof RegisterNativeEndpointResponseSchema;
   },
   /**
-   * Atomically replaces transport material for an existing installation.
-   *
    * @generated from rpc chatto.api.v1.NativeNotificationService.RotateNativeEndpoint
    */
   rotateNativeEndpoint: {
@@ -709,8 +692,6 @@ export const NativeNotificationService: GenService<{
     output: typeof RotateNativeEndpointResponseSchema;
   },
   /**
-   * Revokes exactly one endpoint owned by the authenticated user.
-   *
    * @generated from rpc chatto.api.v1.NativeNotificationService.UnregisterNativeEndpoint
    */
   unregisterNativeEndpoint: {
@@ -719,8 +700,6 @@ export const NativeNotificationService: GenService<{
     output: typeof UnregisterNativeEndpointResponseSchema;
   },
   /**
-   * Lists the authenticated user's native installations.
-   *
    * @generated from rpc chatto.api.v1.NativeNotificationService.ListNativeEndpoints
    */
   listNativeEndpoints: {
@@ -729,8 +708,6 @@ export const NativeNotificationService: GenService<{
     output: typeof ListNativeEndpointsResponseSchema;
   },
   /**
-   * Updates opt-in delivery preferences without replacing transport material.
-   *
    * @generated from rpc chatto.api.v1.NativeNotificationService.UpdateNativeEndpointPreferences
    */
   updateNativeEndpointPreferences: {
@@ -740,4 +717,3 @@ export const NativeNotificationService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_chatto_api_v1_native_notifications, 0);
-

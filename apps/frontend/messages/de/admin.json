@@ -49,6 +49,20 @@
     "general": {
       "subtitle": "Serveridentität, Branding und Nachrichten"
     },
+    "notifications": {
+      "title": "Android-Benachrichtigungen",
+      "description": "Android-Hintergrundbenachrichtigungen erfordern die Registrierung beim von TOWK verwalteten FCM-Relay. Das Relay überträgt nur ein verschlüsseltes Wecksignal; Inhalte werden direkt von diesem Server abgerufen.",
+      "required": "Dieser Server ist nicht registriert. Android-Benachrichtigungen bleiben nicht verfügbar, bis ein Administrator die Registrierung abschließt.",
+      "privacy": "Die Registrierung ist aktiv. Das Relay kann keine Nachrichten, Räume, Anrufer oder Benachrichtigungsinhalte lesen.",
+      "operator_disabled": "Der Serverbetreiber hat verwaltete FCM-Benachrichtigungen in der Konfiguration nicht aktiviert.",
+      "status": "Registrierungsstatus",
+      "relay": "FCM-Vermittlungsdienst",
+      "enroll": "Diesen Server registrieren",
+      "enrolled": "Registrierung beim FCM-Relay abgeschlossen",
+      "load_failed": "Der Registrierungsstatus konnte nicht geladen werden",
+      "enroll_failed": "Dieser Server konnte nicht beim FCM-Relay registriert werden",
+      "retry": "Erneut versuchen"
+    },
     "members": {
       "title": "Mitglieder",
       "subtitle": "Servermitglieder und ihre Rollen anzeigen und verwalten",

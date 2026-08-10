@@ -1,7 +1,4 @@
-import {
-  NotificationItemKind,
-  type NotificationItem
-} from '$lib/api-client/notifications';
+import { NotificationItemKind, type NotificationItem } from '$lib/api-client/notifications';
 
 export type DesktopNotificationKind = 'generic' | 'message' | 'call';
 
@@ -17,6 +14,7 @@ export type DesktopNotificationPayload = {
 export type DesktopNotificationActivation = {
   notificationId: string;
   url: string;
+  action?: 'open' | 'answer' | 'decline';
 };
 
 export type DesktopLifecycleEvent = {

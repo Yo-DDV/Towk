@@ -37,6 +37,9 @@ const (
 	// NativeNotificationServiceGetNativeNotificationConfigProcedure is the fully-qualified name of the
 	// NativeNotificationService's GetNativeNotificationConfig RPC.
 	NativeNotificationServiceGetNativeNotificationConfigProcedure = "/chatto.api.v1.NativeNotificationService/GetNativeNotificationConfig"
+	// NativeNotificationServiceEnrollManagedFCMProcedure is the fully-qualified name of the
+	// NativeNotificationService's EnrollManagedFCM RPC.
+	NativeNotificationServiceEnrollManagedFCMProcedure = "/chatto.api.v1.NativeNotificationService/EnrollManagedFCM"
 	// NativeNotificationServiceRegisterNativeEndpointProcedure is the fully-qualified name of the
 	// NativeNotificationService's RegisterNativeEndpoint RPC.
 	NativeNotificationServiceRegisterNativeEndpointProcedure = "/chatto.api.v1.NativeNotificationService/RegisterNativeEndpoint"
@@ -57,19 +60,12 @@ const (
 // NativeNotificationServiceClient is a client for the chatto.api.v1.NativeNotificationService
 // service.
 type NativeNotificationServiceClient interface {
-	// Returns the server capability required before a native client asks the
-	// user to choose a distributor. The VAPID value is a public key, never a
-	// transport credential.
 	GetNativeNotificationConfig(context.Context, *connect.Request[v1.GetNativeNotificationConfigRequest]) (*connect.Response[v1.GetNativeNotificationConfigResponse], error)
-	// Registers or idempotently refreshes one native application installation.
+	EnrollManagedFCM(context.Context, *connect.Request[v1.EnrollManagedFCMRequest]) (*connect.Response[v1.EnrollManagedFCMResponse], error)
 	RegisterNativeEndpoint(context.Context, *connect.Request[v1.RegisterNativeEndpointRequest]) (*connect.Response[v1.RegisterNativeEndpointResponse], error)
-	// Atomically replaces transport material for an existing installation.
 	RotateNativeEndpoint(context.Context, *connect.Request[v1.RotateNativeEndpointRequest]) (*connect.Response[v1.RotateNativeEndpointResponse], error)
-	// Revokes exactly one endpoint owned by the authenticated user.
 	UnregisterNativeEndpoint(context.Context, *connect.Request[v1.UnregisterNativeEndpointRequest]) (*connect.Response[v1.UnregisterNativeEndpointResponse], error)
-	// Lists the authenticated user's native installations.
 	ListNativeEndpoints(context.Context, *connect.Request[v1.ListNativeEndpointsRequest]) (*connect.Response[v1.ListNativeEndpointsResponse], error)
-	// Updates opt-in delivery preferences without replacing transport material.
 	UpdateNativeEndpointPreferences(context.Context, *connect.Request[v1.UpdateNativeEndpointPreferencesRequest]) (*connect.Response[v1.UpdateNativeEndpointPreferencesResponse], error)
 }
 
@@ -88,6 +84,12 @@ func NewNativeNotificationServiceClient(httpClient connect.HTTPClient, baseURL s
 			httpClient,
 			baseURL+NativeNotificationServiceGetNativeNotificationConfigProcedure,
 			connect.WithSchema(nativeNotificationServiceMethods.ByName("GetNativeNotificationConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		enrollManagedFCM: connect.NewClient[v1.EnrollManagedFCMRequest, v1.EnrollManagedFCMResponse](
+			httpClient,
+			baseURL+NativeNotificationServiceEnrollManagedFCMProcedure,
+			connect.WithSchema(nativeNotificationServiceMethods.ByName("EnrollManagedFCM")),
 			connect.WithClientOptions(opts...),
 		),
 		registerNativeEndpoint: connect.NewClient[v1.RegisterNativeEndpointRequest, v1.RegisterNativeEndpointResponse](
@@ -126,6 +128,7 @@ func NewNativeNotificationServiceClient(httpClient connect.HTTPClient, baseURL s
 // nativeNotificationServiceClient implements NativeNotificationServiceClient.
 type nativeNotificationServiceClient struct {
 	getNativeNotificationConfig     *connect.Client[v1.GetNativeNotificationConfigRequest, v1.GetNativeNotificationConfigResponse]
+	enrollManagedFCM                *connect.Client[v1.EnrollManagedFCMRequest, v1.EnrollManagedFCMResponse]
 	registerNativeEndpoint          *connect.Client[v1.RegisterNativeEndpointRequest, v1.RegisterNativeEndpointResponse]
 	rotateNativeEndpoint            *connect.Client[v1.RotateNativeEndpointRequest, v1.RotateNativeEndpointResponse]
 	unregisterNativeEndpoint        *connect.Client[v1.UnregisterNativeEndpointRequest, v1.UnregisterNativeEndpointResponse]
@@ -137,6 +140,11 @@ type nativeNotificationServiceClient struct {
 // chatto.api.v1.NativeNotificationService.GetNativeNotificationConfig.
 func (c *nativeNotificationServiceClient) GetNativeNotificationConfig(ctx context.Context, req *connect.Request[v1.GetNativeNotificationConfigRequest]) (*connect.Response[v1.GetNativeNotificationConfigResponse], error) {
 	return c.getNativeNotificationConfig.CallUnary(ctx, req)
+}
+
+// EnrollManagedFCM calls chatto.api.v1.NativeNotificationService.EnrollManagedFCM.
+func (c *nativeNotificationServiceClient) EnrollManagedFCM(ctx context.Context, req *connect.Request[v1.EnrollManagedFCMRequest]) (*connect.Response[v1.EnrollManagedFCMResponse], error) {
+	return c.enrollManagedFCM.CallUnary(ctx, req)
 }
 
 // RegisterNativeEndpoint calls chatto.api.v1.NativeNotificationService.RegisterNativeEndpoint.
@@ -168,19 +176,12 @@ func (c *nativeNotificationServiceClient) UpdateNativeEndpointPreferences(ctx co
 // NativeNotificationServiceHandler is an implementation of the
 // chatto.api.v1.NativeNotificationService service.
 type NativeNotificationServiceHandler interface {
-	// Returns the server capability required before a native client asks the
-	// user to choose a distributor. The VAPID value is a public key, never a
-	// transport credential.
 	GetNativeNotificationConfig(context.Context, *connect.Request[v1.GetNativeNotificationConfigRequest]) (*connect.Response[v1.GetNativeNotificationConfigResponse], error)
-	// Registers or idempotently refreshes one native application installation.
+	EnrollManagedFCM(context.Context, *connect.Request[v1.EnrollManagedFCMRequest]) (*connect.Response[v1.EnrollManagedFCMResponse], error)
 	RegisterNativeEndpoint(context.Context, *connect.Request[v1.RegisterNativeEndpointRequest]) (*connect.Response[v1.RegisterNativeEndpointResponse], error)
-	// Atomically replaces transport material for an existing installation.
 	RotateNativeEndpoint(context.Context, *connect.Request[v1.RotateNativeEndpointRequest]) (*connect.Response[v1.RotateNativeEndpointResponse], error)
-	// Revokes exactly one endpoint owned by the authenticated user.
 	UnregisterNativeEndpoint(context.Context, *connect.Request[v1.UnregisterNativeEndpointRequest]) (*connect.Response[v1.UnregisterNativeEndpointResponse], error)
-	// Lists the authenticated user's native installations.
 	ListNativeEndpoints(context.Context, *connect.Request[v1.ListNativeEndpointsRequest]) (*connect.Response[v1.ListNativeEndpointsResponse], error)
-	// Updates opt-in delivery preferences without replacing transport material.
 	UpdateNativeEndpointPreferences(context.Context, *connect.Request[v1.UpdateNativeEndpointPreferencesRequest]) (*connect.Response[v1.UpdateNativeEndpointPreferencesResponse], error)
 }
 
@@ -195,6 +196,12 @@ func NewNativeNotificationServiceHandler(svc NativeNotificationServiceHandler, o
 		NativeNotificationServiceGetNativeNotificationConfigProcedure,
 		svc.GetNativeNotificationConfig,
 		connect.WithSchema(nativeNotificationServiceMethods.ByName("GetNativeNotificationConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	nativeNotificationServiceEnrollManagedFCMHandler := connect.NewUnaryHandler(
+		NativeNotificationServiceEnrollManagedFCMProcedure,
+		svc.EnrollManagedFCM,
+		connect.WithSchema(nativeNotificationServiceMethods.ByName("EnrollManagedFCM")),
 		connect.WithHandlerOptions(opts...),
 	)
 	nativeNotificationServiceRegisterNativeEndpointHandler := connect.NewUnaryHandler(
@@ -231,6 +238,8 @@ func NewNativeNotificationServiceHandler(svc NativeNotificationServiceHandler, o
 		switch r.URL.Path {
 		case NativeNotificationServiceGetNativeNotificationConfigProcedure:
 			nativeNotificationServiceGetNativeNotificationConfigHandler.ServeHTTP(w, r)
+		case NativeNotificationServiceEnrollManagedFCMProcedure:
+			nativeNotificationServiceEnrollManagedFCMHandler.ServeHTTP(w, r)
 		case NativeNotificationServiceRegisterNativeEndpointProcedure:
 			nativeNotificationServiceRegisterNativeEndpointHandler.ServeHTTP(w, r)
 		case NativeNotificationServiceRotateNativeEndpointProcedure:
@@ -252,6 +261,10 @@ type UnimplementedNativeNotificationServiceHandler struct{}
 
 func (UnimplementedNativeNotificationServiceHandler) GetNativeNotificationConfig(context.Context, *connect.Request[v1.GetNativeNotificationConfigRequest]) (*connect.Response[v1.GetNativeNotificationConfigResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.NativeNotificationService.GetNativeNotificationConfig is not implemented"))
+}
+
+func (UnimplementedNativeNotificationServiceHandler) EnrollManagedFCM(context.Context, *connect.Request[v1.EnrollManagedFCMRequest]) (*connect.Response[v1.EnrollManagedFCMResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.NativeNotificationService.EnrollManagedFCM is not implemented"))
 }
 
 func (UnimplementedNativeNotificationServiceHandler) RegisterNativeEndpoint(context.Context, *connect.Request[v1.RegisterNativeEndpointRequest]) (*connect.Response[v1.RegisterNativeEndpointResponse], error) {

@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"crypto/elliptic"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"testing"
@@ -23,15 +22,13 @@ func testNativePublicKey(scalar byte) []byte {
 
 func testNativeRegistration(installationID string) NativeEndpointRegistration {
 	return NativeEndpointRegistration{
-		InstallationID:      installationID,
-		Platform:            NativeNotificationPlatformAndroid,
-		Transport:           NativeNotificationTransportUnifiedPush,
-		AppID:               "com.yoddv.towk.android",
-		UnifiedPushEndpoint: "https://push.example.test/up/opaque-topic",
-		WebPushPublicKey:    base64.RawURLEncoding.EncodeToString(testNativePublicKey(1)),
-		WebPushAuthSecret:   base64.RawURLEncoding.EncodeToString(make([]byte, 16)),
-		ClientPublicKey:     testNativePublicKey(2),
-		Locale:              "fr-FR",
+		InstallationID:    installationID,
+		Platform:          NativeNotificationPlatformAndroid,
+		Transport:         NativeNotificationTransportManagedFCM,
+		AppID:             "com.yoddv.towk.android",
+		FCMInstallationID: "cOpaqueTowkInstallId01",
+		ClientPublicKey:   testNativePublicKey(2),
+		Locale:            "fr-FR",
 	}
 }
 
@@ -69,15 +66,13 @@ func TestRegisterNativeEndpointIsIdempotentAndRotatesAtomically(t *testing.T) {
 	}
 
 	rotatedRegistration := registration
-	rotatedRegistration.UnifiedPushEndpoint = "https://push.example.test/up/replacement-topic"
-	rotatedRegistration.WebPushPublicKey = base64.RawURLEncoding.EncodeToString(testNativePublicKey(3))
-	rotatedRegistration.WebPushAuthSecret = base64.RawURLEncoding.EncodeToString([]byte("0123456789abcdef"))
+	rotatedRegistration.FCMInstallationID = "cReplacementInstall02"
 	rotatedRegistration.ClientPublicKey = testNativePublicKey(4)
 	rotated, err := core.RotateNativeEndpoint(ctx, "user-1", first.EndpointID, first.Generation, rotatedRegistration)
 	if err != nil {
 		t.Fatalf("RotateNativeEndpoint: %v", err)
 	}
-	if rotated.Generation != 2 || rotated.UnifiedPushEndpoint == first.UnifiedPushEndpoint {
+	if rotated.Generation != 2 || rotated.FCMInstallationID == first.FCMInstallationID {
 		t.Fatalf("rotated endpoint = %#v", rotated)
 	}
 	if _, err := core.RotateNativeEndpoint(ctx, "user-1", first.EndpointID, first.Generation, registration); !errors.Is(err, ErrNativeEndpointConflict) {
@@ -94,9 +89,7 @@ func TestUnregisterNativeEndpointCannotRevokeNewerGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	registration.UnifiedPushEndpoint = "https://push.example.test/up/new-topic"
-	registration.WebPushPublicKey = base64.RawURLEncoding.EncodeToString(testNativePublicKey(5))
-	registration.WebPushAuthSecret = base64.RawURLEncoding.EncodeToString([]byte("fedcba9876543210"))
+	registration.FCMInstallationID = "cNewTowkInstallId003"
 	registration.ClientPublicKey = testNativePublicKey(6)
 	rotated, err := core.RotateNativeEndpoint(ctx, "user-1", endpoint.EndpointID, 1, registration)
 	if err != nil {
@@ -125,7 +118,7 @@ func TestUnregisterNativeEndpointCannotRevokeNewerGeneration(t *testing.T) {
 	if disabled.State != NativeEndpointStateDisabled || disabled.Generation != rotated.Generation+1 {
 		t.Fatalf("disabled endpoint = %#v", disabled)
 	}
-	if disabled.UnifiedPushEndpoint != "" || disabled.WebPushAuthSecret != "" || len(disabled.ClientPublicKey) != 0 {
+	if disabled.FCMInstallationID != "" || len(disabled.ClientPublicKey) != 0 {
 		t.Fatalf("disabled endpoint retained transport material: %#v", disabled)
 	}
 	if again, err := core.UnregisterNativeEndpoint(ctx, "user-1", endpoint.EndpointID, rotated.Generation); err != nil || !again {
@@ -177,12 +170,12 @@ func TestRegisterNativeEndpointRejectsInvalidTransportMaterial(t *testing.T) {
 		}(),
 		func() NativeEndpointRegistration {
 			registration := testNativeRegistration("installation-0006")
-			registration.UnifiedPushEndpoint = "https://user:secret@push.example.test/up/topic"
+			registration.FCMInstallationID = "bad:installation:id"
 			return registration
 		}(),
 		func() NativeEndpointRegistration {
 			registration := testNativeRegistration("installation-0007")
-			registration.WebPushPublicKey = "not-a-key"
+			registration.FCMInstallationID = "invalid token"
 			return registration
 		}(),
 		func() NativeEndpointRegistration {

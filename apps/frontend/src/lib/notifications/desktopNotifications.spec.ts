@@ -4,6 +4,7 @@ import {
   type CallStartedNotificationItem,
   type DirectMessageNotificationItem
 } from '$lib/api-client/notifications';
+import { PresenceStatus } from '$lib/render/types';
 import {
   desktopNotificationPayload,
   nativeDesktopNotificationId,
@@ -15,7 +16,7 @@ const actor = {
   login: 'alice',
   displayName: 'Alice',
   deleted: false,
-  presenceStatus: 'online' as const
+  presenceStatus: PresenceStatus.Online
 };
 
 const messageNotification: DirectMessageNotificationItem = {

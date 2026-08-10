@@ -93,16 +93,14 @@ server scoping, navigation, dismissal and call admission.
       if (!bus) continue;
 
       const handler: EventHandler = (event) => {
-        if (!event.event || roomEventKind(event.event) !== RoomEventKind.NotificationCreated) return;
+        if (!event.event || roomEventKind(event.event) !== RoomEventKind.NotificationCreated)
+          return;
         if (!('notificationId' in event.event) || typeof event.event.notificationId !== 'string') {
           return;
         }
         const nativeId = nativeDesktopNotificationId(server.id, event.event.notificationId);
         if (!nativeId) return;
-        silentByNotification.set(
-          nativeId,
-          'silent' in event.event && event.event.silent === true
-        );
+        silentByNotification.set(nativeId, 'silent' in event.event && event.event.silent === true);
       };
       bus.handlers.add(handler);
       cleanups.push(() => bus.handlers.delete(handler));
@@ -187,11 +185,22 @@ server scoping, navigation, dismissal and call admission.
       return;
     }
 
+    if (activation.action === 'decline') {
+      await stores.notifications.dismissById(notification.id);
+      void stores.rooms.refreshNotificationCounts();
+      return;
+    }
+
     const path = stores.notifications.getNavigationPath(parsed.serverId, notification);
     await stores.notifications.dismissById(notification.id);
     void stores.rooms.refreshNotificationCounts();
     await goto(path);
-    if (notification.kind === NotificationItemKind.CallStarted) {
+    if (
+      notification.kind === NotificationItemKind.CallStarted &&
+      (activation.action === undefined ||
+        activation.action === 'open' ||
+        activation.action === 'answer')
+    ) {
       await answerCall(parsed.serverId, notification);
     }
   }
