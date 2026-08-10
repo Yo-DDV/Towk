@@ -26,6 +26,7 @@ describe('gradeTemplates', () => {
     expect(MODERATOR_PERMISSIONS).not.toContain('room.manage');
     expect(MODERATOR_PERMISSIONS).not.toContain('room.purge-messages');
     expect(MODERATOR_PERMISSIONS).not.toContain('message.manage');
+    expect(gradeTemplateById('moderator.v1').icon).toBe('mdi--shield-account-outline');
   });
 
   it('gives Helper no additional permissions', () => {
@@ -33,6 +34,7 @@ describe('gradeTemplates', () => {
     expect(helper.defaultName).toBe('helpers');
     expect(helper.defaultPingable).toBe(true);
     expect(helper.permissions).toEqual([]);
+    expect(helper.icon).toBe('mdi--hand-heart-outline');
   });
 
   it('documents the ordinary Members inheritance once', () => {
