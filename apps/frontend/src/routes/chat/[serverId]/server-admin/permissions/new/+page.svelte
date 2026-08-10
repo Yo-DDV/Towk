@@ -10,6 +10,7 @@
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { FormError } from '$lib/ui/form';
   import { RoleForm } from '$lib/components/rbac';
+  import GradeIconBadge from '$lib/components/rbac/GradeIconBadge.svelte';
   import {
     GRADE_TEMPLATES,
     MEMBER_PERMISSIONS,
@@ -136,14 +137,14 @@
                 aria-checked={selectedTemplate === option.id}
                 disabled={creating}
                 class={[
-                  'min-h-32 rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-                  selectedTemplate === option.id ? 'border-primary bg-primary/10' : 'border-text/10 bg-surface-100 hover:bg-surface-200'
+                  'grade-template-card min-h-32 p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                  selectedTemplate === option.id && 'grade-template-card--selected'
                 ]}
                 onclick={() => chooseTemplate(option.id)}
               >
-                <span class="mb-3 inline-grid h-10 w-10 place-items-center rounded-lg bg-surface-200">
-                  <span class="iconify text-xl {option.icon}" aria-hidden="true"></span>
-                </span>
+                <div class="mb-3">
+                  <GradeIconBadge icon={option.icon} accent={option.defaultColor} size="sm" />
+                </div>
                 <span class="block font-semibold">{option.title()}</span>
                 <span class="mt-1 block text-sm leading-relaxed text-muted">{option.description()}</span>
               </button>
@@ -206,3 +207,78 @@
     {/if}
   </div>
 </div>
+
+<style>
+  .grade-template-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--liquid-glass-border);
+    border-radius: 1rem;
+    background: var(--liquid-glass-solid);
+    box-shadow:
+      inset 0 1px 0 var(--liquid-glass-edge-light),
+      inset 1px 0 0 var(--liquid-glass-edge-side),
+      inset -1px 0 0 var(--liquid-glass-edge-side),
+      inset 0 -1px 0 var(--liquid-glass-edge-shadow),
+      0 1px 2px var(--liquid-glass-key-shadow),
+      0 14px 30px -26px var(--liquid-glass-ambient-shadow);
+    transition:
+      border-color 160ms ease,
+      box-shadow 170ms ease,
+      transform 160ms ease;
+  }
+
+  .grade-template-card--selected {
+    border-color: var(--liquid-glass-border-strong);
+    box-shadow:
+      inset 0 1px 0 var(--liquid-glass-edge-light),
+      inset 1px 0 0 var(--liquid-glass-edge-side),
+      inset -1px 0 0 var(--liquid-glass-edge-side),
+      inset 0 -1px 0 var(--liquid-glass-edge-shadow),
+      0 0 0 2px var(--liquid-glass-focus-neutral),
+      0 1px 2px var(--liquid-glass-key-shadow),
+      0 16px 34px -27px var(--liquid-glass-ambient-shadow);
+  }
+
+  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .grade-template-card {
+      background: var(--liquid-glass-translucent);
+      -webkit-backdrop-filter: blur(14px) saturate(105%);
+      backdrop-filter: blur(14px) saturate(105%);
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .grade-template-card:not(:disabled):hover {
+      border-color: var(--liquid-glass-border-strong);
+      transform: translateY(-1px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .grade-template-card {
+      transition: none;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .grade-template-card {
+      background: var(--liquid-glass-solid);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .grade-template-card {
+      border-color: ButtonBorder;
+      background: ButtonFace;
+      box-shadow: none;
+    }
+
+    .grade-template-card--selected {
+      outline: 2px solid Highlight;
+      outline-offset: 2px;
+    }
+  }
+</style>
