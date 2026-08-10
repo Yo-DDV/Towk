@@ -1401,6 +1401,225 @@ Result of removing a reaction.
 | `reaction` | [`MessageReaction`](#chatto-api-v1-MessageReaction) | Updated aggregate reaction state for this emoji. Empty when no reactions for the emoji remain. |
 
 
+<a id="chatto-api-v1-NativeNotificationService"></a>
+
+## NativeNotificationService
+
+Native notification endpoint and preference commands for the authenticated
+user. This contract is separate from browser Web Push subscriptions.
+
+<a id="chatto-api-v1-NativeNotificationService-GetNativeNotificationConfig"></a>
+
+### GetNativeNotificationConfig
+
+Returns the server capability required before a native client asks the
+user to choose a distributor. The VAPID value is a public key, never a
+transport credential.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/GetNativeNotificationConfig
+```
+
+<a id="chatto-api-v1-GetNativeNotificationConfigRequest"></a>
+
+#### Input: GetNativeNotificationConfigRequest
+
+No message description provided.
+
+
+<a id="chatto-api-v1-GetNativeNotificationConfigResponse"></a>
+
+#### Result: GetNativeNotificationConfigResponse
+
+Public capability metadata. This response contains no publisher token,
+endpoint, topic, device identity, or private key.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `bool` | No field description provided. |
+| `android_unifiedpush_enabled` | `bool` | No field description provided. |
+| `linux_agent_enabled` | `bool` | No field description provided. |
+| `windows_agent_enabled` | `bool` | No field description provided. |
+| `vapid_public_key` | `string` | No field description provided. |
+| `hpke_suite` | `string` | Frozen interoperable suite name from the architecture decision. |
+| `max_signal_bytes` | `uint32` | No field description provided. |
+| `max_signal_age_seconds` | `uint32` | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-RegisterNativeEndpoint"></a>
+
+### RegisterNativeEndpoint
+
+Registers or idempotently refreshes one native application installation.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/RegisterNativeEndpoint
+```
+
+<a id="chatto-api-v1-RegisterNativeEndpointRequest"></a>
+
+#### Input: RegisterNativeEndpointRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `installation_id` | `string` | No field description provided. |
+| `platform` | [`NativeNotificationPlatform`](#chatto-api-v1-NativeNotificationPlatform) | No field description provided. |
+| `transport` | [`NativeNotificationTransport`](#chatto-api-v1-NativeNotificationTransport) | No field description provided. |
+| `app_id` | `string` | No field description provided. |
+| `unifiedpush_endpoint` | `optional string` | No field description provided. |
+| `web_push_public_key` | `optional string` | No field description provided. |
+| `web_push_auth_secret` | `optional string` | No field description provided. |
+| `client_public_key` | `optional bytes` | No field description provided. |
+| `locale` | `optional string` | No field description provided. |
+| `preferences` | optional [`NativeEndpointPreferencesPatch`](#chatto-api-v1-NativeEndpointPreferencesPatch) | No field description provided. |
+
+
+<a id="chatto-api-v1-RegisterNativeEndpointResponse"></a>
+
+#### Result: RegisterNativeEndpointResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint` | [`NativeEndpoint`](#chatto-api-v1-NativeEndpoint) | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-RotateNativeEndpoint"></a>
+
+### RotateNativeEndpoint
+
+Atomically replaces transport material for an existing installation.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/RotateNativeEndpoint
+```
+
+<a id="chatto-api-v1-RotateNativeEndpointRequest"></a>
+
+#### Input: RotateNativeEndpointRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint_id` | `string` | No field description provided. |
+| `expected_generation` | `uint64` | No field description provided. |
+| `unifiedpush_endpoint` | `string` | No field description provided. |
+| `web_push_public_key` | `string` | No field description provided. |
+| `web_push_auth_secret` | `string` | No field description provided. |
+| `client_public_key` | `bytes` | No field description provided. |
+| `locale` | `optional string` | No field description provided. |
+
+
+<a id="chatto-api-v1-RotateNativeEndpointResponse"></a>
+
+#### Result: RotateNativeEndpointResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint` | [`NativeEndpoint`](#chatto-api-v1-NativeEndpoint) | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-UnregisterNativeEndpoint"></a>
+
+### UnregisterNativeEndpoint
+
+Revokes exactly one endpoint owned by the authenticated user.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/UnregisterNativeEndpoint
+```
+
+<a id="chatto-api-v1-UnregisterNativeEndpointRequest"></a>
+
+#### Input: UnregisterNativeEndpointRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint_id` | `string` | No field description provided. |
+| `expected_generation` | `uint64` | Prevents a stale logout from revoking a newer post-reinstall endpoint. |
+
+
+<a id="chatto-api-v1-UnregisterNativeEndpointResponse"></a>
+
+#### Result: UnregisterNativeEndpointResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `unregistered` | `bool` | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-ListNativeEndpoints"></a>
+
+### ListNativeEndpoints
+
+Lists the authenticated user's native installations.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/ListNativeEndpoints
+```
+
+<a id="chatto-api-v1-ListNativeEndpointsRequest"></a>
+
+#### Input: ListNativeEndpointsRequest
+
+No message description provided.
+
+
+<a id="chatto-api-v1-ListNativeEndpointsResponse"></a>
+
+#### Result: ListNativeEndpointsResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoints` | repeated [`NativeEndpoint`](#chatto-api-v1-NativeEndpoint) | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-UpdateNativeEndpointPreferences"></a>
+
+### UpdateNativeEndpointPreferences
+
+Updates opt-in delivery preferences without replacing transport material.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/UpdateNativeEndpointPreferences
+```
+
+<a id="chatto-api-v1-UpdateNativeEndpointPreferencesRequest"></a>
+
+#### Input: UpdateNativeEndpointPreferencesRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint_id` | `string` | No field description provided. |
+| `expected_generation` | `uint64` | No field description provided. |
+| `preferences` | [`NativeEndpointPreferencesPatch`](#chatto-api-v1-NativeEndpointPreferencesPatch) | No field description provided. |
+
+
+<a id="chatto-api-v1-UpdateNativeEndpointPreferencesResponse"></a>
+
+#### Result: UpdateNativeEndpointPreferencesResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint` | [`NativeEndpoint`](#chatto-api-v1-NativeEndpoint) | No field description provided. |
+
+
 <a id="chatto-api-v1-RoomService"></a>
 
 ## RoomService
@@ -4181,6 +4400,61 @@ One explicitly assigned role shown on a detailed user profile.
 
 
 
+<a id="chatto-api-v1-NativeEndpoint"></a>
+
+### NativeEndpoint
+
+One native installation owned by the authenticated user.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint_id` | `string` | Stable opaque identifier derived from the owner and logical installation. |
+| `installation_id` | `string` | Stable application-installation identifier generated by the native client. |
+| `platform` | [`NativeNotificationPlatform`](#chatto-api-v1-NativeNotificationPlatform) | No field description provided. |
+| `transport` | [`NativeNotificationTransport`](#chatto-api-v1-NativeNotificationTransport) | No field description provided. |
+| `app_id` | `string` | Native application identifier, for example com.yoddv.towk.android. |
+| `unifiedpush_endpoint` | `optional string` | UnifiedPush endpoint when transport is UNIFIED_PUSH. It is returned only to its authenticated owner and must not be logged or exposed in diagnostics. |
+| `web_push_public_key` | `optional string` | RFC 8291 P-256 public key supplied by the UnifiedPush distributor. |
+| `client_public_key` | `optional bytes` | RFC 9180 P-256 public key generated by the Android installation. The corresponding private key never leaves Android Keystore. |
+| `locale` | `string` | No field description provided. |
+| `created_at` | `google.protobuf.Timestamp` | No field description provided. |
+| `last_seen_at` | `google.protobuf.Timestamp` | No field description provided. |
+| `disabled_at` | `optional google.protobuf.Timestamp` | No field description provided. |
+| `state` | [`NativeEndpointState`](#chatto-api-v1-NativeEndpointState) | No field description provided. |
+| `last_delivery_status` | [`NativeDeliveryStatus`](#chatto-api-v1-NativeDeliveryStatus) | No field description provided. |
+| `preferences` | [`NativeEndpointPreferences`](#chatto-api-v1-NativeEndpointPreferences) | No field description provided. |
+| `generation` | `uint64` | Monotonic transport generation used for optimistic concurrency. |
+
+
+
+<a id="chatto-api-v1-NativeEndpointPreferences"></a>
+
+### NativeEndpointPreferences
+
+Explicit delivery preferences stored per application installation.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `bool` | No field description provided. |
+| `messages` | `bool` | No field description provided. |
+| `calls` | `bool` | No field description provided. |
+
+
+
+<a id="chatto-api-v1-NativeEndpointPreferencesPatch"></a>
+
+### NativeEndpointPreferencesPatch
+
+Patch for endpoint preferences. Absent fields retain their current value.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `optional bool` | No field description provided. |
+| `messages` | `optional bool` | No field description provided. |
+| `calls` | `optional bool` | No field description provided. |
+
+
+
 <a id="chatto-api-v1-ReadReceiptReader"></a>
 
 ### ReadReceiptReader
@@ -4827,6 +5101,68 @@ Upload lifecycle state for a room-scoped attachment upload.
 | `ASSET_UPLOAD_STATUS_CANCELLED` | `3` | The upload was cancelled or expired. |
 
 
+<a id="chatto-api-v1-NativeDeliveryStatus"></a>
+
+### NativeDeliveryStatus
+
+Last transport outcome. The Towk API remains authoritative for content and
+read/dismiss state regardless of this value.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `NATIVE_DELIVERY_STATUS_UNSPECIFIED` | `0` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_NEVER_ATTEMPTED` | `1` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_PENDING` | `2` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_DELIVERED_TO_TRANSPORT` | `3` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_RETRYABLE_FAILURE` | `4` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_EXPIRED` | `5` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_PERMANENTLY_INVALID` | `6` | No value description provided. |
+
+
+<a id="chatto-api-v1-NativeEndpointState"></a>
+
+### NativeEndpointState
+
+Last known lifecycle state of an endpoint.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `NATIVE_ENDPOINT_STATE_UNSPECIFIED` | `0` | No value description provided. |
+| `NATIVE_ENDPOINT_STATE_ACTIVE` | `1` | No value description provided. |
+| `NATIVE_ENDPOINT_STATE_DISABLED` | `2` | No value description provided. |
+| `NATIVE_ENDPOINT_STATE_PERMANENTLY_INVALID` | `3` | No value description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationPlatform"></a>
+
+### NativeNotificationPlatform
+
+Native client platform. macOS and iOS values are reserved for later phases;
+their presence is not a claim of implemented delivery.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `NATIVE_NOTIFICATION_PLATFORM_UNSPECIFIED` | `0` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_ANDROID` | `1` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_LINUX` | `2` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_WINDOWS` | `3` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_MACOS` | `4` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_IOS` | `5` | No value description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationTransport"></a>
+
+### NativeNotificationTransport
+
+Delivery transport selected by a native installation.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED` | `0` | No value description provided. |
+| `NATIVE_NOTIFICATION_TRANSPORT_UNIFIED_PUSH` | `1` | Android UnifiedPush endpoint distributed by the operator-hosted ntfy app. |
+| `NATIVE_NOTIFICATION_TRANSPORT_LOCAL_REALTIME` | `2` | Authenticated Towk realtime session used by resident desktop agents. |
+
+
 <a id="chatto-api-v1-RoomHistoryPurgeStatus"></a>
 
 ### RoomHistoryPurgeStatus
@@ -4918,3 +5254,5 @@ Outcome of recording a call join intent.
 | `JOIN_CALL_STATUS_UNSPECIFIED` | `0` | No value description provided. |
 | `JOIN_CALL_STATUS_JOINED` | `1` | The connection was admitted to the call. |
 | `JOIN_CALL_STATUS_SELECTION_REQUIRED` | `2` | Another device is active and the user must choose companion or transfer. |
+
+
