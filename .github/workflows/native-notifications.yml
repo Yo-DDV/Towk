@@ -15,11 +15,13 @@ on:
       - "cli/internal/connectapi/native_notifications*.go"
       - "apps/frontend/src/lib/notifications/desktopNotifications*"
       - "apps/frontend/src/lib/notifications/pushNotifications*"
+      - "apps/frontend/src/lib/components/DesktopNotificationSync.svelte"
       - "apps/frontend/src/lib/components/NotificationSync.svelte*"
+      - "apps/frontend/src/routes/chat/AuthenticatedRoot.svelte"
       - "docs/adr/ADR-*.md"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: native-notifications-${{ github.event.pull_request.number }}
@@ -33,9 +35,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: feat/native-notification-foundation
-          fetch-depth: 2
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
@@ -43,59 +43,16 @@ jobs:
       - name: Lint native protobuf contract
         run: cd proto && mise x -- buf lint --path chatto/api/v1/native_notifications.proto
 
-      - name: Regenerate protobuf bindings and API documentation
-        run: mise codegen-proto
-
-      - name: Materialize exact generated sources
-        if: github.actor == 'Yo-DDV' && github.event.pull_request.head.repo.full_name == github.repository
+      - name: Require deterministic generated bindings and API documentation
         shell: bash
         run: |
           set -euo pipefail
-          generated=(
-            cli/internal/pb/chatto/api/v1/native_notifications.pb.go
-            cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go
-            packages/api-types/src/chatto/api/v1/native_notifications_pb.ts
-            apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
-          )
-          git add -- "${generated[@]}"
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          export GIT_AUTHOR_NAME="$(git log -1 --format='%an')"
-          export GIT_AUTHOR_EMAIL="$(git log -1 --format='%ae')"
-          export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
-          export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
-          git commit -m "chore(api): regenerate native notification bindings"
-          git push origin HEAD:feat/native-notification-foundation
-
-      - name: Capture deterministic codegen patch
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --binary -- \
+          mise codegen-proto
+          git diff --exit-code -- \
             cli/internal/pb/chatto/api/v1/native_notifications.pb.go \
             cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go \
             packages/api-types/src/chatto/api/v1/native_notifications_pb.ts \
-            apps/docs-website/src/generated/connectrpc-api/api.raw.mdx \
-            > native-notification-codegen.patch
-
-      - name: Upload generated bindings for review
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: native-notification-codegen
-          path: |
-            native-notification-codegen.patch
-            cli/internal/pb/chatto/api/v1/native_notifications.pb.go
-            cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go
-            packages/api-types/src/chatto/api/v1/native_notifications_pb.ts
             apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Require generated sources to be committed
-        run: git diff --exit-code
 
   targeted-tests:
     runs-on: ubuntu-24.04
@@ -109,30 +66,15 @@ jobs:
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
 
-      - name: Run native notification Go tests when present
+      - name: Run native notification Go tests
         shell: bash
         run: |
           set -euo pipefail
           cd cli
-          packages=()
-          for package in ./internal/config ./internal/core ./internal/connectapi; do
-            if find "${package#./}" -maxdepth 1 -name 'native_notifications*_test.go' -print -quit | grep -q .; then
-              packages+=("$package")
-            fi
-          done
-          if ((${#packages[@]})); then
-            go test -trimpath -race -count=1 "${packages[@]}"
-          fi
+          go test -trimpath -race -count=1 ./internal/config ./internal/core ./internal/connectapi
 
-      - name: Run native shell frontend tests when present
-        shell: bash
-        run: |
-          set -euo pipefail
-          tests=(apps/frontend/src/lib/notifications/desktopNotifications.spec.ts apps/frontend/src/lib/notifications/pushNotifications.spec.ts)
-          existing=()
-          for test_file in "${tests[@]}"; do
-            [[ -f "$test_file" ]] && existing+=("$test_file")
-          done
-          if ((${#existing[@]})); then
-            pnpm --filter towk-frontend exec vitest --run "${existing[@]}"
-          fi
+      - name: Run native shell frontend tests
+        run: pnpm --filter towk-frontend exec vitest --run apps/frontend/src/lib/notifications/desktopNotifications.spec.ts apps/frontend/src/lib/notifications/pushNotifications.spec.ts
+
+      - name: Type-check frontend integration
+        run: pnpm --filter towk-frontend check
