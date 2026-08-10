@@ -1,4 +1,5 @@
 import { g } from '$lib/i18n/gradeMessages.svelte';
+import { gradeVisual } from './gradeVisuals';
 
 export type GradeTemplateId = 'helper.v1' | 'moderator.v1' | 'custom';
 
@@ -38,7 +39,7 @@ export const MODERATOR_PERMISSIONS = [
 export const GRADE_TEMPLATES: readonly GradeTemplate[] = [
   {
     id: 'moderator.v1',
-    icon: 'uil--shield-check',
+    icon: gradeVisual('moderator').icon,
     title: g['grades.templates.moderator.title'],
     description: g['grades.templates.moderator.description'],
     defaultName: 'moderation-team',
@@ -50,7 +51,7 @@ export const GRADE_TEMPLATES: readonly GradeTemplate[] = [
   },
   {
     id: 'helper.v1',
-    icon: 'uil--life-ring',
+    icon: gradeVisual('helper').icon,
     title: g['grades.templates.helper.title'],
     description: g['grades.templates.helper.description'],
     defaultName: 'helpers',
@@ -62,7 +63,7 @@ export const GRADE_TEMPLATES: readonly GradeTemplate[] = [
   },
   {
     id: 'custom',
-    icon: 'uil--sliders-v-alt',
+    icon: gradeVisual('custom').icon,
     title: g['grades.templates.custom.title'],
     description: g['grades.templates.custom.description'],
     defaultName: '',
