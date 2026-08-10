@@ -12,7 +12,9 @@
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { Button } from '$lib/ui/form';
   import { Panel } from '$lib/components/admin';
+  import GradeIconBadge from '$lib/components/rbac/GradeIconBadge.svelte';
   import PermissionMatrix from '$lib/components/rbac/PermissionMatrix.svelte';
+  import { gradeVisual } from '$lib/components/rbac/gradeVisuals';
   import { localizedRoleDescription, localizedRoleDisplayName } from '$lib/rbacLabels';
   import * as m from '$lib/i18n/messages';
   import { g } from '$lib/i18n/gradeMessages.svelte';
@@ -72,6 +74,10 @@
     goto(roleHref(role.roleName));
   }
 
+  function gradeAccent(role: ServerRole): string {
+    return role.color || gradeVisual(role.name).fallbackAccent;
+  }
+
   function gradeSummary(roleName: string): string {
     if (roleName === 'owner') return g['grades.overview.owner_summary']();
     if (roleName === 'moderator') return g['grades.overview.moderator_summary']();
@@ -122,33 +128,23 @@
           {#each communityGrades as role (role.name)}
             <a
               href={roleHref(role.name)}
-              class="group rounded-xl border border-text/10 bg-surface-100 p-4 transition-colors hover:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              class="grade-card group p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              data-testid={`default-grade-card-${role.name}`}
             >
               <div class="flex items-start justify-between gap-3">
+                <GradeIconBadge
+                  icon={gradeVisual(role.name).icon}
+                  accent={gradeAccent(role)}
+                />
                 <span
-                  class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-surface-200"
-                  style:border-left={role.color ? `3px solid ${role.color}` : undefined}
-                >
-                  <span
-                    class="iconify text-xl {role.name === 'owner'
-                      ? 'uil--crown'
-                      : role.name === 'moderator'
-                        ? 'uil--shield-check'
-                        : role.name === 'helper'
-                          ? 'uil--life-ring'
-                          : 'uil--users-alt'}"
-                    aria-hidden="true"
-                  ></span>
-                </span>
-                <span class="iconify uil--angle-right text-muted group-hover:text-text" aria-hidden="true"></span>
+                  class="iconify uil--angle-right mt-1 text-muted transition-colors group-hover:text-text"
+                  aria-hidden="true"
+                ></span>
               </div>
               <h2 class="mt-3 font-semibold">
                 {localizedRoleDisplayName(role.name, role.displayName)}
               </h2>
               <p class="mt-1 text-sm leading-relaxed text-muted">{gradeSummary(role.name)}</p>
-              <p class="mt-3 text-xs text-muted">
-                {localizedRoleDescription(role.name, role.description)}
-              </p>
             </a>
           {/each}
         </div>
@@ -158,18 +154,17 @@
         <Panel
           title={g['grades.overview.advanced_admin']()}
           subtitle={g['grades.overview.admin_summary']()}
-          icon="iconify uil--setting"
+          icon="iconify mdi--account-cog-outline"
         >
           <a
             href={roleHref(adminGrade.name)}
-            class="flex items-center gap-4 rounded-xl border border-text/10 bg-surface-100 p-4 transition-colors hover:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            class="grade-card group flex items-center gap-4 p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            data-testid="default-grade-card-admin"
           >
-            <span
-              class="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-surface-200"
-              style:border-left={adminGrade.color ? `3px solid ${adminGrade.color}` : undefined}
-            >
-              <span class="iconify text-xl uil--setting" aria-hidden="true"></span>
-            </span>
+            <GradeIconBadge
+              icon={gradeVisual(adminGrade.name).icon}
+              accent={gradeAccent(adminGrade)}
+            />
             <span class="min-w-0 flex-1">
               <span class="block font-semibold">
                 {localizedRoleDisplayName(adminGrade.name, adminGrade.displayName)}
@@ -178,14 +173,14 @@
                 {localizedRoleDescription(adminGrade.name, adminGrade.description)}
               </span>
             </span>
-            <span class="iconify uil--angle-right shrink-0 text-muted" aria-hidden="true"></span>
+            <span class="iconify uil--angle-right shrink-0 text-muted transition-colors group-hover:text-text" aria-hidden="true"></span>
           </a>
         </Panel>
       {/if}
 
       <Panel
         title={g['grades.overview.custom_grades']()}
-        icon="iconify uil--layers-alt"
+        icon="iconify mdi--tune-variant"
         noPadding
       >
         {#if customGrades.length === 0}
@@ -197,11 +192,11 @@
                 href={roleHref(role.name)}
                 class="flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
               >
-                <span
-                  class="h-3 w-3 shrink-0 rounded-full border border-text/20"
-                  style:background-color={role.color || undefined}
-                  aria-hidden="true"
-                ></span>
+                <GradeIconBadge
+                  icon={gradeVisual(role.name).icon}
+                  accent={gradeAccent(role)}
+                  size="xs"
+                />
                 <span class="min-w-0 flex-1">
                   <span class="block truncate font-medium">{role.displayName}</span>
                   <span class="block truncate text-xs text-muted">@{role.name}</span>
@@ -239,3 +234,83 @@
     {/if}
   </div>
 </div>
+
+<style>
+  .grade-card {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border: 1px solid var(--liquid-glass-border);
+    border-radius: 1rem;
+    background: var(--liquid-glass-solid);
+    box-shadow:
+      inset 0 1px 0 var(--liquid-glass-edge-light),
+      inset 1px 0 0 var(--liquid-glass-edge-side),
+      inset -1px 0 0 var(--liquid-glass-edge-side),
+      inset 0 -1px 0 var(--liquid-glass-edge-shadow),
+      0 1px 2px var(--liquid-glass-key-shadow),
+      0 16px 34px -28px var(--liquid-glass-ambient-shadow);
+    transition:
+      border-color 160ms ease,
+      box-shadow 170ms ease,
+      transform 160ms ease;
+  }
+
+  .grade-card::before {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 45%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent);
+    content: '';
+    pointer-events: none;
+  }
+
+  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .grade-card {
+      background: var(--liquid-glass-translucent);
+      -webkit-backdrop-filter: blur(14px) saturate(105%);
+      backdrop-filter: blur(14px) saturate(105%);
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .grade-card:hover {
+      border-color: var(--liquid-glass-border-strong);
+      transform: translateY(-1px);
+      box-shadow:
+        inset 0 1px 0 var(--liquid-glass-edge-light),
+        inset 1px 0 0 var(--liquid-glass-edge-side),
+        inset -1px 0 0 var(--liquid-glass-edge-side),
+        inset 0 -1px 0 var(--liquid-glass-edge-shadow),
+        0 2px 4px var(--liquid-glass-key-shadow),
+        0 20px 40px -29px var(--liquid-glass-ambient-shadow);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .grade-card {
+      transition: none;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .grade-card {
+      background: var(--liquid-glass-solid);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .grade-card {
+      border-color: CanvasText;
+      background: Canvas;
+      box-shadow: none;
+    }
+
+    .grade-card::before {
+      display: none;
+    }
+  }
+</style>
