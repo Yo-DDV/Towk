@@ -3,49 +3,38 @@
   "repository": "Yo-DDV/Towk",
   "branch": "main",
   "sourceCommit": "1a5d4a4e8b6e18fa8062ab2c366953abb8ae5bd6",
-  "generatedAt": "2026-08-10T19:17:46.379Z",
+  "generatedAt": "2026-08-11T02:28:30.738Z",
   "window": {
     "kind": "rolling-30-utc-days",
     "days": 30,
-    "start": "2026-07-12T00:00:00.000Z",
-    "end": "2026-08-10T19:17:46.379Z",
+    "start": "2026-07-13T00:00:00.000Z",
+    "end": "2026-08-11T02:28:30.738Z",
     "currentDayPartial": true
   },
   "baselineCommit": "205e91fe1ae5e5c23420974f7e04cf82456eeab3",
   "baselineAt": "2026-07-12T10:20:05.000Z",
-  "effectiveWindowStart": "2026-07-12T10:20:05.000Z",
+  "effectiveWindowStart": "2026-07-13T00:00:00.000Z",
   "headline": {
-    "commits": 176,
-    "mergedPullRequests": 160,
+    "commits": 138,
+    "mergedPullRequests": 138,
     "issuesClosed": 113,
-    "activeHumanContributors": 2
+    "activeHumanContributors": 1
   },
   "flow": {
-    "medianPrLeadTimeHours": 6.805694444444445,
+    "medianPrLeadTimeHours": 9.975138888888889,
     "medianFirstReviewHours": null,
     "reviewedPullRequests": 0
   },
   "codeMovement": {
-    "additions": 200457,
-    "deletions": 52125,
-    "filesChanged": 3573
+    "additions": 193410,
+    "deletions": 50850,
+    "filesChanged": 3295
   },
   "automation": {
-    "commits": 24,
-    "mergedPullRequests": 24
+    "commits": 22,
+    "mergedPullRequests": 22
   },
   "daily": [
-    {
-      "date": "2026-07-12",
-      "label": "12",
-      "commits": 38,
-      "mergedPullRequests": 22,
-      "issuesClosed": 0,
-      "additions": 7047,
-      "deletions": 1275,
-      "filesChanged": 278,
-      "medianPrLeadTimeHours": 0.11166666666666666
-    },
     {
       "date": "2026-07-13",
       "label": "13",
@@ -357,6 +346,17 @@
     {
       "date": "2026-08-10",
       "label": "10",
+      "commits": 0,
+      "mergedPullRequests": 0,
+      "issuesClosed": 0,
+      "additions": 0,
+      "deletions": 0,
+      "filesChanged": 0,
+      "medianPrLeadTimeHours": null
+    },
+    {
+      "date": "2026-08-11",
+      "label": "11",
       "commits": 0,
       "mergedPullRequests": 0,
       "issuesClosed": 0,
