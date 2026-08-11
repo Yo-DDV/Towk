@@ -2560,6 +2560,31 @@ export class VoiceCallState {
   }
 
   private setupRoomEventListeners(room: Room): void {
+    room.registerTextStreamHandler(
+      PARTICIPANT_MEDIA_TELEMETRY_TOPIC,
+      (reader, participantInfo) => {
+        if (
+          this.room !== room ||
+          !participantInfo.identity ||
+          !room.remoteParticipants.has(participantInfo.identity)
+        ) {
+          return;
+        }
+        void reader
+          .readAll()
+          .then((text) => {
+            if (this.room !== room || !room.remoteParticipants.has(participantInfo.identity)) return;
+            const receivedAt = Date.now();
+            const packet = parseParticipantMediaTelemetry(
+              new TextEncoder().encode(text),
+              receivedAt
+            );
+            if (!packet) return;
+            this.applyParticipantSourceTelemetry(participantInfo.identity, packet, receivedAt);
+          })
+          .catch(() => undefined);
+      }
+    );
     room.on(
       RoomEvent.DataReceived,
       (
@@ -2981,6 +3006,14 @@ export class VoiceCallState {
           .call(room.localParticipant, payload, {
             reliable: false,
             topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC
+          })
+          .catch(() => undefined);
+      }
+      if (room.remoteParticipants.size > 1) {
+        await room.localParticipant
+          .sendText(new TextDecoder().decode(payload), {
+            topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC,
+            totalSize: payload.byteLength
           })
           .catch(() => undefined);
       }
@@ -3656,6 +3689,7 @@ export class VoiceCallState {
         }
       }
       this.room.unregisterRpcMethod(DEVICE_AUDIO_CONTROL_RPC_METHOD);
+      this.room.unregisterTextStreamHandler(PARTICIPANT_MEDIA_TELEMETRY_TOPIC);
       this.room.removeAllListeners();
       this.room = null;
     }
@@ -3964,6 +3998,7 @@ export class VoiceCallState {
       return;
     }
     room.unregisterRpcMethod(DEVICE_AUDIO_CONTROL_RPC_METHOD);
+    room.unregisterTextStreamHandler(PARTICIPANT_MEDIA_TELEMETRY_TOPIC);
     room.removeAllListeners();
     void room.disconnect();
     worker.terminate();

@@ -56,12 +56,15 @@ let lastRoom: {
   startAudio: ReturnType<typeof vi.fn>;
   registerRpcMethod: ReturnType<typeof vi.fn>;
   unregisterRpcMethod: ReturnType<typeof vi.fn>;
+  registerTextStreamHandler: ReturnType<typeof vi.fn>;
+  unregisterTextStreamHandler: ReturnType<typeof vi.fn>;
   localParticipant: {
     setMicrophoneEnabled: ReturnType<typeof vi.fn>;
     setScreenShareEnabled: ReturnType<typeof vi.fn>;
     setCameraEnabled: ReturnType<typeof vi.fn>;
     performRpc: ReturnType<typeof vi.fn>;
     publishData: ReturnType<typeof vi.fn>;
+    sendText: ReturnType<typeof vi.fn>;
   };
   getActiveDevice: ReturnType<typeof vi.fn>;
   switchActiveDevice: ReturnType<typeof vi.fn>;
@@ -121,6 +124,7 @@ let switchActiveDeviceFailure: Error | null = null;
 let activeDeviceIds = new Map<MediaDeviceKind, string>();
 let mockAudioInputDevices: MediaDeviceInfo[] = [];
 let roomEventHandlers = new Map<string, (...args: unknown[]) => void>();
+let roomTextStreamHandlers = new Map<string, (...args: unknown[]) => void>();
 let roomRpcHandlers = new Map<
   string,
   (data: {
@@ -134,6 +138,7 @@ let performRpcFailure: Error | null = null;
 let publishDataMock = vi.fn(
   async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
 );
+let sendTextMock = vi.fn(async (_text: string, _options: { topic: string; totalSize: number }) => ({}));
 let performRpcResponder: (params: {
   destinationIdentity: string;
   method: string;
@@ -277,6 +282,9 @@ vi.mock('livekit-client', () => {
       publishData: vi.fn((data: Uint8Array, options: { reliable: boolean; topic: string }) =>
         publishDataMock(data, options)
       ),
+      sendText: vi.fn((text: string, options: { topic: string; totalSize: number }) =>
+        sendTextMock(text, options)
+      ),
       getTrackPublication: vi.fn((source: string) => {
         if (source === 'microphone') return microphonePublication;
         return localTrackPublications.find((publication) => publication.track.source === source);
@@ -300,6 +308,8 @@ vi.mock('livekit-client', () => {
         startAudio: this.startAudio,
         registerRpcMethod: this.registerRpcMethod,
         unregisterRpcMethod: this.unregisterRpcMethod,
+        registerTextStreamHandler: this.registerTextStreamHandler,
+        unregisterTextStreamHandler: this.unregisterTextStreamHandler,
         localParticipant: this.localParticipant,
         getActiveDevice: this.getActiveDevice,
         switchActiveDevice: this.switchActiveDevice
@@ -325,6 +335,14 @@ vi.mock('livekit-client', () => {
     );
     unregisterRpcMethod = vi.fn((method: string) => {
       roomRpcHandlers.delete(method);
+    });
+    registerTextStreamHandler = vi.fn(
+      (topic: string, handler: (...args: unknown[]) => void) => {
+        roomTextStreamHandlers.set(topic, handler);
+      }
+    );
+    unregisterTextStreamHandler = vi.fn((topic: string) => {
+      roomTextStreamHandlers.delete(topic);
     });
     switchActiveDevice = vi.fn(async (kind: MediaDeviceKind, deviceId: string) => {
       calls.push(`switchActiveDevice:${kind}:${deviceId}`);
@@ -610,10 +628,14 @@ describe('VoiceCallState', () => {
       { deviceId: 'audio-input-1', kind: 'audioinput', label: 'Microphone' } as MediaDeviceInfo
     ];
     roomEventHandlers = new Map();
+    roomTextStreamHandlers = new Map();
     roomRpcHandlers = new Map();
     performRpcFailure = null;
     publishDataMock = vi.fn(
       async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
+    );
+    sendTextMock = vi.fn(
+      async (_text: string, _options: { topic: string; totalSize: number }) => ({})
     );
     performRpcResponder = () =>
       JSON.stringify({ version: 1, microphoneMuted: false, outputMuted: false, revision: 0 });
@@ -5312,6 +5334,71 @@ describe('VoiceCallState', () => {
       reportedDownloadJitterMs: 72,
       reportedDownloadPacketLossPercent: 4.2
     });
+    await state.leave();
+  });
+
+  it('uses authenticated text-stream identity for multi-party telemetry', async () => {
+    const remoteParticipant = {
+      identity: 'remote-device-2',
+      name: 'Remote Device 2',
+      metadata: '',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    };
+    const secondRemoteParticipant = {
+      ...remoteParticipant,
+      identity: 'remote-device-3',
+      name: 'Remote Device 3'
+    };
+    mockRemoteParticipants.set(remoteParticipant.identity, remoteParticipant);
+    mockRemoteParticipants.set(secondRemoteParticipant.identity, secondRemoteParticipant);
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+
+    await vi.waitFor(() => expect(sendTextMock).toHaveBeenCalled());
+    const [publishedText, publishedOptions] = sendTextMock.mock.calls[0]!;
+    expect(publishedOptions).toEqual({
+      topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC,
+      totalSize: new TextEncoder().encode(publishedText).byteLength
+    });
+
+    const now = Date.now();
+    const payload = encodeParticipantMediaTelemetry(7, now, [], {
+      health: 'poor',
+      latencyMs: 525,
+      jitterMs: 170,
+      packetLossPercent: 12
+    })!;
+    const streamHandler = roomTextStreamHandlers.get(PARTICIPANT_MEDIA_TELEMETRY_TOPIC);
+    expect(streamHandler).toBeDefined();
+    streamHandler?.(
+      { readAll: vi.fn(async () => new TextDecoder().decode(payload)) },
+      { identity: remoteParticipant.identity }
+    );
+    await flushPromises();
+
+    expect(
+      state.participants.find((participant) => participant.identity === remoteParticipant.identity)
+    ).toMatchObject({
+      reportedDownloadNetworkHealth: 'poor',
+      reportedDownloadLatencyMs: 525,
+      reportedDownloadJitterMs: 170,
+      reportedDownloadPacketLossPercent: 12
+    });
+
+    streamHandler?.(
+      { readAll: vi.fn(async () => new TextDecoder().decode(payload)) },
+      { identity: 'not-in-this-room' }
+    );
+    await flushPromises();
+    expect(state.participants.some((participant) => participant.identity === 'not-in-this-room')).toBe(
+      false
+    );
+
     await state.leave();
   });
 
