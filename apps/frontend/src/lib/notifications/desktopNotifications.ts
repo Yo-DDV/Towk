@@ -111,7 +111,10 @@ export function desktopNotificationPayload(
     title,
     body,
     url: url.href,
-    kind: notification.kind === NotificationItemKind.CallStarted ? 'call' : 'message',
+    kind:
+      notification.kind === NotificationItemKind.CallStarted && !notification.isMissed
+        ? 'call'
+        : 'message',
     silent
   };
 }

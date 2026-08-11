@@ -607,6 +607,14 @@ const msg_chat_notifications_private_call_started = (
   inputs: Parameters<LocaleMessages['chat_notifications_private_call_started']>[0]
 ): LocalizedString => messages().chat_notifications_private_call_started(inputs);
 const msg_chat_notifications_private_call_started_unknown = (): LocalizedString => messages().chat_notifications_private_call_started_unknown(empty());
+const msg_chat_notifications_call_missed = (
+  inputs: Parameters<LocaleMessages['chat_notifications_call_missed']>[0]
+): LocalizedString => messages().chat_notifications_call_missed(inputs);
+const msg_chat_notifications_call_missed_unknown = (): LocalizedString => messages().chat_notifications_call_missed_unknown(empty());
+const msg_chat_notifications_private_call_missed = (
+  inputs: Parameters<LocaleMessages['chat_notifications_private_call_missed']>[0]
+): LocalizedString => messages().chat_notifications_private_call_missed(inputs);
+const msg_chat_notifications_private_call_missed_unknown = (): LocalizedString => messages().chat_notifications_private_call_missed_unknown(empty());
 const msg_chat_notifications_direct_message = (
   inputs: Parameters<LocaleMessages['chat_notifications_direct_message']>[0]
 ): LocalizedString => messages().chat_notifications_direct_message(inputs);
@@ -2844,6 +2852,10 @@ export { msg_chat_notifications_call_started as 'chat.notifications.call_started
 export { msg_chat_notifications_call_started_unknown as 'chat.notifications.call_started_unknown' };
 export { msg_chat_notifications_private_call_started as 'chat.notifications.private_call_started' };
 export { msg_chat_notifications_private_call_started_unknown as 'chat.notifications.private_call_started_unknown' };
+export { msg_chat_notifications_call_missed as 'chat.notifications.call_missed' };
+export { msg_chat_notifications_call_missed_unknown as 'chat.notifications.call_missed_unknown' };
+export { msg_chat_notifications_private_call_missed as 'chat.notifications.private_call_missed' };
+export { msg_chat_notifications_private_call_missed_unknown as 'chat.notifications.private_call_missed_unknown' };
 export { msg_chat_notifications_direct_message as 'chat.notifications.direct_message' };
 export { msg_chat_notifications_direct_message_unknown as 'chat.notifications.direct_message_unknown' };
 export { msg_chat_notifications_mention as 'chat.notifications.mention' };

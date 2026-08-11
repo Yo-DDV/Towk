@@ -38,7 +38,8 @@ const callNotification: CallStartedNotificationItem = {
   callRoom: { id: 'room-2', name: 'General' },
   callEventId: 'event-2',
   callId: 'call-1',
-  isPrivate: false
+  isPrivate: false,
+  isMissed: false
 };
 
 describe('desktop notification bridge', () => {
@@ -77,6 +78,15 @@ describe('desktop notification bridge', () => {
         false
       )
     ).toMatchObject({ kind: 'call', silent: false });
+    expect(
+      desktopNotificationPayload(
+        'chat-example-org',
+        'https://chat.example.org',
+        '/chat/chat-example-org/room-2',
+        { ...callNotification, isMissed: true },
+        false
+      )
+    ).toMatchObject({ kind: 'message', silent: false });
   });
 
   it('rejects unsafe identifiers and cross-origin activation URLs', () => {

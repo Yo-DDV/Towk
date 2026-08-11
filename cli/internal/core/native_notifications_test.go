@@ -44,6 +44,37 @@ func testNativeNotification(id, userID, roomID string, createdAt time.Time) *cor
 	}
 }
 
+func TestNativeNotificationKindTreatsMissedCallAsCallPreferenceWithMessageTTL(t *testing.T) {
+	notification := &corev1.Notification{
+		Notification: &corev1.Notification_CallStarted{
+			CallStarted: &corev1.CallStartedNotification{Missed: true},
+		},
+	}
+	if got := nativeNotificationKind(notification); got != NativeNotificationKindMissedCall {
+		t.Fatalf("nativeNotificationKind(missed call) = %q, want %q", got, NativeNotificationKindMissedCall)
+	}
+	if got, want := nativeNotificationTTL(NativeNotificationKindMissedCall), defaultNativeMessageTTL; got != want {
+		t.Fatalf("nativeNotificationTTL(missed call) = %s, want %s", got, want)
+	}
+	endpoint := &NativeEndpointRecord{
+		State:     NativeEndpointStateActive,
+		Transport: NativeNotificationTransportManagedFCM,
+		Preferences: NativeEndpointPreferences{
+			Enabled:  true,
+			Messages: false,
+			Calls:    true,
+		},
+	}
+	if !nativeEndpointAcceptsNotification(endpoint, NativeNotificationKindMissedCall) {
+		t.Fatal("missed call should honor the calls preference")
+	}
+	endpoint.Preferences.Calls = false
+	endpoint.Preferences.Messages = true
+	if nativeEndpointAcceptsNotification(endpoint, NativeNotificationKindMissedCall) {
+		t.Fatal("missed call should not honor the messages preference")
+	}
+}
+
 func TestRegisterNativeEndpointIsIdempotentAndRotatesAtomically(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

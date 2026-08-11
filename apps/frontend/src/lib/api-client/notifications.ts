@@ -98,6 +98,7 @@ export type CallStartedNotificationItem = {
   callEventId: string;
   callId: string;
   isPrivate: boolean;
+  isMissed: boolean;
 };
 
 export type NotificationItem =
@@ -281,20 +282,23 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
       };
     case 'callStarted': {
       const isPrivate = item.kind.value.room?.kind === RoomKind.DM;
+      const isMissed = item.kind.value.missed;
       return {
         kind: NotificationItemKind.CallStarted,
         ...base,
         summary: notificationSummary(
           actor?.displayName,
           NotificationItemKind.CallStarted,
-          isPrivate
+          isPrivate,
+          isMissed
         ),
         callRoom: item.kind.value.room
           ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
           : null,
         callEventId: item.kind.value.eventId,
         callId: item.kind.value.callId,
-        isPrivate
+        isPrivate,
+        isMissed
       };
     }
     default:

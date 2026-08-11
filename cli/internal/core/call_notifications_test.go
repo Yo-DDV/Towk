@@ -193,7 +193,7 @@ func TestCallNotificationsDisappearOnEndMembershipLossAndPreferenceDowngrade(t *
 	assertNoCallNotifications(t, core, ctx, recipient.Id)
 }
 
-func TestCallEndedBeforeNotificationDeliveryNeverEmitsAnAlert(t *testing.T) {
+func TestCallEndedBeforeNotificationDeliveryEmitsMissedCall(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 	starter := createCallNotificationUser(t, core, ctx, "ended-before-delivery-starter")
@@ -222,11 +222,68 @@ func TestCallEndedBeforeNotificationDeliveryNeverEmitsAnAlert(t *testing.T) {
 		t.Fatalf("consume completed call: %v", err)
 	}
 
-	assertNoCallNotifications(t, core, ctx, recipient.Id)
 	select {
 	case notificationID := <-callbacks:
-		t.Fatalf("completed call emitted push callback %q", notificationID)
-	case <-time.After(100 * time.Millisecond):
+		missed, err := core.GetNotification(ctx, recipient.Id, notificationID)
+		if err != nil {
+			t.Fatalf("GetNotification(missed): %v", err)
+		}
+		if call := missed.GetCallStarted(); call == nil || !call.GetMissed() {
+			t.Fatalf("notification is not a missed call: %#v", missed.GetNotification())
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for missed-call notification")
+	}
+}
+
+func TestCallEndedCreatesMissedCallOnlyForRecipientsWhoDidNotJoin(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	starter := createCallNotificationUser(t, core, ctx, "missed-call-starter")
+	joinedRecipient := createCallNotificationUser(t, core, ctx, "missed-call-joined")
+	missedRecipient := createCallNotificationUser(t, core, ctx, "missed-call-recipient")
+	room, err := core.CreateRoom(ctx, starter.Id, KindChannel, "", "missed-call", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	for _, recipient := range []*corev1.User{joinedRecipient, missedRecipient} {
+		if _, err := core.AddMember(ctx, starter.Id, KindChannel, room.Id, recipient.Id); err != nil {
+			t.Fatalf("AddMember(%s): %v", recipient.Login, err)
+		}
+	}
+
+	if err := core.RecordCallParticipantJoined(ctx, KindChannel, room.Id, starter.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantJoined(starter): %v", err)
+	}
+	if err := core.callNotifications.consume(ctx); err != nil {
+		t.Fatalf("consume started call: %v", err)
+	}
+	if err := core.RecordCallParticipantJoined(ctx, KindChannel, room.Id, joinedRecipient.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantJoined(recipient): %v", err)
+	}
+	if err := core.RecordCallParticipantLeft(ctx, KindChannel, room.Id, starter.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantLeft(starter): %v", err)
+	}
+	if err := core.RecordCallParticipantLeft(ctx, KindChannel, room.Id, joinedRecipient.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantLeft(recipient): %v", err)
+	}
+	if err := core.callNotifications.consume(ctx); err != nil {
+		t.Fatalf("consume ended call: %v", err)
+	}
+
+	assertNoCallNotifications(t, core, ctx, joinedRecipient.Id)
+	notifications, err := core.GetNotifications(ctx, missedRecipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications(missed recipient): %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("missed recipient notifications = %d, want 1", len(notifications))
+	}
+	if call := notifications[0].GetCallStarted(); call == nil || !call.GetMissed() {
+		t.Fatalf("notification is not a missed call: %#v", notifications[0].GetNotification())
+	}
+	if notifications[0].GetActorId() != starter.Id {
+		t.Fatalf("missed-call actor = %q, want original caller %q", notifications[0].GetActorId(), starter.Id)
 	}
 }
 

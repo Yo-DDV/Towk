@@ -121,4 +121,6 @@ message CallStartedNotification {
 
   // Stable call session ID used to reject stale join actions.
   string call_id = 3;
+  // The call ended before the recipient joined it.
+  bool missed = 4;
 }

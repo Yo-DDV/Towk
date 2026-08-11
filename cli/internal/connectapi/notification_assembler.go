@@ -119,6 +119,7 @@ func (a *notificationAssembler) item(ctx context.Context, notification *corev1.N
 			Room:    room,
 			EventId: payload.CallStarted.GetEventId(),
 			CallId:  payload.CallStarted.GetCallId(),
+			Missed:  payload.CallStarted.GetMissed(),
 		}}
 	default:
 		return nil, fmt.Errorf("unknown notification type %T", notification.GetNotification())

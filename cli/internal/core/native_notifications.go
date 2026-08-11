@@ -122,8 +122,9 @@ type NativeEndpointRecord struct {
 type NativeNotificationKind string
 
 const (
-	NativeNotificationKindMessage NativeNotificationKind = "message"
-	NativeNotificationKindCall    NativeNotificationKind = "call"
+	NativeNotificationKindMessage    NativeNotificationKind = "message"
+	NativeNotificationKindCall       NativeNotificationKind = "call"
+	NativeNotificationKindMissedCall NativeNotificationKind = "missed_call"
 )
 
 type NativeOutboxState string
@@ -779,6 +780,9 @@ func (c *ChattoCore) DeleteAllUserNativeEndpoints(ctx context.Context, userID st
 }
 
 func nativeNotificationKind(notification *corev1.Notification) NativeNotificationKind {
+	if call := notification.GetCallStarted(); call != nil && call.GetMissed() {
+		return NativeNotificationKindMissedCall
+	}
 	if notification != nil && notification.GetCallStarted() != nil {
 		return NativeNotificationKindCall
 	}
@@ -823,7 +827,7 @@ func nativeEndpointAcceptsNotification(endpoint *NativeEndpointRecord, kind Nati
 	if endpoint == nil || endpoint.State != NativeEndpointStateActive || endpoint.Transport != NativeNotificationTransportManagedFCM || !endpoint.Preferences.Enabled {
 		return false
 	}
-	if kind == NativeNotificationKindCall {
+	if kind == NativeNotificationKindCall || kind == NativeNotificationKindMissedCall {
 		return endpoint.Preferences.Calls
 	}
 	return endpoint.Preferences.Messages

@@ -751,6 +751,9 @@ func (c *ChattoCore) notificationVisibleInCurrentState(ctx context.Context, user
 		return false, nil
 	}
 	if call := notification.GetCallStarted(); call != nil {
+		if call.GetMissed() {
+			return true, nil
+		}
 		createdAt := notification.GetCreatedAt()
 		now := time.Now()
 		if createdAt == nil || createdAt.AsTime().Sub(now) > callNotificationFutureTolerance {
