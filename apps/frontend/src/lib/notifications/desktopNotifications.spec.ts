@@ -8,7 +8,8 @@ import { PresenceStatus } from '$lib/render/types';
 import {
   desktopNotificationPayload,
   nativeDesktopNotificationId,
-  parseNativeDesktopNotificationId
+  parseNativeDesktopNotificationId,
+  residentNotificationBaselineIds
 } from './desktopNotifications';
 
 const actor = {
@@ -50,6 +51,16 @@ describe('desktop notification bridge', () => {
       serverId: 'chat-example-org',
       notificationId: 'notification-1'
     });
+  });
+
+  it('seeds only safe pending identifiers without presenting a backlog', () => {
+    expect(
+      residentNotificationBaselineIds('chat-example-org', [
+        messageNotification,
+        { ...messageNotification, id: 'notification-1' },
+        { ...messageNotification, id: 'unsafe:notification' }
+      ])
+    ).toEqual(['chat-example-org:notification-1']);
   });
 
   it('maps message and call notifications to same-origin resident payloads', () => {

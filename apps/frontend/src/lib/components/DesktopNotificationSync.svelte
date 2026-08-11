@@ -16,6 +16,7 @@ server scoping, navigation, dismissal and call admission.
     desktopNotificationPayload,
     nativeDesktopNotificationId,
     parseNativeDesktopNotificationId,
+    residentNotificationBaselineIds,
     type DesktopNotificationActivation
   } from '$lib/notifications/desktopNotifications';
   import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
@@ -208,9 +209,11 @@ server scoping, navigation, dismissal and call admission.
       const stores = serverRegistry.tryGetStore(server.id);
       if (!stores?.isAuthenticated) continue;
       void stores.notifications.fetch().then(() => {
-        for (const notification of stores.notifications.allNotificationSignals) {
-          const nativeId = nativeDesktopNotificationId(server.id, notification.id);
-          if (nativeId) boundedRemember(nativeId);
+        for (const nativeId of residentNotificationBaselineIds(
+          server.id,
+          stores.notifications.allNotificationSignals
+        )) {
+          boundedRemember(nativeId);
         }
       });
       if (stores.serverInfo.livekitUrl) void stores.activeCallRooms.load();

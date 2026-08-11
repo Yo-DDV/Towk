@@ -83,6 +83,23 @@ export function parseNativeDesktopNotificationId(
   return { serverId, notificationId };
 }
 
+/**
+ * Pending notifications are authoritative inbox state, not a desktop-alert
+ * backlog. A resident shell seeds this baseline when it starts so that only
+ * later NotificationCreated events reach the OS notification center.
+ */
+export function residentNotificationBaselineIds(
+  serverId: string,
+  notifications: Iterable<Pick<NotificationItem, 'id'>>
+): string[] {
+  const ids = new Set<string>();
+  for (const notification of notifications) {
+    const nativeId = nativeDesktopNotificationId(serverId, notification.id);
+    if (nativeId) ids.add(nativeId);
+  }
+  return [...ids];
+}
+
 export function desktopNotificationPayload(
   serverId: string,
   applicationOrigin: string,
