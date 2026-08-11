@@ -16,6 +16,7 @@ const (
 	callNotificationFreshness       = time.Minute
 	callNotificationPollInterval    = time.Second
 	callNotificationFutureTolerance = time.Minute
+	missedCallNotificationIDPrefix  = "M"
 )
 
 // CallNotificationModel derives short-lived, idempotent notifications from
@@ -169,6 +170,17 @@ func (m *CallNotificationModel) handleCallEnded(ctx context.Context, subjectEven
 	if subjectEvent.Subject != events.RoomAggregate(ended.GetRoomId()).Subject(events.EventCallEnded) {
 		return nil
 	}
+	createdAt := event.GetCreatedAt()
+	if createdAt == nil {
+		return nil
+	}
+	eventTime := createdAt.AsTime()
+	now := time.Now()
+	if now.Sub(eventTime) > callNotificationFreshness || eventTime.Sub(now) > callNotificationFutureTolerance {
+		// Incremental consumers replay durable facts after a restart. A missed
+		// call is an immediate delivery signal, not a retrospective import.
+		return nil
+	}
 	joinedUsers, callerID, startedEventID, err := m.joinedUsersForCall(ctx, ended.GetRoomId(), ended.GetCallId())
 	if err != nil {
 		return err
@@ -180,9 +192,9 @@ func (m *CallNotificationModel) handleCallEnded(ctx context.Context, subjectEven
 		startedEventID = event.GetId()
 	}
 
-	notificationTime := event.GetCreatedAt().AsTime()
-	if notificationTime.IsZero() {
-		notificationTime = time.Now().UTC()
+	notificationTime := eventTime
+	if notificationTime.After(now) {
+		notificationTime = now
 	}
 
 	recipients, err := m.missedCallRecipients(ctx, ended.GetRoomId(), callerID, joinedUsers)
@@ -289,7 +301,7 @@ func (m *CallNotificationModel) missedCallRecipients(ctx context.Context, roomID
 
 func missedCallNotificationID(callID string) string {
 	sum := sha256.Sum256([]byte("missed-call-notification:" + callID))
-	return hex.EncodeToString(sum[:])
+	return missedCallNotificationIDPrefix + hex.EncodeToString(sum[:])
 }
 
 func (m *CallNotificationModel) waitForRoomState(ctx context.Context, roomID string) error {

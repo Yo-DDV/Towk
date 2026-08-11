@@ -231,6 +231,9 @@ func TestCallEndedBeforeNotificationDeliveryEmitsMissedCall(t *testing.T) {
 		if call := missed.GetCallStarted(); call == nil || !call.GetMissed() {
 			t.Fatalf("notification is not a missed call: %#v", missed.GetNotification())
 		}
+		if notificationID[0:1] != missedCallNotificationIDPrefix {
+			t.Fatalf("missed-call notification id = %q, want %q prefix", notificationID, missedCallNotificationIDPrefix)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for missed-call notification")
 	}
@@ -343,6 +346,71 @@ func TestCallNotificationsRejectExpiredStartEvents(t *testing.T) {
 		t.Fatalf("consume stale call start: %v", err)
 	}
 	assertNoCallNotifications(t, core, ctx, recipient.Id)
+}
+
+func TestCallNotificationsRejectExpiredEndedEvents(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	starter := createCallNotificationUser(t, core, ctx, "stale-ended-starter")
+	recipient := createCallNotificationUser(t, core, ctx, "stale-ended-recipient")
+	room, err := core.CreateRoom(ctx, starter.Id, KindChannel, "", "stale-ended-call", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := core.AddMember(ctx, starter.Id, KindChannel, room.Id, recipient.Id); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+
+	callID := NewCallID()
+	event := newCallEndedEvent(room.Id, starter.Id, callID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
+	event.CreatedAt = timestamppb.New(time.Now().Add(-callNotificationFreshness - time.Second))
+	if _, err := core.EventPublisher.AppendEventually(ctx, events.RoomAggregate(room.Id).Subject(events.EventCallEnded), event); err != nil {
+		t.Fatalf("append stale call end: %v", err)
+	}
+	if err := core.callNotifications.consume(ctx); err != nil {
+		t.Fatalf("consume stale call end: %v", err)
+	}
+	assertNoCallNotifications(t, core, ctx, recipient.Id)
+}
+
+func TestCallNotificationsHideLegacyReplayMissedCallRecords(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	actor := createCallNotificationUser(t, core, ctx, "legacy-missed-actor")
+	recipient := createCallNotificationUser(t, core, ctx, "legacy-missed-recipient")
+	legacy := &corev1.Notification{
+		Notification: &corev1.Notification_CallStarted{
+			CallStarted: &corev1.CallStartedNotification{
+				RoomId:  "room-legacy",
+				EventId: "event-legacy",
+				CallId:  "call-legacy",
+				Missed:  true,
+			},
+		},
+	}
+	if _, err := core.createNotification(ctx, recipient.Id, actor.Id, legacy, notificationCreateOptions{
+		id:         "legacy-missed-call-record",
+		createdAt:  time.Now(),
+		idempotent: true,
+	}); err != nil {
+		t.Fatalf("create legacy missed-call record: %v", err)
+	}
+	assertNoCallNotifications(t, core, ctx, recipient.Id)
+
+	if _, err := core.createNotification(ctx, recipient.Id, actor.Id, legacy, notificationCreateOptions{
+		id:         missedCallNotificationID("current-call"),
+		createdAt:  time.Now(),
+		idempotent: true,
+	}); err != nil {
+		t.Fatalf("create current missed-call record: %v", err)
+	}
+	notifications, err := core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications: %v", err)
+	}
+	if len(notifications) != 1 || !notifications[0].GetCallStarted().GetMissed() {
+		t.Fatalf("visible missed-call notifications = %#v, want one current record", notifications)
+	}
 }
 
 func TestCallNotificationsAcceptBoundedFutureClockSkewWithoutExtendingFreshness(t *testing.T) {

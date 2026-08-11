@@ -209,11 +209,8 @@ server scoping, navigation, dismissal and call admission.
       if (!stores?.isAuthenticated) continue;
       void stores.notifications.fetch().then(() => {
         for (const notification of stores.notifications.allNotificationSignals) {
-          requestDesktopNotification(
-            server.id,
-            notification,
-            stores.notifications.getNavigationPath(server.id, notification)
-          );
+          const nativeId = nativeDesktopNotificationId(server.id, notification.id);
+          if (nativeId) boundedRemember(nativeId);
         }
       });
       if (stores.serverInfo.livekitUrl) void stores.activeCallRooms.load();
