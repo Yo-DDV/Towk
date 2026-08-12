@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -20,6 +21,7 @@ import (
 	"hmans.de/chatto/internal/embedded_nats"
 	"hmans.de/chatto/internal/exporter"
 	"hmans.de/chatto/internal/http_server"
+	"hmans.de/chatto/internal/nativepushinstance"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 	"hmans.de/chatto/internal/push"
 	"hmans.de/chatto/internal/runtimeunit"
@@ -171,6 +173,15 @@ func runServer(configPath string) {
 
 	// Set up push notification callback if push is enabled
 	setupPushNotifications(chattoCore, cfg)
+	nativeRelayProofHandler, nativeWorker, err := setupNativeNotifications(chattoCore, cfg)
+	if err != nil {
+		log.Error("Failed to configure native notifications", "error", err)
+		exitCode = 1
+		return
+	}
+	if nativeWorker != nil {
+		g.Go(func() error { return nativeWorker.Run(ctx) })
+	}
 
 	// Start core's background services (PresenceHub + projectors) BEFORE
 	// bootstrap. Bootstrap triggers JoinRoom, which calls WaitForSeq on
@@ -240,11 +251,12 @@ func runServer(configPath string) {
 	// Create and run HTTP server
 	addr := fmt.Sprintf(":%d", cfg.Webserver.EffectivePort())
 	httpServer, err := http_server.NewHTTPServer(http_server.HTTPServerConfig{
-		Config:  cfg,
-		NC:      nc,
-		Core:    chattoCore,
-		Addr:    addr,
-		Version: Version,
+		Config:                  cfg,
+		NC:                      nc,
+		Core:                    chattoCore,
+		Addr:                    addr,
+		Version:                 Version,
+		NativeRelayProofHandler: nativeRelayProofHandler,
 	})
 	if err != nil {
 		log.Error("Failed to create HTTP server", "error", err)
@@ -327,6 +339,50 @@ func setLogLevel(level string) {
 		log.Warn("Unknown log level in configuration, defaulting to 'info'", "log_level", level)
 		log.SetLevel(log.InfoLevel)
 	}
+}
+
+func setupNativeNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig) (http.Handler, *nativepushinstance.Worker, error) {
+	nativeConfig, err := config.LoadNativeNotificationsConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	if !nativeConfig.Enabled {
+		return nil, nil, nil
+	}
+	previousCallback := chattoCore.OnNotificationCreated
+	chattoCore.OnNotificationCreated = func(ctx context.Context, notification *corev1.Notification) {
+		if previousCallback != nil {
+			previousCallback(ctx, notification)
+		}
+		if _, err := chattoCore.EnqueueNativeNotification(ctx, notification); err != nil {
+			log.WithPrefix("native-push").Warn("Failed to enqueue native notification", "notification_id", notification.GetId(), "error", err)
+		}
+	}
+	if !nativeConfig.AndroidManagedFCM {
+		return nil, nil, nil
+	}
+	identity, err := nativepushinstance.LoadOrCreateIdentity(nativeConfig.IdentityFile)
+	if err != nil {
+		return nil, nil, err
+	}
+	relay, err := nativepushinstance.NewRelayClient(nativeConfig.ManagedFCMRelayURL, nativeConfig.EnrollmentStateFile, identity, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	proofHandler := relay.ProofHandler(cfg.Webserver.URL)
+	state, enrolled := relay.State()
+	if !enrolled {
+		log.WithPrefix("native-push").Warn("Managed FCM relay enrollment is required", "relay", nativeConfig.ManagedFCMRelayURL)
+		return proofHandler, nil, nil
+	}
+	hostname, _ := os.Hostname()
+	workerID := fmt.Sprintf("native-%s-%d", hostname, os.Getpid())
+	worker, err := nativepushinstance.NewWorker(chattoCore, relay, workerID, log.WithPrefix("native-push"))
+	if err != nil {
+		return nil, nil, err
+	}
+	log.WithPrefix("native-push").Info("Managed FCM delivery enabled", "instance_id", state.InstanceID)
+	return proofHandler, worker, nil
 }
 
 // setupPushNotifications configures the push notification callback if push is enabled.

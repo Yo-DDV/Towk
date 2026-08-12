@@ -49,6 +49,20 @@
     "general": {
       "subtitle": "Identité du serveur, apparence et messages"
     },
+    "notifications": {
+      "title": "Notifications Android",
+      "description": "Les notifications Android en arrière-plan nécessitent un enrôlement auprès du relais FCM géré par TOWK. Le relais transporte uniquement un signal de réveil chiffré ; le contenu est récupéré directement auprès de ce serveur.",
+      "required": "Ce serveur n'est pas enrôlé. Les notifications Android resteront indisponibles tant qu'un administrateur n'aura pas terminé l'enrôlement.",
+      "privacy": "L'enrôlement est actif. Le relais ne peut lire aucun message, salon, appelant ni contenu de notification.",
+      "operator_disabled": "L'opérateur du serveur n'a pas activé les notifications FCM gérées dans la configuration.",
+      "status": "État de l'enrôlement",
+      "relay": "Relais",
+      "enroll": "Enrôler ce serveur",
+      "enrolled": "Enrôlement auprès du relais FCM terminé",
+      "load_failed": "Impossible de charger l'état d'enrôlement des notifications",
+      "enroll_failed": "Impossible d'enrôler ce serveur auprès du relais FCM",
+      "retry": "Réessayer"
+    },
     "members": {
       "title": "Membres",
       "subtitle": "Afficher et gérer les membres du serveur et leurs rôles",

@@ -66,3 +66,4 @@ For more about ADRs, see [Michael Nygard's article](https://cognitect.com/blog/2
 | [ADR-056](ADR-056-svelte-native-frontend-primitives.md)                         | Svelte-Native Frontend Primitives with an Executable Towk Catalog      | 2026-08-01 |
 | [ADR-057](ADR-057-adaptive-shared-resource-envelope.md)                         | Adaptive Scheduling Shares the VPS Resource Envelope                   | 2026-08-02 |
 | [ADR-058](ADR-058-versioned-default-grade-catalog.md)                           | Versioned Default Grade Catalog                                        | 2026-08-06 |
+| [ADR-059](ADR-059-managed-fcm-and-resident-linux-notifications.md)               | Managed FCM for Android and resident WebSocket notifications for Linux | 2026-08-10 |

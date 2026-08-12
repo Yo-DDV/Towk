@@ -27,25 +27,27 @@ import (
 
 // HTTPServerConfig holds configuration for creating an HTTPServer.
 type HTTPServerConfig struct {
-	Config  config.ChattoConfig
-	NC      *nats.Conn
-	Core    *core.ChattoCore
-	Addr    string
-	Version string
+	Config                  config.ChattoConfig
+	NC                      *nats.Conn
+	Core                    *core.ChattoCore
+	Addr                    string
+	Version                 string
+	NativeRelayProofHandler http.Handler
 }
 
 // HTTPServer serves the HTTP APIs and static frontend.
 type HTTPServer struct {
-	config     config.ChattoConfig
-	nc         *nats.Conn
-	router     *gin.Engine
-	core       *core.ChattoCore
-	mailer     email.Sender
-	mockMailer *email.MockSender // Non-nil when test email endpoint is enabled
-	addr       string
-	version    string
-	logger     *log.Logger
-	metrics    *processMetrics
+	config                  config.ChattoConfig
+	nc                      *nats.Conn
+	router                  *gin.Engine
+	core                    *core.ChattoCore
+	mailer                  email.Sender
+	mockMailer              *email.MockSender // Non-nil when test email endpoint is enabled
+	addr                    string
+	version                 string
+	logger                  *log.Logger
+	metrics                 *processMetrics
+	nativeRelayProofHandler http.Handler
 
 	assetTransformOnce sync.Once
 	assetTransforms    *assetTransformCoordinator
@@ -139,17 +141,18 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 		)
 	}
 	s := &HTTPServer{
-		config:          cfg.Config,
-		nc:              cfg.NC,
-		router:          router,
-		core:            cfg.Core,
-		mailer:          mailer,
-		mockMailer:      mockMailer,
-		addr:            cfg.Addr,
-		version:         cfg.Version,
-		logger:          logger,
-		metrics:         metrics,
-		assetTransforms: assetTransforms,
+		config:                  cfg.Config,
+		nc:                      cfg.NC,
+		router:                  router,
+		core:                    cfg.Core,
+		mailer:                  mailer,
+		mockMailer:              mockMailer,
+		addr:                    cfg.Addr,
+		version:                 cfg.Version,
+		logger:                  logger,
+		metrics:                 metrics,
+		nativeRelayProofHandler: cfg.NativeRelayProofHandler,
+		assetTransforms:         assetTransforms,
 	}
 
 	// Set up all routes
@@ -282,6 +285,11 @@ func (s *HTTPServer) setupRoutes() error {
 
 	// Set up feature-specific routes
 	s.setupHealthRoutes()
+	if s.nativeRelayProofHandler != nil {
+		s.router.GET("/.well-known/towk-relay-enrollment", func(c *gin.Context) {
+			s.nativeRelayProofHandler.ServeHTTP(c.Writer, c.Request)
+		})
+	}
 	s.setupWebhookRoutes()
 	s.setupConnectAPI()
 	s.setupRealtimeAPI(allowedOrigins)

@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import type { CurrentUser } from '$lib/auth/loadAuth';
   import AuthStatusNotice from '$lib/components/AuthStatusNotice.svelte';
+  import DesktopNotificationSync from '$lib/components/DesktopNotificationSync.svelte';
   import NotificationSync from '$lib/components/NotificationSync.svelte';
   import PwaOutboxCoordinator from '$lib/components/PwaOutboxCoordinator.svelte';
   import PwaCallIntegration from '$lib/components/PwaCallIntegration.svelte';
@@ -57,6 +58,7 @@
 </script>
 
 <NotificationSync />
+<DesktopNotificationSync />
 <PwaOutboxCoordinator />
 <PwaCallIntegration />
 <CallJoinDialogHost />

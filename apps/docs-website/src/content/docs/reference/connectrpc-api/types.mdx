@@ -534,6 +534,54 @@ One explicitly assigned role shown on a detailed user profile.
 | `position` | `int32` | Display ordering hint. This is not an authorization rank. |
 | `moderation` | `bool` | True when the role carries moderation or administration authority. |
 
+<a id="chatto-api-v1-NativeEndpoint"></a>
+
+### NativeEndpoint
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint_id` | `string` | No field description provided. |
+| `installation_id` | `string` | No field description provided. |
+| `platform` | [`NativeNotificationPlatform`](#chatto-api-v1-NativeNotificationPlatform) | No field description provided. |
+| `transport` | [`NativeNotificationTransport`](#chatto-api-v1-NativeNotificationTransport) | No field description provided. |
+| `app_id` | `string` | No field description provided. |
+| `fcm_installation_id` | `string` | Present only for the endpoint owner. Never written to logs. |
+| `client_public_key` | `bytes` | Public installation encryption key. The private key stays on the client. |
+| `locale` | `string` | No field description provided. |
+| `created_at` | `google.protobuf.Timestamp` | No field description provided. |
+| `last_seen_at` | `google.protobuf.Timestamp` | No field description provided. |
+| `disabled_at` | `google.protobuf.Timestamp` | No field description provided. |
+| `state` | [`NativeEndpointState`](#chatto-api-v1-NativeEndpointState) | No field description provided. |
+| `last_delivery_status` | [`NativeDeliveryStatus`](#chatto-api-v1-NativeDeliveryStatus) | No field description provided. |
+| `preferences` | [`NativeEndpointPreferences`](#chatto-api-v1-NativeEndpointPreferences) | No field description provided. |
+| `generation` | `uint64` | No field description provided. |
+
+<a id="chatto-api-v1-NativeEndpointPreferences"></a>
+
+### NativeEndpointPreferences
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `bool` | No field description provided. |
+| `messages` | `bool` | No field description provided. |
+| `calls` | `bool` | No field description provided. |
+
+<a id="chatto-api-v1-NativeEndpointPreferencesPatch"></a>
+
+### NativeEndpointPreferencesPatch
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `optional bool` | No field description provided. |
+| `messages` | `optional bool` | No field description provided. |
+| `calls` | `optional bool` | No field description provided. |
+
 <a id="chatto-api-v1-ReadReceiptReader"></a>
 
 ### ReadReceiptReader
@@ -756,6 +804,7 @@ Notification that a call started in a joined room or private conversation.
 | `room` | [`RoomSummary`](#chatto-api-v1-RoomSummary) | Room where the call started. |
 | `event_id` | `string` | Durable call-start event ID. |
 | `call_id` | `string` | Stable call session ID used by explicit join actions. |
+| `missed` | `bool` | The call ended before the recipient joined it. |
 
 <a id="chatto-api-v1-DirectMessageNotification"></a>
 
@@ -1599,6 +1648,63 @@ Upload lifecycle state for a room-scoped attachment upload.
 | `ASSET_UPLOAD_STATUS_OPEN` | `1` | The upload accepts more chunks. |
 | `ASSET_UPLOAD_STATUS_COMPLETED` | `2` | The upload has been completed and produced an attachment asset. |
 | `ASSET_UPLOAD_STATUS_CANCELLED` | `3` | The upload was cancelled or expired. |
+
+<a id="chatto-api-v1-NativeDeliveryStatus"></a>
+
+### NativeDeliveryStatus
+
+No enum description provided.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `NATIVE_DELIVERY_STATUS_UNSPECIFIED` | `0` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_NEVER_ATTEMPTED` | `1` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_PENDING` | `2` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_DELIVERED_TO_TRANSPORT` | `3` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_RETRYABLE_FAILURE` | `4` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_EXPIRED` | `5` | No value description provided. |
+| `NATIVE_DELIVERY_STATUS_PERMANENTLY_INVALID` | `6` | No value description provided. |
+
+<a id="chatto-api-v1-NativeEndpointState"></a>
+
+### NativeEndpointState
+
+No enum description provided.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `NATIVE_ENDPOINT_STATE_UNSPECIFIED` | `0` | No value description provided. |
+| `NATIVE_ENDPOINT_STATE_ACTIVE` | `1` | No value description provided. |
+| `NATIVE_ENDPOINT_STATE_DISABLED` | `2` | No value description provided. |
+| `NATIVE_ENDPOINT_STATE_PERMANENTLY_INVALID` | `3` | No value description provided. |
+
+<a id="chatto-api-v1-NativeNotificationPlatform"></a>
+
+### NativeNotificationPlatform
+
+Native clients outside the Android and Linux phase are reserved for forward
+compatibility and are rejected by the current server implementation.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `NATIVE_NOTIFICATION_PLATFORM_UNSPECIFIED` | `0` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_ANDROID` | `1` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_LINUX` | `2` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_WINDOWS` | `3` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_MACOS` | `4` | No value description provided. |
+| `NATIVE_NOTIFICATION_PLATFORM_IOS` | `5` | No value description provided. |
+
+<a id="chatto-api-v1-NativeNotificationTransport"></a>
+
+### NativeNotificationTransport
+
+No enum description provided.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED` | `0` | No value description provided. |
+| `NATIVE_NOTIFICATION_TRANSPORT_ANDROID_MANAGED_FCM` | `1` | Android wake signals sent through the Towk-operated FCM relay. |
+| `NATIVE_NOTIFICATION_TRANSPORT_LINUX_RESIDENT_WEBSOCKET` | `2` | Linux notifications derived from the authenticated instance WebSocket. |
 
 <a id="chatto-api-v1-RoomHistoryPurgeStatus"></a>
 

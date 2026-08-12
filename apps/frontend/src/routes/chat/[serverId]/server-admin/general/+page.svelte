@@ -1,5 +1,6 @@
 <script lang="ts">
   import ServerSettings from '$lib/ServerSettings.svelte';
+  import ManagedFcmEnrollment from '$lib/components/admin/ManagedFcmEnrollment.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import * as m from '$lib/i18n/messages';
@@ -17,4 +18,5 @@
 
 <div class="flex flex-col gap-6 overflow-y-auto p-6">
   <ServerSettings />
+  <ManagedFcmEnrollment />
 </div>

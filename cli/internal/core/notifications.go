@@ -751,6 +751,12 @@ func (c *ChattoCore) notificationVisibleInCurrentState(ctx context.Context, user
 		return false, nil
 	}
 	if call := notification.GetCallStarted(); call != nil {
+		if call.GetMissed() {
+			// The prefix is an activation marker for the missed-call delivery
+			// model. It keeps records accidentally produced by an older replay
+			// implementation out of every notification client.
+			return strings.HasPrefix(notification.GetId(), missedCallNotificationIDPrefix), nil
+		}
 		createdAt := notification.GetCreatedAt()
 		now := time.Now()
 		if createdAt == nil || createdAt.AsTime().Sub(now) > callNotificationFutureTolerance {

@@ -1,0 +1,256 @@
+---
+title: NativeNotificationService
+description: Android managed FCM and Linux resident WebSocket endpoint RPCs.
+editUrl: false
+---
+
+{/* Generated from proto/chatto/{auth,discovery,api,admin,realtime}/v1/*.proto. Do not edit directly. */}
+
+Towk exposes this service below `/api/connect`.
+
+
+
+Shared message and enum definitions are documented in [Shared Types And Enums](/reference/connectrpc-api/types/).
+
+
+
+<a id="chatto-api-v1-NativeNotificationService"></a>
+
+## NativeNotificationService
+
+NativeNotificationService registers application installations for native
+notification transports. Web Push remains owned by PushService.
+
+<a id="chatto-api-v1-NativeNotificationService-GetNativeNotificationConfig"></a>
+
+### GetNativeNotificationConfig
+
+No method description provided.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/GetNativeNotificationConfig
+```
+
+<a id="chatto-api-v1-GetNativeNotificationConfigRequest"></a>
+
+#### Input: GetNativeNotificationConfigRequest
+
+No message description provided.
+
+
+<a id="chatto-api-v1-GetNativeNotificationConfigResponse"></a>
+
+#### Result: GetNativeNotificationConfigResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `bool` | No field description provided. |
+| `android_managed_fcm_enabled` | `bool` | No field description provided. |
+| `linux_resident_websocket_enabled` | `bool` | No field description provided. |
+| `managed_fcm_relay_url` | `string` | No field description provided. |
+| `signal_encryption_suite` | `string` | No field description provided. |
+| `max_signal_bytes` | `uint32` | No field description provided. |
+| `max_signal_age_seconds` | `uint32` | No field description provided. |
+| `managed_fcm_enrollment_state` | `string` | No field description provided. |
+| `managed_fcm_instance_id` | `string` | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-EnrollManagedFCM"></a>
+
+### EnrollManagedFCM
+
+No method description provided.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/EnrollManagedFCM
+```
+
+<a id="chatto-api-v1-EnrollManagedFCMRequest"></a>
+
+#### Input: EnrollManagedFCMRequest
+
+No message description provided.
+
+
+<a id="chatto-api-v1-EnrollManagedFCMResponse"></a>
+
+#### Result: EnrollManagedFCMResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enrollment_state` | `string` | No field description provided. |
+| `instance_id` | `string` | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-RegisterNativeEndpoint"></a>
+
+### RegisterNativeEndpoint
+
+No method description provided.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/RegisterNativeEndpoint
+```
+
+<a id="chatto-api-v1-RegisterNativeEndpointRequest"></a>
+
+#### Input: RegisterNativeEndpointRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `installation_id` | `string` | No field description provided. |
+| `platform` | [`NativeNotificationPlatform`](/reference/connectrpc-api/types/#chatto-api-v1-NativeNotificationPlatform) | No field description provided. |
+| `transport` | [`NativeNotificationTransport`](/reference/connectrpc-api/types/#chatto-api-v1-NativeNotificationTransport) | No field description provided. |
+| `app_id` | `string` | No field description provided. |
+| `fcm_installation_id` | `string` | No field description provided. |
+| `client_public_key` | `bytes` | No field description provided. |
+| `locale` | `string` | No field description provided. |
+| `preferences` | [`NativeEndpointPreferencesPatch`](/reference/connectrpc-api/types/#chatto-api-v1-NativeEndpointPreferencesPatch) | No field description provided. |
+
+
+<a id="chatto-api-v1-RegisterNativeEndpointResponse"></a>
+
+#### Result: RegisterNativeEndpointResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint` | [`NativeEndpoint`](/reference/connectrpc-api/types/#chatto-api-v1-NativeEndpoint) | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-RotateNativeEndpoint"></a>
+
+### RotateNativeEndpoint
+
+No method description provided.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/RotateNativeEndpoint
+```
+
+<a id="chatto-api-v1-RotateNativeEndpointRequest"></a>
+
+#### Input: RotateNativeEndpointRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint_id` | `string` | No field description provided. |
+| `expected_generation` | `uint64` | No field description provided. |
+| `fcm_installation_id` | `string` | No field description provided. |
+| `client_public_key` | `bytes` | No field description provided. |
+| `locale` | `string` | No field description provided. |
+
+
+<a id="chatto-api-v1-RotateNativeEndpointResponse"></a>
+
+#### Result: RotateNativeEndpointResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint` | [`NativeEndpoint`](/reference/connectrpc-api/types/#chatto-api-v1-NativeEndpoint) | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-UnregisterNativeEndpoint"></a>
+
+### UnregisterNativeEndpoint
+
+No method description provided.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/UnregisterNativeEndpoint
+```
+
+<a id="chatto-api-v1-UnregisterNativeEndpointRequest"></a>
+
+#### Input: UnregisterNativeEndpointRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint_id` | `string` | No field description provided. |
+| `expected_generation` | `uint64` | No field description provided. |
+
+
+<a id="chatto-api-v1-UnregisterNativeEndpointResponse"></a>
+
+#### Result: UnregisterNativeEndpointResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `unregistered` | `bool` | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-ListNativeEndpoints"></a>
+
+### ListNativeEndpoints
+
+No method description provided.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/ListNativeEndpoints
+```
+
+<a id="chatto-api-v1-ListNativeEndpointsRequest"></a>
+
+#### Input: ListNativeEndpointsRequest
+
+No message description provided.
+
+
+<a id="chatto-api-v1-ListNativeEndpointsResponse"></a>
+
+#### Result: ListNativeEndpointsResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoints` | repeated [`NativeEndpoint`](/reference/connectrpc-api/types/#chatto-api-v1-NativeEndpoint) | No field description provided. |
+
+
+<a id="chatto-api-v1-NativeNotificationService-UpdateNativeEndpointPreferences"></a>
+
+### UpdateNativeEndpointPreferences
+
+No method description provided.
+
+```http
+POST /api/connect/chatto.api.v1.NativeNotificationService/UpdateNativeEndpointPreferences
+```
+
+<a id="chatto-api-v1-UpdateNativeEndpointPreferencesRequest"></a>
+
+#### Input: UpdateNativeEndpointPreferencesRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint_id` | `string` | No field description provided. |
+| `expected_generation` | `uint64` | No field description provided. |
+| `preferences` | [`NativeEndpointPreferencesPatch`](/reference/connectrpc-api/types/#chatto-api-v1-NativeEndpointPreferencesPatch) | No field description provided. |
+
+
+<a id="chatto-api-v1-UpdateNativeEndpointPreferencesResponse"></a>
+
+#### Result: UpdateNativeEndpointPreferencesResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `endpoint` | [`NativeEndpoint`](/reference/connectrpc-api/types/#chatto-api-v1-NativeEndpoint) | No field description provided. |

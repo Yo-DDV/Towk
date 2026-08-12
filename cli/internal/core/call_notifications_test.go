@@ -193,7 +193,7 @@ func TestCallNotificationsDisappearOnEndMembershipLossAndPreferenceDowngrade(t *
 	assertNoCallNotifications(t, core, ctx, recipient.Id)
 }
 
-func TestCallEndedBeforeNotificationDeliveryNeverEmitsAnAlert(t *testing.T) {
+func TestCallEndedBeforeNotificationDeliveryEmitsMissedCall(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 	starter := createCallNotificationUser(t, core, ctx, "ended-before-delivery-starter")
@@ -222,11 +222,71 @@ func TestCallEndedBeforeNotificationDeliveryNeverEmitsAnAlert(t *testing.T) {
 		t.Fatalf("consume completed call: %v", err)
 	}
 
-	assertNoCallNotifications(t, core, ctx, recipient.Id)
 	select {
 	case notificationID := <-callbacks:
-		t.Fatalf("completed call emitted push callback %q", notificationID)
-	case <-time.After(100 * time.Millisecond):
+		missed, err := core.GetNotification(ctx, recipient.Id, notificationID)
+		if err != nil {
+			t.Fatalf("GetNotification(missed): %v", err)
+		}
+		if call := missed.GetCallStarted(); call == nil || !call.GetMissed() {
+			t.Fatalf("notification is not a missed call: %#v", missed.GetNotification())
+		}
+		if notificationID[0:1] != missedCallNotificationIDPrefix {
+			t.Fatalf("missed-call notification id = %q, want %q prefix", notificationID, missedCallNotificationIDPrefix)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for missed-call notification")
+	}
+}
+
+func TestCallEndedCreatesMissedCallOnlyForRecipientsWhoDidNotJoin(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	starter := createCallNotificationUser(t, core, ctx, "missed-call-starter")
+	joinedRecipient := createCallNotificationUser(t, core, ctx, "missed-call-joined")
+	missedRecipient := createCallNotificationUser(t, core, ctx, "missed-call-recipient")
+	room, err := core.CreateRoom(ctx, starter.Id, KindChannel, "", "missed-call", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	for _, recipient := range []*corev1.User{joinedRecipient, missedRecipient} {
+		if _, err := core.AddMember(ctx, starter.Id, KindChannel, room.Id, recipient.Id); err != nil {
+			t.Fatalf("AddMember(%s): %v", recipient.Login, err)
+		}
+	}
+
+	if err := core.RecordCallParticipantJoined(ctx, KindChannel, room.Id, starter.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantJoined(starter): %v", err)
+	}
+	if err := core.callNotifications.consume(ctx); err != nil {
+		t.Fatalf("consume started call: %v", err)
+	}
+	if err := core.RecordCallParticipantJoined(ctx, KindChannel, room.Id, joinedRecipient.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantJoined(recipient): %v", err)
+	}
+	if err := core.RecordCallParticipantLeft(ctx, KindChannel, room.Id, starter.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantLeft(starter): %v", err)
+	}
+	if err := core.RecordCallParticipantLeft(ctx, KindChannel, room.Id, joinedRecipient.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantLeft(recipient): %v", err)
+	}
+	if err := core.callNotifications.consume(ctx); err != nil {
+		t.Fatalf("consume ended call: %v", err)
+	}
+
+	assertNoCallNotifications(t, core, ctx, joinedRecipient.Id)
+	notifications, err := core.GetNotifications(ctx, missedRecipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications(missed recipient): %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("missed recipient notifications = %d, want 1", len(notifications))
+	}
+	if call := notifications[0].GetCallStarted(); call == nil || !call.GetMissed() {
+		t.Fatalf("notification is not a missed call: %#v", notifications[0].GetNotification())
+	}
+	if notifications[0].GetActorId() != starter.Id {
+		t.Fatalf("missed-call actor = %q, want original caller %q", notifications[0].GetActorId(), starter.Id)
 	}
 }
 
@@ -286,6 +346,71 @@ func TestCallNotificationsRejectExpiredStartEvents(t *testing.T) {
 		t.Fatalf("consume stale call start: %v", err)
 	}
 	assertNoCallNotifications(t, core, ctx, recipient.Id)
+}
+
+func TestCallNotificationsRejectExpiredEndedEvents(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	starter := createCallNotificationUser(t, core, ctx, "stale-ended-starter")
+	recipient := createCallNotificationUser(t, core, ctx, "stale-ended-recipient")
+	room, err := core.CreateRoom(ctx, starter.Id, KindChannel, "", "stale-ended-call", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := core.AddMember(ctx, starter.Id, KindChannel, room.Id, recipient.Id); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+
+	callID := NewCallID()
+	event := newCallEndedEvent(room.Id, starter.Id, callID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
+	event.CreatedAt = timestamppb.New(time.Now().Add(-callNotificationFreshness - time.Second))
+	if _, err := core.EventPublisher.AppendEventually(ctx, events.RoomAggregate(room.Id).Subject(events.EventCallEnded), event); err != nil {
+		t.Fatalf("append stale call end: %v", err)
+	}
+	if err := core.callNotifications.consume(ctx); err != nil {
+		t.Fatalf("consume stale call end: %v", err)
+	}
+	assertNoCallNotifications(t, core, ctx, recipient.Id)
+}
+
+func TestCallNotificationsHideLegacyReplayMissedCallRecords(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	actor := createCallNotificationUser(t, core, ctx, "legacy-missed-actor")
+	recipient := createCallNotificationUser(t, core, ctx, "legacy-missed-recipient")
+	legacy := &corev1.Notification{
+		Notification: &corev1.Notification_CallStarted{
+			CallStarted: &corev1.CallStartedNotification{
+				RoomId:  "room-legacy",
+				EventId: "event-legacy",
+				CallId:  "call-legacy",
+				Missed:  true,
+			},
+		},
+	}
+	if _, err := core.createNotification(ctx, recipient.Id, actor.Id, legacy, notificationCreateOptions{
+		id:         "legacy-missed-call-record",
+		createdAt:  time.Now(),
+		idempotent: true,
+	}); err != nil {
+		t.Fatalf("create legacy missed-call record: %v", err)
+	}
+	assertNoCallNotifications(t, core, ctx, recipient.Id)
+
+	if _, err := core.createNotification(ctx, recipient.Id, actor.Id, legacy, notificationCreateOptions{
+		id:         missedCallNotificationID("current-call"),
+		createdAt:  time.Now(),
+		idempotent: true,
+	}); err != nil {
+		t.Fatalf("create current missed-call record: %v", err)
+	}
+	notifications, err := core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications: %v", err)
+	}
+	if len(notifications) != 1 || !notifications[0].GetCallStarted().GetMissed() {
+		t.Fatalf("visible missed-call notifications = %#v, want one current record", notifications)
+	}
 }
 
 func TestCallNotificationsAcceptBoundedFutureClockSkewWithoutExtendingFreshness(t *testing.T) {

@@ -92,6 +92,7 @@ func TestAPIHandlers(t *testing.T) {
 		"/" + apiv1connect.NotificationPreferencesServiceName + "/",
 		"/" + adminv1connect.AdminPermissionServiceName + "/",
 		"/" + apiv1connect.PushNotificationServiceName + "/",
+		"/" + apiv1connect.NativeNotificationServiceName + "/",
 		"/" + adminv1connect.AdminRoleServiceName + "/",
 		"/" + apiv1connect.RoleServiceName + "/",
 		"/" + apiv1connect.RoomDirectoryServiceName + "/",
@@ -136,6 +137,7 @@ func TestAPIHandlerAuthPolicies(t *testing.T) {
 		"/" + apiv1connect.NotificationPreferencesServiceName + "/": AuthPolicyAuthenticatedUser,
 		"/" + adminv1connect.AdminPermissionServiceName + "/":       AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.PushNotificationServiceName + "/":        AuthPolicyAuthenticatedUser,
+		"/" + apiv1connect.NativeNotificationServiceName + "/":      AuthPolicyAuthenticatedUser,
 		"/" + adminv1connect.AdminRoleServiceName + "/":             AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.RoleServiceName + "/":                    AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.RoomDirectoryServiceName + "/":           AuthPolicyAuthenticatedUser,
@@ -4754,6 +4756,7 @@ func TestNotificationServiceHydratesCallStartedNotification(t *testing.T) {
 			RoomId:  room.Id,
 			EventId: "E-call-started",
 			CallId:  active.CallID,
+			Missed:  true,
 		}},
 	})
 	if err != nil || notification == nil {
@@ -4765,7 +4768,7 @@ func TestNotificationServiceHydratesCallStartedNotification(t *testing.T) {
 		t.Fatalf("GetNotification: %v", err)
 	}
 	call := response.Msg.GetNotification().GetCallStarted()
-	if call.GetRoom().GetId() != room.Id || call.GetRoom().GetKind() != apiv1.RoomKind_ROOM_KIND_CHANNEL || call.GetEventId() != "E-call-started" || call.GetCallId() != active.CallID {
+	if call.GetRoom().GetId() != room.Id || call.GetRoom().GetKind() != apiv1.RoomKind_ROOM_KIND_CHANNEL || call.GetEventId() != "E-call-started" || call.GetCallId() != active.CallID || !call.GetMissed() {
 		t.Fatalf("call notification = %+v", call)
 	}
 }

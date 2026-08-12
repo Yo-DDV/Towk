@@ -1,0 +1,80 @@
+name: native notification contract
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/native-notifications.yml"
+      - "proto/chatto/api/v1/native_notifications.proto"
+      - "cli/internal/pb/chatto/api/v1/native_notifications.pb.go"
+      - "cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go"
+      - "packages/api-types/src/chatto/api/v1/native_notifications_pb.ts"
+      - "cli/internal/config/native_notifications*.go"
+      - "cli/internal/core/native_notifications*.go"
+      - "cli/internal/connectapi/native_notifications*.go"
+      - "apps/frontend/src/lib/notifications/desktopNotifications*"
+      - "apps/frontend/src/lib/notifications/pushNotifications*"
+      - "apps/frontend/src/lib/components/DesktopNotificationSync.svelte"
+      - "apps/frontend/src/lib/components/NotificationSync.svelte*"
+      - "apps/frontend/src/routes/chat/AuthenticatedRoot.svelte"
+      - "docs/adr/ADR-*.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-notifications-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Lint native protobuf contract
+        run: cd proto && mise x -- buf lint --path chatto/api/v1/native_notifications.proto
+
+      - name: Require deterministic generated bindings and API documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise codegen-proto
+          git diff --exit-code -- \
+            cli/internal/pb/chatto/api/v1/native_notifications.pb.go \
+            cli/internal/pb/chatto/api/v1/apiv1connect/native_notifications.connect.go \
+            packages/api-types/src/chatto/api/v1/native_notifications_pb.ts \
+            apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
+
+  targeted-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Run native notification Go tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd cli
+          go test -trimpath -race -count=1 ./internal/config ./internal/core ./internal/connectapi
+
+      - name: Run native shell frontend tests
+        run: pnpm --filter towk-frontend exec vitest --run apps/frontend/src/lib/notifications/desktopNotifications.spec.ts apps/frontend/src/lib/notifications/pushNotifications.spec.ts
+
+      - name: Type-check frontend integration
+        run: pnpm --filter towk-frontend check

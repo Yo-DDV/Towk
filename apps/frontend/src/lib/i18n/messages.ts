@@ -607,6 +607,14 @@ const msg_chat_notifications_private_call_started = (
   inputs: Parameters<LocaleMessages['chat_notifications_private_call_started']>[0]
 ): LocalizedString => messages().chat_notifications_private_call_started(inputs);
 const msg_chat_notifications_private_call_started_unknown = (): LocalizedString => messages().chat_notifications_private_call_started_unknown(empty());
+const msg_chat_notifications_call_missed = (
+  inputs: Parameters<LocaleMessages['chat_notifications_call_missed']>[0]
+): LocalizedString => messages().chat_notifications_call_missed(inputs);
+const msg_chat_notifications_call_missed_unknown = (): LocalizedString => messages().chat_notifications_call_missed_unknown(empty());
+const msg_chat_notifications_private_call_missed = (
+  inputs: Parameters<LocaleMessages['chat_notifications_private_call_missed']>[0]
+): LocalizedString => messages().chat_notifications_private_call_missed(inputs);
+const msg_chat_notifications_private_call_missed_unknown = (): LocalizedString => messages().chat_notifications_private_call_missed_unknown(empty());
 const msg_chat_notifications_direct_message = (
   inputs: Parameters<LocaleMessages['chat_notifications_direct_message']>[0]
 ): LocalizedString => messages().chat_notifications_direct_message(inputs);
@@ -1885,6 +1893,18 @@ const msg_admin_moderation_unbanning = (): LocalizedString => messages().admin_m
 const msg_admin_moderation_unban_failed = (): LocalizedString => messages().admin_moderation_unban_failed(empty());
 const msg_admin_moderation_unban_success = (): LocalizedString => messages().admin_moderation_unban_success(empty());
 const msg_admin_general_subtitle = (): LocalizedString => messages().admin_general_subtitle(empty());
+const msg_admin_notifications_title = (): LocalizedString => messages().admin_notifications_title(empty());
+const msg_admin_notifications_description = (): LocalizedString => messages().admin_notifications_description(empty());
+const msg_admin_notifications_required = (): LocalizedString => messages().admin_notifications_required(empty());
+const msg_admin_notifications_privacy = (): LocalizedString => messages().admin_notifications_privacy(empty());
+const msg_admin_notifications_operator_disabled = (): LocalizedString => messages().admin_notifications_operator_disabled(empty());
+const msg_admin_notifications_status = (): LocalizedString => messages().admin_notifications_status(empty());
+const msg_admin_notifications_relay = (): LocalizedString => messages().admin_notifications_relay(empty());
+const msg_admin_notifications_enroll = (): LocalizedString => messages().admin_notifications_enroll(empty());
+const msg_admin_notifications_enrolled = (): LocalizedString => messages().admin_notifications_enrolled(empty());
+const msg_admin_notifications_load_failed = (): LocalizedString => messages().admin_notifications_load_failed(empty());
+const msg_admin_notifications_enroll_failed = (): LocalizedString => messages().admin_notifications_enroll_failed(empty());
+const msg_admin_notifications_retry = (): LocalizedString => messages().admin_notifications_retry(empty());
 const msg_admin_members_title = (): LocalizedString => messages().admin_members_title(empty());
 const msg_admin_members_subtitle = (): LocalizedString => messages().admin_members_subtitle(empty());
 const msg_admin_members_search = (): LocalizedString => messages().admin_members_search(empty());
@@ -2832,6 +2852,10 @@ export { msg_chat_notifications_call_started as 'chat.notifications.call_started
 export { msg_chat_notifications_call_started_unknown as 'chat.notifications.call_started_unknown' };
 export { msg_chat_notifications_private_call_started as 'chat.notifications.private_call_started' };
 export { msg_chat_notifications_private_call_started_unknown as 'chat.notifications.private_call_started_unknown' };
+export { msg_chat_notifications_call_missed as 'chat.notifications.call_missed' };
+export { msg_chat_notifications_call_missed_unknown as 'chat.notifications.call_missed_unknown' };
+export { msg_chat_notifications_private_call_missed as 'chat.notifications.private_call_missed' };
+export { msg_chat_notifications_private_call_missed_unknown as 'chat.notifications.private_call_missed_unknown' };
 export { msg_chat_notifications_direct_message as 'chat.notifications.direct_message' };
 export { msg_chat_notifications_direct_message_unknown as 'chat.notifications.direct_message_unknown' };
 export { msg_chat_notifications_mention as 'chat.notifications.mention' };
@@ -3870,6 +3894,18 @@ export { msg_admin_moderation_unbanning as 'admin.moderation.unbanning' };
 export { msg_admin_moderation_unban_failed as 'admin.moderation.unban_failed' };
 export { msg_admin_moderation_unban_success as 'admin.moderation.unban_success' };
 export { msg_admin_general_subtitle as 'admin.general.subtitle' };
+export { msg_admin_notifications_title as 'admin.notifications.title' };
+export { msg_admin_notifications_description as 'admin.notifications.description' };
+export { msg_admin_notifications_required as 'admin.notifications.required' };
+export { msg_admin_notifications_privacy as 'admin.notifications.privacy' };
+export { msg_admin_notifications_operator_disabled as 'admin.notifications.operator_disabled' };
+export { msg_admin_notifications_status as 'admin.notifications.status' };
+export { msg_admin_notifications_relay as 'admin.notifications.relay' };
+export { msg_admin_notifications_enroll as 'admin.notifications.enroll' };
+export { msg_admin_notifications_enrolled as 'admin.notifications.enrolled' };
+export { msg_admin_notifications_load_failed as 'admin.notifications.load_failed' };
+export { msg_admin_notifications_enroll_failed as 'admin.notifications.enroll_failed' };
+export { msg_admin_notifications_retry as 'admin.notifications.retry' };
 export { msg_admin_members_title as 'admin.members.title' };
 export { msg_admin_members_subtitle as 'admin.members.subtitle' };
 export { msg_admin_members_search as 'admin.members.search' };

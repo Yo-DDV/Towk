@@ -479,7 +479,9 @@ type CallStartedNotification struct {
 	// Durable call-start event ID.
 	EventId string `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
 	// Stable call session ID used to reject stale join actions.
-	CallId        string `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	CallId string `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	// The call ended before the recipient joined it.
+	Missed        bool `protobuf:"varint,4,opt,name=missed,proto3" json:"missed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -535,6 +537,13 @@ func (x *CallStartedNotification) GetCallId() string {
 	return ""
 }
 
+func (x *CallStartedNotification) GetMissed() bool {
+	if x != nil {
+		return x.Missed
+	}
+	return false
+}
+
 var File_chatto_core_v1_notification_proto protoreflect.FileDescriptor
 
 const file_chatto_core_v1_notification_proto_rawDesc = "" +
@@ -569,11 +578,12 @@ const file_chatto_core_v1_notification_proto_rawDesc = "" +
 	"\x17RoomMessageNotification\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x19\n" +
 	"\bevent_id\x18\x03 \x01(\tR\aeventId\x12\x1b\n" +
-	"\tin_thread\x18\x04 \x01(\tR\binThreadJ\x04\b\x01\x10\x02R\bspace_id\"f\n" +
+	"\tin_thread\x18\x04 \x01(\tR\binThreadJ\x04\b\x01\x10\x02R\bspace_id\"~\n" +
 	"\x17CallStartedNotification\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x17\n" +
-	"\acall_id\x18\x03 \x01(\tR\x06callIdB\xb4\x01\n" +
+	"\acall_id\x18\x03 \x01(\tR\x06callId\x12\x16\n" +
+	"\x06missed\x18\x04 \x01(\bR\x06missedB\xb4\x01\n" +
 	"\x12com.chatto.core.v1B\x11NotificationProtoP\x01Z1hmans.de/chatto/internal/pb/chatto/core/v1;corev1\xa2\x02\x03CCX\xaa\x02\x0eChatto.Core.V1\xca\x02\x0eChatto\\Core\\V1\xe2\x02\x1aChatto\\Core\\V1\\GPBMetadata\xea\x02\x10Chatto::Core::V1b\x06proto3"
 
 var (

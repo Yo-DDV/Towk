@@ -13,6 +13,10 @@ const translations = vi.hoisted(() => ({
   callStartedUnknown: vi.fn(() => 'call:unknown'),
   privateCallStarted: vi.fn(({ actor }: { actor: string }) => `private-call:${actor}`),
   privateCallStartedUnknown: vi.fn(() => 'private-call:unknown'),
+  callMissed: vi.fn(({ actor }: { actor: string }) => `missed-call:${actor}`),
+  callMissedUnknown: vi.fn(() => 'missed-call:unknown'),
+  privateCallMissed: vi.fn(({ actor }: { actor: string }) => `private-missed-call:${actor}`),
+  privateCallMissedUnknown: vi.fn(() => 'private-missed-call:unknown'),
   locationInServer: vi.fn(
     ({ room, server }: { room: string; server: string }) => `location:${room}:${server}`
   )
@@ -31,6 +35,10 @@ vi.mock('$lib/i18n/messages', () => ({
   'chat.notifications.call_started_unknown': translations.callStartedUnknown,
   'chat.notifications.private_call_started': translations.privateCallStarted,
   'chat.notifications.private_call_started_unknown': translations.privateCallStartedUnknown,
+  'chat.notifications.call_missed': translations.callMissed,
+  'chat.notifications.call_missed_unknown': translations.callMissedUnknown,
+  'chat.notifications.private_call_missed': translations.privateCallMissed,
+  'chat.notifications.private_call_missed_unknown': translations.privateCallMissedUnknown,
   'chat.notifications.location_in_server': translations.locationInServer
 }));
 
@@ -63,6 +71,21 @@ describe('notificationSummary', () => {
     );
     expect(notificationSummary(null, NotificationCopyKind.CallStarted, true)).toBe(
       'private-call:unknown'
+    );
+  });
+
+  it('uses missed-call copy without preserving incoming-call semantics', () => {
+    expect(notificationSummary('Alice', NotificationCopyKind.CallStarted, false, true)).toBe(
+      'missed-call:Alice'
+    );
+    expect(notificationSummary(null, NotificationCopyKind.CallStarted, false, true)).toBe(
+      'missed-call:unknown'
+    );
+    expect(notificationSummary('Alice', NotificationCopyKind.CallStarted, true, true)).toBe(
+      'private-missed-call:Alice'
+    );
+    expect(notificationSummary(null, NotificationCopyKind.CallStarted, true, true)).toBe(
+      'private-missed-call:unknown'
     );
   });
 });

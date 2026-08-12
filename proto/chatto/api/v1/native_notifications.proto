@@ -1,0 +1,201 @@
+syntax = "proto3";
+
+package chatto.api.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+// NativeNotificationService registers application installations for native
+// notification transports. Web Push remains owned by PushService.
+service NativeNotificationService {
+  rpc GetNativeNotificationConfig(GetNativeNotificationConfigRequest)
+      returns (GetNativeNotificationConfigResponse);
+  rpc EnrollManagedFCM(EnrollManagedFCMRequest)
+      returns (EnrollManagedFCMResponse);
+  rpc RegisterNativeEndpoint(RegisterNativeEndpointRequest)
+      returns (RegisterNativeEndpointResponse);
+  rpc RotateNativeEndpoint(RotateNativeEndpointRequest)
+      returns (RotateNativeEndpointResponse);
+  rpc UnregisterNativeEndpoint(UnregisterNativeEndpointRequest)
+      returns (UnregisterNativeEndpointResponse);
+  rpc ListNativeEndpoints(ListNativeEndpointsRequest)
+      returns (ListNativeEndpointsResponse);
+  rpc UpdateNativeEndpointPreferences(UpdateNativeEndpointPreferencesRequest)
+      returns (UpdateNativeEndpointPreferencesResponse);
+}
+
+// Native clients outside the Android and Linux phase are reserved for forward
+// compatibility and are rejected by the current server implementation.
+enum NativeNotificationPlatform {
+  NATIVE_NOTIFICATION_PLATFORM_UNSPECIFIED = 0;
+  NATIVE_NOTIFICATION_PLATFORM_ANDROID = 1;
+  NATIVE_NOTIFICATION_PLATFORM_LINUX = 2;
+  NATIVE_NOTIFICATION_PLATFORM_WINDOWS = 3;
+  NATIVE_NOTIFICATION_PLATFORM_MACOS = 4;
+  NATIVE_NOTIFICATION_PLATFORM_IOS = 5;
+}
+
+enum NativeNotificationTransport {
+  NATIVE_NOTIFICATION_TRANSPORT_UNSPECIFIED = 0;
+  // Android wake signals sent through the Towk-operated FCM relay.
+  NATIVE_NOTIFICATION_TRANSPORT_ANDROID_MANAGED_FCM = 1;
+  // Linux notifications derived from the authenticated instance WebSocket.
+  NATIVE_NOTIFICATION_TRANSPORT_LINUX_RESIDENT_WEBSOCKET = 2;
+}
+
+enum NativeEndpointState {
+  NATIVE_ENDPOINT_STATE_UNSPECIFIED = 0;
+  NATIVE_ENDPOINT_STATE_ACTIVE = 1;
+  NATIVE_ENDPOINT_STATE_DISABLED = 2;
+  NATIVE_ENDPOINT_STATE_PERMANENTLY_INVALID = 3;
+}
+
+enum NativeDeliveryStatus {
+  NATIVE_DELIVERY_STATUS_UNSPECIFIED = 0;
+  NATIVE_DELIVERY_STATUS_NEVER_ATTEMPTED = 1;
+  NATIVE_DELIVERY_STATUS_PENDING = 2;
+  NATIVE_DELIVERY_STATUS_DELIVERED_TO_TRANSPORT = 3;
+  NATIVE_DELIVERY_STATUS_RETRYABLE_FAILURE = 4;
+  NATIVE_DELIVERY_STATUS_EXPIRED = 5;
+  NATIVE_DELIVERY_STATUS_PERMANENTLY_INVALID = 6;
+}
+
+message GetNativeNotificationConfigRequest {}
+
+message GetNativeNotificationConfigResponse {
+  bool enabled = 1;
+  bool android_managed_fcm_enabled = 2;
+  bool linux_resident_websocket_enabled = 3;
+  string managed_fcm_relay_url = 4;
+  string signal_encryption_suite = 5;
+  uint32 max_signal_bytes = 6;
+  uint32 max_signal_age_seconds = 7;
+  string managed_fcm_enrollment_state = 8;
+  string managed_fcm_instance_id = 9;
+}
+
+message EnrollManagedFCMRequest {}
+
+message EnrollManagedFCMResponse {
+  string enrollment_state = 1;
+  string instance_id = 2;
+}
+
+message NativeEndpointPreferences {
+  bool enabled = 1;
+  bool messages = 2;
+  bool calls = 3;
+}
+
+message NativeEndpointPreferencesPatch {
+  optional bool enabled = 1;
+  optional bool messages = 2;
+  optional bool calls = 3;
+}
+
+message NativeEndpoint {
+  string endpoint_id = 1;
+  string installation_id = 2;
+  NativeNotificationPlatform platform = 3;
+  NativeNotificationTransport transport = 4;
+  string app_id = 5;
+  // Present only for the endpoint owner. Never written to logs.
+  string fcm_installation_id = 6;
+  // Public installation encryption key. The private key stays on the client.
+  bytes client_public_key = 7;
+  string locale = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp last_seen_at = 10;
+  google.protobuf.Timestamp disabled_at = 11;
+  NativeEndpointState state = 12;
+  NativeDeliveryStatus last_delivery_status = 13;
+  NativeEndpointPreferences preferences = 14;
+  uint64 generation = 15;
+}
+
+message RegisterNativeEndpointRequest {
+  string installation_id = 1 [(buf.validate.field).string = {
+    min_len: 16
+    max_len: 128
+    pattern: "^[A-Za-z0-9._~-]+$"
+  }];
+  NativeNotificationPlatform platform = 2 [(buf.validate.field).enum = {
+    not_in: [0]
+  }];
+  NativeNotificationTransport transport = 3 [(buf.validate.field).enum = {
+    not_in: [0]
+  }];
+  string app_id = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 128
+    pattern: "^[A-Za-z0-9._-]+$"
+  }];
+  string fcm_installation_id = 5 [(buf.validate.field).string = {
+    min_len: 20
+    max_len: 128
+    pattern: "^[A-Za-z0-9_-]+$"
+  }];
+  bytes client_public_key = 6 [(buf.validate.field).bytes.max_len = 256];
+  string locale = 7 [(buf.validate.field).string.max_len = 16];
+  NativeEndpointPreferencesPatch preferences = 8;
+}
+
+message RegisterNativeEndpointResponse {
+  NativeEndpoint endpoint = 1;
+}
+
+message RotateNativeEndpointRequest {
+  string endpoint_id = 1 [(buf.validate.field).string = {
+    min_len: 16
+    max_len: 64
+    pattern: "^[A-Za-z0-9_-]+$"
+  }];
+  uint64 expected_generation = 2 [(buf.validate.field).uint64.gt = 0];
+  string fcm_installation_id = 3 [(buf.validate.field).string = {
+    min_len: 20
+    max_len: 128
+    pattern: "^[A-Za-z0-9_-]+$"
+  }];
+  bytes client_public_key = 4 [(buf.validate.field).bytes = {
+    min_len: 1
+    max_len: 256
+  }];
+  string locale = 5 [(buf.validate.field).string.max_len = 16];
+}
+
+message RotateNativeEndpointResponse {
+  NativeEndpoint endpoint = 1;
+}
+
+message UnregisterNativeEndpointRequest {
+  string endpoint_id = 1 [(buf.validate.field).string = {
+    min_len: 16
+    max_len: 64
+    pattern: "^[A-Za-z0-9_-]+$"
+  }];
+  uint64 expected_generation = 2 [(buf.validate.field).uint64.gt = 0];
+}
+
+message UnregisterNativeEndpointResponse {
+  bool unregistered = 1;
+}
+
+message ListNativeEndpointsRequest {}
+
+message ListNativeEndpointsResponse {
+  repeated NativeEndpoint endpoints = 1;
+}
+
+message UpdateNativeEndpointPreferencesRequest {
+  string endpoint_id = 1 [(buf.validate.field).string = {
+    min_len: 16
+    max_len: 64
+    pattern: "^[A-Za-z0-9_-]+$"
+  }];
+  uint64 expected_generation = 2 [(buf.validate.field).uint64.gt = 0];
+  NativeEndpointPreferencesPatch preferences = 3 [(buf.validate.field).required = true];
+}
+
+message UpdateNativeEndpointPreferencesResponse {
+  NativeEndpoint endpoint = 1;
+}

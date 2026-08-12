@@ -249,7 +249,8 @@ describe('createNotificationAPI', () => {
           value: {
             room: { id: 'DM1', name: '', kind: RoomKind.DM },
             eventId: 'E-call-started',
-            callId: 'C1'
+            callId: 'C1',
+            missed: true
           }
         }
       }
@@ -259,11 +260,12 @@ describe('createNotificationAPI', () => {
 
     await expect(api.getNotification('call-started')).resolves.toMatchObject({
       kind: NotificationItemKind.CallStarted,
-      summary: 'Alice is calling you',
+      summary: 'Missed call from Alice',
       callRoom: { id: 'DM1', name: '' },
       callEventId: 'E-call-started',
       callId: 'C1',
-      isPrivate: true
+      isPrivate: true,
+      isMissed: true
     });
   });
 

@@ -49,6 +49,20 @@
     "general": {
       "subtitle": "Identidade, marca e mensagens do servidor"
     },
+    "notifications": {
+      "title": "Notificações Android",
+      "description": "As notificações Android em segundo plano exigem registo no retransmissor FCM gerido pela TOWK. O retransmissor transporta apenas um sinal de ativação cifrado; o conteúdo é obtido diretamente deste servidor.",
+      "required": "Este servidor não está registado. As notificações Android permanecerão indisponíveis até um administrador concluir o registo.",
+      "privacy": "O registo está ativo. O retransmissor não consegue ler mensagens, salas, autores de chamadas ou conteúdo das notificações.",
+      "operator_disabled": "O operador não ativou as notificações FCM geridas na configuração do servidor.",
+      "status": "Estado do registo",
+      "relay": "Retransmissor",
+      "enroll": "Registar este servidor",
+      "enrolled": "Registo no retransmissor FCM concluído",
+      "load_failed": "Não foi possível carregar o estado do registo das notificações",
+      "enroll_failed": "Não foi possível registar este servidor no retransmissor FCM",
+      "retry": "Tentar novamente"
+    },
     "members": {
       "title": "Membros",
       "subtitle": "Visualize e gerencie membros do servidor e suas funções",

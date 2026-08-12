@@ -49,6 +49,20 @@
     "general": {
       "subtitle": "Server identity, branding, and messages"
     },
+    "notifications": {
+      "title": "Android notifications",
+      "description": "Android background notifications require enrollment with the TOWK managed FCM relay. The relay transports an encrypted wake-up signal only; notification content is fetched directly from this server.",
+      "required": "This server is not enrolled. Android notifications will remain unavailable until an administrator completes enrollment.",
+      "privacy": "Enrollment is active. The relay cannot read message, room, caller, or notification content.",
+      "operator_disabled": "The server operator has not enabled managed FCM notifications in the server configuration.",
+      "status": "Enrollment status",
+      "relay": "Relay",
+      "enroll": "Enroll this server",
+      "enrolled": "FCM relay enrollment completed",
+      "load_failed": "Unable to load notification enrollment status",
+      "enroll_failed": "Unable to enroll this server with the FCM relay",
+      "retry": "Retry"
+    },
     "members": {
       "title": "Members",
       "subtitle": "View and manage server members and their roles",

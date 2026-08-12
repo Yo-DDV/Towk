@@ -13,7 +13,8 @@ export type NotificationCopyKind = (typeof NotificationCopyKind)[keyof typeof No
 export function notificationSummary(
   actorName: string | null | undefined,
   kind: NotificationCopyKind,
-  isPrivate = false
+  isPrivate = false,
+  isMissed = false
 ): string {
   switch (kind) {
     case NotificationCopyKind.DirectMessage:
@@ -33,6 +34,16 @@ export function notificationSummary(
         ? m['chat.notifications.room_message']({ actor: actorName })
         : m['chat.notifications.room_message_unknown']();
     case NotificationCopyKind.CallStarted:
+      if (isMissed) {
+        if (isPrivate) {
+          return actorName
+            ? m['chat.notifications.private_call_missed']({ actor: actorName })
+            : m['chat.notifications.private_call_missed_unknown']();
+        }
+        return actorName
+          ? m['chat.notifications.call_missed']({ actor: actorName })
+          : m['chat.notifications.call_missed_unknown']();
+      }
       if (isPrivate) {
         return actorName
           ? m['chat.notifications.private_call_started']({ actor: actorName })
