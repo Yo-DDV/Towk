@@ -397,16 +397,18 @@ func TestPermissionResolver_HasRoomPermission(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	// Create user and assign owner role (formerly via CreateSpace).
-	user, _ := core.CreateUser(ctx, "system", "testuser", "Test User", "password123")
-	if err := core.AssignServerRole(ctx, SystemActorID, user.Id, RoleOwner); err != nil {
+	user, _ := core.CreateUser(ctx, SystemActorID, "testuser", "Test User", "password123")
+	if _, err := core.CreateServerRole(ctx, SystemActorID, "room-permission-test", "Room Permission Test", ""); err != nil {
+		t.Fatalf("CreateServerRole: %v", err)
+	}
+	if err := core.AssignServerRole(ctx, SystemActorID, user.Id, "room-permission-test"); err != nil {
 		t.Fatalf("AssignServerRole: %v", err)
 	}
-	room, _ := core.CreateRoom(ctx, user.Id, KindChannel, "", "General", "General chat")
+	room, _ := core.CreateRoom(ctx, SystemActorID, KindChannel, "", "General", "General chat")
 
 	t.Run("returns true when user has permission at room level", func(t *testing.T) {
 		// Grant permission at room level
-		err := core.GrantRoomPermission(ctx, SystemActorID, room.Id, RoleOwner, PermMessagePost)
+		err := core.GrantRoomPermission(ctx, SystemActorID, room.Id, "room-permission-test", PermMessagePost)
 		if err != nil {
 			t.Fatalf("Failed to grant room permission: %v", err)
 		}
@@ -423,7 +425,7 @@ func TestPermissionResolver_HasRoomPermission(t *testing.T) {
 	t.Run("falls back to space level", func(t *testing.T) {
 		// User is space admin, should have space.manage which doesn't apply at room level
 		// but room.manage does apply at space and room levels
-		err := core.GrantServerPermission(ctx, SystemActorID, RoleOwner, PermRoomManage)
+		err := core.GrantServerPermission(ctx, SystemActorID, "room-permission-test", PermRoomManage)
 		if err != nil {
 			t.Fatalf("Failed to grant space permission: %v", err)
 		}
@@ -885,11 +887,15 @@ func TestPermissionResolver_UserLevelOverrides(t *testing.T) {
 		c, _ := setupTestCore(t)
 		ctx2 := testContext(t)
 		user, _ := c.CreateUser(ctx2, SystemActorID, "dm-boundary-user", "User", "password123")
-		dmRoomID := "R_dm_boundary_user_test"
-		if err := c.GrantUserRoomPermission(ctx2, SystemActorID, dmRoomID, user.Id, PermMessageManage); err != nil {
+		participant, _ := c.CreateUser(ctx2, SystemActorID, "dm-boundary-peer", "Peer", "password123")
+		dm, _, err := c.FindOrCreateDM(ctx2, user.Id, []string{participant.Id})
+		if err != nil {
+			t.Fatalf("FindOrCreateDM: %v", err)
+		}
+		if err := c.GrantUserRoomPermission(ctx2, SystemActorID, dm.Id, user.Id, PermMessageManage); err != nil {
 			t.Fatalf("GrantUserRoomPermission: %v", err)
 		}
-		has, _ := c.permissionResolver.HasRoomPermission(ctx2, user.Id, KindDM, dmRoomID, PermMessageManage)
+		has, _ := c.permissionResolver.HasRoomPermission(ctx2, user.Id, KindDM, dm.Id, PermMessageManage)
 		if has {
 			t.Error("expected DM boundary deny to override user-level grant for message.manage")
 		}

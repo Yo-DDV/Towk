@@ -150,7 +150,7 @@ func (s *messageService) DeleteMessage(ctx context.Context, req *connect.Request
 		return nil, connectError(err)
 	}
 
-	if err := s.api.core.Messages().DeleteMessage(ctx, core.MessageDeleteInput{
+	if err := s.api.core.DeleteMessageWithModeration(ctx, core.MessageDeleteInput{
 		ActorID: caller.UserID,
 		RoomID:  req.Msg.RoomId,
 		EventID: req.Msg.EventId,
