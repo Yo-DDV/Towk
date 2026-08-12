@@ -1,4 +1,5 @@
 import type { RegisteredServer } from '$lib/state/server/registry.svelte';
+import { APIPresenceStatus, createPresenceAPI } from '$lib/api-client/presence';
 import { csrfFetch } from './csrf';
 
 export const SIGN_OUT_TIMEOUT_MS = 5000;
@@ -21,8 +22,27 @@ function withSignOutTimeout<T>(request: (signal: AbortSignal) => Promise<T>): Pr
  * Callers intentionally continue with local cleanup if this rejects, so users
  * can escape stale or unreachable server registrations.
  */
-export function signOutServer(server: RegisteredServer, isOriginServer: boolean): Promise<Response> {
+export async function signOutServer(
+	server: RegisteredServer,
+	isOriginServer: boolean
+): Promise<Response> {
 	const headers = server.token ? { Authorization: `Bearer ${server.token}` } : undefined;
+
+	// Release this browser installation while authentication is still valid.
+	// Failure remains best-effort: bounded leases still expire and must never
+	// prevent a user from signing out of an unreachable server.
+	await withSignOutTimeout((signal) =>
+		createPresenceAPI({
+			serverId: server.id,
+			baseUrl: server.url,
+			bearerToken: server.token
+		}).updatePresence(
+			APIPresenceStatus.OFFLINE,
+			true,
+			{ active: false, releaseInstallation: true },
+			signal
+		)
+	).catch(() => undefined);
 
 	if (isOriginServer) {
 		return withSignOutTimeout((signal) => csrfFetch('/auth/logout', {
