@@ -829,68 +829,74 @@
       </div>
     {/if}
 
-    {#if hasMultiple}
-      <button
-        type="button"
-        onclick={() => navigate(-1)}
-        class="image-modal-control image-modal-nav image-modal-nav-previous"
-        aria-label={m['ui.image_modal.previous']()}
-        title={m['ui.image_modal.previous']()}
-        disabled={closing}
-      >
-        <span class="iconify text-2xl uil--angle-left-b" aria-hidden="true"></span>
-      </button>
-      <button
-        type="button"
-        onclick={() => navigate(1)}
-        class="image-modal-control image-modal-nav image-modal-nav-next"
-        aria-label={m['ui.image_modal.next']()}
-        title={m['ui.image_modal.next']()}
-        disabled={closing}
-      >
-        <span class="iconify text-2xl uil--angle-right-b" aria-hidden="true"></span>
-      </button>
-    {/if}
   </div>
 
   {#if current}
-    <div class="image-modal-zoom" role="group" aria-label={`${imageAlt} ${zoomPercent}%`}>
-      <button
-        type="button"
-        onclick={() => zoomBy(-IMAGE_ZOOM_STEP)}
-        class="image-modal-control image-modal-zoom-button image-modal-zoom-out"
-        aria-label={`−${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
-        title={`−${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
-        disabled={closing || transform.scale <= MIN_IMAGE_SCALE}
-        data-testid="image-modal-zoom-out"
-      >
-        <span class="iconify text-xl uil--minus" aria-hidden="true"></span>
-      </button>
-      <button
-        type="button"
-        onclick={resetTransform}
-        class="image-modal-zoom-level"
-        aria-label="100%"
-        title="100%"
-        disabled={
-          closing ||
-          (transform.scale === MIN_IMAGE_SCALE && transform.x === 0 && transform.y === 0)
-        }
-        data-testid="image-modal-zoom-reset"
-      >
-        <output aria-live="polite">{zoomPercent}%</output>
-      </button>
-      <button
-        type="button"
-        onclick={() => zoomBy(IMAGE_ZOOM_STEP)}
-        class="image-modal-control image-modal-zoom-button image-modal-zoom-in"
-        aria-label={`+${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
-        title={`+${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
-        disabled={closing || transform.scale >= MAX_IMAGE_SCALE}
-        data-testid="image-modal-zoom-in"
-      >
-        <span class="iconify text-xl uil--plus" aria-hidden="true"></span>
-      </button>
-    </div>
+    <footer class="image-modal-footer" data-testid="image-modal-footer">
+      {#if hasMultiple}
+        <button
+          type="button"
+          onclick={() => navigate(-1)}
+          class="image-modal-control image-modal-nav image-modal-nav-previous"
+          aria-label={m['ui.image_modal.previous']()}
+          title={m['ui.image_modal.previous']()}
+          disabled={closing}
+        >
+          <span class="iconify text-2xl uil--angle-left-b" aria-hidden="true"></span>
+        </button>
+      {/if}
+
+      <div class="image-modal-zoom" role="group" aria-label={`${imageAlt} ${zoomPercent}%`}>
+        <button
+          type="button"
+          onclick={() => zoomBy(-IMAGE_ZOOM_STEP)}
+          class="image-modal-control image-modal-zoom-button image-modal-zoom-out"
+          aria-label={`−${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
+          title={`−${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
+          disabled={closing || transform.scale <= MIN_IMAGE_SCALE}
+          data-testid="image-modal-zoom-out"
+        >
+          <span class="iconify text-xl uil--minus" aria-hidden="true"></span>
+        </button>
+        <button
+          type="button"
+          onclick={resetTransform}
+          class="image-modal-zoom-level"
+          aria-label="100%"
+          title="100%"
+          disabled={
+            closing ||
+            (transform.scale === MIN_IMAGE_SCALE && transform.x === 0 && transform.y === 0)
+          }
+          data-testid="image-modal-zoom-reset"
+        >
+          <output aria-live="polite">{zoomPercent}%</output>
+        </button>
+        <button
+          type="button"
+          onclick={() => zoomBy(IMAGE_ZOOM_STEP)}
+          class="image-modal-control image-modal-zoom-button image-modal-zoom-in"
+          aria-label={`+${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
+          title={`+${Math.round(IMAGE_ZOOM_STEP * 100)}%`}
+          disabled={closing || transform.scale >= MAX_IMAGE_SCALE}
+          data-testid="image-modal-zoom-in"
+        >
+          <span class="iconify text-xl uil--plus" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      {#if hasMultiple}
+        <button
+          type="button"
+          onclick={() => navigate(1)}
+          class="image-modal-control image-modal-nav image-modal-nav-next"
+          aria-label={m['ui.image_modal.next']()}
+          title={m['ui.image_modal.next']()}
+          disabled={closing}
+        >
+          <span class="iconify text-2xl uil--angle-right-b" aria-hidden="true"></span>
+        </button>
+      {/if}
+    </footer>
   {/if}
 </dialog>

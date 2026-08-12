@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
 import ImageModal, { type ImageItem } from './ImageModal.svelte';
 
@@ -186,6 +187,36 @@ describe('ImageModal', () => {
     expect(
       container.querySelectorAll<HTMLImageElement>('[data-testid="image-modal-detail-image"]')
     ).toHaveLength(1);
+  });
+
+  it('keeps gallery navigation in a dedicated row below the media', async () => {
+    const { container } = await renderViewer();
+    await waitForMedia(container);
+
+    const stage = container.querySelector<HTMLElement>('[data-testid="image-modal-stage"]')!;
+    const footer = container.querySelector<HTMLElement>('[data-testid="image-modal-footer"]')!;
+    const previous = container.querySelector<HTMLButtonElement>('.image-modal-nav-previous')!;
+    const next = container.querySelector<HTMLButtonElement>('.image-modal-nav-next')!;
+
+    expect(footer).not.toBeNull();
+    expect(stage.contains(previous)).toBe(false);
+    expect(stage.contains(next)).toBe(false);
+    expect(footer.contains(previous)).toBe(true);
+    expect(footer.contains(next)).toBe(true);
+
+    await vi.waitFor(() => {
+      const stageRect = stage.getBoundingClientRect();
+      const previousRect = previous.getBoundingClientRect();
+      const nextRect = next.getBoundingClientRect();
+
+      expect(previousRect.top).toBeGreaterThanOrEqual(stageRect.bottom);
+      expect(nextRect.top).toBeGreaterThanOrEqual(stageRect.bottom);
+      expect(previousRect.width).toBeGreaterThanOrEqual(44);
+      expect(previousRect.height).toBeGreaterThanOrEqual(44);
+      expect(nextRect.width).toBeGreaterThanOrEqual(44);
+      expect(nextRect.height).toBeGreaterThanOrEqual(44);
+      expect(previousRect.left).toBeLessThan(nextRect.left);
+    });
   });
 
   it('preserves the selected attachment when refreshed items replay a stale parent index', async () => {
@@ -506,6 +537,45 @@ describe('ImageModal', () => {
       dialog.getBoundingClientRect().right
     );
     expect(container.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+  });
+
+  it('keeps bottom navigation clear of media across phone, fold, tablet and desktop sizes', async () => {
+    const viewports = [
+      [280, 653],
+      [320, 568],
+      [390, 844],
+      [844, 390],
+      [844, 220],
+      [768, 1024],
+      [1440, 900]
+    ] as const;
+    try {
+      const { container } = await renderViewer();
+
+      for (const [width, height] of viewports) {
+        await page.viewport(width, height);
+        const stage = container.querySelector<HTMLElement>('[data-testid="image-modal-stage"]')!;
+        const footer = container.querySelector<HTMLElement>('[data-testid="image-modal-footer"]')!;
+        const previous = container.querySelector<HTMLButtonElement>('.image-modal-nav-previous')!;
+        const next = container.querySelector<HTMLButtonElement>('.image-modal-nav-next')!;
+
+        await vi.waitFor(() => {
+          const stageRect = stage.getBoundingClientRect();
+          const footerRect = footer.getBoundingClientRect();
+          const previousRect = previous.getBoundingClientRect();
+          const nextRect = next.getBoundingClientRect();
+
+          expect(stageRect.height).toBeGreaterThan(0);
+          expect(previousRect.top).toBeGreaterThanOrEqual(stageRect.bottom);
+          expect(nextRect.top).toBeGreaterThanOrEqual(stageRect.bottom);
+          expect(footerRect.left).toBeGreaterThanOrEqual(0);
+          expect(footerRect.right).toBeLessThanOrEqual(window.innerWidth);
+          expect(container.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+        });
+      }
+    } finally {
+      await page.viewport(1280, 720);
+    }
   });
 
   it('removes resize listeners when the viewer is unmounted', async () => {
