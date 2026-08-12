@@ -13,6 +13,9 @@
 
 <div data-event-id={event.id}>
   {event.id}
+  {#if event.id === 'msg-control'}
+    <button type="button" data-testid="mock-timeline-control">Play</button>
+  {/if}
   {#if readReceiptSummary}
     <span data-testid={`read-receipt-summary-${event.id}`}>{readReceiptSummary.readerCount}</span>
   {/if}

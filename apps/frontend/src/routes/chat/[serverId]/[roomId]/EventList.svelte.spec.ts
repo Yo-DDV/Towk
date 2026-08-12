@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
 import EventListTestHarness from './EventListTestHarness.svelte';
+import type { ResumeSignal } from '$lib/hooks/resumeCoordinator.svelte';
 import {
   emitVirtualizerScroll,
   setVirtualizerScrollOffset
 } from './EventListVirtualizerMock.svelte';
 
 const resumeCallbacks = vi.hoisted(() => [] as Array<() => void>);
+const missedMessageCallbacks = vi.hoisted(
+  () => [] as Array<(signal: ResumeSignal) => boolean | void | Promise<boolean | void>>
+);
 const readReceiptMocks = vi.hoisted(() => ({
   advanceReadReceipt: vi.fn(),
   getReadReceiptSummaries: vi.fn()
@@ -77,12 +81,15 @@ vi.mock('$lib/hooks/useTabResumeCallback.svelte', () => ({
 }));
 
 vi.mock('$lib/hooks/useMayHaveMissedMessagesCallback.svelte', () => ({
-  useMayHaveMissedMessagesCallback: () => {}
+  useMayHaveMissedMessagesCallback: (
+    callback: (signal: ResumeSignal) => boolean | void | Promise<boolean | void>
+  ) => missedMessageCallbacks.push(callback)
 }));
 
 describe('EventList jump completion', () => {
   beforeEach(() => {
     resumeCallbacks.length = 0;
+    missedMessageCallbacks.length = 0;
     readReceiptMocks.advanceReadReceipt.mockReset().mockResolvedValue(false);
     readReceiptMocks.getReadReceiptSummaries
       .mockReset()
@@ -958,6 +965,180 @@ describe('EventList jump completion', () => {
     }
   });
 
+  it('refreshes the latest window when resume finds physical drift in a logically sticky timeline', async () => {
+    const refreshCurrentWindow = vi.fn().mockResolvedValue({
+      hasOlder: true,
+      hasNewer: false,
+      refreshed: true,
+      changed: false
+    });
+    const onSoftRefresh = vi.fn();
+    const rendered = render(EventListTestHarness, {
+      props: {
+        eventIds: ['msg-history', 'msg-latest'],
+        scrollToEventId: null,
+        refreshCurrentWindow,
+        onSoftRefresh
+      }
+    });
+
+    try {
+      await vi.waitFor(() =>
+        expect(
+          Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)
+        ).toBeGreaterThanOrEqual(7)
+      );
+      const renderedEvent = document.querySelector<HTMLElement>('[data-event-id]');
+      expect(renderedEvent).not.toBeNull();
+      vi.spyOn(renderedEvent!, 'getBoundingClientRect').mockReturnValue(
+        DOMRect.fromRect({ x: 0, y: 20, width: 200, height: 40 })
+      );
+
+      setVirtualizerScrollOffset(400);
+      const signal: ResumeSignal = {
+        serverId: 'server-1',
+        reason: 'visibility',
+        phase: 'immediate',
+        source: 'browser',
+        hiddenDurationMs: 10_000,
+        epoch: 1,
+        at: Date.now()
+      };
+      const refresh = missedMessageCallbacks.at(-1)?.(signal);
+      resumeCallbacks.at(-1)?.();
+      await refresh;
+
+      expect(refreshCurrentWindow).toHaveBeenCalledExactlyOnceWith(null);
+      expect(onSoftRefresh).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ refreshed: true }),
+        false
+      );
+      await expect.element(page.getByTestId('jump-to-present')).not.toBeInTheDocument();
+    } finally {
+      setVirtualizerScrollOffset(700);
+      rendered.unmount();
+    }
+  });
+
+  it('does not treat pressing a timeline control as scroll intent', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        eventIds: ['msg-control'],
+        scrollToEventId: null
+      }
+    });
+
+    try {
+      await vi.waitFor(() =>
+        expect(
+          Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)
+        ).toBeGreaterThanOrEqual(7)
+      );
+      page
+        .getByTestId('mock-timeline-control')
+        .element()
+        .dispatchEvent(
+          new PointerEvent('pointerdown', {
+            bubbles: true,
+            pointerId: 1,
+            clientY: 120
+          })
+        );
+      emitVirtualizerScroll(650);
+      emitVirtualizerScroll(400);
+
+      await expect.element(page.getByTestId('jump-to-present')).not.toBeInTheDocument();
+    } finally {
+      window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+      setVirtualizerScrollOffset(700);
+      rendered.unmount();
+    }
+  });
+
+  it('does not restore an anchored refresh after the user returns to the latest message', async () => {
+    let resolveRefresh:
+      | ((value: {
+          hasOlder: boolean;
+          hasNewer: boolean;
+          refreshed: boolean;
+          changed: boolean;
+        }) => void)
+      | undefined;
+    const refreshCurrentWindow = vi.fn(
+      () =>
+        new Promise<{
+          hasOlder: boolean;
+          hasNewer: boolean;
+          refreshed: boolean;
+          changed: boolean;
+        }>((resolve) => {
+          resolveRefresh = resolve;
+        })
+    );
+    const onSoftRefresh = vi.fn();
+    const rendered = render(EventListTestHarness, {
+      props: {
+        eventIds: ['msg-history', 'msg-latest'],
+        scrollToEventId: null,
+        refreshCurrentWindow,
+        onSoftRefresh
+      }
+    });
+
+    try {
+      await vi.waitFor(() =>
+        expect(
+          Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)
+        ).toBeGreaterThanOrEqual(7)
+      );
+      const renderedEvent = document.querySelector<HTMLElement>('[data-event-id]');
+      expect(renderedEvent).not.toBeNull();
+      vi.spyOn(renderedEvent!, 'getBoundingClientRect').mockReturnValue(
+        DOMRect.fromRect({ x: 0, y: 20, width: 200, height: 40 })
+      );
+
+      page
+        .getByTestId('messages-container')
+        .element()
+        .dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+      emitVirtualizerScroll(650);
+      emitVirtualizerScroll(400);
+      await expect.element(page.getByTestId('jump-to-present')).toBeVisible();
+
+      const signal: ResumeSignal = {
+        serverId: 'server-1',
+        reason: 'visibility',
+        phase: 'immediate',
+        source: 'browser',
+        hiddenDurationMs: 10_000,
+        epoch: 2,
+        at: Date.now()
+      };
+      const refresh = missedMessageCallbacks.at(-1)?.(signal);
+      expect(refreshCurrentWindow).toHaveBeenCalledExactlyOnceWith('msg-latest');
+
+      (page.getByTestId('jump-to-present').element() as HTMLButtonElement).click();
+      setVirtualizerScrollOffset(700);
+      await Promise.resolve();
+      resolveRefresh?.({
+        hasOlder: true,
+        hasNewer: true,
+        refreshed: true,
+        changed: false
+      });
+      await refresh;
+
+      expect(onSoftRefresh).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ refreshed: true }),
+        false
+      );
+      await expect.element(page.getByTestId('jump-to-present')).not.toBeInTheDocument();
+    } finally {
+      setVirtualizerScrollOffset(700);
+      rendered.unmount();
+    }
+  });
+
   it('re-converges at the bottom when the message viewport resizes while sticky', async () => {
     resizeCallbacks = [];
     vi.stubGlobal('ResizeObserver', ResizeObserverMock);
@@ -1061,7 +1242,20 @@ describe('EventList jump completion', () => {
       const callsBeforeUserScroll = scrollCalls();
       const messageContainer = page.getByTestId('messages-container').element();
 
-      messageContainer.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      messageContainer.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          pointerId: 1,
+          clientY: 300
+        })
+      );
+      window.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          pointerId: 1,
+          clientY: 280
+        })
+      );
       await new Promise((resolve) => setTimeout(resolve, 300));
       emitVirtualizerScroll(650);
       emitVirtualizerScroll(400);
@@ -1069,7 +1263,7 @@ describe('EventList jump completion', () => {
       await expect.element(page.getByTestId('jump-to-present')).toBeVisible();
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(scrollCalls()).toBe(callsBeforeUserScroll);
-      window.dispatchEvent(new PointerEvent('pointerup'));
+      window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
     } finally {
       setVirtualizerScrollOffset(700);
       rendered.unmount();
