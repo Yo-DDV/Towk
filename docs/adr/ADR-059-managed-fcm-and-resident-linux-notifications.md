@@ -1,6 +1,6 @@
 # ADR-059: Managed FCM for Android and resident WebSocket notifications for Linux
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-08-10
 
 ## Context
