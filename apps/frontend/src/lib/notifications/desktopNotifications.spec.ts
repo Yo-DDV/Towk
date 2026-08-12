@@ -9,7 +9,8 @@ import {
   desktopNotificationPayload,
   nativeDesktopNotificationId,
   parseNativeDesktopNotificationId,
-  residentNotificationBaselineIds
+  residentNotificationBaselineIds,
+  residentUnseenNotifications
 } from './desktopNotifications';
 
 const actor = {
@@ -61,6 +62,20 @@ describe('desktop notification bridge', () => {
         { ...messageNotification, id: 'unsafe:notification' }
       ])
     ).toEqual(['chat-example-org:notification-1']);
+  });
+
+  it('reconciles only safe notifications that were not already presented', () => {
+    expect(
+      residentUnseenNotifications(
+        'chat-example-org',
+        [
+          messageNotification,
+          { ...messageNotification, id: 'notification-3' },
+          { ...messageNotification, id: 'unsafe:notification' }
+        ],
+        new Set(['chat-example-org:notification-1'])
+      ).map((notification) => notification.id)
+    ).toEqual(['notification-3']);
   });
 
   it('maps message and call notifications to same-origin resident payloads', () => {

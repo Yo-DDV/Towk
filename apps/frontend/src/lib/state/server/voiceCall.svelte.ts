@@ -3013,7 +3013,6 @@ export class VoiceCallState {
         await room.localParticipant
           .sendText(new TextDecoder().decode(payload), {
             topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC,
-            totalSize: payload.byteLength
           })
           .catch(() => undefined);
       }
