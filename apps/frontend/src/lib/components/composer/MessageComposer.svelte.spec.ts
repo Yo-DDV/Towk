@@ -1816,6 +1816,36 @@ describe('MessageComposer', () => {
       });
     });
 
+    it('posts pasted URL-safe opaque text without adding Markdown escapes', async () => {
+      const body = 'Abcdef-Ghij1234567890klmnoP_qrstUVWXYZ';
+      const { container, roomId } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      editor.focus();
+      pasteText(editor, body);
+      await expect.element(editor).toHaveTextContent(body);
+      (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
+
+      await vi.waitFor(() => expect(mutationMock).toHaveBeenCalledOnce());
+      expect(mutationMock.mock.calls[0][1].input.roomId).toBe(roomId);
+      expect(mutationMock.mock.calls[0][1].input.body).toBe(body);
+    });
+
+    it('posts pasted literal backslashes without dropping or adding escapes', async () => {
+      const body = 'path\\segment\\_literal';
+      const { container, roomId } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      editor.focus();
+      pasteText(editor, body);
+      await expect.element(editor).toHaveTextContent(body);
+      (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
+
+      await vi.waitFor(() => expect(mutationMock).toHaveBeenCalledOnce());
+      expect(mutationMock.mock.calls[0][1].input.roomId).toBe(roomId);
+      expect(mutationMock.mock.calls[0][1].input.body).toBe(body);
+    });
+
     it('escapes fresh leading blockquote markers typed as literal text', async () => {
       const { container, roomId } = renderMessageComposer({ roomId: 'room_456' });
       const editor = await findEditor(container);
