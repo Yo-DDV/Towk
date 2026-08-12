@@ -100,6 +100,19 @@ export function residentNotificationBaselineIds(
   return [...ids];
 }
 
+export function residentUnseenNotifications<T extends Pick<NotificationItem, 'id'>>(
+  serverId: string,
+  notifications: Iterable<T>,
+  seenNativeIds: ReadonlySet<string>
+): T[] {
+  const unseen: T[] = [];
+  for (const notification of notifications) {
+    const nativeId = nativeDesktopNotificationId(serverId, notification.id);
+    if (nativeId && !seenNativeIds.has(nativeId)) unseen.push(notification);
+  }
+  return unseen;
+}
+
 export function desktopNotificationPayload(
   serverId: string,
   applicationOrigin: string,

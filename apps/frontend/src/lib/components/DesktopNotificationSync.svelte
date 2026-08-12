@@ -17,6 +17,7 @@ server scoping, navigation, dismissal and call admission.
     nativeDesktopNotificationId,
     parseNativeDesktopNotificationId,
     residentNotificationBaselineIds,
+    residentUnseenNotifications,
     type DesktopNotificationActivation
   } from '$lib/notifications/desktopNotifications';
   import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
@@ -29,8 +30,10 @@ server scoping, navigation, dismissal and call admission.
   // prevents the notification effect from retriggering itself when it
   // remembers a notification that it has just dispatched.
   const requested = new Set<string>();
+  const reconciledServers = new Set<string>();
   const silentByNotification = new Map<string, boolean>();
   let activationQueue: Promise<void> = Promise.resolve();
+  let residentRefreshQueue: Promise<void> = Promise.resolve();
 
   function boundedRemember(notificationId: string): void {
     requested.add(notificationId);
@@ -204,20 +207,40 @@ server scoping, navigation, dismissal and call admission.
     }
   }
 
-  function refreshResidentState(): void {
+  async function refreshResidentState(): Promise<void> {
     for (const server of serverRegistry.servers) {
       const stores = serverRegistry.tryGetStore(server.id);
       if (!stores?.isAuthenticated) continue;
-      void stores.notifications.fetch().then(() => {
+      await stores.notifications.fetch();
+      if (!reconciledServers.has(server.id)) {
         for (const nativeId of residentNotificationBaselineIds(
           server.id,
           stores.notifications.allNotificationSignals
         )) {
           boundedRemember(nativeId);
         }
-      });
+        reconciledServers.add(server.id);
+      } else {
+        for (const notification of residentUnseenNotifications(
+          server.id,
+          stores.notifications.allNotificationSignals,
+          requested
+        )) {
+          requestDesktopNotification(
+            server.id,
+            notification,
+            stores.notifications.getNavigationPath(server.id, notification)
+          );
+        }
+      }
       if (stores.serverInfo.livekitUrl) void stores.activeCallRooms.load();
     }
+  }
+
+  function scheduleResidentRefresh(): void {
+    residentRefreshQueue = residentRefreshQueue
+      .then(() => refreshResidentState())
+      .catch((error) => console.error('Failed to reconcile resident notifications:', error));
   }
 
   onMount(() => {
@@ -233,17 +256,19 @@ server scoping, navigation, dismissal and call admission.
     });
     const stopLifecycle = bridge.onLifecycle((event) => {
       if (event.type === 'ready' || event.type === 'resume' || event.type === 'unlocked') {
-        refreshResidentState();
+        scheduleResidentRefresh();
       }
     });
-    const handleOnline = () => refreshResidentState();
+    const handleOnline = () => scheduleResidentRefresh();
     window.addEventListener('online', handleOnline);
-    refreshResidentState();
+    scheduleResidentRefresh();
+    const reconciliationTimer = window.setInterval(scheduleResidentRefresh, 10_000);
 
     return () => {
       stopActivation();
       stopLifecycle();
       window.removeEventListener('online', handleOnline);
+      window.clearInterval(reconciliationTimer);
     };
   });
 </script>

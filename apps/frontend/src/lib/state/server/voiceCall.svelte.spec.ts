@@ -138,7 +138,7 @@ let performRpcFailure: Error | null = null;
 let publishDataMock = vi.fn(
   async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
 );
-let sendTextMock = vi.fn(async (_text: string, _options: { topic: string; totalSize: number }) => ({}));
+let sendTextMock = vi.fn(async (_text: string, _options: { topic: string }) => ({}));
 let performRpcResponder: (params: {
   destinationIdentity: string;
   method: string;
@@ -282,7 +282,7 @@ vi.mock('livekit-client', () => {
       publishData: vi.fn((data: Uint8Array, options: { reliable: boolean; topic: string }) =>
         publishDataMock(data, options)
       ),
-      sendText: vi.fn((text: string, options: { topic: string; totalSize: number }) =>
+      sendText: vi.fn((text: string, options: { topic: string }) =>
         sendTextMock(text, options)
       ),
       getTrackPublication: vi.fn((source: string) => {
@@ -635,7 +635,7 @@ describe('VoiceCallState', () => {
       async (_data: Uint8Array, _options: { reliable: boolean; topic: string }) => undefined
     );
     sendTextMock = vi.fn(
-      async (_text: string, _options: { topic: string; totalSize: number }) => ({})
+      async (_text: string, _options: { topic: string }) => ({})
     );
     performRpcResponder = () =>
       JSON.stringify({ version: 1, microphoneMuted: false, outputMuted: false, revision: 0 });
@@ -5363,7 +5363,6 @@ describe('VoiceCallState', () => {
     const [publishedText, publishedOptions] = sendTextMock.mock.calls[0]!;
     expect(publishedOptions).toEqual({
       topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC,
-      totalSize: new TextEncoder().encode(publishedText).byteLength
     });
 
     const now = Date.now();
