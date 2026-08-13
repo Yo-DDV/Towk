@@ -52,7 +52,7 @@ func TestExtractFallbackMetadataUsesDomainForSparsePages(t *testing.T) {
 
 	require.Equal(t, "example.com", metadata.Title)
 	require.Equal(t, "example.com", metadata.SiteName)
-	require.Empty(t, metadata.ImageURL)
+	require.Equal(t, "https://www.example.com/favicon.ico", metadata.ImageURL)
 }
 
 func TestExtractFallbackMetadataUsesFaviconWhenNoSocialImageExists(t *testing.T) {
@@ -62,6 +62,28 @@ func TestExtractFallbackMetadataUsesFaviconWhenNoSocialImageExists(t *testing.T)
 	)
 
 	if metadata.ImageURL != "https://www.example.com/favicon.png" {
+		t.Fatalf("ImageURL = %q", metadata.ImageURL)
+	}
+}
+
+func TestExtractFallbackMetadataPrefersRealEditorialImagesOverFavicon(t *testing.T) {
+	metadata := extractFallbackMetadata(
+		[]byte(`<html><head><link rel="icon" href="/favicon.png"><link rel="image_src" href="/cover.jpg"></head><body><img src="/first-photo.jpg"></body></html>`),
+		"https://www.example.com/article",
+	)
+
+	if metadata.ImageURL != "https://www.example.com/cover.jpg" {
+		t.Fatalf("ImageURL = %q", metadata.ImageURL)
+	}
+}
+
+func TestExtractFallbackMetadataUsesFirstNonTrackingPageImage(t *testing.T) {
+	metadata := extractFallbackMetadata(
+		[]byte(`<html><body><img src="/tracking-pixel.gif"><img data-src="/article-photo.webp"></body></html>`),
+		"https://example.com/story",
+	)
+
+	if metadata.ImageURL != "https://example.com/article-photo.webp" {
 		t.Fatalf("ImageURL = %q", metadata.ImageURL)
 	}
 }

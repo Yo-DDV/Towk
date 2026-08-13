@@ -218,7 +218,7 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string) (*FetchResult, error
 	}
 
 	// Download and store the preview image if available
-	if imageURL != "" {
+	if imageURL != "" && f.assetsConfig != nil && f.newAssetID != nil && f.storeImage != nil {
 		f.logger.Debug("Attempting to download preview image", "image_origin", SafeLogOrigin(imageURL))
 		asset, err := f.downloadAndStoreImage(ctx, imageURL)
 		if err != nil {
@@ -231,22 +231,16 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string) (*FetchResult, error
 	} else {
 		f.logger.Debug("No preview image found", "origin", SafeLogOrigin(rawURL))
 	}
-	if result.ImageAsset == nil {
-		if asset, err := f.generateAndStoreFallbackImage(ctx, rawURL); err != nil {
-			f.logger.Warn("Failed to generate fallback preview image", "origin", SafeLogOrigin(rawURL), "error_type", fmt.Sprintf("%T", err))
-		} else {
-			result.ImageAsset = asset
-		}
-	}
-
 	return result, nil
 }
 
 func (f *Fetcher) fallbackFetchResult(ctx context.Context, rawURL string) *FetchResult {
 	metadata := fallbackMetadataForURL(rawURL)
 	result := &FetchResult{Title: metadata.Title, SiteName: metadata.SiteName, EmbedType: "generic"}
-	if asset, err := f.generateAndStoreFallbackImage(ctx, rawURL); err == nil {
-		result.ImageAsset = asset
+	if metadata.ImageURL != "" && f.assetsConfig != nil && f.newAssetID != nil && f.storeImage != nil {
+		if asset, err := f.downloadAndStoreImage(ctx, metadata.ImageURL); err == nil {
+			result.ImageAsset = asset
+		}
 	}
 	return result
 }

@@ -34,6 +34,7 @@ func extractFallbackMetadata(document []byte, pageURL string) fallbackMetadata {
 	var twitterDescription string
 	var twitterImage string
 
+	var editorialImage, pageImage, faviconImage string
 	var visit func(*html.Node)
 	visit = func(node *html.Node) {
 		if node.Type == html.ElementNode {
@@ -44,10 +45,27 @@ func extractFallbackMetadata(document []byte, pageURL string) fallbackMetadata {
 				}
 			case "link":
 				rel := strings.ToLower(attribute(node, "rel"))
-				if metadata.ImageURL == "" && strings.Contains(rel, "icon") {
-					metadata.ImageURL = attribute(node, "href")
+				if editorialImage == "" && strings.Contains(rel, "image_src") {
+					editorialImage = attribute(node, "href")
+				} else if faviconImage == "" && strings.Contains(rel, "icon") {
+					faviconImage = attribute(node, "href")
+				}
+			case "img":
+				candidate := firstNonEmpty(attribute(node, "src"), attribute(node, "data-src"))
+				lowerCandidate := strings.ToLower(candidate)
+				if pageImage == "" && candidate != "" &&
+					!strings.Contains(lowerCandidate, "pixel") &&
+					!strings.Contains(lowerCandidate, "spacer") &&
+					!strings.Contains(lowerCandidate, "tracking") &&
+					!strings.Contains(lowerCandidate, "avatar") &&
+					!strings.Contains(lowerCandidate, "logo") &&
+					!strings.Contains(lowerCandidate, "icon") {
+					pageImage = candidate
 				}
 			case "meta":
+				if editorialImage == "" && strings.EqualFold(attribute(node, "itemprop"), "image") {
+					editorialImage = attribute(node, "content")
+				}
 				name := strings.ToLower(firstNonEmpty(attribute(node, "name"), attribute(node, "property")))
 				content := cleanMetadataText(attribute(node, "content"))
 				switch name {
@@ -73,7 +91,10 @@ func extractFallbackMetadata(document []byte, pageURL string) fallbackMetadata {
 	metadata.Title = truncateMetadata(firstNonEmpty(twitterTitle, htmlTitle, metadata.Title), maxFallbackTitleLength)
 	metadata.Description = truncateMetadata(firstNonEmpty(twitterDescription, standardDescription), maxFallbackDescriptionLength)
 	metadata.SiteName = truncateMetadata(metadata.SiteName, maxFallbackSiteNameLength)
-	metadata.ImageURL = resolveMetadataURL(pageURL, firstNonEmpty(twitterImage, metadata.ImageURL))
+	metadata.ImageURL = resolveMetadataURL(
+		pageURL,
+		firstNonEmpty(twitterImage, editorialImage, pageImage, faviconImage, metadata.ImageURL),
+	)
 	return metadata
 }
 
@@ -83,7 +104,8 @@ func fallbackMetadataForURL(rawURL string) fallbackMetadata {
 		return fallbackMetadata{}
 	}
 	host := strings.TrimPrefix(strings.ToLower(parsed.Hostname()), "www.")
-	return fallbackMetadata{Title: host, SiteName: host}
+	faviconURL := (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: "/favicon.ico"}).String()
+	return fallbackMetadata{Title: host, SiteName: host, ImageURL: faviconURL}
 }
 
 func resolveMetadataURL(pageURL, candidate string) string {
