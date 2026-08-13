@@ -163,6 +163,12 @@ func TestCallNotificationsDisappearOnEndMembershipLossAndPreferenceDowngrade(t *
 	}
 
 	firstCallID := startCall()
+	if err := core.RecordCallParticipantJoined(ctx, KindChannel, room.Id, recipient.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantJoined(recipient): %v", err)
+	}
+	if err := core.RecordCallParticipantLeft(ctx, KindChannel, room.Id, recipient.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantLeft(recipient): %v", err)
+	}
 	if err := core.RecordCallParticipantLeft(ctx, KindChannel, room.Id, starter.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
 		t.Fatalf("RecordCallParticipantLeft: %v", err)
 	}

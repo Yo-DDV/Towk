@@ -19,9 +19,9 @@ describe('rbacLabels', () => {
     expect(localizedRoleDisplayName('owner', 'Owner')).toBe('Propriétaire');
     expect(localizedRoleDisplayName('admin', 'Admin')).toBe('Administrateur');
     expect(localizedRoleDisplayName('moderator', 'Moderator')).toBe('Modérateur');
-    expect(localizedRoleDisplayName('everyone', 'Everyone')).toBe('Tous les membres');
+    expect(localizedRoleDisplayName('everyone', 'Everyone')).toBe('Membres');
     expect(localizedRoleDescription('everyone', 'All authenticated users')).toBe(
-      'Tous les utilisateurs authentifiés'
+      'Tous les utilisateurs authentifiés et leurs permissions ordinaires héritées.'
     );
   });
 

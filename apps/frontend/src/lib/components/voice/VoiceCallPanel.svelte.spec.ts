@@ -628,9 +628,26 @@ describe('VoiceCallPanel screen-share audio', () => {
   });
 
   it('offers a one-touch camera switch when several phone lenses are available', async () => {
+    let seededStore: Parameters<NonNullable<
+      ComponentProps<typeof VoiceCallPanelStoryHarness>['onStoreSeeded']
+    >>[0] | null = null;
     const { container } = render(VoiceCallPanelStoryHarness, {
-      props: { layout: 'sidebar', scenario: 'mobile-camera' }
+      props: {
+        layout: 'sidebar',
+        scenario: 'mobile-camera',
+        onStoreSeeded: (store) => {
+          seededStore = store;
+          store.voiceCall.refreshDevices = vi.fn(async () => undefined);
+        }
+      }
     });
+
+    await vi.waitFor(() => expect(seededStore).not.toBeNull());
+    seededStore!.voiceCall.isCameraEnabled = true;
+    seededStore!.voiceCall.videoDevices = [
+      mediaDevice('videoinput', 'mobile-front', 'camera2 1, facing front'),
+      mediaDevice('videoinput', 'mobile-ultra', 'camera2 2, facing back, ultra wide')
+    ];
 
     const control = await vi.waitFor(() => {
       const value = container.querySelector<HTMLButtonElement>(

@@ -21,8 +21,11 @@
       "@storybook/addon-svelte-csf>esrap": "1.4.9",
       "cookie": "0.7.2",
       "esbuild": "0.28.1",
+      "nanoid": "3.3.18",
+      "postcss": "8.5.26",
       "svelte>esrap": "2.2.12",
-      "js-yaml": "4.3.0",
+      "js-yaml": "4.3.1",
+      "svgo": "4.0.2",
       "ws": "8.21.0"
     },
     "onlyBuiltDependencies": [

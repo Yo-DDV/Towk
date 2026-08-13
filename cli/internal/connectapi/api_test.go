@@ -1317,15 +1317,8 @@ func TestAdminRoleServiceManagesRoles(t *testing.T) {
 		t.Fatalf("public ListRoles first role = %+v, want role metadata", publicListResp.Msg.GetRoles()[0])
 	}
 
-	listResp, err := env.roles.ListRoles(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.ListRolesRequest{}))
-	if err != nil {
-		t.Fatalf("ListRoles regular: %v", err)
-	}
-	if len(listResp.Msg.GetRoles()) < 4 {
-		t.Fatalf("ListRoles regular len = %d, want default roles", len(listResp.Msg.GetRoles()))
-	}
-	if listResp.Msg.GetViewerCanManageRoles() || listResp.Msg.GetViewerCanAssignRoles() {
-		t.Fatalf("regular capabilities manage=%v assign=%v, want false/false", listResp.Msg.GetViewerCanManageRoles(), listResp.Msg.GetViewerCanAssignRoles())
+	if _, err := env.roles.ListRoles(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.ListRolesRequest{})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("regular ListRoles code = %v, want permission denied", connect.CodeOf(err))
 	}
 
 	if _, err := env.roles.CreateRole(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.CreateRoleRequest{
@@ -4756,7 +4749,6 @@ func TestNotificationServiceHydratesCallStartedNotification(t *testing.T) {
 			RoomId:  room.Id,
 			EventId: "E-call-started",
 			CallId:  active.CallID,
-			Missed:  true,
 		}},
 	})
 	if err != nil || notification == nil {
@@ -4768,7 +4760,7 @@ func TestNotificationServiceHydratesCallStartedNotification(t *testing.T) {
 		t.Fatalf("GetNotification: %v", err)
 	}
 	call := response.Msg.GetNotification().GetCallStarted()
-	if call.GetRoom().GetId() != room.Id || call.GetRoom().GetKind() != apiv1.RoomKind_ROOM_KIND_CHANNEL || call.GetEventId() != "E-call-started" || call.GetCallId() != active.CallID || !call.GetMissed() {
+	if call.GetRoom().GetId() != room.Id || call.GetRoom().GetKind() != apiv1.RoomKind_ROOM_KIND_CHANNEL || call.GetEventId() != "E-call-started" || call.GetCallId() != active.CallID || call.GetMissed() {
 		t.Fatalf("call notification = %+v", call)
 	}
 }

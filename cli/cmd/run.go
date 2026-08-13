@@ -517,7 +517,8 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 			} else if result.Success {
 				logger.Debug("Push notification sent",
 					"user_id", notification.RecipientId,
-					"notification_id", notification.Id)
+					"notification_id", notification.Id,
+					"endpoint_id", push.EndpointLogID(result.Endpoint))
 			}
 		}
 	}
