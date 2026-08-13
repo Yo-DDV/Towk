@@ -161,3 +161,51 @@ func TestFetcherCoalescesConcurrentRequestsForNormalizedURL(t *testing.T) {
 		t.Fatalf("upstream request count = %d, want 1", got)
 	}
 }
+
+func TestFetcherUsesHTMLFallbacksWhenOpenGraphIsMissing(t *testing.T) {
+	restoreLocalhost := AllowLocalhostForTesting()
+	defer restoreLocalhost()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<!doctype html><html><head>
+			<title>Fallback article</title>
+			<meta name="description" content="Useful fallback description">
+		</head></html>`))
+	}))
+	defer server.Close()
+
+	fetcher := NewFetcher(nil, nil, nil)
+	result, err := fetcher.Fetch(context.Background(), server.URL+"/article")
+
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if result.Title != "Fallback article" {
+		t.Fatalf("Fetch title = %q", result.Title)
+	}
+	if result.Description != "Useful fallback description" {
+		t.Fatalf("Fetch description = %q", result.Description)
+	}
+	if result.SiteName == "" {
+		t.Fatal("Fetch site name is empty")
+	}
+}
+
+func TestFetcherReturnsDomainCardWhenSiteRejectsPreviewBot(t *testing.T) {
+	restoreLocalhost := AllowLocalhostForTesting()
+	defer restoreLocalhost()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	result, err := NewFetcher(nil, nil, nil).Fetch(context.Background(), server.URL+"/private")
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if result.Title == "" || result.SiteName == "" {
+		t.Fatalf("Fetch fallback = %#v", result)
+	}
+}
