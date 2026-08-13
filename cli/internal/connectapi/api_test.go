@@ -5179,6 +5179,75 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	}
 }
 
+func TestVoiceCallServiceListsActiveDirectMessageCallsForEveryMember(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	env.api.config.LiveKit = config.LiveKitConfig{
+		Enabled:   true,
+		URL:       "ws://livekit.test",
+		APIKey:    "test-key",
+		APISecret: "test-secret",
+		ServerID:  "test-server",
+	}
+
+	recipient, err := env.core.CreateUser(
+		env.ctx,
+		core.SystemActorID,
+		"voice-dm-recipient",
+		"Voice DM Recipient",
+		"password",
+	)
+	if err != nil {
+		t.Fatalf("CreateUser recipient: %v", err)
+	}
+	dm, _, err := env.core.FindOrCreateDM(env.ctx, env.viewer.Id, []string{recipient.Id})
+	if err != nil {
+		t.Fatalf("FindOrCreateDM: %v", err)
+	}
+
+	joined, err := env.voice.JoinCall(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId: dm.Id,
+	}))
+	if err != nil {
+		t.Fatalf("JoinCall DM: %v", err)
+	}
+	if !joined.Msg.GetJoined() {
+		t.Fatal("JoinCall DM joined = false, want true")
+	}
+
+	response, err := env.voice.ListActiveCalls(
+		withCaller(env.ctx, recipient),
+		connect.NewRequest(&apiv1.ListActiveCallsRequest{}),
+	)
+	if err != nil {
+		t.Fatalf("recipient ListActiveCalls: %v", err)
+	}
+	calls := response.Msg.GetCalls()
+	if len(calls) != 1 || calls[0].GetRoom().GetId() != dm.Id || calls[0].GetCallId() == "" {
+		t.Fatalf("recipient active calls = %v, want DM call for %s", calls, dm.Id)
+	}
+
+	outsider, err := env.core.CreateUser(
+		env.ctx,
+		core.SystemActorID,
+		"voice-dm-outsider",
+		"Voice DM Outsider",
+		"password",
+	)
+	if err != nil {
+		t.Fatalf("CreateUser outsider: %v", err)
+	}
+	outsiderResponse, err := env.voice.ListActiveCalls(
+		withCaller(env.ctx, outsider),
+		connect.NewRequest(&apiv1.ListActiveCallsRequest{}),
+	)
+	if err != nil {
+		t.Fatalf("outsider ListActiveCalls: %v", err)
+	}
+	if len(outsiderResponse.Msg.GetCalls()) != 0 {
+		t.Fatalf("outsider active calls = %v, want none", outsiderResponse.Msg.GetCalls())
+	}
+}
+
 func TestVoiceCallServiceSupportsCompanionAndTransferDevices(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	ctx := withCaller(env.ctx, env.viewer)
