@@ -158,12 +158,12 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string) (*FetchResult, error
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fallbackFetchResult(rawURL), nil
+		return f.fallbackFetchResult(ctx, rawURL), nil
 	}
 
 	contentType := resp.Header.Get("Content-Type")
 	if contentType != "" && !strings.HasPrefix(contentType, "text/html") && !strings.HasPrefix(contentType, "application/xhtml") {
-		return fallbackFetchResult(rawURL), nil
+		return f.fallbackFetchResult(ctx, rawURL), nil
 	}
 
 	document, err := io.ReadAll(io.LimitReader(resp.Body, MaxPageSize+1))
@@ -231,13 +231,24 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string) (*FetchResult, error
 	} else {
 		f.logger.Debug("No preview image found", "origin", SafeLogOrigin(rawURL))
 	}
+	if result.ImageAsset == nil {
+		if asset, err := f.generateAndStoreFallbackImage(ctx, rawURL); err != nil {
+			f.logger.Warn("Failed to generate fallback preview image", "origin", SafeLogOrigin(rawURL), "error_type", fmt.Sprintf("%T", err))
+		} else {
+			result.ImageAsset = asset
+		}
+	}
 
 	return result, nil
 }
 
-func fallbackFetchResult(rawURL string) *FetchResult {
+func (f *Fetcher) fallbackFetchResult(ctx context.Context, rawURL string) *FetchResult {
 	metadata := fallbackMetadataForURL(rawURL)
-	return &FetchResult{Title: metadata.Title, SiteName: metadata.SiteName, EmbedType: "generic"}
+	result := &FetchResult{Title: metadata.Title, SiteName: metadata.SiteName, EmbedType: "generic"}
+	if asset, err := f.generateAndStoreFallbackImage(ctx, rawURL); err == nil {
+		result.ImageAsset = asset
+	}
+	return result
 }
 
 // SafeLogOrigin returns only scheme and host for observability. Userinfo,

@@ -55,6 +55,17 @@ func TestExtractFallbackMetadataUsesDomainForSparsePages(t *testing.T) {
 	require.Empty(t, metadata.ImageURL)
 }
 
+func TestExtractFallbackMetadataUsesFaviconWhenNoSocialImageExists(t *testing.T) {
+	metadata := extractFallbackMetadata(
+		[]byte(`<html><head><title>Example</title><link rel="icon" href="/favicon.png"></head></html>`),
+		"https://www.example.com/article",
+	)
+
+	if metadata.ImageURL != "https://www.example.com/favicon.png" {
+		t.Fatalf("ImageURL = %q", metadata.ImageURL)
+	}
+}
+
 func TestResolveMetadataURLRejectsActiveSchemes(t *testing.T) {
 	require.Empty(t, resolveMetadataURL("https://example.com", "javascript:alert(1)"))
 	require.Empty(t, resolveMetadataURL("https://example.com", "data:image/png;base64,abc"))

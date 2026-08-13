@@ -42,6 +42,11 @@ func extractFallbackMetadata(document []byte, pageURL string) fallbackMetadata {
 				if htmlTitle == "" && node.FirstChild != nil {
 					htmlTitle = cleanMetadataText(node.FirstChild.Data)
 				}
+			case "link":
+				rel := strings.ToLower(attribute(node, "rel"))
+				if metadata.ImageURL == "" && strings.Contains(rel, "icon") {
+					metadata.ImageURL = attribute(node, "href")
+				}
 			case "meta":
 				name := strings.ToLower(firstNonEmpty(attribute(node, "name"), attribute(node, "property")))
 				content := cleanMetadataText(attribute(node, "content"))
@@ -68,7 +73,7 @@ func extractFallbackMetadata(document []byte, pageURL string) fallbackMetadata {
 	metadata.Title = truncateMetadata(firstNonEmpty(twitterTitle, htmlTitle, metadata.Title), maxFallbackTitleLength)
 	metadata.Description = truncateMetadata(firstNonEmpty(twitterDescription, standardDescription), maxFallbackDescriptionLength)
 	metadata.SiteName = truncateMetadata(metadata.SiteName, maxFallbackSiteNameLength)
-	metadata.ImageURL = resolveMetadataURL(pageURL, twitterImage)
+	metadata.ImageURL = resolveMetadataURL(pageURL, firstNonEmpty(twitterImage, metadata.ImageURL))
 	return metadata
 }
 
