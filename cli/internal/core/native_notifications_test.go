@@ -5,6 +5,7 @@ import (
 	"crypto/elliptic"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -276,6 +277,61 @@ func TestNativeOutboxIsIdempotentCollapsedAndLeased(t *testing.T) {
 	current, _, err := core.GetNativeEndpoint(ctx, "user-1", endpoint.EndpointID)
 	if err != nil || current.LastDeliveryStatus != NativeDeliveryStatusDeliveredToTransport {
 		t.Fatalf("delivery status = %#v, %v", current, err)
+	}
+}
+
+func TestNativeNotificationReconciliationSupersedesPendingDelivery(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	endpoint, err := core.RegisterNativeEndpoint(ctx, "user-1", testNativeRegistration("installation-reconcile-0001"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	notification := testNativeNotification("notification-reconcile", "user-1", "room-reconcile", time.Now().UTC())
+	if count, err := core.EnqueueNativeNotification(ctx, notification); err != nil || count != 1 {
+		t.Fatalf("enqueue notification = %d, %v", count, err)
+	}
+	if count, err := core.EnqueueNativeNotificationReconciliation(ctx, "user-1", notification); err != nil || count != 1 {
+		t.Fatalf("enqueue reconciliation = %d, %v", count, err)
+	}
+	if count, err := core.countNativeOutboxForEndpoint(ctx, endpoint.EndpointID); err != nil || count != 1 {
+		t.Fatalf("outbox count = %d, %v, want reconciliation only", count, err)
+	}
+
+	claimed, err := core.ClaimNativeNotificationOutbox(ctx, "worker-reconcile", time.Now().UTC(), 10, time.Minute)
+	if err != nil || len(claimed) != 1 {
+		t.Fatalf("claim reconciliation = %#v, %v", claimed, err)
+	}
+	if claimed[0].Item.NotificationID != notification.Id {
+		t.Fatalf("reconciliation source notification = %q, want %q", claimed[0].Item.NotificationID, notification.Id)
+	}
+}
+
+func TestBulkNativeNotificationReconciliationWakesEnabledEndpoints(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	endpoint, err := core.RegisterNativeEndpoint(ctx, "user-1", testNativeRegistration("installation-reconcile-0002"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count, err := core.EnqueueNativeNotificationReconciliation(ctx, "user-1", nil); err != nil || count != 1 {
+		t.Fatalf("enqueue bulk reconciliation = %d, %v", count, err)
+	}
+	claimed, err := core.ClaimNativeNotificationOutbox(ctx, "worker-bulk-reconcile", time.Now().UTC(), 10, time.Minute)
+	if err != nil || len(claimed) != 1 {
+		t.Fatalf("claim bulk reconciliation = %#v, %v", claimed, err)
+	}
+	if claimed[0].Item.EndpointID != endpoint.EndpointID || claimed[0].Item.NotificationID != "all" {
+		t.Fatalf("bulk reconciliation item = %#v", claimed[0].Item)
+	}
+}
+
+func TestNativeNotificationReconciliationDoesNotExposeUserIDInCollapseKey(t *testing.T) {
+	userID := "private-user-id"
+	key := nativeReconciliationCollapseKey(userID)
+	if strings.Contains(key, userID) {
+		t.Fatalf("reconciliation collapse key leaks user ID: %q", key)
 	}
 }
 
