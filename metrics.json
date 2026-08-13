@@ -2,50 +2,39 @@
   "version": 3,
   "repository": "Yo-DDV/Towk",
   "branch": "main",
-  "sourceCommit": "85389591cb8aaa45ffbd7cd5074f900330249175",
-  "generatedAt": "2026-08-12T21:09:40.938Z",
+  "sourceCommit": "4b544fa295262f7334be8dea48038c47ce6b7653",
+  "generatedAt": "2026-08-13T00:43:18.162Z",
   "window": {
     "kind": "rolling-30-utc-days",
     "days": 30,
-    "start": "2026-07-14T00:00:00.000Z",
-    "end": "2026-08-12T21:09:40.938Z",
+    "start": "2026-07-15T00:00:00.000Z",
+    "end": "2026-08-13T00:43:18.162Z",
     "currentDayPartial": true
   },
   "baselineCommit": "205e91fe1ae5e5c23420974f7e04cf82456eeab3",
   "baselineAt": "2026-07-12T10:20:05.000Z",
-  "effectiveWindowStart": "2026-07-14T00:00:00.000Z",
+  "effectiveWindowStart": "2026-07-15T00:00:00.000Z",
   "headline": {
-    "commits": 137,
-    "mergedPullRequests": 137,
+    "commits": 132,
+    "mergedPullRequests": 132,
     "issuesClosed": 122,
     "activeHumanContributors": 1
   },
   "flow": {
-    "medianPrLeadTimeHours": 13.983055555555556,
+    "medianPrLeadTimeHours": 14.949027777777777,
     "medianFirstReviewHours": null,
     "reviewedPullRequests": 0
   },
   "codeMovement": {
-    "additions": 199741,
-    "deletions": 46864,
-    "filesChanged": 3035
+    "additions": 192746,
+    "deletions": 46136,
+    "filesChanged": 2892
   },
   "automation": {
-    "commits": 25,
-    "mergedPullRequests": 25
+    "commits": 24,
+    "mergedPullRequests": 24
   },
   "daily": [
-    {
-      "date": "2026-07-14",
-      "label": "14",
-      "commits": 6,
-      "mergedPullRequests": 6,
-      "issuesClosed": 3,
-      "additions": 7123,
-      "deletions": 829,
-      "filesChanged": 156,
-      "medianPrLeadTimeHours": 1.8399999999999999
-    },
     {
       "date": "2026-07-15",
       "label": "15",
@@ -359,11 +348,22 @@
       "label": "12",
       "commits": 12,
       "mergedPullRequests": 12,
-      "issuesClosed": 10,
+      "issuesClosed": 11,
       "additions": 16180,
       "deletions": 2583,
       "filesChanged": 169,
       "medianPrLeadTimeHours": 61.282361111111115
+    },
+    {
+      "date": "2026-08-13",
+      "label": "13",
+      "commits": 1,
+      "mergedPullRequests": 1,
+      "issuesClosed": 2,
+      "additions": 128,
+      "deletions": 101,
+      "filesChanged": 13,
+      "medianPrLeadTimeHours": 0.19527777777777777
     }
   ]
 }
