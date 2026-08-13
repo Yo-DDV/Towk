@@ -10,6 +10,8 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
+const maxNativeWakeCounterMutationRetries = 32
+
 const (
 	nativeWakeCounterKeyPrefix    = "native_notification_counter."
 	nativeWakeAssignmentKeyPrefix = "native_notification_wake."
@@ -49,7 +51,7 @@ func (c *ChattoCore) NativeWakeCounter(
 		return 0, fmt.Errorf("load native wake counter assignment: %w", err)
 	}
 
-	for range maxNativeEndpointMutationRetries {
+	for attempt := range maxNativeWakeCounterMutationRetries {
 		counter, err := c.incrementNativeEndpointCounter(ctx, endpointID)
 		if err != nil {
 			return 0, err
@@ -70,6 +72,9 @@ func (c *ChattoCore) NativeWakeCounter(
 				return decodeNativeCounter(existing.Value())
 			}
 			if isRuntimeStateKeyAbsent(loadErr) {
+				if err := waitNativeWakeCounterRetry(ctx, attempt); err != nil {
+					return 0, err
+				}
 				continue
 			}
 			return 0, fmt.Errorf("load concurrent native wake assignment: %w", loadErr)
@@ -81,12 +86,15 @@ func (c *ChattoCore) NativeWakeCounter(
 
 func (c *ChattoCore) incrementNativeEndpointCounter(ctx context.Context, endpointID string) (uint64, error) {
 	key := nativeWakeCounterKey(endpointID)
-	for range maxNativeEndpointMutationRetries {
+	for attempt := range maxNativeWakeCounterMutationRetries {
 		entry, err := c.storage.runtimeStateKV.Get(ctx, key)
 		if isRuntimeStateKeyAbsent(err) {
 			if _, createErr := c.storage.runtimeStateKV.Create(ctx, key, encodeNativeCounter(1)); createErr == nil {
 				return 1, nil
 			} else if errors.Is(createErr, jetstream.ErrKeyExists) {
+				if err := waitNativeWakeCounterRetry(ctx, attempt); err != nil {
+					return 0, err
+				}
 				continue
 			} else {
 				return 0, fmt.Errorf("create native endpoint counter: %w", createErr)
@@ -106,12 +114,30 @@ func (c *ChattoCore) incrementNativeEndpointCounter(ctx context.Context, endpoin
 		if _, err := c.storage.runtimeStateKV.Update(ctx, key, encodeNativeCounter(next), entry.Revision()); err == nil {
 			return next, nil
 		} else if errors.Is(err, jetstream.ErrKeyExists) {
+			if err := waitNativeWakeCounterRetry(ctx, attempt); err != nil {
+				return 0, err
+			}
 			continue
 		} else {
 			return 0, fmt.Errorf("update native endpoint counter: %w", err)
 		}
 	}
 	return 0, ErrNativeEndpointConflict
+}
+
+func waitNativeWakeCounterRetry(ctx context.Context, attempt int) error {
+	delay := time.Duration(attempt+1) * time.Millisecond
+	if delay > 10*time.Millisecond {
+		delay = 10 * time.Millisecond
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("wait for native wake counter contention: %w", ctx.Err())
+	case <-timer.C:
+		return nil
+	}
 }
 
 func encodeNativeCounter(counter uint64) []byte {

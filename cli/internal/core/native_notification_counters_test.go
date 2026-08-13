@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -81,5 +83,15 @@ func TestNativeWakeCounterRejectsExpiredAssignment(t *testing.T) {
 		time.Now().Add(-time.Second),
 	); err == nil {
 		t.Fatal("expected expired assignment to fail")
+	}
+}
+
+func TestNativeWakeCounterContentionHonorsContextCancellation(t *testing.T) {
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := waitNativeWakeCounterRetry(cancelled, 0)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("contention wait error = %v, want context canceled", err)
 	}
 }
