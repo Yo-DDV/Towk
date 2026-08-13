@@ -158,28 +158,43 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string) (*FetchResult, error
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: page returned status %d", ErrUnavailable, resp.StatusCode)
+		return f.fallbackFetchResult(ctx, rawURL), nil
 	}
 
 	contentType := resp.Header.Get("Content-Type")
 	if contentType != "" && !strings.HasPrefix(contentType, "text/html") && !strings.HasPrefix(contentType, "application/xhtml") {
-		return nil, fmt.Errorf("%w: not an HTML page: %s", ErrUnavailable, contentType)
+		return f.fallbackFetchResult(ctx, rawURL), nil
 	}
 
-	// Parse OG metadata with a size-limited reader
+	document, err := io.ReadAll(io.LimitReader(resp.Body, MaxPageSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("%w: read metadata: %v", ErrUnavailable, err)
+	}
+	if len(document) > MaxPageSize {
+		return nil, fmt.Errorf("%w: page exceeds %d bytes", ErrUnavailable, MaxPageSize)
+	}
+
+	// Parse OpenGraph metadata from the bounded document. Retaining the bytes
+	// lets sparse pages use safe HTML fallbacks without a second remote fetch.
 	og := opengraph.New(rawURL)
-	if err := og.Parse(io.LimitReader(resp.Body, MaxPageSize)); err != nil {
+	if err := og.Parse(bytes.NewReader(document)); err != nil {
 		f.logger.Warn("Failed to parse OG metadata", "origin", SafeLogOrigin(rawURL), "error_type", fmt.Sprintf("%T", err))
-		return nil, fmt.Errorf("%w: parse metadata: %v", ErrUnavailable, err)
+		fallback := extractFallbackMetadata(document, rawURL)
+		return &FetchResult{
+			Title: fallback.Title, Description: fallback.Description,
+			SiteName: fallback.SiteName, EmbedType: "generic",
+		}, nil
 	}
 
 	// Convert relative URLs to absolute
 	og.ToAbs()
 
+	fallback := extractFallbackMetadata(document, rawURL)
 	var imageURL string
 	if len(og.Image) > 0 {
 		imageURL = og.Image[0].URL
 	}
+	imageURL = firstNonEmpty(imageURL, fallback.ImageURL)
 	f.logger.Debug("Fetched OG metadata",
 		"origin", SafeLogOrigin(rawURL),
 		"image_count", len(og.Image),
@@ -187,9 +202,9 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string) (*FetchResult, error
 	)
 
 	result := &FetchResult{
-		Title:       og.Title,
-		Description: og.Description,
-		SiteName:    og.SiteName,
+		Title:       firstNonEmpty(og.Title, fallback.Title),
+		Description: firstNonEmpty(og.Description, fallback.Description),
+		SiteName:    firstNonEmpty(og.SiteName, fallback.SiteName),
 		EmbedType:   "generic",
 	}
 
@@ -203,8 +218,7 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string) (*FetchResult, error
 	}
 
 	// Download and store the preview image if available
-	if len(og.Image) > 0 && og.Image[0].URL != "" {
-		imageURL := og.Image[0].URL
+	if imageURL != "" && f.assetsConfig != nil && f.newAssetID != nil && f.storeImage != nil {
 		f.logger.Debug("Attempting to download preview image", "image_origin", SafeLogOrigin(imageURL))
 		asset, err := f.downloadAndStoreImage(ctx, imageURL)
 		if err != nil {
@@ -217,8 +231,18 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string) (*FetchResult, error
 	} else {
 		f.logger.Debug("No preview image found", "origin", SafeLogOrigin(rawURL))
 	}
-
 	return result, nil
+}
+
+func (f *Fetcher) fallbackFetchResult(ctx context.Context, rawURL string) *FetchResult {
+	metadata := fallbackMetadataForURL(rawURL)
+	result := &FetchResult{Title: metadata.Title, SiteName: metadata.SiteName, EmbedType: "generic"}
+	if metadata.ImageURL != "" && f.assetsConfig != nil && f.newAssetID != nil && f.storeImage != nil {
+		if asset, err := f.downloadAndStoreImage(ctx, metadata.ImageURL); err == nil {
+			result.ImageAsset = asset
+		}
+	}
+	return result
 }
 
 // SafeLogOrigin returns only scheme and host for observability. Userinfo,
