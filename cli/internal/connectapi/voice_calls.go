@@ -26,9 +26,13 @@ func (s *voiceCallService) ListActiveCalls(ctx context.Context, _ *connect.Reque
 		return connect.NewResponse(&apiv1.ListActiveCallsResponse{}), nil
 	}
 
-	roomIDs, err := s.api.core.GetActiveCallRoomIDs(ctx, core.LegacySpaceIDForRoomKind(core.KindChannel))
-	if err != nil {
-		return nil, connectError(err)
+	roomIDs := make([]string, 0)
+	for _, kind := range []core.RoomKind{core.KindChannel, core.KindDM} {
+		ids, err := s.api.core.GetActiveCallRoomIDs(ctx, core.LegacySpaceIDForRoomKind(kind))
+		if err != nil {
+			return nil, connectError(err)
+		}
+		roomIDs = append(roomIDs, ids...)
 	}
 	calls := make([]*apiv1.ActiveCall, 0, len(roomIDs))
 	for _, roomID := range roomIDs {
