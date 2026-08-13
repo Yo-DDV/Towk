@@ -358,6 +358,24 @@ func setupNativeNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConf
 			log.WithPrefix("native-push").Warn("Failed to enqueue native notification", "notification_id", notification.GetId(), "error", err)
 		}
 	}
+	previousDismissedCallback := chattoCore.OnNotificationDismissed
+	chattoCore.OnNotificationDismissed = func(ctx context.Context, userID string, notification *corev1.Notification) {
+		if previousDismissedCallback != nil {
+			previousDismissedCallback(ctx, userID, notification)
+		}
+		if _, err := chattoCore.EnqueueNativeNotificationReconciliation(ctx, userID, notification); err != nil {
+			log.WithPrefix("native-push").Warn("Failed enqueue native notification reconciliation", "notification_id", notification.GetId(), "error", err)
+		}
+	}
+	previousBulkDismissedCallback := chattoCore.OnNotificationsDismissed
+	chattoCore.OnNotificationsDismissed = func(ctx context.Context, userID string) {
+		if previousBulkDismissedCallback != nil {
+			previousBulkDismissedCallback(ctx, userID)
+		}
+		if _, err := chattoCore.EnqueueNativeNotificationReconciliation(ctx, userID, nil); err != nil {
+			log.WithPrefix("native-push").Warn("Failed enqueue native notification reconciliation", "error", err)
+		}
+	}
 	if !nativeConfig.AndroidManagedFCM {
 		return nil, nil, nil
 	}

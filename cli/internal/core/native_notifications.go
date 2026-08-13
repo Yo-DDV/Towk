@@ -823,6 +823,11 @@ func nativeNotificationCollapseKey(notification *corev1.Notification) string {
 	return string(kind) + ":" + base64.RawURLEncoding.EncodeToString(digest[:12])
 }
 
+func nativeReconciliationCollapseKey(userID string) string {
+	digest := sha256.Sum256([]byte("towk-native-reconcile-v1\x00" + userID))
+	return "reconcile:" + base64.RawURLEncoding.EncodeToString(digest[:12])
+}
+
 func nativeEndpointAcceptsNotification(endpoint *NativeEndpointRecord, kind NativeNotificationKind) bool {
 	if endpoint == nil || endpoint.State != NativeEndpointStateActive || endpoint.Transport != NativeNotificationTransportManagedFCM || !endpoint.Preferences.Enabled {
 		return false
@@ -865,6 +870,66 @@ func (c *ChattoCore) EnqueueNativeNotification(ctx context.Context, notification
 			ExpiresAt:          expiresAt,
 			NextAttemptAt:      time.Now().UTC(),
 			Counter:            time.Now().UTC().UnixNano(),
+		}
+		created, err := c.ensureNativeOutboxItem(ctx, item)
+		if err != nil {
+			return enqueued, err
+		}
+		if created {
+			enqueued++
+		}
+	}
+	return enqueued, nil
+}
+
+// EnqueueNativeNotificationReconciliation wakes every relevant managed-FCM
+// endpoint after the authoritative notification state changed. The wake is
+// content-free: clients fetch their notification list and remove stale local
+// notifications (including an incoming-call surface) themselves.
+func (c *ChattoCore) EnqueueNativeNotificationReconciliation(ctx context.Context, userID string, notification *corev1.Notification) (int, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return 0, invalidArgument("user ID is required")
+	}
+
+	now := time.Now().UTC()
+	kind := NativeNotificationKindMessage
+	collapseKey := nativeReconciliationCollapseKey(userID)
+	sourceNotificationID := "all"
+	if notification != nil {
+		if notification.GetRecipientId() != "" && notification.GetRecipientId() != userID {
+			return 0, invalidArgument("notification recipient must match user ID")
+		}
+		kind = nativeNotificationKind(notification)
+		collapseKey = nativeNotificationCollapseKey(notification)
+		if notification.GetId() != "" {
+			sourceNotificationID = notification.GetId()
+		}
+	}
+
+	endpoints, err := c.ListNativeEndpoints(ctx, userID, false)
+	if err != nil {
+		return 0, err
+	}
+	enqueued := 0
+	for _, endpoint := range endpoints {
+		if endpoint == nil || endpoint.State != NativeEndpointStateActive || endpoint.Transport != NativeNotificationTransportManagedFCM || !endpoint.Preferences.Enabled {
+			continue
+		}
+		wakeNonce := NewNotificationID()
+		item := NativeNotificationOutboxItem{
+			OutboxID:           nativeOutboxID(sourceNotificationID+"\x00reconcile\x00"+wakeNonce, endpoint.EndpointID),
+			NotificationID:     sourceNotificationID,
+			UserID:             userID,
+			EndpointID:         endpoint.EndpointID,
+			EndpointGeneration: endpoint.Generation,
+			Kind:               kind,
+			CollapseKey:        collapseKey,
+			State:              NativeOutboxStatePending,
+			CreatedAt:          now,
+			ExpiresAt:          now.Add(nativeNotificationTTL(kind)),
+			NextAttemptAt:      now,
+			Counter:            now.UnixNano(),
 		}
 		created, err := c.ensureNativeOutboxItem(ctx, item)
 		if err != nil {
