@@ -5360,7 +5360,7 @@ describe('VoiceCallState', () => {
     await state.join('wss://livekit.example.test', 'R1');
 
     await vi.waitFor(() => expect(sendTextMock).toHaveBeenCalled());
-    const [publishedText, publishedOptions] = sendTextMock.mock.calls[0]!;
+    const [, publishedOptions] = sendTextMock.mock.calls[0]!;
     expect(publishedOptions).toEqual({
       topic: PARTICIPANT_MEDIA_TELEMETRY_TOPIC,
     });

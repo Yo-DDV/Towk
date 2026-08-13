@@ -4,7 +4,6 @@
   import { onMount } from 'svelte';
   import { serverIdToSegment } from '$lib/navigation';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
-  import { getServerPermissions } from '$lib/state/server/permissions.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { createRoleAPI, type ServerRole } from '$lib/api-client/roles';
   import { Hint } from '$lib/ui';
@@ -22,9 +21,6 @@
 
   const serverSegment = $derived(serverIdToSegment(getActiveServer()));
   const connection = useConnection();
-  const serverPerms = getServerPermissions();
-  const canManageRoles = $derived(serverPerms.current.canAdminManageRoles);
-
   let roles = $state<ServerRole[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -98,18 +94,16 @@
     showMobileNav
   >
     {#snippet actions()}
-      {#if canManageRoles}
-        <Button
-          variant="primary"
-          size="sm"
-          href={resolve('/chat/[serverId]/server-admin/permissions/new', {
-            serverId: serverSegment
-          })}
-        >
-          <span class="iconify uil--plus" aria-hidden="true"></span>
-          {g['grades.create.title']()}
-        </Button>
-      {/if}
+      <Button
+        variant="primary"
+        size="sm"
+        href={resolve('/chat/[serverId]/server-admin/permissions/new', {
+          serverId: serverSegment
+        })}
+      >
+        <span class="iconify uil--plus" aria-hidden="true"></span>
+        {g['grades.create.title']()}
+      </Button>
     {/snippet}
   </PaneHeader>
 
@@ -209,7 +203,7 @@
         {/if}
       </Panel>
 
-      <details class="rounded-xl border border-text/10 bg-surface-100">
+        <details open class="rounded-xl border border-text/10 bg-surface-100">
         <summary
           class="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
@@ -226,7 +220,7 @@
           <div class="mt-4">
             <PermissionMatrix
               onRoleClick={openRoleDetail}
-              isRoleClickable={() => canManageRoles}
+              isRoleClickable={() => true}
             />
           </div>
         </div>

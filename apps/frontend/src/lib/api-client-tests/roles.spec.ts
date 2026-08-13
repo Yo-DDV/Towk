@@ -265,8 +265,10 @@ describe('createRoleAPI', () => {
     await expect(api.deleteRole('helpdesk')).resolves.toBe(true);
 
     expect(mocks.createRole).toHaveBeenCalledWith(role, {
-      headers: { Authorization: 'Bearer token' }
+      headers: expect.any(Headers)
     });
+    const createRoleHeaders = mocks.createRole.mock.calls[0]?.[1]?.headers as Headers;
+    expect(createRoleHeaders.get('Authorization')).toBe('Bearer token');
     expect(mocks.updateRole).toHaveBeenCalledWith(
       {
         name: 'helpdesk',

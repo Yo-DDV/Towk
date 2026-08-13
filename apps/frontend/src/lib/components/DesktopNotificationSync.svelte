@@ -7,6 +7,7 @@ server scoping, navigation, dismissal and call admission.
 -->
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { onMount, untrack } from 'svelte';
   import { NotificationItemKind, type NotificationItem } from '$lib/api-client/notifications';
   import type { EventHandler } from '$lib/eventBus.svelte';
@@ -29,8 +30,11 @@ server scoping, navigation, dismissal and call admission.
   // These are operational caches, not UI state. Keeping them non-reactive
   // prevents the notification effect from retriggering itself when it
   // remembers a notification that it has just dispatched.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- dispatch cache must not retrigger its own effect
   const requested = new Set<string>();
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- lifecycle cache is deliberately non-reactive
   const reconciledServers = new Set<string>();
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- dispatch metadata must not retrigger its own effect
   const silentByNotification = new Map<string, boolean>();
   let activationQueue: Promise<void> = Promise.resolve();
   let residentRefreshQueue: Promise<void> = Promise.resolve();
@@ -178,7 +182,7 @@ server scoping, navigation, dismissal and call admission.
       try {
         const fallback = new URL(activation.url, window.location.origin);
         if (fallback.origin === window.location.origin) {
-          await goto(`${fallback.pathname}${fallback.search}${fallback.hash}`);
+          await goto(resolve((`${fallback.pathname}${fallback.search}${fallback.hash}` || '/') as '/'));
         }
       } catch {
         // The main process already validates activation URLs. A malformed IPC
@@ -196,7 +200,7 @@ server scoping, navigation, dismissal and call admission.
     const path = stores.notifications.getNavigationPath(parsed.serverId, notification);
     await stores.notifications.dismissById(notification.id);
     void stores.rooms.refreshNotificationCounts();
-    await goto(path);
+    await goto(resolve((path || '/') as '/'));
     if (
       notification.kind === NotificationItemKind.CallStarted &&
       (activation.action === undefined ||

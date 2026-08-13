@@ -24,7 +24,11 @@ export class ServerRolesPage {
 
   /** The page heading */
   get pageHeading(): Locator {
-    return this.page.getByRole('heading', { name: 'Permissions', exact: true, level: 1 });
+    return this.page.getByRole('heading', {
+      name: 'Roles and permissions',
+      exact: true,
+      level: 1
+    });
   }
 
   /**
@@ -33,7 +37,7 @@ export class ServerRolesPage {
    * either tag so existing tests keep working.
    */
   get createRoleButton(): Locator {
-    return this.page.locator('a, button').filter({ hasText: /^Create Role$/ });
+    return this.page.getByRole('link', { name: 'Create a grade', exact: true });
   }
 
   /** Sidebar navigation item for General settings */
@@ -67,7 +71,7 @@ export class ServerRolesPage {
 
   /** The submit button on create role form */
   get submitButton(): Locator {
-    return this.page.getByRole('button', { name: 'Create Role' });
+    return this.page.getByRole('button', { name: 'Create grade' });
   }
 
   /** The save changes button on edit role form */
@@ -144,15 +148,21 @@ export class ServerRolesPage {
    * "Instance Owner").
    */
   getRoleRow(displayName: string): Locator {
-    const escaped = displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return this.page.locator(`th[title^="${escaped} ("]`).first();
+    const byHandle = this.page.locator(
+      `a[href$="/server-admin/permissions/${encodeURIComponent(displayName)}"]`
+    );
+    const byDisplayName = this.page
+      .getByRole('link')
+      .filter({ has: this.page.getByRole('heading', { name: displayName, exact: true }) })
+      .first();
+    return byHandle.or(byDisplayName).first();
   }
 
   /**
    * Click into a role's detail page from the matrix by its column header.
    */
   async clickEditRole(displayName: string): Promise<void> {
-    await this.getRoleRow(displayName).locator('button').click();
+    await this.getRoleRow(displayName).click();
   }
 
   // --- Create/Edit Role Form Actions ---
@@ -265,6 +275,17 @@ export class ServerRolesPage {
       await this.page.goto(routes.serverAdminRoles);
       await expect(this.pageHeading).toBeVisible();
     }
+    await this.ensureAdvancedMatrixOpen();
+  }
+
+  private async ensureAdvancedMatrixOpen(): Promise<void> {
+    const advanced = this.page.locator('details').filter({
+      has: this.page.getByText('Advanced customization', { exact: true })
+    });
+    if ((await advanced.getAttribute('open')) === null) {
+      await advanced.locator('summary').click();
+    }
+    await expect(this.rolesTable).toBeVisible();
   }
 
   /**
@@ -357,7 +378,7 @@ export class ServerRolesPage {
    */
   async expectRolesListVisible(): Promise<void> {
     await expect(this.pageHeading).toBeVisible();
-    await expect(this.rolesTable).toBeVisible();
+    await expect(this.page.getByTestId('default-grade-card-owner')).toBeVisible();
   }
 
   /**
@@ -509,7 +530,8 @@ export class ServerRolesPage {
   }
 
   /** Assert a role is listed in the matrix. */
-  async expectRoleInList(name: string): Promise<void> {
+  async expectRoleColumnVisible(name: string): Promise<void> {
+    await this.ensureAdvancedMatrixOpen();
     await expect(this.getRoleColumnHeader(name)).toBeVisible();
   }
 
