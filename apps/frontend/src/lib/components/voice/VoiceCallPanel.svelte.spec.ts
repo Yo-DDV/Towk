@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import type { ComponentProps } from 'svelte';
 import '../../../app.css';
 import VoiceCallPanelStoryHarness from './VoiceCallPanelStoryHarness.svelte';
 
