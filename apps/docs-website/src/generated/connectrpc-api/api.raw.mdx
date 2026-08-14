@@ -4770,6 +4770,7 @@ One pending notification for the authenticated viewer.
 | `id` | `string` | Stable notification ID. |
 | `created_at` | `google.protobuf.Timestamp` | Creation time. |
 | `actor` | [`User`](#chatto-api-v1-User) | User who triggered the notification, when still resolvable. |
+| `message_preview` | `string` | Bounded message preview resolved at read time. Notification records remain content-free; this is empty when the message is unavailable or has no text. |
 | `kind.direct_message` | [`DirectMessageNotification`](#chatto-api-v1-DirectMessageNotification) | Direct-message notification. |
 | `kind.mention` | [`MentionNotification`](#chatto-api-v1-MentionNotification) | Mention notification. |
 | `kind.reply` | [`ReplyNotification`](#chatto-api-v1-ReplyNotification) | Reply notification. |

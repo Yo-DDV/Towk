@@ -66,6 +66,7 @@ describe('createNotificationAPI', () => {
       notifications: [
         {
           id: 'n1',
+          messagePreview: 'Le texte réel de la notification',
           createdAt: timestampFromDate(new Date('2026-06-01T12:00:00Z')),
           actor: {
             id: 'u1',
@@ -119,6 +120,7 @@ describe('createNotificationAPI', () => {
             customStatus: null
           },
           summary: 'Alice mentioned you',
+          messagePreview: 'Le texte réel de la notification',
           mentionRoom: { id: 'room-1', name: 'general' },
           mentionEventId: 'event-1',
           mentionInThread: 'thread-1'

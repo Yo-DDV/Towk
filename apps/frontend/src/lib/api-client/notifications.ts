@@ -49,6 +49,7 @@ export type DirectMessageNotificationItem = {
   createdAt: string;
   actor?: NotificationActor | null;
   summary: string;
+  messagePreview?: string | null;
   room: { id: string };
   eventId: string;
   dmInThread?: string | null;
@@ -60,6 +61,7 @@ export type MentionNotificationItem = {
   createdAt: string;
   actor?: NotificationActor | null;
   summary: string;
+  messagePreview?: string | null;
   mentionRoom: { id: string; name: string } | null;
   mentionEventId: string;
   mentionInThread?: string | null;
@@ -71,6 +73,7 @@ export type ReplyNotificationItem = {
   createdAt: string;
   actor?: NotificationActor | null;
   summary: string;
+  messagePreview?: string | null;
   replyRoom: { id: string; name: string } | null;
   replyEventId: string;
   inReplyToId: string;
@@ -83,6 +86,7 @@ export type RoomMessageNotificationItem = {
   createdAt: string;
   actor?: NotificationActor | null;
   summary: string;
+  messagePreview?: string | null;
   roomMsgRoom: { id: string; name: string } | null;
   roomMsgEventId: string;
   roomMsgInThread?: string | null;
@@ -242,6 +246,7 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
         kind: NotificationItemKind.DirectMessage,
         ...base,
         summary: notificationSummary(actor?.displayName, NotificationItemKind.DirectMessage),
+        messagePreview: item.messagePreview || null,
         room: { id: item.kind.value.room?.id ?? '' },
         eventId: item.kind.value.eventId,
         dmInThread: item.kind.value.threadRootEventId ?? null
@@ -251,6 +256,7 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
         kind: NotificationItemKind.Mention,
         ...base,
         summary: notificationSummary(actor?.displayName, NotificationItemKind.Mention),
+        messagePreview: item.messagePreview || null,
         mentionRoom: item.kind.value.room
           ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
           : null,
@@ -262,6 +268,7 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
         kind: NotificationItemKind.Reply,
         ...base,
         summary: notificationSummary(actor?.displayName, NotificationItemKind.Reply),
+        messagePreview: item.messagePreview || null,
         replyRoom: item.kind.value.room
           ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
           : null,
@@ -274,6 +281,7 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
         kind: NotificationItemKind.RoomMessage,
         ...base,
         summary: notificationSummary(actor?.displayName, NotificationItemKind.RoomMessage),
+        messagePreview: item.messagePreview || null,
         roomMsgRoom: item.kind.value.room
           ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
           : null,

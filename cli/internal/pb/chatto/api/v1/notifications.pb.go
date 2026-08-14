@@ -370,6 +370,9 @@ type NotificationItem struct {
 	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// User who triggered the notification, when still resolvable.
 	Actor *User `protobuf:"bytes,3,opt,name=actor,proto3" json:"actor,omitempty"`
+	// Bounded message preview resolved at read time. Notification records remain
+	// content-free; this is empty when the message is unavailable or has no text.
+	MessagePreview string `protobuf:"bytes,5,opt,name=message_preview,json=messagePreview,proto3" json:"message_preview,omitempty"`
 	// Types that are valid to be assigned to Kind:
 	//
 	//	*NotificationItem_DirectMessage
@@ -431,6 +434,13 @@ func (x *NotificationItem) GetActor() *User {
 		return x.Actor
 	}
 	return nil
+}
+
+func (x *NotificationItem) GetMessagePreview() string {
+	if x != nil {
+		return x.MessagePreview
+	}
+	return ""
 }
 
 func (x *NotificationItem) GetKind() isNotificationItem_Kind {
@@ -1384,12 +1394,13 @@ const file_chatto_api_v1_notifications_proto_rawDesc = "" +
 	"\x04room\x18\x01 \x01(\v2\x1a.chatto.api.v1.RoomSummaryR\x04room\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x17\n" +
 	"\acall_id\x18\x03 \x01(\tR\x06callId\x12\x16\n" +
-	"\x06missed\x18\x04 \x01(\bR\x06missed\"\x86\x04\n" +
+	"\x06missed\x18\x04 \x01(\bR\x06missed\"\xb9\x04\n" +
 	"\x10NotificationItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
 	"created_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12)\n" +
-	"\x05actor\x18\x03 \x01(\v2\x13.chatto.api.v1.UserR\x05actor\x12Q\n" +
+	"\x05actor\x18\x03 \x01(\v2\x13.chatto.api.v1.UserR\x05actor\x121\n" +
+	"\x0fmessage_preview\x18\x05 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x04R\x0emessagePreview\x12Q\n" +
 	"\x0edirect_message\x18\n" +
 	" \x01(\v2(.chatto.api.v1.DirectMessageNotificationH\x00R\rdirectMessage\x12>\n" +
 	"\amention\x18\v \x01(\v2\".chatto.api.v1.MentionNotificationH\x00R\amention\x128\n" +

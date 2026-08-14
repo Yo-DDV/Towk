@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
+	"github.com/rivo/uniseg"
 	"hmans.de/chatto/internal/core"
 	"hmans.de/chatto/internal/parallel"
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
@@ -58,6 +61,7 @@ func (a *notificationAssembler) item(ctx context.Context, notification *corev1.N
 
 	switch payload := notification.GetNotification().(type) {
 	case *corev1.Notification_DmMessage:
+		item.MessagePreview = a.messagePreview(ctx, payload.DmMessage.GetEventId())
 		room, err := a.room(ctx, payload.DmMessage.GetRoomId())
 		if err != nil {
 			return nil, err
@@ -71,6 +75,7 @@ func (a *notificationAssembler) item(ctx context.Context, notification *corev1.N
 		}
 		item.Kind = &apiv1.NotificationItem_DirectMessage{DirectMessage: directMessage}
 	case *corev1.Notification_Mention:
+		item.MessagePreview = a.messagePreview(ctx, payload.Mention.GetEventId())
 		room, err := a.room(ctx, payload.Mention.GetRoomId())
 		if err != nil {
 			return nil, err
@@ -84,6 +89,7 @@ func (a *notificationAssembler) item(ctx context.Context, notification *corev1.N
 		}
 		item.Kind = &apiv1.NotificationItem_Mention{Mention: mention}
 	case *corev1.Notification_Reply:
+		item.MessagePreview = a.messagePreview(ctx, payload.Reply.GetEventId())
 		room, err := a.room(ctx, payload.Reply.GetRoomId())
 		if err != nil {
 			return nil, err
@@ -98,6 +104,7 @@ func (a *notificationAssembler) item(ctx context.Context, notification *corev1.N
 		}
 		item.Kind = &apiv1.NotificationItem_Reply{Reply: reply}
 	case *corev1.Notification_RoomMessage:
+		item.MessagePreview = a.messagePreview(ctx, payload.RoomMessage.GetEventId())
 		room, err := a.room(ctx, payload.RoomMessage.GetRoomId())
 		if err != nil {
 			return nil, err
@@ -126,6 +133,61 @@ func (a *notificationAssembler) item(ctx context.Context, notification *corev1.N
 	}
 
 	return item, nil
+}
+
+const maxNotificationMessagePreviewLength = 100
+const maxNotificationMessagePreviewRunes = 512
+
+// messagePreview resolves plaintext only while serving an authenticated
+// notification read. Stored notification records and wake-up pushes stay
+// content-free.
+func (a *notificationAssembler) messagePreview(ctx context.Context, eventID string) string {
+	if eventID == "" {
+		return ""
+	}
+	body, err := a.api.core.GetFullMessageBodyByEventID(ctx, eventID)
+	if err != nil || body == nil {
+		return ""
+	}
+	return truncateNotificationMessagePreview(body.Body)
+}
+
+func truncateNotificationMessagePreview(text string) string {
+	graphemes := uniseg.NewGraphemes(text)
+	clusters := make([]string, 0, maxNotificationMessagePreviewLength+1)
+	for graphemes.Next() {
+		clusters = append(clusters, graphemes.Str())
+	}
+	if len(clusters) <= maxNotificationMessagePreviewLength {
+		return limitNotificationMessagePreviewRunes(text)
+	}
+	breakPoint := maxNotificationMessagePreviewLength
+	for i := maxNotificationMessagePreviewLength - 1; i > maxNotificationMessagePreviewLength-20 && i > 0; i-- {
+		if strings.TrimSpace(clusters[i]) == "" {
+			breakPoint = i
+			break
+		}
+	}
+	return limitNotificationMessagePreviewRunes(strings.Join(clusters[:breakPoint], "") + "…")
+}
+
+func limitNotificationMessagePreviewRunes(text string) string {
+	if utf8.RuneCountInString(text) <= maxNotificationMessagePreviewRunes {
+		return text
+	}
+	graphemes := uniseg.NewGraphemes(text)
+	clusters := make([]string, 0, maxNotificationMessagePreviewLength)
+	runeCount := 0
+	for graphemes.Next() {
+		cluster := graphemes.Str()
+		clusterRunes := utf8.RuneCountInString(cluster)
+		if runeCount+clusterRunes > maxNotificationMessagePreviewRunes-1 {
+			break
+		}
+		clusters = append(clusters, cluster)
+		runeCount += clusterRunes
+	}
+	return strings.Join(clusters, "") + "…"
 }
 
 func (a *notificationAssembler) actor(ctx context.Context, userID string) (*apiv1.User, error) {

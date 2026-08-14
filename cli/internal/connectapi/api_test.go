@@ -23,6 +23,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"connectrpc.com/authn"
 	"connectrpc.com/connect"
@@ -4723,6 +4724,94 @@ func TestNotificationServiceListsAndDismissesNotifications(t *testing.T) {
 	}
 	if dismissAllResp.Msg.GetDismissedCount() != 1 {
 		t.Fatalf("DismissAllNotifications count = %d, want 1", dismissAllResp.Msg.GetDismissedCount())
+	}
+}
+
+func TestNotificationServiceHydratesMessagePreviewWithoutStoringItInNotification(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	ctx := withCaller(env.ctx, env.viewer)
+	room := env.createJoinedRoom("notification-preview-room")
+	actor, err := env.core.CreateUser(
+		env.ctx,
+		core.SystemActorID,
+		"notification-preview-actor",
+		"Notification Preview Actor",
+		"password",
+	)
+	if err != nil {
+		t.Fatalf("CreateUser actor: %v", err)
+	}
+	if _, err := env.core.AddMember(env.ctx, env.viewer.Id, core.KindChannel, room.Id, actor.Id); err != nil {
+		t.Fatalf("AddMember actor: %v", err)
+	}
+
+	const messageText = "Le détail réel du message 🔔 reste lisible."
+	event, err := env.core.PostMessage(
+		env.ctx,
+		core.KindChannel,
+		room.Id,
+		actor.Id,
+		messageText,
+		nil,
+		"",
+		"",
+		nil,
+		false,
+	)
+	if err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	notification, err := env.core.CreateNotification(env.ctx, env.viewer.Id, actor.Id, &corev1.Notification{
+		Notification: &corev1.Notification_RoomMessage{
+			RoomMessage: &corev1.RoomMessageNotification{
+				RoomId:  room.Id,
+				EventId: event.Id,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateNotification: %v", err)
+	}
+
+	response, err := env.notifications.GetNotification(ctx, connect.NewRequest(&apiv1.GetNotificationRequest{
+		NotificationId: notification.Id,
+	}))
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
+	if got := response.Msg.GetNotification().GetMessagePreview(); got != messageText {
+		t.Fatalf("message preview = %q, want %q", got, messageText)
+	}
+
+	missing, err := env.core.CreateNotification(env.ctx, env.viewer.Id, actor.Id, &corev1.Notification{
+		Notification: &corev1.Notification_RoomMessage{
+			RoomMessage: &corev1.RoomMessageNotification{
+				RoomId:  room.Id,
+				EventId: "missing-message-event",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateNotification missing event: %v", err)
+	}
+	missingResponse, err := env.notifications.GetNotification(ctx, connect.NewRequest(&apiv1.GetNotificationRequest{
+		NotificationId: missing.Id,
+	}))
+	if err != nil {
+		t.Fatalf("GetNotification missing event: %v", err)
+	}
+	if got := missingResponse.Msg.GetNotification().GetMessagePreview(); got != "" {
+		t.Fatalf("missing message preview = %q, want empty fallback", got)
+	}
+}
+
+func TestNotificationMessagePreviewKeepsUnicodeWithinAPIContract(t *testing.T) {
+	preview := truncateNotificationMessagePreview(strings.Repeat("👨‍👩‍👧‍👦", 100))
+	if got := utf8.RuneCountInString(preview); got > maxNotificationMessagePreviewRunes {
+		t.Fatalf("preview rune count = %d, want at most %d", got, maxNotificationMessagePreviewRunes)
+	}
+	if !strings.HasSuffix(preview, "…") {
+		t.Fatalf("preview = %q, want ellipsis", preview)
 	}
 }
 
