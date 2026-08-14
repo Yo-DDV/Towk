@@ -22,6 +22,7 @@
       "./messages/{locale}/room_list.json",
       "./messages/{locale}/voice.json",
       "./messages/{locale}/composer.json",
+      "./messages/{locale}/capture.json",
       "./messages/{locale}/add_server.json",
       "./messages/{locale}/emoji.json",
       "./messages/{locale}/media.json",

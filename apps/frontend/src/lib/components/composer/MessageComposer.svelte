@@ -46,6 +46,7 @@
   import { privateDataScopeForServer } from '$lib/pwa/scope';
   import { deleteIncomingShare, getIncomingShare } from '$lib/pwa/shareInbox';
   import VoiceMessageRecorder from './VoiceMessageRecorder.svelte';
+  import MediaCaptureDialog from './MediaCaptureDialog.svelte';
   import type { VoiceMessageDraft } from '$lib/voiceMessages/policy';
 
   const tipTapEditorModule = import('./TipTapEditor.svelte');
@@ -441,6 +442,7 @@
   let roleMentionCheckLoading = $state(false);
   let fileInputElement = $state<HTMLInputElement>();
   let voiceRecorderActive = $state(false);
+  let mediaCaptureOpen = $state(false);
 
   // Keep voice capture mutually exclusive with any editor content, including
   // whitespace or draft text that is not yet sendable. The send affordance is
@@ -593,6 +595,10 @@
     }
     // Reset input so same file can be selected again
     target.value = '';
+  }
+
+  async function handleMediaCaptured(file: File) {
+    await attachments.stageFiles([file]);
   }
 
   function removeFile(index: number) {
@@ -1265,6 +1271,17 @@
       >
         <span class="iconify text-xl uil--file-upload"></span>
       </button>
+      <button
+        type="button"
+        onclick={() => (mediaCaptureOpen = true)}
+        disabled={inputDisabled}
+        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed"
+        title={m['capture.open']()}
+        aria-label={m['capture.open']()}
+        data-testid="open-media-capture"
+      >
+        <span class="iconify text-xl uil--camera"></span>
+      </button>
     {/if}
 
     <!-- Text input (TipTap editor) -->
@@ -1430,6 +1447,13 @@
     </div>
   {/if}
 </div>
+
+{#if mediaCaptureOpen}
+  <MediaCaptureDialog
+    onCaptured={handleMediaCaptured}
+    onClose={() => (mediaCaptureOpen = false)}
+  />
+{/if}
 
 {#if pendingRoleMentionConfirmation}
   <ConfirmDialog
