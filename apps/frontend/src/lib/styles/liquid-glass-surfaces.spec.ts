@@ -11,6 +11,10 @@ const matrixCell = readFileSync(
   new URL('../components/rbac/MatrixCell.svelte', import.meta.url),
   'utf8'
 );
+const messageComposer = readFileSync(
+  new URL('../components/composer/MessageComposer.svelte', import.meta.url),
+  'utf8'
+);
 const packageJson = readFileSync(new URL('../../../package.json', import.meta.url), 'utf8');
 const liquidGlass = readFileSync(new URL('./liquid-glass-surfaces.css', import.meta.url), 'utf8');
 const shellEntry = readFileSync(new URL('./app-shell-depth.css', import.meta.url), 'utf8');
@@ -56,9 +60,7 @@ function expectAchromatic(value: string) {
 function relativeLuminance(value: string): number {
   const channels = rgbChannels(value).map((channel) => {
     const normalized = channel / 255;
-    return normalized <= 0.04045
-      ? normalized / 12.92
-      : Math.pow((normalized + 0.055) / 1.055, 2.4);
+    return normalized <= 0.04045 ? normalized / 12.92 : Math.pow((normalized + 0.055) / 1.055, 2.4);
   });
   return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
 }
@@ -76,7 +78,9 @@ describe('depth-aware application surfaces', () => {
     expect(rootLayout.match(/liquid-glass-surfaces\.css/g)).toHaveLength(1);
 
     for (const fragment of ['tokens', 'surfaces', 'controls', 'states', 'preferences']) {
-      expect(shellEntry.match(new RegExp(`app-shell-depth\\.${fragment}\\.css`, 'g'))).toHaveLength(1);
+      expect(shellEntry.match(new RegExp(`app-shell-depth\\.${fragment}\\.css`, 'g'))).toHaveLength(
+        1
+      );
     }
   });
 
@@ -189,5 +193,13 @@ describe('depth-aware application surfaces', () => {
     }
 
     expect(packageJson).not.toMatch(/shadcn|bits-ui|melt-ui/i);
+  });
+
+  it('keeps the orange focus perimeter in motion without overriding the glass shell', () => {
+    expect(messageComposer).toContain('animation: composer-focus-orbit');
+    expect(messageComposer).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(liquidGlass).not.toMatch(
+      /message-composer-shell[^}]*composer-focus-shell::before\s*\{[^}]*content:\s*none/is
+    );
   });
 });

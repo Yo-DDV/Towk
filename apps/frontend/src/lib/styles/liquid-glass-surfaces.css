@@ -110,18 +110,6 @@
     0 15px 34px -24px var(--liquid-glass-ambient-shadow);
 }
 
-/* The legacy component animation is intentionally neutralized at the theme
- * boundary so the focus state reads as polished glass, not a rotating glow. */
-:root [data-testid='message-composer-shell'].composer-focus-shell::before {
-  content: none !important;
-  display: none !important;
-  background: none !important;
-  -webkit-mask: none !important;
-  mask: none !important;
-  opacity: 0 !important;
-  animation: none !important;
-}
-
 :root [data-testid='message-composer-shell'].composer-focus-shell.sending {
   background-color: var(--liquid-glass-current-fill) !important;
   background-image: none !important;

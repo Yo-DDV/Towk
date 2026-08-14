@@ -1261,27 +1261,29 @@
 
     <!-- Attachment button - hidden in edit mode (editMessage only supports text) -->
     {#if !isEditing && canAttach && !voiceRecorderActive}
-      <button
-        type="button"
-        onclick={() => fileInputElement?.click()}
-        disabled={inputDisabled}
-        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed"
-        title={m['composer.attach_file']()}
-        aria-label={m['composer.attach_file']()}
-      >
-        <span class="iconify text-xl uil--file-upload"></span>
-      </button>
-      <button
-        type="button"
-        onclick={() => (mediaCaptureOpen = true)}
-        disabled={inputDisabled}
-        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed"
-        title={m['capture.open']()}
-        aria-label={m['capture.open']()}
-        data-testid="open-media-capture"
-      >
-        <span class="iconify text-xl uil--camera"></span>
-      </button>
+      <div data-testid="composer-media-actions" class="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onclick={() => fileInputElement?.click()}
+          disabled={inputDisabled}
+          class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed"
+          title={m['composer.attach_file']()}
+          aria-label={m['composer.attach_file']()}
+        >
+          <span class="iconify text-xl uil--file-upload"></span>
+        </button>
+        <button
+          type="button"
+          onclick={() => (mediaCaptureOpen = true)}
+          disabled={inputDisabled}
+          class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed"
+          title={m['capture.open']()}
+          aria-label={m['capture.open']()}
+          data-testid="open-media-capture"
+        >
+          <span class="iconify text-xl uil--camera"></span>
+        </button>
+      </div>
     {/if}
 
     <!-- Text input (TipTap editor) -->
@@ -1449,10 +1451,7 @@
 </div>
 
 {#if mediaCaptureOpen}
-  <MediaCaptureDialog
-    onCaptured={handleMediaCaptured}
-    onClose={() => (mediaCaptureOpen = false)}
-  />
+  <MediaCaptureDialog onCaptured={handleMediaCaptured} onClose={() => (mediaCaptureOpen = false)} />
 {/if}
 
 {#if pendingRoleMentionConfirmation}

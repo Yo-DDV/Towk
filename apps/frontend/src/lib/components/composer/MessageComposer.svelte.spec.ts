@@ -457,9 +457,7 @@ describe('MessageComposer', () => {
       container.before(outsideFocusTarget);
 
       await expect.element(shell).toBeInTheDocument();
-      await expect
-        .element(shell)
-        .toHaveClass('composer-focus-shell', 'items-center', 'min-h-15');
+      await expect.element(shell).toHaveClass('composer-focus-shell', 'items-center', 'min-h-15');
 
       outsideFocusTarget.focus();
       await tick();
@@ -486,6 +484,17 @@ describe('MessageComposer', () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
 
       await expect.element(q(container, 'button[title="Attach file"]')).toBeInTheDocument();
+    });
+
+    it('groups file and camera actions as one compact touch cluster', async () => {
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+
+      await findEditor(container);
+      const actions = q(container, '[data-testid="composer-media-actions"]');
+      await expect.element(actions).toHaveClass('gap-1');
+      expect(actions?.querySelectorAll('button')).toHaveLength(2);
+      expect(actions?.querySelector('[title="Attach file"]')).toBeTruthy();
+      expect(actions?.querySelector('[data-testid="open-media-capture"]')).toBeTruthy();
     });
 
     it('hides attachment controls when uploads are not allowed', async () => {

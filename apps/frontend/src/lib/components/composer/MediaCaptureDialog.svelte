@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import * as m from '$lib/i18n/messages';
+  import Dialog from '$lib/ui/Dialog.svelte';
   import {
     CAPTURE_QUALITY_STORAGE_KEY,
     encodeCapturedPhoto,
@@ -28,6 +29,9 @@
   let recording = $state(false);
   let busy = $state(false);
   let error = $state('');
+  let visible = $state(true);
+  let cameraRequestRevision = 0;
+  let disposed = false;
 
   const qualityOptions: CaptureQuality[] = ['auto', 'sd', 'hd', 'uhd'];
 
@@ -64,6 +68,7 @@
   }
 
   async function startCamera() {
+    const requestRevision = ++cameraRequestRevision;
     error = '';
     stopStream();
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -71,31 +76,45 @@
       return;
     }
     busy = true;
+    let requestedStream: MediaStream | null = null;
     try {
       const profile = resolveCaptureProfile('uhd');
-      const next = await navigator.mediaDevices.getUserMedia({
+      requestedStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          ...(cameraId ? { deviceId: { exact: cameraId } } : { facingMode: { ideal: 'environment' } }),
+          ...(cameraId
+            ? { deviceId: { exact: cameraId } }
+            : { facingMode: { ideal: 'environment' } }),
           width: { ideal: profile.maxWidth },
           height: { ideal: profile.maxHeight }
         },
         audio: mode === 'video'
       });
+      if (disposed || requestRevision !== cameraRequestRevision) {
+        requestedStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       if (!videoElement) throw new Error('video-preview-unavailable');
-      stream = next;
-      videoElement.srcObject = next;
+      videoElement.srcObject = requestedStream;
       await videoElement.play();
+      if (disposed || requestRevision !== cameraRequestRevision) {
+        requestedStream.getTracks().forEach((track) => track.stop());
+        videoElement.srcObject = null;
+        return;
+      }
+      stream = requestedStream;
       await refreshCameras();
-      const activeId = next.getVideoTracks()[0]?.getSettings().deviceId;
+      const activeId = requestedStream.getVideoTracks()[0]?.getSettings().deviceId;
       if (activeId) cameraId = activeId;
     } catch (reason) {
+      requestedStream?.getTracks().forEach((track) => track.stop());
+      if (disposed || requestRevision !== cameraRequestRevision) return;
       const name = reason instanceof DOMException ? reason.name : '';
       error =
         name === 'NotAllowedError' || name === 'SecurityError'
           ? m['capture.permission_denied']()
           : m['capture.unavailable']();
     } finally {
-      busy = false;
+      if (!disposed && requestRevision === cameraRequestRevision) busy = false;
     }
   }
 
@@ -185,6 +204,17 @@
     if (recorder?.state === 'recording') recorder.stop();
   }
 
+  function discardRecording() {
+    const activeRecorder = recorder;
+    recorder = null;
+    recording = false;
+    if (!activeRecorder) return;
+    activeRecorder.ondataavailable = null;
+    activeRecorder.onstop = null;
+    activeRecorder.onerror = null;
+    if (activeRecorder.state === 'recording') activeRecorder.stop();
+  }
+
   async function useCapture() {
     if (!capturedBlob || !capturedKind) return;
     busy = true;
@@ -208,7 +238,7 @@
         file = await encodeCapturedVideo(capturedBlob, quality);
       }
       await onCaptured(file);
-      closeDialog();
+      visible = false;
     } catch {
       error = m['capture.failed']();
       busy = false;
@@ -220,77 +250,112 @@
     await startCamera();
   }
 
-  function closeDialog() {
-    if (recording) recorder?.stop();
+  function handleClosed() {
+    disposed = true;
+    cameraRequestRevision += 1;
+    discardRecording();
     stopStream();
     clearCapture();
     onClose();
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') closeDialog();
   }
 
   onMount(() => {
     quality = normalizeCaptureQuality(localStorage.getItem(CAPTURE_QUALITY_STORAGE_KEY));
     void startCamera();
     return () => {
+      disposed = true;
+      cameraRequestRevision += 1;
+      discardRecording();
       stopStream();
       clearCapture();
     };
   });
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
-
-<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/75 sm:items-center sm:p-4">
+<Dialog
+  bind:visible
+  title={m['capture.title']()}
+  size="lg"
+  tall
+  mobileFullScreen
+  swipeToClose
+  onclose={handleClosed}
+>
   <div
-    role="dialog"
-    tabindex="-1"
-    aria-modal="true"
-    aria-labelledby="capture-dialog-title"
-    class="flex max-h-[100dvh] w-full flex-col overflow-hidden bg-surface shadow-2xl sm:max-h-[min(92dvh,860px)] sm:max-w-3xl sm:rounded-2xl"
+    data-testid="media-capture-dialog"
+    class="media-capture-shell flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl p-2 sm:p-3"
   >
-    <header class="flex min-h-14 items-center gap-3 border-b border-surface-300 px-4">
-      <h2 id="capture-dialog-title" class="min-w-0 flex-1 truncate text-base font-semibold">
-        {m['capture.title']()}
-      </h2>
-      <button type="button" onclick={closeDialog} class="btn btn-ghost btn-circle" aria-label={m['capture.close']()}>
-        <span class="iconify text-xl uil--times"></span>
-      </button>
-    </header>
-
-    <div class="relative min-h-0 flex-1 bg-black">
+    <div
+      data-testid="media-capture-stage"
+      class="media-capture-stage relative min-h-72 flex-1 overflow-hidden rounded-[1.15rem] bg-black"
+    >
       {#if capturedKind === 'photo'}
-        <img src={previewUrl} alt={m['capture.title']()} class="h-full max-h-[62dvh] min-h-72 w-full object-contain" />
+        <img
+          src={previewUrl}
+          alt={m['capture.title']()}
+          class="h-full max-h-[62dvh] min-h-72 w-full object-contain"
+        />
       {:else if capturedKind === 'video'}
         <!-- svelte-ignore a11y_media_has_caption -->
-        <video src={previewUrl} controls playsinline class="h-full max-h-[62dvh] min-h-72 w-full object-contain"></video>
+        <video
+          src={previewUrl}
+          controls
+          playsinline
+          class="h-full max-h-[62dvh] min-h-72 w-full object-contain"
+        ></video>
       {:else}
-        <video bind:this={videoElement} autoplay muted playsinline class="h-full max-h-[62dvh] min-h-72 w-full object-contain"></video>
+        <video
+          bind:this={videoElement}
+          autoplay
+          muted
+          playsinline
+          class="h-full max-h-[62dvh] min-h-72 w-full object-contain"
+        ></video>
       {/if}
       {#if recording}
-        <div class="absolute top-3 left-3 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white">
+        <div
+          class="absolute top-3 left-3 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-sm text-white"
+        >
           <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-red-500"></span>
           {m['capture.recording']()}
         </div>
       {/if}
       {#if busy}
-        <div class="absolute inset-0 grid place-items-center bg-black/35"><span class="loading loading-spinner loading-lg text-white"></span></div>
+        <div class="absolute inset-0 grid place-items-center bg-black/35">
+          <span class="loading loading-spinner loading-lg text-white"></span>
+        </div>
       {/if}
     </div>
 
-    <div class="flex flex-col gap-3 border-t border-surface-300 p-3 sm:p-4">
+    <div class="capture-controls mt-2 flex flex-col gap-3 rounded-xl p-3 sm:p-4">
       {#if error}<p role="alert" class="text-sm text-error">{error}</p>{/if}
       {#if !capturedKind}
         <div class="grid grid-cols-2 gap-2 sm:flex">
-          <div class="join w-full sm:w-auto">
-            <button type="button" class="btn join-item flex-1" class:btn-primary={mode === 'photo'} onclick={() => changeMode('photo')}>{m['capture.photo']()}</button>
-            <button type="button" class="btn join-item flex-1" class:btn-primary={mode === 'video'} onclick={() => changeMode('video')}>{m['capture.video']()}</button>
+          <div
+            data-testid="capture-mode-switcher"
+            class="capture-segmented flex w-full gap-1 rounded-xl p-1 sm:w-auto"
+          >
+            <button
+              type="button"
+              class="btn flex-1 border-0 sm:min-w-28"
+              class:btn-primary={mode === 'photo'}
+              onclick={() => changeMode('photo')}>{m['capture.photo']()}</button
+            >
+            <button
+              type="button"
+              class="btn flex-1 border-0 sm:min-w-28"
+              class:btn-primary={mode === 'video'}
+              onclick={() => changeMode('video')}>{m['capture.video']()}</button
+            >
           </div>
           {#if cameras.length > 1}
             <label class="sr-only" for="capture-camera">{m['capture.camera']()}</label>
-            <select id="capture-camera" class="select select-bordered min-w-0" value={cameraId} onchange={changeCamera}>
+            <select
+              id="capture-camera"
+              class="select select-bordered min-w-0"
+              value={cameraId}
+              onchange={changeCamera}
+            >
               {#each cameras as camera, index (camera.deviceId)}
                 <option value={camera.deviceId}>{cameraLabel(camera, index)}</option>
               {/each}
@@ -300,32 +365,130 @@
       {/if}
 
       {#if capturedKind}
-        <div class="rounded-2xl border border-surface-300 bg-surface-100/80 p-3 shadow-sm">
+        <div class="capture-quality rounded-2xl p-3">
           <div class="mb-2 flex items-center justify-between gap-3">
             <span class="text-sm font-semibold">{m['capture.quality']()}</span>
             {#if busy}<span class="loading loading-spinner loading-sm"></span>{/if}
           </div>
           <div class="flex flex-wrap items-center gap-2">
             {#each qualityOptions as option (option)}
-              <button type="button" class="btn btn-sm flex-1 sm:flex-none" class:btn-primary={quality === option} disabled={busy} onclick={() => setQuality(option)}>{qualityLabel(option)}</button>
+              <button
+                type="button"
+                class="btn flex-1 btn-sm sm:flex-none"
+                class:btn-primary={quality === option}
+                disabled={busy}
+                onclick={() => setQuality(option)}>{qualityLabel(option)}</button
+              >
             {/each}
           </div>
-          {#if quality === 'auto'}<p class="mt-2 text-xs text-muted">{m['capture.quality_auto_hint']()}</p>{/if}
+          {#if quality === 'auto'}<p class="mt-2 text-xs text-muted">
+              {m['capture.quality_auto_hint']()}
+            </p>{/if}
         </div>
       {/if}
 
       <div class="flex items-center justify-end gap-2">
         {#if capturedKind}
-          <button type="button" class="btn btn-ghost" disabled={busy} onclick={retake}>{m['capture.retake']()}</button>
-          <button type="button" class="btn btn-primary" disabled={busy} onclick={useCapture}>{m['capture.use']()}</button>
+          <button type="button" class="btn-ghost btn" disabled={busy} onclick={retake}
+            >{m['capture.retake']()}</button
+          >
+          <button type="button" class="btn-primary btn" disabled={busy} onclick={useCapture}
+            >{m['capture.use']()}</button
+          >
         {:else if mode === 'photo'}
-          <button type="button" class="btn btn-primary" disabled={busy || !stream} onclick={takePhoto}>{m['capture.take_photo']()}</button>
+          <button
+            data-testid="capture-shutter"
+            type="button"
+            class="capture-shutter btn-primary btn"
+            disabled={busy || !stream}
+            onclick={takePhoto}>{m['capture.take_photo']()}</button
+          >
         {:else if recording}
-          <button type="button" class="btn btn-error" onclick={stopRecording}>{m['capture.stop_video']()}</button>
+          <button
+            data-testid="capture-shutter"
+            type="button"
+            class="capture-shutter btn-error btn"
+            onclick={stopRecording}>{m['capture.stop_video']()}</button
+          >
         {:else}
-          <button type="button" class="btn btn-primary" disabled={busy || !stream} onclick={startRecording}>{m['capture.start_video']()}</button>
+          <button
+            data-testid="capture-shutter"
+            type="button"
+            class="capture-shutter btn-primary btn"
+            disabled={busy || !stream}
+            onclick={startRecording}>{m['capture.start_video']()}</button
+          >
         {/if}
       </div>
     </div>
   </div>
-</div>
+</Dialog>
+
+<style>
+  .media-capture-shell {
+    box-sizing: border-box;
+    min-height: min(42rem, calc(100dvh - 8rem));
+    background-color: color-mix(in srgb, var(--color-surface) 88%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 22%, transparent),
+      inset 1px 0 0 color-mix(in srgb, white 8%, transparent),
+      0 24px 70px rgb(0 0 0 / 28%);
+    backdrop-filter: blur(16px) saturate(100%);
+  }
+
+  .media-capture-stage {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 10%),
+      inset 0 14px 34px rgb(0 0 0 / 24%),
+      0 8px 24px rgb(0 0 0 / 20%);
+  }
+
+  .capture-controls,
+  .capture-segmented,
+  .capture-quality {
+    background-color: color-mix(in srgb, var(--color-surface-100) 82%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 16%, transparent),
+      inset 0 -1px 0 rgb(0 0 0 / 8%);
+  }
+
+  .capture-shutter {
+    min-height: 3rem;
+    min-width: min(100%, 9.5rem);
+    border-radius: 999px;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 32%),
+      0 0 0 4px color-mix(in srgb, currentColor 12%, transparent),
+      0 8px 18px rgb(0 0 0 / 18%);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .media-capture-shell,
+    .capture-controls,
+    .capture-segmented,
+    .capture-quality {
+      background-color: var(--color-surface);
+      backdrop-filter: none;
+    }
+  }
+
+  @media (max-width: 640px), (max-height: 620px) {
+    .media-capture-shell {
+      min-height: calc(100dvh - 9rem);
+    }
+  }
+
+  @media (forced-colors: active) {
+    .media-capture-shell,
+    .media-capture-stage,
+    .capture-controls,
+    .capture-segmented,
+    .capture-quality,
+    .capture-shutter {
+      border: 1px solid CanvasText;
+      box-shadow: none;
+    }
+  }
+</style>
