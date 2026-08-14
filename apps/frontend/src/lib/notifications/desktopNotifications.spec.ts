@@ -27,6 +27,7 @@ const messageNotification: DirectMessageNotificationItem = {
   createdAt: '2026-08-10T00:00:00.000Z',
   actor,
   summary: 'Alice sent you a message',
+  messagePreview: 'Le texte réel du message',
   room: { id: 'room-1' },
   eventId: 'event-1'
 };
@@ -90,6 +91,7 @@ describe('desktop notification bridge', () => {
     ).toMatchObject({
       notificationId: 'chat-example-org:notification-1',
       title: 'Alice',
+      body: 'Le texte réel du message',
       kind: 'message',
       silent: true,
       url: 'https://chat.example.org/chat/chat-example-org/room-1'
@@ -104,6 +106,16 @@ describe('desktop notification bridge', () => {
         false
       )
     ).toMatchObject({ kind: 'call', silent: false });
+
+    expect(
+      desktopNotificationPayload(
+        'chat-example-org',
+        'https://chat.example.org',
+        '/chat/chat-example-org/room-1',
+        { ...messageNotification, messagePreview: '' },
+        false
+      )
+    ).toMatchObject({ body: 'Alice sent you a message' });
     expect(
       desktopNotificationPayload(
         'chat-example-org',

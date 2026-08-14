@@ -133,7 +133,10 @@ export function desktopNotificationPayload(
 
   const title =
     notification.actor?.displayName?.trim() || notification.actor?.login?.trim() || 'TOWK';
-  const body = notification.summary.trim();
+  const body =
+    (notification.kind === NotificationItemKind.CallStarted
+      ? ''
+      : notification.messagePreview?.trim()) || notification.summary.trim();
   if (!title || !body) return null;
 
   return {
