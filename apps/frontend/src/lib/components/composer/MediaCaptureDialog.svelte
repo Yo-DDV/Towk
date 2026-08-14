@@ -132,7 +132,7 @@
         canvas.toBlob(
           (blob) => (blob ? resolve(blob) : reject(new Error('photo-capture-failed'))),
           'image/jpeg',
-          0.98
+          1
         )
       );
       capturedKind = 'photo';
