@@ -287,7 +287,7 @@ interface PushPayload {
   url?: string;
   expiresAt?: number;
   call?: CallPushPayload;
-  // "dismiss" action is used to close notifications on other devices
+  // Legacy payload retained for compatibility. Remote dismissal is ignored.
   action?: 'dismiss';
 }
 
@@ -393,16 +393,6 @@ function handleNotificationDismissMessage(event: ExtendableMessageEvent): boolea
     return false;
   }
 
-  event.waitUntil(
-    (async () => {
-      const notifications = await self.registration.getNotifications();
-      for (const notification of notifications) {
-        if (notification.data?.notificationId === message.notificationId) {
-          notification.close();
-        }
-      }
-    })()
-  );
   return true;
 }
 
@@ -431,25 +421,7 @@ function handleNotificationStateMessage(event: ExtendableMessageEvent): boolean 
   const message = event.data as Record<string, unknown> | undefined;
   if (!message || message.type !== 'towk-notification-state') return false;
 
-  const rawNotificationIds = message.notificationIds;
-  if (!Array.isArray(rawNotificationIds)) return false;
-
-  const pendingNotificationIds = new Set(
-    rawNotificationIds.filter((id): id is string => typeof id === 'string' && id !== '')
-  );
-
-  event.waitUntil(
-    (async () => {
-      const notifications = await self.registration.getNotifications();
-      for (const notification of notifications) {
-        const notificationId = notification.data?.notificationId;
-        if (typeof notificationId === 'string' && !pendingNotificationIds.has(notificationId)) {
-          notification.close();
-        }
-      }
-    })()
-  );
-  return true;
+  return Array.isArray(message.notificationIds);
 }
 
 function normalizePushNotification(payload: DeclarativePushPayload): NormalizedPushNotification {
@@ -634,17 +606,8 @@ self.addEventListener('push', (event) => {
     payload = { title: 'Towk' };
   }
 
-  // Handle dismiss action - close matching notifications on this device
+  // Legacy dismissal pushes must never retract installation-local history.
   if (payload.action === 'dismiss') {
-    event.waitUntil(
-      (async () => {
-        const notifications = await self.registration.getNotifications(
-          payload.tag ? { tag: payload.tag } : undefined
-        );
-        notifications.forEach((n) => n.close());
-        await badgeCoordinator.reconcileAfterDismissPush();
-      })()
-    );
     return;
   }
 

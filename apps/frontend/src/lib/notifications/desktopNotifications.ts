@@ -148,3 +148,39 @@ export function desktopNotificationPayload(
     silent
   };
 }
+
+/**
+ * A valid realtime event still owns one delivery to this installation even if
+ * another device consumes the server inbox item before desktop hydration ends.
+ */
+export function desktopFallbackNotificationPayload(
+  serverId: string,
+  applicationOrigin: string,
+  navigationPath: string,
+  notificationId: string,
+  body: string,
+  silent: boolean
+): DesktopNotificationPayload | null {
+  const scopedId = nativeDesktopNotificationId(serverId, notificationId);
+  if (!scopedId) return null;
+
+  let url: URL;
+  try {
+    url = new URL(navigationPath, applicationOrigin);
+  } catch {
+    return null;
+  }
+  if (url.origin !== applicationOrigin || url.username || url.password) return null;
+
+  const safeBody = body.trim();
+  if (!safeBody) return null;
+
+  return {
+    notificationId: scopedId,
+    title: 'TOWK',
+    body: safeBody,
+    url: url.href,
+    kind: 'message',
+    silent
+  };
+}

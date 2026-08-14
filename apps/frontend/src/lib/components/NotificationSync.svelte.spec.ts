@@ -408,7 +408,7 @@ describe('NotificationSync', () => {
     expect(mocks.playNotificationSound).not.toHaveBeenCalled();
   });
 
-  it('reconciles counts when a cached notification is dismissed elsewhere', async () => {
+  it('reconciles in-app counts without closing a delivered system notification elsewhere', async () => {
     mocks.store.notifications.removeNotification.mockReturnValue('room-1');
     await renderAndWaitForSubscription();
 
@@ -418,7 +418,7 @@ describe('NotificationSync', () => {
     });
 
     expect(mocks.store.notifications.removeNotification).toHaveBeenCalledWith('n1');
-    expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('n1');
+    expect(mocks.dismissNativeNotification).not.toHaveBeenCalled();
     expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
     expect(mocks.store.rooms.decrementUnreadNotification).not.toHaveBeenCalled();
     expect(mocks.store.notifications.fetch).not.toHaveBeenCalled();
@@ -490,7 +490,7 @@ describe('NotificationSync', () => {
       kind: 'count',
       count: 1
     });
-    expect(mocks.reconcileNativeNotifications).toHaveBeenCalledWith(['notification-1']);
+    expect(mocks.reconcileNativeNotifications).not.toHaveBeenCalled();
     expect(mocks.clearBadge).not.toHaveBeenCalled();
   });
 
