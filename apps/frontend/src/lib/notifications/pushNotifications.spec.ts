@@ -542,10 +542,7 @@ describe('pushNotifications.reconcileNativeNotifications', () => {
 
     reconcileNativeNotifications(['notification-1', 'notification-1', '', 'notification-2']);
 
-    expect(pushGlobals.postMessage).toHaveBeenCalledWith({
-      type: 'towk-notification-state',
-      notificationIds: ['notification-1', 'notification-2']
-    });
+    expect(pushGlobals.postMessage).not.toHaveBeenCalled();
     expect(pushGlobals.activePostMessage).not.toHaveBeenCalled();
   });
 
@@ -562,10 +559,7 @@ describe('pushNotifications.reconcileNativeNotifications', () => {
     reconcileNativeNotifications(['notification-3']);
     await Promise.resolve();
 
-    expect(pushGlobals.activePostMessage).toHaveBeenCalledWith({
-      type: 'towk-notification-state',
-      notificationIds: ['notification-3']
-    });
+    expect(pushGlobals.activePostMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -668,10 +662,7 @@ describe('onNotificationClick', () => {
     });
 
     await Promise.resolve();
-    expect(callback).toHaveBeenCalledWith(
-      'https://towk.example/chat/-/room-1',
-      'notification-1'
-    );
+    expect(callback).toHaveBeenCalledWith('https://towk.example/chat/-/room-1', 'notification-1');
     expect(responsePort.postMessage).not.toHaveBeenCalled();
 
     navigation.resolve(true);

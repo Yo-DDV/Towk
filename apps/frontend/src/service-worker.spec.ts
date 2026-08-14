@@ -365,10 +365,9 @@ describe('service worker badge orchestration', () => {
         tag: undefined,
         data: { notificationId: undefined, url: undefined }
       });
-      expect(worker.registration.getNotifications).toHaveBeenCalledTimes(2);
-      expect(worker.registration.getNotifications).toHaveBeenNthCalledWith(1, undefined);
-      expect(first.close).toHaveBeenCalledOnce();
-      expect(second.close).toHaveBeenCalledOnce();
+      expect(worker.registration.getNotifications).not.toHaveBeenCalled();
+      expect(first.close).not.toHaveBeenCalled();
+      expect(second.close).not.toHaveBeenCalled();
       expect(worker.setAppBadge).not.toHaveBeenCalled();
     } finally {
       consoleError.mockRestore();
@@ -490,7 +489,7 @@ describe('service worker badge orchestration', () => {
     });
   });
 
-  it('closes a native notification from an online realtime dismissal without a Web Push', async () => {
+  it('keeps delivered system notifications after an online realtime dismissal', async () => {
     const worker = await importServiceWorker();
     const matching = { data: { notificationId: 'notification-2' }, close: vi.fn() };
     const other = { data: { notificationId: 'notification-1' }, close: vi.fn() };
@@ -503,13 +502,13 @@ describe('service worker badge orchestration', () => {
       }
     });
 
-    expect(worker.registration.getNotifications).toHaveBeenCalledOnce();
-    expect(matching.close).toHaveBeenCalledOnce();
+    expect(worker.registration.getNotifications).not.toHaveBeenCalled();
+    expect(matching.close).not.toHaveBeenCalled();
     expect(other.close).not.toHaveBeenCalled();
     expect(worker.registration.showNotification).not.toHaveBeenCalled();
   });
 
-  it('closes stale native notifications after a foreground state reconciliation', async () => {
+  it('keeps delivered system notifications after foreground state reconciliation', async () => {
     const worker = await importServiceWorker();
     const stillPending = { data: { notificationId: 'notification-1' }, close: vi.fn() };
     const stale = { data: { notificationId: 'notification-2' }, close: vi.fn() };
@@ -523,8 +522,8 @@ describe('service worker badge orchestration', () => {
       }
     });
 
-    expect(worker.registration.getNotifications).toHaveBeenCalledOnce();
-    expect(stale.close).toHaveBeenCalledOnce();
+    expect(worker.registration.getNotifications).not.toHaveBeenCalled();
+    expect(stale.close).not.toHaveBeenCalled();
     expect(stillPending.close).not.toHaveBeenCalled();
     expect(unmanaged.close).not.toHaveBeenCalled();
     expect(worker.registration.showNotification).not.toHaveBeenCalled();
@@ -1041,11 +1040,12 @@ describe('service worker badge orchestration', () => {
         keys: { auth: 'push-auth' }
       })
     });
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ dismissed: true }), {
-        status: 202,
-        headers: { 'Content-Type': 'application/json' }
-      })
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ dismissed: true }), {
+          status: 202,
+          headers: { 'Content-Type': 'application/json' }
+        })
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -1071,9 +1071,7 @@ describe('service worker badge orchestration', () => {
         })
       })
     );
-    expect(worker.clients.openWindow).toHaveBeenCalledWith(
-      'https://towk.example/chat/-/room-1'
-    );
+    expect(worker.clients.openWindow).toHaveBeenCalledWith('https://towk.example/chat/-/room-1');
   });
 
   it('passes notification identity to an open SPA client', async () => {
@@ -1278,7 +1276,7 @@ describe('service worker badge orchestration', () => {
     expect(worker.setAppBadge).not.toHaveBeenCalled();
   });
 
-  it('does not preserve a foreground count after a dismiss push without a fresh count', async () => {
+  it('ignores legacy dismiss pushes without closing delivered notifications', async () => {
     const worker = await importServiceWorker();
     const staleNotification = { close: vi.fn() };
 
@@ -1302,8 +1300,8 @@ describe('service worker badge orchestration', () => {
       }
     });
 
-    expect(staleNotification.close).toHaveBeenCalledOnce();
-    expect(worker.clearAppBadge).toHaveBeenCalledOnce();
+    expect(staleNotification.close).not.toHaveBeenCalled();
+    expect(worker.clearAppBadge).not.toHaveBeenCalled();
     expect(worker.setAppBadge).toHaveBeenCalledTimes(1);
   });
 });
