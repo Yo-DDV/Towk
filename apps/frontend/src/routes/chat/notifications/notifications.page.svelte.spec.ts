@@ -111,7 +111,7 @@ describe('notifications page', () => {
         'event-1'
       );
       expect(mocks.store.notifications.dismiss).toHaveBeenCalledWith('mention-1');
-      expect(mocks.dismissNativeNotification).not.toHaveBeenCalled();
+      expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('mention-1');
       expect(mocks.goto).toHaveBeenCalledWith('/chat/-/room-1/thread-1');
     });
   });
@@ -134,7 +134,7 @@ describe('notifications page', () => {
 
     resolveDismiss?.(true);
     await vi.waitFor(() => {
-      expect(mocks.dismissNativeNotification).not.toHaveBeenCalled();
+      expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('mention-1');
     });
   });
 
@@ -146,7 +146,7 @@ describe('notifications page', () => {
 
     await vi.waitFor(() => {
       expect(mocks.store.notifications.dismiss).toHaveBeenCalledWith('mention-1');
-      expect(mocks.dismissNativeNotification).not.toHaveBeenCalled();
+      expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('mention-1');
       expect(mocks.store.rooms.decrementUnreadNotification).toHaveBeenCalledWith('room-1');
       expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalled();
     });
@@ -169,7 +169,7 @@ describe('notifications page', () => {
 
     resolveDismiss?.(true);
     await vi.waitFor(() => {
-      expect(mocks.dismissNativeNotification).not.toHaveBeenCalled();
+      expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('mention-1');
     });
   });
 
@@ -185,7 +185,7 @@ describe('notifications page', () => {
 
     await vi.waitFor(() => {
       expect(mocks.store.notifications.dismissAll).toHaveBeenCalledOnce();
-      expect(mocks.reconcileNativeNotifications).not.toHaveBeenCalled();
+      expect(mocks.reconcileNativeNotifications).toHaveBeenCalledWith([]);
       expect(mocks.store.rooms.clearAllUnreadNotifications).toHaveBeenCalledOnce();
       expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalled();
     });

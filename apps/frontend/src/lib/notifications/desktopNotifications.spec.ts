@@ -6,7 +6,6 @@ import {
 } from '$lib/api-client/notifications';
 import { PresenceStatus } from '$lib/render/types';
 import {
-  desktopFallbackNotificationPayload,
   desktopNotificationPayload,
   nativeDesktopNotificationId,
   parseNativeDesktopNotificationId,
@@ -128,25 +127,5 @@ describe('desktop notification bridge', () => {
         false
       )
     ).toBeNull();
-  });
-
-  it('builds a generic delivery when another client consumes state before hydration', () => {
-    expect(
-      desktopFallbackNotificationPayload(
-        'chat-example-org',
-        'https://chat.example.org',
-        '/chat/chat-example-org/room-1',
-        'notification-3',
-        'New message',
-        false
-      )
-    ).toEqual({
-      notificationId: 'chat-example-org:notification-3',
-      title: 'TOWK',
-      body: 'New message',
-      url: 'https://chat.example.org/chat/chat-example-org/room-1',
-      kind: 'message',
-      silent: false
-    });
   });
 });

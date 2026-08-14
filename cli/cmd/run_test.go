@@ -52,7 +52,7 @@ func TestSetupPushNotificationsDoesNotRegisterSilentDismissPushes(t *testing.T) 
 	}
 }
 
-func TestSetupNativeNotificationsDoesNotWakeEndpointsOnSingleOrBulkDismissal(t *testing.T) {
+func TestSetupNativeNotificationsWakesEndpointsOnSingleAndBulkDismissal(t *testing.T) {
 	t.Setenv("CHATTO_NATIVE_NOTIFICATIONS_ENABLED", "true")
 	t.Setenv("CHATTO_NATIVE_NOTIFICATIONS_SHADOW_OUTBOX", "true")
 	t.Setenv("CHATTO_NATIVE_NOTIFICATIONS_ANDROID_MANAGED_FCM", "false")
@@ -70,7 +70,7 @@ func TestSetupNativeNotificationsDoesNotWakeEndpointsOnSingleOrBulkDismissal(t *
 		t.Fatalf("NewChattoCore: %v", err)
 	}
 	x, y := elliptic.P256().ScalarBaseMult([]byte{2})
-	_, err = chattoCore.RegisterNativeEndpoint(ctx, "native-dismiss-user", core.NativeEndpointRegistration{
+	endpoint, err := chattoCore.RegisterNativeEndpoint(ctx, "native-dismiss-user", core.NativeEndpointRegistration{
 		InstallationID:    "installation-native-dismiss-0001",
 		Platform:          core.NativeNotificationPlatformAndroid,
 		Transport:         core.NativeNotificationTransportManagedFCM,
@@ -106,20 +106,23 @@ func TestSetupNativeNotificationsDoesNotWakeEndpointsOnSingleOrBulkDismissal(t *
 	}
 	chattoCore.OnNotificationDismissed(ctx, notification.RecipientId, notification)
 	claimed, err := chattoCore.ClaimNativeNotificationOutbox(ctx, "worker-native-dismiss", time.Now().UTC(), 10, time.Minute)
-	if err != nil {
-		t.Fatalf("single-dismiss claim: %v", err)
+	if err != nil || len(claimed) != 1 {
+		t.Fatalf("single-dismiss claim = %#v, %v", claimed, err)
 	}
-	if !previousSingleCalled || len(claimed) != 0 {
-		t.Fatalf("single-dismiss callback/outbox = previous:%v items:%#v", previousSingleCalled, claimed)
+	if !previousSingleCalled || claimed[0].Item.EndpointID != endpoint.EndpointID || claimed[0].Item.NotificationID != notification.Id {
+		t.Fatalf("single-dismiss callback/outbox = previous:%v item:%#v", previousSingleCalled, claimed[0].Item)
+	}
+	if err := chattoCore.CompleteNativeNotificationOutbox(ctx, claimed[0], "worker-native-dismiss"); err != nil {
+		t.Fatalf("complete single dismissal: %v", err)
 	}
 
 	chattoCore.OnNotificationsDismissed(ctx, notification.RecipientId)
 	claimed, err = chattoCore.ClaimNativeNotificationOutbox(ctx, "worker-native-dismiss", time.Now().UTC(), 10, time.Minute)
-	if err != nil {
-		t.Fatalf("bulk-dismiss claim: %v", err)
+	if err != nil || len(claimed) != 1 {
+		t.Fatalf("bulk-dismiss claim = %#v, %v", claimed, err)
 	}
-	if !previousBulkCalled || len(claimed) != 0 {
-		t.Fatalf("bulk-dismiss callback/outbox = previous:%v items:%#v", previousBulkCalled, claimed)
+	if !previousBulkCalled || claimed[0].Item.EndpointID != endpoint.EndpointID || claimed[0].Item.NotificationID != "all" {
+		t.Fatalf("bulk-dismiss callback/outbox = previous:%v item:%#v", previousBulkCalled, claimed[0].Item)
 	}
 }
 

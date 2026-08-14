@@ -14,7 +14,6 @@ server scoping, navigation, dismissal and call admission.
   import * as m from '$lib/i18n/messages';
   import {
     desktopBridge,
-    desktopFallbackNotificationPayload,
     desktopNotificationPayload,
     nativeDesktopNotificationId,
     parseNativeDesktopNotificationId,
@@ -75,36 +74,6 @@ server scoping, navigation, dismissal and call admission.
     });
   }
 
-  function requestFallbackDesktopNotification(
-    serverId: string,
-    notificationId: string,
-    roomId?: string
-  ): void {
-    const bridge = desktopBridge();
-    if (!bridge) return;
-    const nativeId = nativeDesktopNotificationId(serverId, notificationId);
-    if (!nativeId || requested.has(nativeId)) return;
-
-    const navigationPath = roomId
-      ? resolve('/chat/[serverId]/[roomId]', { serverId, roomId })
-      : resolve('/chat/[serverId]', { serverId });
-    const payload = desktopFallbackNotificationPayload(
-      serverId,
-      window.location.origin,
-      navigationPath,
-      notificationId,
-      m['chat.notifications.room_message_unknown'](),
-      silentByNotification.get(nativeId) === true
-    );
-    if (!payload) return;
-
-    boundedRemember(nativeId);
-    void bridge.showNotification(payload).catch((error) => {
-      requested.delete(nativeId);
-      console.error('Failed to display fallback resident desktop notification:', error);
-    });
-  }
-
   // Preserve the server-provided silent flag until NotificationSync hydrates
   // the authoritative item into the per-server store.
   $effect(() => {
@@ -123,27 +92,12 @@ server scoping, navigation, dismissal and call admission.
         if (!('notificationId' in event.event) || typeof event.event.notificationId !== 'string') {
           return;
         }
-        const notificationEvent = event.event;
-        const nativeId = nativeDesktopNotificationId(server.id, notificationEvent.notificationId);
+        const nativeId = nativeDesktopNotificationId(server.id, event.event.notificationId);
         if (!nativeId) return;
-        const roomId =
-          'roomId' in notificationEvent && typeof notificationEvent.roomId === 'string'
-            ? notificationEvent.roomId
-            : undefined;
-        silentByNotification.set(
-          nativeId,
-          'silent' in notificationEvent && notificationEvent.silent === true
-        );
-        void resolveNotification(server.id, notificationEvent.notificationId)
+        silentByNotification.set(nativeId, 'silent' in event.event && event.event.silent === true);
+        void resolveNotification(server.id, event.event.notificationId)
           .then((notification) => {
-            if (!notification) {
-              requestFallbackDesktopNotification(
-                server.id,
-                notificationEvent.notificationId,
-                roomId
-              );
-              return;
-            }
+            if (!notification) return;
             requestDesktopNotification(
               server.id,
               notification,
@@ -228,9 +182,7 @@ server scoping, navigation, dismissal and call admission.
       try {
         const fallback = new URL(activation.url, window.location.origin);
         if (fallback.origin === window.location.origin) {
-          await goto(
-            resolve((`${fallback.pathname}${fallback.search}${fallback.hash}` || '/') as '/')
-          );
+          await goto(resolve((`${fallback.pathname}${fallback.search}${fallback.hash}` || '/') as '/'));
         }
       } catch {
         // The main process already validates activation URLs. A malformed IPC

@@ -15,6 +15,11 @@
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
+  import {
+    dismissNativeNotification,
+    reconcileNativeNotifications
+  } from '$lib/notifications/pushNotifications';
+
   import UserAvatar from '$lib/components/UserAvatar.svelte';
   import { getUserSettings } from '$lib/state/userSettings.svelte';
   import { formatDate } from '$lib/utils/formatTime';
@@ -185,6 +190,9 @@
     void store
       .dismiss(item.notification.id)
       .then((dismissed) => {
+        if (dismissed) {
+          dismissNativeNotification(item.notification.id);
+        }
         if (dismissed && target.roomId) {
           stores.rooms.decrementUnreadNotification(target.roomId);
           void stores.rooms.refreshNotificationCounts();
@@ -210,6 +218,9 @@
     const target = notificationTarget(item.notification);
     try {
       const dismissed = await stores.notifications.dismiss(item.notification.id);
+      if (dismissed) {
+        dismissNativeNotification(item.notification.id);
+      }
       if (dismissed && target.roomId) {
         stores.rooms.decrementUnreadNotification(target.roomId);
         void stores.rooms.refreshNotificationCounts();
@@ -231,6 +242,7 @@
         stores.notifications.dismissAll().then((dismissed) => {
           if (hadNotifications || dismissed > 0) {
             stores.rooms.clearAllUnreadNotifications();
+            reconcileNativeNotifications([]);
             void stores.rooms.refreshNotificationCounts();
           }
         })

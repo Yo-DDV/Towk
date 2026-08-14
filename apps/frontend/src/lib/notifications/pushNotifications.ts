@@ -400,14 +400,28 @@ export async function unsubscribe(): Promise<boolean> {
   return revokeSubscription(subscription);
 }
 
-/** @deprecated Delivered system notifications are installation-local history. */
-export function dismissNativeNotification(_notificationId: string): void {
-  // Intentionally retained as a no-op while older UI call sites roll forward.
+/** Close the matching native notification while this PWA is already online. */
+export function dismissNativeNotification(notificationId: string): void {
+  postServiceWorkerMessage({
+    type: 'towk-notification-dismiss',
+    notificationId
+  });
 }
 
-/** @deprecated Server inbox state must not retract installation-local history. */
-export function reconcileNativeNotifications(_notificationIds: Iterable<string>): void {
-  // Intentionally retained as a no-op while older UI call sites roll forward.
+/** Close delivered native notifications that are no longer pending on the server. */
+export function reconcileNativeNotifications(notificationIds: Iterable<string>): void {
+  const pendingIds = Array.from(
+    new Set(
+      Array.from(notificationIds).filter(
+        (notificationId) => typeof notificationId === 'string' && notificationId !== ''
+      )
+    )
+  );
+
+  postServiceWorkerMessage({
+    type: 'towk-notification-state',
+    notificationIds: pendingIds
+  });
 }
 
 export function drainNativeNotificationCloseOutbox(): void {
@@ -475,7 +489,10 @@ function originPushAPI() {
  * SPA can route via `goto()` (client-side navigation, no full reload).
  */
 export function onNotificationClick(
-  callback: (url: string, notificationId?: string) => boolean | void | Promise<boolean | void>
+  callback: (
+    url: string,
+    notificationId?: string
+  ) => boolean | void | Promise<boolean | void>
 ): () => void {
   if (!('serviceWorker' in navigator)) {
     return () => {};
@@ -490,10 +507,14 @@ export function onNotificationClick(
       void (async () => {
         try {
           const notificationId =
-            typeof event.data.notificationId === 'string' && event.data.notificationId.trim() !== ''
+            typeof event.data.notificationId === 'string' &&
+            event.data.notificationId.trim() !== ''
               ? event.data.notificationId
               : undefined;
-          const notificationConsumed = await callback(event.data.url, notificationId);
+          const notificationConsumed = await callback(
+            event.data.url,
+            notificationId
+          );
           responsePort?.postMessage({
             type: NOTIFICATION_CLICK_ACK_MESSAGE_TYPE,
             notificationConsumed: notificationId ? notificationConsumed === true : true

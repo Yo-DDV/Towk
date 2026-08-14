@@ -351,11 +351,29 @@ func setupNativeNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConf
 	}
 	previousCallback := chattoCore.OnNotificationCreated
 	chattoCore.OnNotificationCreated = func(ctx context.Context, notification *corev1.Notification) {
+		if previousCallback != nil {
+			previousCallback(ctx, notification)
+		}
 		if _, err := chattoCore.EnqueueNativeNotification(ctx, notification); err != nil {
 			log.WithPrefix("native-push").Warn("Failed to enqueue native notification", "notification_id", notification.GetId(), "error", err)
 		}
-		if previousCallback != nil {
-			previousCallback(ctx, notification)
+	}
+	previousDismissedCallback := chattoCore.OnNotificationDismissed
+	chattoCore.OnNotificationDismissed = func(ctx context.Context, userID string, notification *corev1.Notification) {
+		if previousDismissedCallback != nil {
+			previousDismissedCallback(ctx, userID, notification)
+		}
+		if _, err := chattoCore.EnqueueNativeNotificationReconciliation(ctx, userID, notification); err != nil {
+			log.WithPrefix("native-push").Warn("Failed enqueue native notification reconciliation", "notification_id", notification.GetId(), "error", err)
+		}
+	}
+	previousBulkDismissedCallback := chattoCore.OnNotificationsDismissed
+	chattoCore.OnNotificationsDismissed = func(ctx context.Context, userID string) {
+		if previousBulkDismissedCallback != nil {
+			previousBulkDismissedCallback(ctx, userID)
+		}
+		if _, err := chattoCore.EnqueueNativeNotificationReconciliation(ctx, userID, nil); err != nil {
+			log.WithPrefix("native-push").Warn("Failed enqueue native notification reconciliation", "error", err)
 		}
 	}
 	if !nativeConfig.AndroidManagedFCM {
@@ -447,9 +465,23 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 			}
 		}
 
-		// Creation owns an immutable fan-out decision. Reading the notification
-		// elsewhere updates the in-app inbox but must not cancel deliveries already
-		// owed to independent browser and device installations.
+		// Creation and dismissal events run asynchronously. A dismissal can
+		// overtake this callback, so fail closed if the notification is no longer
+		// pending immediately before delivery.
+		pending, err := chattoCore.GetNotification(ctx, notification.RecipientId, notification.Id)
+		if err != nil {
+			logger.Warn("Failed to revalidate notification before push delivery",
+				"user_id", notification.RecipientId,
+				"notification_id", notification.Id,
+				"error", err)
+			return
+		}
+		if pending == nil {
+			logger.Debug("Skipped stale push for dismissed notification",
+				"user_id", notification.RecipientId,
+				"notification_id", notification.Id)
+			return
+		}
 
 		subscriptions = filterOwnedPushSubscriptions(ctx, chattoCore, notification.RecipientId, subscriptions, logger)
 		subscriptions = push.FilterSubscriptionsByCanonicalOrigin(subscriptions, cfg.Webserver.URL)
@@ -509,8 +541,11 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 		}
 	}
 
-	// Dismissal remains an in-app state transition. Delivered system notifications
-	// belong to each installation and are never retracted from another client.
+	// Do not send data-only Web Push messages for dismissals. Browser push
+	// subscriptions are userVisibleOnly; a worker that closes a notification
+	// without showing one can make Chromium surface a generic background-update
+	// notification. Online clients receive the dismissal over realtime and close
+	// the matching native notification through their service worker.
 }
 
 type localizedPushBatch struct {

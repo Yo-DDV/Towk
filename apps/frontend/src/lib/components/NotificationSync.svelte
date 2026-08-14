@@ -28,8 +28,10 @@ Include this component once in the chat layout (unconditionally).
   import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
   import {
     acknowledgeNativeNotificationClose,
+    dismissNativeNotification,
     drainNativeNotificationCloseOutbox,
-    onNativeNotificationClose
+    onNativeNotificationClose,
+    reconcileNativeNotifications
   } from '$lib/notifications/pushNotifications';
 
   type ServerStores = ReturnType<typeof serverRegistry.getStore>;
@@ -272,6 +274,9 @@ Include this component once in the chat layout (unconditionally).
           case RoomEventKind.NotificationDismissed: {
             const notification = notificationDismissedEvent(event.event);
             if (!notification) break;
+            if (instance.id === serverRegistry.originServer?.id) {
+              dismissNativeNotification(notification.notificationId);
+            }
             const roomId = notificationStore.removeNotification(notification.notificationId);
             if (roomId) {
               void refreshCountsOnce(instance.id, () =>
@@ -339,6 +344,17 @@ Include this component once in the chat layout (unconditionally).
     if (badgeState.intent.kind === 'clear' && !badgeState.allStoresLoaded) return;
 
     syncServiceWorkerNotificationBadgeState(badgeState.intent);
+
+    const originServer = serverRegistry.originServer;
+    if (originServer) {
+      const originStore = serverRegistry.getStore(originServer.id);
+      if (
+        originStore.isAuthenticated &&
+        originStore.notifications.hasCompleteNotificationSnapshot
+      ) {
+        reconcileNativeNotifications(originStore.notifications.pendingNotificationIds);
+      }
+    }
 
     if (badgeState.intent.kind !== 'clear') {
       updateBadge(badgeState.intent);
