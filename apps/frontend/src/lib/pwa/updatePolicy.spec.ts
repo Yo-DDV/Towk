@@ -9,6 +9,7 @@ describe('PWA update policy', () => {
         selectUpdatePolicy({
           isInCall: true,
           canSafelyReload: false,
+          isAppPresent: true,
           observedDuringCall: true,
           updateAfterCallRequested: false
         })
@@ -20,6 +21,7 @@ describe('PWA update policy', () => {
     const baseline = {
       isInCall: false,
       canSafelyReload: true,
+      isAppPresent: true,
       observedDuringCall: true
     };
 
@@ -31,11 +33,24 @@ describe('PWA update policy', () => {
     ).toBe(true);
   });
 
-  it('preserves the existing automatic update when no call was involved', () => {
+  it('does not auto-reload a visible reader who is neither typing nor in a call', () => {
     expect(
       selectUpdatePolicy({
         isInCall: false,
         canSafelyReload: true,
+        isAppPresent: true,
+        observedDuringCall: false,
+        updateAfterCallRequested: false
+      })
+    ).toEqual({ action: 'reload', shouldAutoReload: false });
+  });
+
+  it('auto-reloads an idle update only after the app is no longer present', () => {
+    expect(
+      selectUpdatePolicy({
+        isInCall: false,
+        canSafelyReload: true,
+        isAppPresent: false,
         observedDuringCall: false,
         updateAfterCallRequested: false
       })
