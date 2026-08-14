@@ -1,10 +1,10 @@
 <!--
 @component
 
-Monitors for app updates and reloads the page automatically as soon as the
-user is idle (not typing, not in a call — see `idleState.canSafelyReload`).
-While the user is busy, a toast offers a manual reload. As a final fallback,
-the next navigation triggers a reload to avoid stale chunk errors.
+Monitors for app updates and reloads automatically only while the app is not
+present and the user is idle (not typing, not in a call). A visible reader
+keeps control through the reload toast. As a final fallback, the next safe
+navigation triggers a reload to avoid stale chunk errors.
 
 Include this component once at the root layout level.
 -->
@@ -13,6 +13,7 @@ Include this component once at the root layout level.
   import { onNavigate } from '$app/navigation';
   import { updated } from '$app/state';
   import { idleState } from '$lib/state/idle.svelte';
+  import { appState } from '$lib/state/globals.svelte';
   import { activatePendingServiceWorker } from '$lib/pwa/serviceWorkerUpdate';
   import { startVersionUpdateMonitor } from '$lib/pwa/versionUpdateMonitor';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
@@ -45,6 +46,7 @@ Include this component once at the root layout level.
     const policy = selectUpdatePolicy({
       isInCall: idleState.isInAnyCall,
       canSafelyReload: idleState.canSafelyReload,
+      isAppPresent: appState.isPresent,
       observedDuringCall,
       updateAfterCallRequested
     });

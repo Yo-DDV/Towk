@@ -1,6 +1,7 @@
 export type UpdatePolicyInput = {
   isInCall: boolean;
   canSafelyReload: boolean;
+  isAppPresent: boolean;
   observedDuringCall: boolean;
   updateAfterCallRequested: boolean;
 };
@@ -23,6 +24,7 @@ export function selectUpdatePolicy(input: UpdatePolicyInput): UpdatePolicy {
   return {
     action: 'reload',
     shouldAutoReload:
-      input.canSafelyReload && (!input.observedDuringCall || input.updateAfterCallRequested)
+      input.canSafelyReload &&
+      (input.updateAfterCallRequested || (!input.observedDuringCall && !input.isAppPresent))
   };
 }
