@@ -1,8 +1,8 @@
 <!--
 @component
 
-Monitors for app updates and reloads automatically only while the app is not
-present and the user is idle (not typing, not in a call). A visible reader
+Monitors for app updates and reloads automatically only while the app is hidden
+and the user is idle (not typing, not in a call). A visible reader
 keeps control through the reload toast. As a final fallback, the next safe
 navigation triggers a reload to avoid stale chunk errors.
 
@@ -46,7 +46,7 @@ Include this component once at the root layout level.
     const policy = selectUpdatePolicy({
       isInCall: idleState.isInAnyCall,
       canSafelyReload: idleState.canSafelyReload,
-      isAppPresent: appState.isPresent,
+      isAppVisible: appState.isVisible,
       observedDuringCall,
       updateAfterCallRequested
     });

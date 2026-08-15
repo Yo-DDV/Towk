@@ -9,7 +9,7 @@ describe('PWA update policy', () => {
         selectUpdatePolicy({
           isInCall: true,
           canSafelyReload: false,
-          isAppPresent: true,
+          isAppVisible: true,
           observedDuringCall: true,
           updateAfterCallRequested: false
         })
@@ -21,7 +21,7 @@ describe('PWA update policy', () => {
     const baseline = {
       isInCall: false,
       canSafelyReload: true,
-      isAppPresent: true,
+      isAppVisible: true,
       observedDuringCall: true
     };
 
@@ -33,24 +33,24 @@ describe('PWA update policy', () => {
     ).toBe(true);
   });
 
-  it('does not auto-reload a visible reader who is neither typing nor in a call', () => {
+  it('does not auto-reload a visible reader after the window loses focus', () => {
     expect(
       selectUpdatePolicy({
         isInCall: false,
         canSafelyReload: true,
-        isAppPresent: true,
+        isAppVisible: true,
         observedDuringCall: false,
         updateAfterCallRequested: false
       })
     ).toEqual({ action: 'reload', shouldAutoReload: false });
   });
 
-  it('auto-reloads an idle update only after the app is no longer present', () => {
+  it('auto-reloads an idle update only after the app is hidden', () => {
     expect(
       selectUpdatePolicy({
         isInCall: false,
         canSafelyReload: true,
-        isAppPresent: false,
+        isAppVisible: false,
         observedDuringCall: false,
         updateAfterCallRequested: false
       })
