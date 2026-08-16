@@ -1712,6 +1712,7 @@ const msg_media_close_fullscreen_video = (): LocalizedString => messages().media
 const msg_media_video_alt = (): LocalizedString => messages().media_video_alt(empty());
 const msg_media_video_original_missing = (): LocalizedString => messages().media_video_original_missing(empty());
 const msg_media_video_processing_failed_retry = (): LocalizedString => messages().media_video_processing_failed_retry(empty());
+const msg_media_video_processing_limit_exceeded = (): LocalizedString => messages().media_video_processing_limit_exceeded(empty());
 const msg_media_video_queued = (): LocalizedString => messages().media_video_queued(empty());
 const msg_media_video_processing = (): LocalizedString => messages().media_video_processing(empty());
 const msg_media_video_processing_failed = (): LocalizedString => messages().media_video_processing_failed(empty());
@@ -3781,6 +3782,7 @@ export { msg_media_close_fullscreen_video as 'media.close_fullscreen_video' };
 export { msg_media_video_alt as 'media.video_alt' };
 export { msg_media_video_original_missing as 'media.video_original_missing' };
 export { msg_media_video_processing_failed_retry as 'media.video_processing_failed_retry' };
+export { msg_media_video_processing_limit_exceeded as 'media.video_processing_limit_exceeded' };
 export { msg_media_video_queued as 'media.video_queued' };
 export { msg_media_video_processing as 'media.video_processing' };
 export { msg_media_video_processing_failed as 'media.video_processing_failed' };

@@ -2,6 +2,7 @@ package video
 
 import (
 	"context"
+	"errors"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"hmans.de/chatto/internal/config"
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 func TestTranscodeUsesEffectiveFrameRateAndCapsAt30(t *testing.T) {
@@ -115,6 +117,60 @@ func TestTranscodeDoesNotUpsampleSlowerVideo(t *testing.T) {
 	outputFrames := videoFrameCount(t, ffprobePath, outputPath)
 	if outputFrames != inputFrames {
 		t.Fatalf("transcode changed slower source from %d to %d frames", inputFrames, outputFrames)
+	}
+}
+
+func TestTranscodeHighResolutionDesktopRecording(t *testing.T) {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("ffmpeg is required for the high-resolution regression test")
+	}
+	ffprobePath, err := exec.LookPath("ffprobe")
+	if err != nil {
+		t.Skip("ffprobe is required for the high-resolution regression test")
+	}
+
+	tmpDir := t.TempDir()
+	inputPath := filepath.Join(tmpDir, "desktop-4096x2648.mp4")
+	outputPath := filepath.Join(tmpDir, "portable-720p.mp4")
+	fixture := exec.Command(
+		ffmpegPath,
+		"-hide_banner", "-loglevel", "error",
+		"-f", "lavfi",
+		"-i", "color=c=black:size=4096x2648:rate=1:duration=1",
+		"-c:v", "libx264",
+		"-preset", "ultrafast",
+		"-pix_fmt", "yuv420p",
+		"-an", "-y", inputPath,
+	)
+	if output, err := fixture.CombinedOutput(); err != nil {
+		t.Fatalf("create high-resolution fixture: %v\n%s", err, output)
+	}
+
+	service := &Service{ffmpegPath: ffmpegPath, ffprobePath: ffprobePath}
+	probe, err := service.probe(context.Background(), inputPath, "video/mp4")
+	if err != nil {
+		t.Fatalf("probe high-resolution fixture: %v", err)
+	}
+	if probe.Width != 4096 || probe.Height != 2648 {
+		t.Fatalf("fixture dimensions = %dx%d, want 4096x2648", probe.Width, probe.Height)
+	}
+	if err := service.validateSourceForProcessing(probe); err != nil {
+		t.Fatalf("validate high-resolution fixture: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := service.transcode(ctx, inputPath, outputPath, 720, probe.AvgFrameRate, false, nil); err != nil {
+		t.Fatalf("transcode high-resolution fixture: %v", err)
+	}
+
+	outputProbe, err := service.probe(context.Background(), outputPath, "video/mp4")
+	if err != nil {
+		t.Fatalf("probe high-resolution output: %v", err)
+	}
+	if outputProbe.Height != 720 || outputProbe.Width <= 0 {
+		t.Fatalf("portable dimensions = %dx%d, want a positive-width 720p output", outputProbe.Width, outputProbe.Height)
 	}
 }
 
@@ -411,8 +467,11 @@ func TestValidateSourceForProcessing(t *testing.T) {
 			Width:      1280,
 			Height:     720,
 		})
-		if err == nil || !strings.Contains(err.Error(), "video.max_duration") {
+		if err == nil || !strings.Contains(err.Error(), "video.max_duration") || !errors.Is(err, errVideoProcessingLimitExceeded) {
 			t.Fatalf("validateSourceForProcessing error = %v, want video.max_duration rejection", err)
+		}
+		if got := processingFailureCode(err); got != corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_LIMIT_EXCEEDED {
+			t.Fatalf("processingFailureCode() = %v, want PROCESSING_LIMIT_EXCEEDED", got)
 		}
 	})
 
@@ -461,7 +520,7 @@ func TestValidateSourceForProcessing(t *testing.T) {
 			Width:      641,
 			Height:     480,
 		})
-		if err == nil || !strings.Contains(err.Error(), "video.max_pixels") {
+		if err == nil || !strings.Contains(err.Error(), "video.max_pixels") || !errors.Is(err, errVideoProcessingLimitExceeded) {
 			t.Fatalf("validateSourceForProcessing error = %v, want video.max_pixels rejection", err)
 		}
 	})
@@ -472,6 +531,30 @@ func TestValidateSourceForProcessing(t *testing.T) {
 			DurationMs: int64((20 * time.Minute) / time.Millisecond),
 			Width:      3840,
 			Height:     2160,
+		}); err != nil {
+			t.Fatalf("validateSourceForProcessing returned error: %v", err)
+		}
+	})
+
+	t.Run("default accepts high-resolution desktop recording", func(t *testing.T) {
+		svc := &Service{}
+		if err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: 1_000,
+			Width:      4096,
+			Height:     2648,
+			VideoCodec: "h264",
+		}); err != nil {
+			t.Fatalf("validateSourceForProcessing returned error: %v", err)
+		}
+	})
+
+	t.Run("default accepts 6K desktop boundary", func(t *testing.T) {
+		svc := &Service{}
+		if err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: 1_000,
+			Width:      6016,
+			Height:     3384,
+			VideoCodec: "h264",
 		}); err != nil {
 			t.Fatalf("validateSourceForProcessing returned error: %v", err)
 		}
@@ -489,7 +572,7 @@ func TestValidateSourceForProcessing(t *testing.T) {
 		}
 	})
 
-	t.Run("default rejects above 4K source area", func(t *testing.T) {
+	t.Run("default rejects 8K source area", func(t *testing.T) {
 		svc := &Service{}
 		err := svc.validateSourceForProcessing(&ProbeResult{
 			DurationMs: 1_000,
@@ -498,6 +581,12 @@ func TestValidateSourceForProcessing(t *testing.T) {
 		})
 		if err == nil || !strings.Contains(err.Error(), "video.max_pixels") {
 			t.Fatalf("validateSourceForProcessing error = %v, want default pixel rejection", err)
+		}
+	})
+
+	t.Run("keeps non-limit failures generic", func(t *testing.T) {
+		if got := processingFailureCode(errors.New("ffmpeg failed")); got != corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED {
+			t.Fatalf("processingFailureCode() = %v, want PROCESSING_FAILED", got)
 		}
 	})
 }

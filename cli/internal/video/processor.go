@@ -24,6 +24,8 @@ const (
 	maxVideoOutputFrameRate        = 30.0
 )
 
+var errVideoProcessingLimitExceeded = errors.New("video processing limit exceeded")
+
 // ProbeResult contains metadata extracted from a video file via ffprobe.
 type ProbeResult struct {
 	DurationMs int64
@@ -387,9 +389,6 @@ func (s *Service) processVideo(ctx context.Context, req processRequest) error {
 	if probeResult.Height == 0 {
 		return s.failProcessing(ctx, req, fmt.Errorf("no video stream found in file"))
 	}
-	if err := s.validateSourceForProcessing(probeResult); err != nil {
-		return s.failProcessing(ctx, req, err)
-	}
 
 	s.logger.Info("Video probed",
 		"asset_id", req.AssetID,
@@ -399,6 +398,9 @@ func (s *Service) processVideo(ctx context.Context, req processRequest) error {
 		"output_fps", cappedOutputFrameRate(probeResult.AvgFrameRate),
 		"codec", probeResult.CodecInfo,
 	)
+	if err := s.validateSourceForProcessing(probeResult); err != nil {
+		return s.failProcessing(ctx, req, err)
+	}
 
 	// GIF inputs need special handling to prevent ffmpeg from looping the animation
 	// infinitely (older ffmpeg versions like 4.4 respect the GIF loop count).
@@ -519,7 +521,7 @@ func (s *Service) validateSourceForProcessing(probeResult *ProbeResult) error {
 		return fmt.Errorf("video duration could not be determined")
 	}
 	if maxDuration := s.config.MaxDurationOrDefault(); maxDuration > 0 && probeResult.DurationMs > int64(maxDuration/time.Millisecond) {
-		return fmt.Errorf("video duration %s exceeds configured video.max_duration %s", time.Duration(probeResult.DurationMs)*time.Millisecond, maxDuration)
+		return fmt.Errorf("%w: video duration %s exceeds configured video.max_duration %s", errVideoProcessingLimitExceeded, time.Duration(probeResult.DurationMs)*time.Millisecond, maxDuration)
 	}
 	maxPixels := s.config.MaxPixelsOrDefault()
 	if maxPixels <= 0 {
@@ -527,7 +529,7 @@ func (s *Service) validateSourceForProcessing(probeResult *ProbeResult) error {
 	}
 	sourcePixels := int64(probeResult.Width) * int64(probeResult.Height)
 	if sourcePixels > maxPixels {
-		return fmt.Errorf("video source area %d pixels exceeds configured video.max_pixels %d", sourcePixels, maxPixels)
+		return fmt.Errorf("%w: video source area %d pixels exceeds configured video.max_pixels %d", errVideoProcessingLimitExceeded, sourcePixels, maxPixels)
 	}
 	return nil
 }
@@ -555,11 +557,19 @@ func (s *Service) failProcessing(ctx context.Context, req processRequest, origin
 		s.logger.Warn("Failed to resolve room kind for video-failed event", "error", kindErr)
 		return errors.Join(originalErr, fmt.Errorf("resolve room kind for terminal video failure: %w", kindErr))
 	}
-	if err := s.core.RecordAssetProcessingFailed(terminalCtx, core.SystemActorID, kind, req.RoomID, req.MessageEventID, req.AssetID, corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED); err != nil {
+	failureCode := processingFailureCode(originalErr)
+	if err := s.core.RecordAssetProcessingFailed(terminalCtx, core.SystemActorID, kind, req.RoomID, req.MessageEventID, req.AssetID, failureCode); err != nil {
 		s.logger.Warn("Failed to publish video processing failed event", "error", err)
 		return errors.Join(originalErr, fmt.Errorf("publish terminal video failure: %w", err))
 	}
 	return originalErr
+}
+
+func processingFailureCode(err error) corev1.AssetProcessingFailureCode {
+	if errors.Is(err, errVideoProcessingLimitExceeded) {
+		return corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_LIMIT_EXCEEDED
+	}
+	return corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED
 }
 
 // videoTerminalContext gives the durable outcome a short independent window.
