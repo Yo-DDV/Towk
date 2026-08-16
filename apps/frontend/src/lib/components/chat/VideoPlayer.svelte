@@ -189,6 +189,8 @@
         return m['media.video_original_missing']();
       case 'processing_failed':
         return m['media.video_processing_failed_retry']();
+      case 'processing_limit_exceeded':
+        return m['media.video_processing_limit_exceeded']();
       default:
         return null;
     }

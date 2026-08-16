@@ -7,6 +7,7 @@
     "video_alt": "Video",
     "video_original_missing": "El vídeo no está disponible porque falta la carga original.",
     "video_processing_failed_retry": "No se pudo procesar el vídeo. Intenta subirlo de nuevo.",
+    "video_processing_limit_exceeded": "Este vídeo supera los límites de procesamiento del servidor. Envía una versión con menor resolución o duración.",
     "video_queued": "Vídeo en cola para procesarse...",
     "video_processing": "Procesando vídeo...",
     "video_processing_failed": "Error al procesar el vídeo"

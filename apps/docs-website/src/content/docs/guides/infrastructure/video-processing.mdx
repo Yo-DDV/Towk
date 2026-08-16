@@ -70,7 +70,7 @@ All settings live under the `[video]` section in `towk.toml`. See the [Environme
 | `max_concurrent`  | ignored     | Deprecated compatibility setting. Adaptive scheduling uses the shared media-transcode worker pool. |
 | `max_upload_size` | `100 MB`    | Max upload size for video files while processing is enabled                                        |
 | `max_duration`    | `20m`       | Max source video/GIF duration accepted for server-side processing                                  |
-| `max_pixels`      | `8294400`   | Max source display pixel area accepted for server-side processing. The default is 3840×2160.       |
+| `max_pixels`      | `20358144`  | Max source display pixel area accepted for server-side processing. The default is 6016×3384 (6K).  |
 | `temp_dir`        | system temp | Directory for temporary transcoding files                                                          |
 
 ### Tuning Concurrency
@@ -89,7 +89,7 @@ max_video_workers = 4
 [video]
 enabled = true
 max_duration = "20m"
-max_pixels = 8294400
+max_pixels = 20358144
 ```
 
 See the [Environment Variables](/reference/environment-variables/#performance) reference and the deployment guide for the complete performance-envelope model.

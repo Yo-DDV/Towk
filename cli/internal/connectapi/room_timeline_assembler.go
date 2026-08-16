@@ -435,6 +435,8 @@ func assetProcessingFailureReasonCode(code corev1.AssetProcessingFailureCode) st
 		return "original_missing"
 	case corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED:
 		return "processing_failed"
+	case corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_LIMIT_EXCEEDED:
+		return "processing_limit_exceeded"
 	default:
 		return "processing_failed"
 	}

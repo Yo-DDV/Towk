@@ -108,6 +108,20 @@ function expectChildFillsFrame(child: HTMLElement, parent: HTMLElement) {
 }
 
 describe('VideoPlayer', () => {
+  it('explains deterministic processing-limit failures without suggesting the same retry', () => {
+    const { container } = render(VideoPlayer, {
+      props: {
+        status: VideoProcessingStatus.Failed,
+        filename: 'clip.mp4',
+        reasonCode: 'processing_limit_exceeded',
+        variants: []
+      }
+    });
+
+    expect(container.textContent).toContain("This video exceeds this server's processing limits");
+    expect(container.textContent).not.toContain('try uploading again');
+  });
+
   it('keeps iPhone and iPad PWA playback in the safe CSS overlay', () => {
     const fullscreenDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'fullscreenEnabled');
     const userAgentDescriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent');

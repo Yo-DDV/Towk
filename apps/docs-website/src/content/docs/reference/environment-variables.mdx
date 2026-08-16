@@ -528,8 +528,8 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
   Max source video or animated GIF duration accepted for server-side processing. This bounds CPU and temporary-disk exposure independently from file size.
 </EnvVar>
 
-<EnvVar name="CHATTO_VIDEO_MAX_PIXELS" toml="video.max_pixels" default="8294400">
-  Max source display pixel area accepted for server-side processing. The default is 3840×2160. Increase it only on servers sized for larger sources.
+<EnvVar name="CHATTO_VIDEO_MAX_PIXELS" toml="video.max_pixels" default="20358144">
+  Max source display pixel area accepted for server-side processing. The default is 6016×3384 (6K desktop), covering common 4K, 5K, and 6K screen recordings. Increase it for 8K only on servers sized for larger sources.
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_TEMP_DIR" toml="video.temp_dir">

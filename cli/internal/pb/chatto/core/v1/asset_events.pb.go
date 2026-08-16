@@ -92,9 +92,10 @@ func (AssetDerivativeRole) EnumDescriptor() ([]byte, []int) {
 type AssetProcessingFailureCode int32
 
 const (
-	AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_UNSPECIFIED       AssetProcessingFailureCode = 0
-	AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED AssetProcessingFailureCode = 1
-	AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING    AssetProcessingFailureCode = 2
+	AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_UNSPECIFIED               AssetProcessingFailureCode = 0
+	AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED         AssetProcessingFailureCode = 1
+	AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING            AssetProcessingFailureCode = 2
+	AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_LIMIT_EXCEEDED AssetProcessingFailureCode = 3
 )
 
 // Enum value maps for AssetProcessingFailureCode.
@@ -103,11 +104,13 @@ var (
 		0: "ASSET_PROCESSING_FAILURE_CODE_UNSPECIFIED",
 		1: "ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED",
 		2: "ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING",
+		3: "ASSET_PROCESSING_FAILURE_CODE_PROCESSING_LIMIT_EXCEEDED",
 	}
 	AssetProcessingFailureCode_value = map[string]int32{
-		"ASSET_PROCESSING_FAILURE_CODE_UNSPECIFIED":       0,
-		"ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED": 1,
-		"ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING":    2,
+		"ASSET_PROCESSING_FAILURE_CODE_UNSPECIFIED":               0,
+		"ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED":         1,
+		"ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING":            2,
+		"ASSET_PROCESSING_FAILURE_CODE_PROCESSING_LIMIT_EXCEEDED": 3,
 	}
 )
 
@@ -678,11 +681,12 @@ const file_chatto_core_v1_asset_events_proto_rawDesc = "" +
 	"\x13AssetDerivativeRole\x12%\n" +
 	"!ASSET_DERIVATIVE_ROLE_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fASSET_DERIVATIVE_ROLE_THUMBNAIL\x10\x01\x12'\n" +
-	"#ASSET_DERIVATIVE_ROLE_VIDEO_VARIANT\x10\x02*\xb2\x01\n" +
+	"#ASSET_DERIVATIVE_ROLE_VIDEO_VARIANT\x10\x02*\xef\x01\n" +
 	"\x1aAssetProcessingFailureCode\x12-\n" +
 	")ASSET_PROCESSING_FAILURE_CODE_UNSPECIFIED\x10\x00\x123\n" +
 	"/ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED\x10\x01\x120\n" +
-	",ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING\x10\x02B\xb3\x01\n" +
+	",ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING\x10\x02\x12;\n" +
+	"7ASSET_PROCESSING_FAILURE_CODE_PROCESSING_LIMIT_EXCEEDED\x10\x03B\xb3\x01\n" +
 	"\x12com.chatto.core.v1B\x10AssetEventsProtoP\x01Z1hmans.de/chatto/internal/pb/chatto/core/v1;corev1\xa2\x02\x03CCX\xaa\x02\x0eChatto.Core.V1\xca\x02\x0eChatto\\Core\\V1\xe2\x02\x1aChatto\\Core\\V1\\GPBMetadata\xea\x02\x10Chatto::Core::V1b\x06proto3"
 
 var (

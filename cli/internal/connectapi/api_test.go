@@ -63,6 +63,24 @@ var connectAPITestPushP256DH = base64.RawURLEncoding.EncodeToString(
 
 var connectAPITestPushAuth = base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{1}, 16))
 
+func TestAssetProcessingFailureReasonCode(t *testing.T) {
+	tests := []struct {
+		code corev1.AssetProcessingFailureCode
+		want string
+	}{
+		{corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED, "processing_failed"},
+		{corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING, "original_missing"},
+		{corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_LIMIT_EXCEEDED, "processing_limit_exceeded"},
+		{corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_UNSPECIFIED, "processing_failed"},
+	}
+
+	for _, tt := range tests {
+		if got := assetProcessingFailureReasonCode(tt.code); got != tt.want {
+			t.Fatalf("assetProcessingFailureReasonCode(%v) = %q, want %q", tt.code, got, tt.want)
+		}
+	}
+}
+
 func TestAPIHandlers(t *testing.T) {
 	api := New(nil, config.ChattoConfig{}, "test")
 	handlers := api.Handlers()

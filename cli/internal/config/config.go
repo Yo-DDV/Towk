@@ -994,7 +994,7 @@ type VideoConfig struct {
 	MaxConcurrent int               `toml:"max_concurrent,commented" env:"CHATTO_VIDEO_MAX_CONCURRENT" comment:"Deprecated compatibility field. Adaptive scheduling ignores it; use performance.max_video_workers for an operator ceiling."`
 	MaxUploadSize datasize.ByteSize `toml:"max_upload_size,commented" env:"CHATTO_VIDEO_MAX_UPLOAD_SIZE" comment:"Maximum size for video uploads when video processing is enabled. Disabled processing uses the general attachment limit. Supports human-readable formats like '100 MB'. Default: 100 MB."`
 	MaxDuration   Duration          `toml:"max_duration,commented" env:"CHATTO_VIDEO_MAX_DURATION" comment:"Maximum source video or animated GIF duration accepted for server-side processing. Supports values like '20m' or '1h'. Default: 20m."`
-	MaxPixels     int64             `toml:"max_pixels,commented" env:"CHATTO_VIDEO_MAX_PIXELS" comment:"Maximum source display pixel area accepted for server-side processing. Default: 8294400 (3840x2160). Increase for 8K-capable servers."`
+	MaxPixels     int64             `toml:"max_pixels,commented" env:"CHATTO_VIDEO_MAX_PIXELS" comment:"Maximum source display pixel area accepted for server-side processing. Default: 20358144 (6016x3384, 6K desktop). Increase for 8K sources only on capable servers."`
 	TempDir       string            `toml:"temp_dir,commented" env:"CHATTO_VIDEO_TEMP_DIR" comment:"Temporary directory for video processing. Default: system temp directory."`
 }
 
@@ -1007,8 +1007,10 @@ const (
 	DefaultVideoMaxDuration Duration = Duration(20 * time.Minute)
 
 	// DefaultVideoMaxPixels is the default maximum source display area admitted
-	// to server-side processing (3840x2160).
-	DefaultVideoMaxPixels int64 = 3840 * 2160
+	// to server-side processing (6016x3384). This includes common 4K, 5K and 6K
+	// desktop captures while the upload, duration, worker and job-time limits
+	// continue to bound processing cost. 8K remains an explicit operator choice.
+	DefaultVideoMaxPixels int64 = 6016 * 3384
 )
 
 // MaxConcurrentOrDefault returns the historical video worker setting.
@@ -1038,7 +1040,8 @@ func (c *VideoConfig) MaxDurationOrDefault() time.Duration {
 	return c.MaxDuration.Duration()
 }
 
-// MaxPixelsOrDefault returns the max source display pixel area, defaulting to 4K.
+// MaxPixelsOrDefault returns the max source display pixel area, defaulting to
+// a 6016x3384 (6K desktop) processing envelope.
 func (c *VideoConfig) MaxPixelsOrDefault() int64 {
 	if c.MaxPixels == 0 {
 		return DefaultVideoMaxPixels
