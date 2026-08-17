@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { SvelteMap } from 'svelte/reactivity';
   import {
-    composerHaloKeyframes,
     normalizeDesktopMotionPolicy,
     shouldAnimateComposer,
     type DesktopMotionPolicy
@@ -10,16 +9,13 @@
 
   const SHELL_SELECTOR = '[data-testid="message-composer-shell"].composer-focus-shell';
   const DESKTOP_POLICY_EVENT = 'towk:desktop-motion-policy';
-  const ORBIT_DURATION_MS = 4_200;
   const INK_DURATION_MS = 180;
 
   interface ComposerMotionState {
     shell: HTMLElement;
-    flare: SVGSVGElement;
+    flare: HTMLSpanElement;
     ink: HTMLSpanElement;
-    orbit: Animation[];
     inkAnimation: Animation | null;
-    resizeObserver: ResizeObserver;
     composing: boolean;
     dispose: () => void;
   }
@@ -27,12 +23,6 @@
   function addMediaListener(query: MediaQueryList, listener: () => void): () => void {
     query.addEventListener('change', listener);
     return () => query.removeEventListener('change', listener);
-  }
-
-  function borderRadiusFor(shell: HTMLElement): number {
-    const parsed = Number.parseFloat(getComputedStyle(shell).borderTopLeftRadius);
-    if (!Number.isFinite(parsed)) return 12;
-    return Math.max(0, Math.min(parsed, shell.offsetWidth / 2, shell.offsetHeight / 2));
   }
 
   function caretRectInside(shell: HTMLElement): DOMRect | null {
@@ -51,7 +41,6 @@
   onMount(() => {
     if (
       typeof Element.prototype.animate !== 'function' ||
-      typeof ResizeObserver === 'undefined' ||
       !document.body
     ) {
       return;
@@ -77,47 +66,6 @@
     function refreshState(state: ComposerMotionState): void {
       const active = animationAllowed(state);
       state.shell.dataset.composerMotionActive = active ? 'true' : 'false';
-
-      if (active) {
-        state.orbit.forEach((animation) => void animation.play());
-      } else {
-        state.orbit.forEach((animation) => animation.pause());
-      }
-    }
-
-    function rebuildOrbit(state: ComposerMotionState): void {
-      const width = state.shell.offsetWidth;
-      const height = state.shell.offsetHeight;
-      if (width <= 0 || height <= 0) return;
-
-      const previousTime = state.orbit[0]?.currentTime;
-      state.orbit.forEach((animation) => animation.cancel());
-      const svgWidth = width + 8;
-      const svgHeight = height + 8;
-      state.flare.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
-      state.flare.querySelectorAll('rect').forEach((rect) => {
-        rect.setAttribute('x', '4');
-        rect.setAttribute('y', '4');
-        rect.setAttribute('width', String(width));
-        rect.setAttribute('height', String(height));
-        rect.setAttribute('rx', String(borderRadiusFor(state.shell)));
-      });
-      state.orbit = [...state.flare.querySelectorAll<SVGRectElement>('rect')].map((rect) => {
-        const animation = rect.animate(composerHaloKeyframes(), {
-          duration: ORBIT_DURATION_MS,
-          iterations: Number.POSITIVE_INFINITY,
-          easing: 'linear',
-          fill: 'both'
-        });
-        animation.pause();
-        return animation;
-      });
-      if (typeof previousTime === 'number' && Number.isFinite(previousTime)) {
-        state.orbit.forEach((animation) => {
-          animation.currentTime = previousTime % ORBIT_DURATION_MS;
-        });
-      }
-      refreshState(state);
     }
 
     function emitInkPulse(state: ComposerMotionState): void {
@@ -164,15 +112,9 @@
     function attach(shell: HTMLElement): void {
       if (states.has(shell)) return;
 
-      const flare = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      flare.setAttribute('class', 'composer-motion-flare');
+      const flare = document.createElement('span');
+      flare.className = 'composer-motion-flare';
       flare.setAttribute('aria-hidden', 'true');
-      for (const layer of ['aura', 'trail', 'core']) {
-        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        rect.setAttribute('pathLength', '1');
-        rect.setAttribute('class', `composer-motion-${layer}`);
-        flare.append(rect);
-      }
 
       const ink = document.createElement('span');
       ink.className = 'composer-motion-ink';
@@ -195,16 +137,13 @@
         state.composing = false;
         queueMicrotask(() => emitInkPulse(state));
       };
-      const resizeObserver = new ResizeObserver(() => rebuildOrbit(state));
 
       const dispose = () => {
-        resizeObserver.disconnect();
         shell.removeEventListener('focusin', handleFocus);
         shell.removeEventListener('focusout', handleFocus);
         shell.removeEventListener('input', handleInput);
         shell.removeEventListener('compositionstart', handleCompositionStart);
         shell.removeEventListener('compositionend', handleCompositionEnd);
-        state.orbit.forEach((animation) => animation.cancel());
         state.inkAnimation?.cancel();
         flare.remove();
         ink.remove();
@@ -217,9 +156,7 @@
         shell,
         flare,
         ink,
-        orbit: [],
         inkAnimation: null,
-        resizeObserver,
         composing: false,
         dispose
       };
@@ -230,8 +167,7 @@
       shell.addEventListener('input', handleInput);
       shell.addEventListener('compositionstart', handleCompositionStart);
       shell.addEventListener('compositionend', handleCompositionEnd);
-      resizeObserver.observe(shell);
-      rebuildOrbit(state);
+      refreshState(state);
     }
 
     function scan(root: ParentNode = document): void {
@@ -307,46 +243,51 @@
 
   :global(.composer-motion-flare) {
     position: absolute;
-    inset: -4px;
+    inset: -3px;
     z-index: 4;
-    width: calc(100% + 8px);
-    height: calc(100% + 8px);
-    overflow: visible;
+    padding: 2px;
+    border-radius: inherit;
+    background: conic-gradient(
+      from var(--composer-halo-angle),
+      transparent 0deg 205deg,
+      color-mix(in srgb, #c25224 8%, transparent) 226deg,
+      color-mix(in srgb, #e8783b 26%, transparent) 258deg,
+      color-mix(in srgb, #f9a763 72%, transparent) 302deg,
+      #ffd4ad 327deg,
+      color-mix(in srgb, #f9a763 38%, transparent) 342deg,
+      transparent 360deg
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    filter: drop-shadow(0 0 5px color-mix(in srgb, #e8783b 52%, transparent));
     pointer-events: none;
+    animation: composer-halo-spin 4.2s linear infinite paused;
     transition: opacity 160ms ease;
     opacity: 0;
   }
 
-  :global(.composer-motion-flare rect) {
-    fill: none;
-    stroke-linecap: round;
-    vector-effect: non-scaling-stroke;
-  }
-
-  :global(.composer-motion-aura) {
-    stroke: color-mix(in srgb, #e8783b 25%, transparent);
-    stroke-width: 10px;
-    stroke-dasharray: 0.3 0.7;
-    filter: blur(4px);
-  }
-
-  :global(.composer-motion-trail) {
-    stroke: color-mix(in srgb, #e8783b 48%, transparent);
-    stroke-width: 4px;
-    stroke-dasharray: 0.2 0.8;
-    filter: blur(1px);
-  }
-
-  :global(.composer-motion-core) {
-    stroke: #f9a763;
-    stroke-width: 1.6px;
-    stroke-dasharray: 0.095 0.905;
-    filter: drop-shadow(0 0 3px color-mix(in srgb, #f9a763 78%, transparent));
-  }
-
   :global(.composer-focus-shell[data-composer-motion-active='true'] .composer-motion-flare) {
     opacity: 0.88;
+    animation-play-state: running;
     will-change: opacity;
+  }
+
+  @property --composer-halo-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+
+  @keyframes composer-halo-spin {
+    to {
+      --composer-halo-angle: 360deg;
+    }
   }
 
   :global(.composer-motion-ink) {
