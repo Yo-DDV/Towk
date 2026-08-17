@@ -6,6 +6,7 @@
   import { prepareUiForNotificationPath } from '$lib/notifications/notificationNavigationUi';
   import { reconcileNotificationClick } from '$lib/notifications/reconcileNotificationClick';
   import { setAuthServerInfo } from '$lib/components/authServerInfo';
+  import ComposerMotionController from '$lib/components/ComposerMotionController.svelte';
   import ConnectionIndicator from '$lib/components/ConnectionIndicator.svelte';
   import ConnectionProvider from '$lib/components/ConnectionProvider.svelte';
   import GlobalKeyboardShortcuts from '$lib/components/GlobalKeyboardShortcuts.svelte';
@@ -91,6 +92,7 @@
   const fullTitle = $derived(getFullTitle());
 </script>
 
+<ComposerMotionController />
 <GlobalKeyboardShortcuts />
 <IdleTracker />
 <NativeMessageContextMenuGuard />
