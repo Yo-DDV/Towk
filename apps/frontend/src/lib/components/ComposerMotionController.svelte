@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import {
-    composerOrbitKeyframes,
+    composerHaloKeyframes,
     normalizeDesktopMotionPolicy,
     shouldAnimateComposer,
     type DesktopMotionPolicy
@@ -10,14 +11,13 @@
   const SHELL_SELECTOR = '[data-testid="message-composer-shell"].composer-focus-shell';
   const DESKTOP_POLICY_EVENT = 'towk:desktop-motion-policy';
   const ORBIT_DURATION_MS = 4_200;
-  const ORBIT_SAMPLE_COUNT = 64;
   const INK_DURATION_MS = 180;
 
   interface ComposerMotionState {
     shell: HTMLElement;
-    flare: HTMLSpanElement;
+    flare: SVGSVGElement;
     ink: HTMLSpanElement;
-    orbit: Animation | null;
+    orbit: Animation[];
     inkAnimation: Animation | null;
     resizeObserver: ResizeObserver;
     composing: boolean;
@@ -57,7 +57,7 @@
       return;
     }
 
-    const states = new Map<HTMLElement, ComposerMotionState>();
+    const states = new SvelteMap<HTMLElement, ComposerMotionState>();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const forcedColors = window.matchMedia('(forced-colors: active)');
     let desktopPolicy: DesktopMotionPolicy = normalizeDesktopMotionPolicy(
@@ -78,11 +78,10 @@
       const active = animationAllowed(state);
       state.shell.dataset.composerMotionActive = active ? 'true' : 'false';
 
-      if (!state.orbit) return;
       if (active) {
-        void state.orbit.play();
+        state.orbit.forEach((animation) => void animation.play());
       } else {
-        state.orbit.pause();
+        state.orbit.forEach((animation) => animation.pause());
       }
     }
 
@@ -91,25 +90,32 @@
       const height = state.shell.offsetHeight;
       if (width <= 0 || height <= 0) return;
 
-      const previousTime = state.orbit?.currentTime;
-      state.orbit?.cancel();
-      state.orbit = state.flare.animate(
-        composerOrbitKeyframes(
-          width,
-          height,
-          borderRadiusFor(state.shell),
-          ORBIT_SAMPLE_COUNT
-        ),
-        {
+      const previousTime = state.orbit[0]?.currentTime;
+      state.orbit.forEach((animation) => animation.cancel());
+      const svgWidth = width + 8;
+      const svgHeight = height + 8;
+      state.flare.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+      state.flare.querySelectorAll('rect').forEach((rect) => {
+        rect.setAttribute('x', '4');
+        rect.setAttribute('y', '4');
+        rect.setAttribute('width', String(width));
+        rect.setAttribute('height', String(height));
+        rect.setAttribute('rx', String(borderRadiusFor(state.shell)));
+      });
+      state.orbit = [...state.flare.querySelectorAll<SVGRectElement>('rect')].map((rect) => {
+        const animation = rect.animate(composerHaloKeyframes(), {
           duration: ORBIT_DURATION_MS,
           iterations: Number.POSITIVE_INFINITY,
           easing: 'linear',
           fill: 'both'
-        }
-      );
-      state.orbit.pause();
+        });
+        animation.pause();
+        return animation;
+      });
       if (typeof previousTime === 'number' && Number.isFinite(previousTime)) {
-        state.orbit.currentTime = previousTime % ORBIT_DURATION_MS;
+        state.orbit.forEach((animation) => {
+          animation.currentTime = previousTime % ORBIT_DURATION_MS;
+        });
       }
       refreshState(state);
     }
@@ -158,9 +164,15 @@
     function attach(shell: HTMLElement): void {
       if (states.has(shell)) return;
 
-      const flare = document.createElement('span');
-      flare.className = 'composer-motion-flare';
+      const flare = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      flare.setAttribute('class', 'composer-motion-flare');
       flare.setAttribute('aria-hidden', 'true');
+      for (const layer of ['aura', 'trail', 'core']) {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('pathLength', '1');
+        rect.setAttribute('class', `composer-motion-${layer}`);
+        flare.append(rect);
+      }
 
       const ink = document.createElement('span');
       ink.className = 'composer-motion-ink';
@@ -192,7 +204,7 @@
         shell.removeEventListener('input', handleInput);
         shell.removeEventListener('compositionstart', handleCompositionStart);
         shell.removeEventListener('compositionend', handleCompositionEnd);
-        state.orbit?.cancel();
+        state.orbit.forEach((animation) => animation.cancel());
         state.inkAnimation?.cancel();
         flare.remove();
         ink.remove();
@@ -205,7 +217,7 @@
         shell,
         flare,
         ink,
-        orbit: null,
+        orbit: [],
         inkAnimation: null,
         resizeObserver,
         composing: false,
@@ -282,7 +294,6 @@
     opacity: 0 !important;
   }
 
-  :global(.composer-motion-flare),
   :global(.composer-motion-ink) {
     position: absolute;
     top: 0;
@@ -295,19 +306,47 @@
   }
 
   :global(.composer-motion-flare) {
-    width: 5px;
-    height: 5px;
-    background: #f9a763;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, #e8783b 54%, transparent),
-      0 0 6px color-mix(in srgb, #f9a763 72%, transparent),
-      0 0 14px color-mix(in srgb, #e8783b 28%, transparent);
+    position: absolute;
+    inset: -4px;
+    z-index: 4;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    overflow: visible;
+    pointer-events: none;
     transition: opacity 160ms ease;
+    opacity: 0;
+  }
+
+  :global(.composer-motion-flare rect) {
+    fill: none;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  :global(.composer-motion-aura) {
+    stroke: color-mix(in srgb, #e8783b 25%, transparent);
+    stroke-width: 10px;
+    stroke-dasharray: 0.3 0.7;
+    filter: blur(4px);
+  }
+
+  :global(.composer-motion-trail) {
+    stroke: color-mix(in srgb, #e8783b 48%, transparent);
+    stroke-width: 4px;
+    stroke-dasharray: 0.2 0.8;
+    filter: blur(1px);
+  }
+
+  :global(.composer-motion-core) {
+    stroke: #f9a763;
+    stroke-width: 1.6px;
+    stroke-dasharray: 0.095 0.905;
+    filter: drop-shadow(0 0 3px color-mix(in srgb, #f9a763 78%, transparent));
   }
 
   :global(.composer-focus-shell[data-composer-motion-active='true'] .composer-motion-flare) {
     opacity: 0.88;
-    will-change: transform;
+    will-change: opacity;
   }
 
   :global(.composer-motion-ink) {
