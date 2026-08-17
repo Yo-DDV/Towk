@@ -225,11 +225,6 @@
 </script>
 
 <style>
-  :global(.composer-focus-shell[data-composer-motion='enhanced']::before) {
-    animation: none !important;
-    opacity: 0 !important;
-  }
-
   :global(.composer-motion-ink) {
     position: absolute;
     top: 0;
@@ -242,52 +237,11 @@
   }
 
   :global(.composer-motion-flare) {
-    position: absolute;
-    inset: -3px;
-    z-index: 4;
-    padding: 2px;
-    border-radius: inherit;
-    background: conic-gradient(
-      from var(--composer-halo-angle),
-      transparent 0deg 205deg,
-      color-mix(in srgb, #c25224 8%, transparent) 226deg,
-      color-mix(in srgb, #e8783b 26%, transparent) 258deg,
-      color-mix(in srgb, #f9a763 72%, transparent) 302deg,
-      #ffd4ad 327deg,
-      color-mix(in srgb, #f9a763 38%, transparent) 342deg,
-      transparent 360deg
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    filter: drop-shadow(0 0 5px color-mix(in srgb, #e8783b 52%, transparent));
-    pointer-events: none;
-    animation: composer-halo-spin 4.2s linear infinite paused;
-    transition: opacity 160ms ease;
-    opacity: 0;
+    display: none;
   }
 
   :global(.composer-focus-shell[data-composer-motion-active='true'] .composer-motion-flare) {
-    opacity: 0.88;
-    animation-play-state: running;
-    will-change: opacity;
-  }
-
-  @property --composer-halo-angle {
-    syntax: '<angle>';
-    inherits: false;
-    initial-value: 0deg;
-  }
-
-  @keyframes composer-halo-spin {
-    to {
-      --composer-halo-angle: 360deg;
-    }
+    display: none;
   }
 
   :global(.composer-motion-ink) {
