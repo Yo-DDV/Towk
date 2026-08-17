@@ -80,7 +80,7 @@
 
       if (!state.orbit) return;
       if (active) {
-        state.orbit.play();
+        void state.orbit.play();
       } else {
         state.orbit.pause();
       }
@@ -243,13 +243,20 @@
     });
     mutationObserver.observe(document.body, { childList: true, subtree: true });
 
-    const handleDesktopPolicy = (event: Event) => {
-      const eventPolicy = (event as CustomEvent<{ policy?: unknown }>).detail?.policy;
+    function syncDesktopPolicy(): void {
       desktopPolicy = normalizeDesktopMotionPolicy(
-        eventPolicy ?? document.documentElement.dataset.towkMotion
+        document.documentElement.dataset.towkMotion
       );
       refreshAll();
-    };
+    }
+
+    const handleDesktopPolicy = () => syncDesktopPolicy();
+    const desktopPolicyObserver = new MutationObserver(syncDesktopPolicy);
+    desktopPolicyObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-towk-motion']
+    });
+
     const removeReducedMotionListener = addMediaListener(reducedMotion, refreshAll);
     const removeForcedColorsListener = addMediaListener(forcedColors, refreshAll);
 
@@ -259,6 +266,7 @@
 
     return () => {
       mutationObserver.disconnect();
+      desktopPolicyObserver.disconnect();
       removeReducedMotionListener();
       removeForcedColorsListener();
       document.removeEventListener('visibilitychange', refreshAll);
