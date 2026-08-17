@@ -246,7 +246,7 @@
     z-index: 4;
     display: block;
     overflow: hidden;
-    padding: 1.5px;
+    padding: 1.35px;
     border-radius: inherit;
     pointer-events: none;
     opacity: 0;
@@ -264,10 +264,10 @@
 
   :global(.composer-motion-beam) {
     position: absolute;
-    top: -110%;
-    left: 38%;
-    width: 24%;
-    height: 320%;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 300vmax;
     background: linear-gradient(
       90deg,
       transparent 0%,
@@ -278,7 +278,6 @@
       color-mix(in srgb, #e8783b 14%, transparent) 82%,
       transparent 100%
     );
-    filter: drop-shadow(0 0 3px color-mix(in srgb, #e8783b 45%, transparent));
     transform-origin: 50% 50%;
     animation: composer-border-beam 4.8s linear infinite paused;
     will-change: transform;
@@ -312,8 +311,12 @@
   }
 
   @keyframes composer-border-beam {
+    from {
+      transform: translate(-50%, -50%) rotate(0deg);
+    }
+
     to {
-      transform: rotate(360deg);
+      transform: translate(-50%, -50%) rotate(360deg);
     }
   }
 
