@@ -116,6 +116,10 @@
       flare.className = 'composer-motion-flare';
       flare.setAttribute('aria-hidden', 'true');
 
+      const beam = document.createElement('span');
+      beam.className = 'composer-motion-beam';
+      flare.append(beam);
+
       const ink = document.createElement('span');
       ink.className = 'composer-motion-ink';
       ink.setAttribute('aria-hidden', 'true');
@@ -237,11 +241,58 @@
   }
 
   :global(.composer-motion-flare) {
-    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: block;
+    overflow: hidden;
+    padding: 1.5px;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 160ms ease;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
   }
 
   :global(.composer-focus-shell[data-composer-motion-active='true'] .composer-motion-flare) {
-    display: none;
+    opacity: 1;
+  }
+
+  :global(.composer-motion-beam) {
+    position: absolute;
+    top: -110%;
+    left: 38%;
+    width: 24%;
+    height: 320%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, #e8783b 14%, transparent) 18%,
+      color-mix(in srgb, #e8783b 72%, transparent) 38%,
+      #f9a763 50%,
+      color-mix(in srgb, #e8783b 72%, transparent) 62%,
+      color-mix(in srgb, #e8783b 14%, transparent) 82%,
+      transparent 100%
+    );
+    filter: drop-shadow(0 0 3px color-mix(in srgb, #e8783b 45%, transparent));
+    transform-origin: 50% 50%;
+    animation: composer-border-beam 4.8s linear infinite paused;
+    will-change: transform;
+  }
+
+  :global(
+    .composer-focus-shell[data-composer-motion-active='true'] .composer-motion-beam
+  ) {
+    animation-play-state: running;
+  }
+
+  :global(.composer-focus-shell[data-composer-motion='enhanced']::before) {
+    animation: none !important;
+    opacity: 0 !important;
   }
 
   :global(.composer-motion-ink) {
@@ -258,6 +309,12 @@
 
   :global(.composer-motion-ink[data-active='true']) {
     will-change: transform, opacity;
+  }
+
+  @keyframes composer-border-beam {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   @media (forced-colors: active) {
