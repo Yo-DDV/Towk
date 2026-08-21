@@ -374,7 +374,15 @@ run = [{ task = "lint-*" }]
 description = "Run frontend unit tests"
 depends = ["setup-frontend", "build-api-types"]
 dir = "apps/frontend"
-run = "pnpm vitest --run"
+# The client project drives a single serialized Chromium page; running all
+# spec files in one browser session crashes the page after ~200 files
+# (birpc "rpc is closed"). Sharding keeps each session below that threshold
+# while preserving full coverage. See issue #372.
+run = [
+  "pnpm vitest --run --project server",
+  "pnpm vitest --run --project client --shard=1/2",
+  "pnpm vitest --run --project client --shard=2/2",
+]
 
 [tasks.public-surface-check]
 description = "Check Towk-owned documentation and distribution surfaces"
