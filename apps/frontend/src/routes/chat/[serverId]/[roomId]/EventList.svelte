@@ -648,11 +648,25 @@
 
   // Scroll to a specific event by ID (for jump-to-message)
   let scrollAttemptId = 0;
+  let scrollSettlementId = 0;
+  let consumedScrollRequestKey: string | null = null;
   $effect(() => {
     const attemptId = ++scrollAttemptId;
     const targetId = scrollToEventId;
-    if (!targetId || !virtualizerHandle || virtualItems.length === 0) return;
+    if (!targetId) {
+      consumedScrollRequestKey = null;
+      return;
+    }
+
+    const requestKey = `${roomId}:${targetId}`;
+    if (requestKey === consumedScrollRequestKey) return;
+
+    // Any newer explicit jump invalidates the prior jump's delayed scroll
+    // settlement, even while the new target is still waiting to render.
+    const settlementId = ++scrollSettlementId;
+    if (!virtualizerHandle || virtualItems.length === 0) return;
     const targetEventId = targetId;
+    const targetRoomId = roomId;
 
     // Disable auto-scroll so it doesn't race with the jump scroll.
     setShouldScrollToBottom(false);
@@ -669,24 +683,29 @@
 
       function complete(landed: boolean) {
         if (completed || scrollAttemptId !== attemptId) return;
-        if (!landed) {
-          completed = true;
-          onScrollToEventComplete?.(false);
-          return;
-        }
+        completed = true;
+        if (landed) consumedScrollRequestKey = requestKey;
+        onScrollToEventComplete?.(landed);
+      }
 
-        // Check after the successful target scroll has settled. Starting this
-        // timer before the virtual row mounts can re-enable bottom scrolling
-        // based on the previous window's offset.
+      function settleSuccessfulScroll() {
+        // Bottom stickiness is a measurement concern, not request ownership.
+        // Let the parent consume the jump as soon as the target is mounted,
+        // while keeping this delayed measurement guarded against a newer jump
+        // or a room change.
         setTimeout(() => {
-          if (completed || !virtualizerHandle || scrollAttemptId !== attemptId) return;
+          if (
+            settlementId !== scrollSettlementId ||
+            roomId !== targetRoomId ||
+            !virtualizerHandle
+          ) {
+            return;
+          }
           const dist =
             virtualizerHandle.getScrollSize() -
             virtualizerHandle.getScrollOffset() -
             virtualizerHandle.getViewportSize();
           if (dist < 50) setShouldScrollToBottom(true);
-          completed = true;
-          onScrollToEventComplete?.(true);
         }, 200);
       }
 
@@ -710,6 +729,7 @@
           target.addEventListener('animationend', cleanupHighlight, { once: true });
           target.addEventListener('animationcancel', cleanupHighlight, { once: true });
           setTimeout(cleanupHighlight, motionDuration(1500) + 80);
+          settleSuccessfulScroll();
           complete(true);
           return;
         }
