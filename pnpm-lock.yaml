@@ -56,17 +56,17 @@ importers:
   apps/frontend:
     dependencies:
       '@bufbuild/protobuf':
-        specifier: ^2.13.0
-        version: 2.13.0
+        specifier: ^2.14.0
+        version: 2.14.0
       '@connectrpc/connect':
         specifier: ^2.1.2
-        version: 2.1.2(@bufbuild/protobuf@2.13.0)
+        version: 2.1.2(@bufbuild/protobuf@2.14.0)
       '@connectrpc/connect-web':
         specifier: ^2.1.2
-        version: 2.1.2(@bufbuild/protobuf@2.13.0)(@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.13.0))
+        version: 2.1.2(@bufbuild/protobuf@2.14.0)(@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.14.0))
       '@sapphi-red/web-noise-suppressor':
-        specifier: 0.3.5
-        version: 0.3.5
+        specifier: 0.4.0
+        version: 0.4.0
       '@towk/api-types':
         specifier: workspace:*
         version: link:../../packages/api-types
@@ -273,12 +273,12 @@ importers:
   packages/api-types:
     dependencies:
       '@bufbuild/protobuf':
-        specifier: 2.13.0
-        version: 2.13.0
+        specifier: 2.14.0
+        version: 2.14.0
     devDependencies:
       '@bufbuild/protoc-gen-es':
         specifier: 2.13.0
-        version: 2.13.0(@bufbuild/protobuf@2.13.0)
+        version: 2.13.0(@bufbuild/protobuf@2.14.0)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -478,6 +478,9 @@ packages:
 
   '@bufbuild/protobuf@2.13.0':
     resolution: {integrity: sha512-acq7c49vxfm1ggJ95P70TX7ABDM0vxr1SYD3BB0o0jnBLB4OAqeHyKuN+cD3w80gXEDQ2zxHpR6CUeA+O/aU9g==}
+
+  '@bufbuild/protobuf@2.14.0':
+    resolution: {integrity: sha512-C3UGsiCwSprE2NKIIFA3hCDlpXTMCAXRZuEVp88L1GY36Y41+rYL5fryE+nOFhp4p4JPQvdV8PQ4DWgHgeTE+w==}
 
   '@bufbuild/protoc-gen-es@2.13.0':
     resolution: {integrity: sha512-ylI1vrLksdnXrVZRs9xGxmrQxKGhUm6pPszv26kqBvNiO3qPTktk+hgfwbLISBY4M/reShkT2dFLGT9fbydBXg==}
@@ -1735,8 +1738,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@sapphi-red/web-noise-suppressor@0.3.5':
-    resolution: {integrity: sha512-jh3+V9yM+zxLriQexoGm0GatoPaJWjs6ypFIbFYwQp+AoUb55eUXrjKtKQyuC5zShzzeAQUl0M5JzqB7SSrsRA==}
+  '@sapphi-red/web-noise-suppressor@0.4.0':
+    resolution: {integrity: sha512-vkBEL/VDkbeP3qqSRQFRtPLGa19a38JUzO6J0r5D/MQSumrlERy671DAMaETgY6etXjDCoJcD7JBIaXnuGVtVw==}
 
   '@shikijs/core@4.2.0':
     resolution: {integrity: sha512-Hc87Ab1Ld/vEbZRCbwx344I5v+4RU8CVToUTRkqXL1+TjbuOp9U5Xa0M23V4GEWHxVn+yO5otb+HkQVm3ptWQQ==}
@@ -5161,11 +5164,13 @@ snapshots:
 
   '@bufbuild/protobuf@2.13.0': {}
 
-  '@bufbuild/protoc-gen-es@2.13.0(@bufbuild/protobuf@2.13.0)':
+  '@bufbuild/protobuf@2.14.0': {}
+
+  '@bufbuild/protoc-gen-es@2.13.0(@bufbuild/protobuf@2.14.0)':
     dependencies:
       '@bufbuild/protoplugin': 2.13.0
     optionalDependencies:
-      '@bufbuild/protobuf': 2.13.0
+      '@bufbuild/protobuf': 2.14.0
     transitivePeerDependencies:
       - supports-color
 
@@ -5193,14 +5198,14 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
-  '@connectrpc/connect-web@2.1.2(@bufbuild/protobuf@2.13.0)(@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.13.0))':
+  '@connectrpc/connect-web@2.1.2(@bufbuild/protobuf@2.14.0)(@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.14.0))':
     dependencies:
-      '@bufbuild/protobuf': 2.13.0
-      '@connectrpc/connect': 2.1.2(@bufbuild/protobuf@2.13.0)
+      '@bufbuild/protobuf': 2.14.0
+      '@connectrpc/connect': 2.1.2(@bufbuild/protobuf@2.14.0)
 
-  '@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.13.0)':
+  '@connectrpc/connect@2.1.2(@bufbuild/protobuf@2.14.0)':
     dependencies:
-      '@bufbuild/protobuf': 2.13.0
+      '@bufbuild/protobuf': 2.14.0
 
   '@ctrl/tinycolor@4.2.0': {}
 
@@ -6135,7 +6140,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.2':
     optional: true
 
-  '@sapphi-red/web-noise-suppressor@0.3.5': {}
+  '@sapphi-red/web-noise-suppressor@0.4.0': {}
 
   '@shikijs/core@4.2.0':
     dependencies:

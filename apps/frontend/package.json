@@ -86,10 +86,10 @@
     "zod": "^4.4.3"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.13.0",
+    "@bufbuild/protobuf": "^2.14.0",
     "@connectrpc/connect": "^2.1.2",
     "@connectrpc/connect-web": "^2.1.2",
-    "@sapphi-red/web-noise-suppressor": "0.3.5",
+    "@sapphi-red/web-noise-suppressor": "0.4.0",
     "@towk/api-types": "workspace:*",
     "gemoji": "^8.1.0",
     "heic2any": "^0.0.4",
