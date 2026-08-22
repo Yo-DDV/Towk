@@ -153,11 +153,19 @@ repaints the group.
     left: 0.1875rem;
     width: calc((100% - 0.375rem) / var(--segment-count));
     border-radius: 0.5625rem;
-    background-color: var(--liquid-glass-solid);
+    /* Raised control fill: one design-system step above the track, in both themes. */
+    background-color: var(--towk-control-hover, var(--liquid-glass-solid));
+    /* Specular top light: what separates the selected pane from its track. */
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--towk-edge-light, var(--liquid-glass-edge-light)) 90%, transparent),
+      transparent 65%
+    );
     box-shadow:
       inset 0 0 0 1px var(--liquid-glass-border-strong),
       inset 0 1px 0 var(--liquid-glass-edge-light),
-      0 1px 2px var(--liquid-glass-key-shadow);
+      0 1px 3px var(--liquid-glass-key-shadow),
+      0 6px 14px -10px var(--liquid-glass-ambient-shadow);
     transform: translateX(calc(var(--segment-index) * 100%));
     transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
     will-change: transform;
@@ -204,7 +212,8 @@ repaints the group.
 
   .quality-size {
     font-variant-numeric: tabular-nums;
-    opacity: 0.85;
+    font-weight: 600;
+    color: var(--color-text, currentColor);
   }
 
   @media (prefers-reduced-transparency: reduce) {
