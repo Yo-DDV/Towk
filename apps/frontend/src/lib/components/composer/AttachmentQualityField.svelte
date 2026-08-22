@@ -108,6 +108,9 @@ repaints the group.
     display: flex;
     flex-direction: column;
     gap: 0.375rem;
+    /* Sized against the composer width, so a narrow phone shrinks the labels
+     * instead of clipping them. */
+    container-type: inline-size;
   }
 
   .quality-label {
@@ -188,6 +191,14 @@ repaints the group.
   .quality-segment[aria-checked='true'] {
     color: var(--color-text, currentColor);
     font-weight: 600;
+  }
+
+  @container (max-width: 23rem) {
+    .quality-segment {
+      padding-inline: 0.25rem;
+      font-size: 0.6875rem;
+      letter-spacing: -0.01em;
+    }
   }
 
   .quality-segment:disabled {
