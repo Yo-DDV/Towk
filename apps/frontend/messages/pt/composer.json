@@ -61,6 +61,13 @@
       "all_room_members": "Todos os membros da sala",
       "members_here": "Membros atualmente aqui",
       "role": "Função"
+    },
+    "attachment_quality": {
+      "label": "Qualidade da imagem",
+      "auto": "Automática",
+      "sd": "Reduzida",
+      "hd": "Alta",
+      "original": "Original"
     }
   }
 }
