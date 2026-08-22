@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractURLs, isYouTubeURL, parseYouTubeVideoID } from './linkPreview';
+import { extractURLs, isYouTubeURL, parseYouTubeVideoID, describeLinkOrigin } from './linkPreview';
 
 describe('extractURLs', () => {
   describe('protocol URLs', () => {
@@ -196,5 +196,28 @@ describe('parseYouTubeVideoID', () => {
   it('backs isYouTubeURL with the same parser', () => {
     expect(isYouTubeURL('https://youtu.be/dQw4w9WgXcQ')).toBe(true);
     expect(isYouTubeURL('https://example.com/watch?v=dQw4w9WgXcQ')).toBe(false);
+  });
+});
+
+describe('describeLinkOrigin', () => {
+  it('describes a URL without contacting the site', () => {
+    expect(describeLinkOrigin('https://www.tiktok.com/@user/video/123')).toMatchObject({
+      host: 'tiktok.com',
+      path: '/@user/video/123',
+      monogram: 'T'
+    });
+  });
+
+  it('leaves the path empty for a bare host', () => {
+    expect(describeLinkOrigin('https://example.com/').path).toBe('');
+  });
+
+  it('names a site by its registrable label rather than its subdomain', () => {
+    expect(describeLinkOrigin('https://vm.tiktok.com/ZNe3XYZ/').monogram).toBe('T');
+    expect(describeLinkOrigin('https://www.bbc.co.uk/news').monogram).toBe('B');
+  });
+
+  it('stays usable for an unparsable URL', () => {
+    expect(describeLinkOrigin('https://').monogram).toBe('?');
   });
 });

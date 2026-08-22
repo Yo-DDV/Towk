@@ -80,4 +80,24 @@ describe('LinkPreviewCard', () => {
     expect(container.querySelector('[data-testid="link-preview-card"]')).toBeNull();
     expect(container.querySelector('iframe')).not.toBeNull();
   });
+  it('renders a distinct loading frame with the link origin while metadata is in flight', async () => {
+    const screen = render(LinkPreviewCard, {
+      props: { pendingUrl: 'https://vm.tiktok.com/ZN8LwBHKL/' }
+    });
+
+    const card = screen.getByTestId('link-preview-pending');
+    await expect.element(card).toBeInTheDocument();
+    await expect.element(card).toHaveAttribute('href', 'https://vm.tiktok.com/ZN8LwBHKL/');
+    await expect.element(screen.getByText('vm.tiktok.com')).toBeInTheDocument();
+  });
+
+  it('falls back to the host as site name when the server returns none', async () => {
+    const screen = render(LinkPreviewCard, {
+      props: { preview: preview({ url: 'https://www.example.org/a', title: 'A title' }) }
+    });
+
+    await expect.element(screen.getByText('example.org')).toBeInTheDocument();
+    await expect.element(screen.getByText('A title')).toBeInTheDocument();
+  });
+
 });

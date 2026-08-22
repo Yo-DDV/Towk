@@ -15,7 +15,6 @@
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { parseMessageLink } from '$lib/messageLinks';
   import LinkPreviewCard from '$lib/components/LinkPreviewCard.svelte';
-  import LinkPreviewSkeleton from '$lib/components/LinkPreviewSkeleton.svelte';
   import MessagePreviewCard from '$lib/components/MessagePreviewCard.svelte';
   import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
   import ContextMenu from '$lib/ui/ContextMenu.svelte';
@@ -1162,7 +1161,7 @@
     {#if messageLink}
       <MessagePreviewCard link={messageLink} onDismiss={() => linkPreviews.dismissPreview(url)} />
     {:else if linkPreviews.fetchingURLs.has(url)}
-      <LinkPreviewSkeleton />
+      <LinkPreviewCard pendingUrl={url} onDismiss={() => linkPreviews.dismissPreview(url)} />
     {:else if linkPreviews.previews.get(url)}
       <LinkPreviewCard
         preview={linkPreviews.previews.get(url)!}

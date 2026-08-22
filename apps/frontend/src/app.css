@@ -53,8 +53,12 @@
   --color-accent: var(--color-sky-700);
   --color-primary: #64748b;
   --color-primary-hover: #475569;
-  --color-link: var(--color-accent);
-  --color-link-hover: color-mix(in srgb, var(--color-accent), black 20%);
+  /* Links carry the Towk brand orange instead of the neutral action accent so
+     a URL stays unmistakable inside a dense message list. The light value is
+     the deep brand shade, which keeps 4.5:1 text contrast on every light
+     surface; the accent stays reserved for controls and focus rings. */
+  --color-link: #b34a1e;
+  --color-link-hover: #8f3a14;
   --color-success: var(--color-green-800);
   --color-warning: var(--color-amber-600);
   --color-danger: var(--color-red-700);
@@ -100,8 +104,9 @@
   --color-accent: var(--color-sky-400);
   --color-primary: var(--color-neutral-600);
   --color-primary-hover: var(--color-neutral-500);
-  --color-link: var(--color-accent);
-  --color-link-hover: color-mix(in srgb, var(--color-accent), white 20%);
+  /* Dark mode uses the brand highlight shade: 8.9:1 on the app canvas. */
+  --color-link: #f9a763;
+  --color-link-hover: #ffc08a;
   --color-success: var(--color-green-500);
   --color-warning: var(--color-amber-500);
   --color-danger: var(--color-red-400);

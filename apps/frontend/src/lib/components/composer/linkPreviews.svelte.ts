@@ -9,6 +9,13 @@ type LinkPreviewAPI = {
   fetchLinkPreview(url: string): Promise<ComposerLinkPreview | null>;
 };
 
+/**
+ * Detection delay after the last keystroke. Short enough that the card appears
+ * while the author is still looking at the link, long enough that typing a URL
+ * character by character does not queue a fetch per character.
+ */
+const URL_DETECTION_DELAY_MS = 150;
+
 export class LinkPreviewState {
   detectedURLs = $state<string[]>([]);
   previews = new SvelteMap<string, ComposerLinkPreview | null>();
@@ -40,7 +47,7 @@ export class LinkPreviewState {
           void this.fetchPreview(url);
         }
       }
-    }, 500);
+    }, URL_DETECTION_DELAY_MS);
 
     return () => clearTimeout(this.#urlDetectionTimeout);
   }
