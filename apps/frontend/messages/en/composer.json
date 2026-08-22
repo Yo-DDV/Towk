@@ -65,9 +65,16 @@
     "attachment_quality": {
       "label": "Image quality",
       "auto": "Automatic",
-      "sd": "Small",
+      "sd": "Reduced",
       "hd": "High",
-      "original": "Original"
+      "original": "Original",
+      "auto_hint": "Recommended: only shrinks heavy photos",
+      "sd_hint": "Fastest to send, good enough to read on a phone",
+      "hd_hint": "Keeps most of the detail",
+      "original_hint": "Sends the file exactly as selected",
+      "summary_reduced": "{size} instead of {original}",
+      "summary_unchanged": "{size}, kept as is",
+      "summary_pending": "Preparing images…"
     }
   }
 }

@@ -8,8 +8,8 @@
   import { createLinkPreviewAPI } from '$lib/api-client/linkPreviews';
   import { createRoleAPI } from '$lib/api-client/roles';
   import * as m from '$lib/i18n/messages';
-  import { ToggleChip } from '$lib/ui';
-  import { IMAGE_QUALITY_PROFILES, type ImageQualityProfile } from '$lib/attachments/imageQuality';
+  import AttachmentQualityField from './AttachmentQualityField.svelte';
+  import { formatAttachmentSize } from '$lib/attachments/imageQuality';
   import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
@@ -181,12 +181,19 @@
   let emojiPickerOpen = $state(false);
   const draftState = new DraftState();
   const attachments = new AttachmentsState(() => serverInfo);
-  const imageQualityLabels: Record<ImageQualityProfile, () => string> = {
-    auto: m['composer.attachment_quality.auto'],
-    sd: m['composer.attachment_quality.sd'],
-    hd: m['composer.attachment_quality.hd'],
-    original: m['composer.attachment_quality.original']
-  };
+  // Says what the choice actually costs: the upload size, and what it replaces.
+  const imageQualitySummary = $derived.by(() => {
+    if (attachments.imageQualityBusy) return m['composer.attachment_quality.summary_pending']();
+    const size = formatAttachmentSize(attachments.stagedBytes);
+    if (attachments.stagedBytes >= attachments.sourceBytes) {
+      return m['composer.attachment_quality.summary_unchanged']({ size });
+    }
+    return m['composer.attachment_quality.summary_reduced']({
+      size,
+      original: formatAttachmentSize(attachments.sourceBytes)
+    });
+  });
+
   const linkPreviews = new LinkPreviewState(() => {
     const conn = connection();
     return createLinkPreviewAPI({
@@ -1168,22 +1175,12 @@
   {#if attachments.filesWithUrls.length > 0}
     <div class="flex flex-col gap-2 rounded-lg bg-surface-300 p-2">
       {#if attachments.hasQualityAdjustableImages}
-        <div
-          data-testid="attachment-quality-chips"
-          class="flex flex-wrap items-center gap-1.5"
-          role="group"
-          aria-label={m['composer.attachment_quality.label']()}
-        >
-          {#each IMAGE_QUALITY_PROFILES as profile (profile)}
-            <ToggleChip
-              pressed={attachments.imageQuality === profile}
-              tone="primary"
-              onclick={() => void attachments.setImageQuality(profile)}
-            >
-              {imageQualityLabels[profile]()}
-            </ToggleChip>
-          {/each}
-        </div>
+        <AttachmentQualityField
+          value={attachments.imageQuality}
+          summary={imageQualitySummary}
+          busy={attachments.imageQualityBusy}
+          onselect={(profile) => void attachments.setImageQuality(profile)}
+        />
       {/if}
       <div class="flex flex-wrap gap-2">
         {#each attachments.filesWithUrls as { file, url }, index (url)}
