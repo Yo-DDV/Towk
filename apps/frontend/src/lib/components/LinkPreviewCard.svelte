@@ -70,6 +70,29 @@ description land in place instead of replacing a differently sized skeleton.
   const title = $derived(preview?.title ?? '');
   const description = $derived(preview?.description ?? '');
 
+  /**
+   * A wide presentation image leads the card; a small or square one — usually
+   * a logo — sits beside the text instead, where covering a 40:21 banner
+   * would crop it into noise. The image is probed off-screen, so the layout
+   * is decided once and the card never re-flows around a broken image.
+   */
+  let imageLayout = $state<'hero' | 'thumb' | 'none'>('none');
+  $effect(() => {
+    imageLayout = 'none';
+    if (!imageUrl) return;
+    let cancelled = false;
+    const probe = new Image();
+    probe.onload = () => {
+      if (cancelled) return;
+      const wide = probe.naturalWidth >= 320 && probe.naturalWidth >= probe.naturalHeight * 1.2;
+      imageLayout = wide ? 'hero' : 'thumb';
+    };
+    probe.src = imageUrl;
+    return () => {
+      cancelled = true;
+    };
+  });
+
   // Context menu state
   let contextMenuPos = $state<{ x: number; y: number } | null>(null);
 
@@ -133,13 +156,15 @@ description land in place instead of replacing a differently sized skeleton.
     class="preview-card group/preview"
     oncontextmenu={handleContextMenu}
   >
-    {#if imageUrl}
+    {#if imageLayout === 'hero'}
       <span class="preview-hero">
-        <SkeletonImg src={imageUrl} alt="" class="preview-hero-img" loading="lazy" decoding="async" />
+        <SkeletonImg src={imageUrl} alt="" class="preview-hero-img" decoding="async" />
       </span>
     {/if}
     <span class="preview-body">
-      {#if !imageUrl}
+      {#if imageLayout === 'thumb'}
+        <SkeletonImg src={imageUrl} alt="" class="preview-thumb" decoding="async" />
+      {:else if imageLayout !== 'hero'}
         <span class="preview-monogram" aria-hidden="true">{origin.monogram}</span>
       {/if}
       <span class="preview-text">
@@ -305,6 +330,15 @@ description land in place instead of replacing a differently sized skeleton.
     line-height: 1;
     color: var(--color-link, currentColor);
     background-color: color-mix(in srgb, var(--color-link, currentColor) 12%, transparent);
+    box-shadow: inset 0 0 0 1px var(--liquid-glass-border);
+  }
+
+  .preview-card :global(.preview-thumb) {
+    flex: none;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.75rem;
+    object-fit: cover;
     box-shadow: inset 0 0 0 1px var(--liquid-glass-border);
   }
 
