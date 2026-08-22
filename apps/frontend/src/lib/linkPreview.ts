@@ -140,3 +140,58 @@ export function parseYouTubeVideoID(rawUrl: string): string | null {
   const match = pathAndQuery.match(YOUTUBE_PATH_REGEX);
   return match ? match[1] : null;
 }
+
+/** Everything a preview card needs to describe a link before metadata exists. */
+export type LinkOrigin = {
+  /** Registrable host without the `www.` prefix, e.g. `vm.tiktok.com`. */
+  host: string;
+  /** Path and query, trimmed for display. Empty for a bare host. */
+  path: string;
+  /** Single uppercase glyph used by the fallback tile. */
+  monogram: string;
+  /** Stable hue derived from the host, so a site always tints identically. */
+  hue: number;
+};
+
+/**
+ * Describes a URL for display without contacting the site.
+ *
+ * Preview cards render the origin immediately while the server metadata is
+ * still in flight; fetching a favicon instead would leak every composed link
+ * to a third party, which is exactly what server-side image storage avoids.
+ */
+export function describeLinkOrigin(rawUrl: string): LinkOrigin {
+  let host = '';
+  let path = '';
+  try {
+    const parsed = new URL(rawUrl);
+    host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    path = decodeDisplayPath(parsed.pathname + parsed.search);
+  } catch {
+    host = rawUrl.replace(/^https?:\/\//i, '').split('/')[0]?.toLowerCase() ?? '';
+  }
+
+  const monogram = (host.match(/[a-z0-9]/i)?.[0] ?? '?').toUpperCase();
+
+  // FNV-1a over the host: stable across sessions, clients and reloads.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < host.length; i++) {
+    hash ^= host.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return { host, path, monogram, hue: hash % 360 };
+}
+
+function decodeDisplayPath(pathAndQuery: string): string {
+  const trimmed = pathAndQuery.replace(/\/+$/, '');
+  if (trimmed === '' || trimmed === '/') return '';
+  const decoded = (() => {
+    try {
+      return decodeURI(trimmed);
+    } catch {
+      return trimmed;
+    }
+  })();
+  return decoded.length <= 96 ? decoded : `${decoded.slice(0, 95).trimEnd()}…`;
+}
