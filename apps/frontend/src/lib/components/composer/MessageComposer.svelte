@@ -8,6 +8,8 @@
   import { createLinkPreviewAPI } from '$lib/api-client/linkPreviews';
   import { createRoleAPI } from '$lib/api-client/roles';
   import * as m from '$lib/i18n/messages';
+  import { ToggleChip } from '$lib/ui';
+  import { IMAGE_QUALITY_PROFILES, type ImageQualityProfile } from '$lib/attachments/imageQuality';
   import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
@@ -179,6 +181,12 @@
   let emojiPickerOpen = $state(false);
   const draftState = new DraftState();
   const attachments = new AttachmentsState(() => serverInfo);
+  const imageQualityLabels: Record<ImageQualityProfile, () => string> = {
+    auto: m['composer.attachment_quality.auto'],
+    sd: m['composer.attachment_quality.sd'],
+    hd: m['composer.attachment_quality.hd'],
+    original: m['composer.attachment_quality.original']
+  };
   const linkPreviews = new LinkPreviewState(() => {
     const conn = connection();
     return createLinkPreviewAPI({
@@ -1158,44 +1166,64 @@
 
   <!-- Selected files preview -->
   {#if attachments.filesWithUrls.length > 0}
-    <div class="flex flex-wrap gap-2 rounded-lg bg-surface-300 p-2">
-      {#each attachments.filesWithUrls as { file, url }, index (url)}
-        <div class="relative">
-          {#if file.type.startsWith('image/')}
-            <img src={url} alt={file.name} class="h-16 w-16 rounded-md object-cover" />
-          {:else if isVideoAttachmentFileCandidate(file)}
-            <!-- Browser renders the first frame as a thumbnail from the object URL -->
-            <video
-              data-testid="video-attachment-preview"
-              src="{url}#t=0.1"
-              preload="metadata"
-              muted
-              class="h-16 w-16 rounded-md object-cover"
-            ></video>
-          {:else if file.type.startsWith('audio/')}
-            <div
-              data-testid="audio-attachment-preview"
-              class="flex h-16 w-16 items-center justify-center rounded-md bg-surface-200"
+    <div class="flex flex-col gap-2 rounded-lg bg-surface-300 p-2">
+      {#if attachments.hasQualityAdjustableImages}
+        <div
+          data-testid="attachment-quality-chips"
+          class="flex flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label={m['composer.attachment_quality.label']()}
+        >
+          {#each IMAGE_QUALITY_PROFILES as profile (profile)}
+            <ToggleChip
+              pressed={attachments.imageQuality === profile}
+              tone="primary"
+              onclick={() => void attachments.setImageQuality(profile)}
             >
-              <span class="iconify text-lg text-muted uil--music"></span>
-            </div>
-          {:else}
-            <div
-              data-testid="file-attachment-preview"
-              class="flex h-16 w-16 items-center justify-center rounded-md bg-surface-200"
-            >
-              <span class="text-xs text-muted">{file.name.split('.').pop()}</span>
-            </div>
-          {/if}
-          <button
-            type="button"
-            onclick={() => removeFile(index)}
-            class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white hover:bg-red-600"
-          >
-            ×
-          </button>
+              {imageQualityLabels[profile]()}
+            </ToggleChip>
+          {/each}
         </div>
-      {/each}
+      {/if}
+      <div class="flex flex-wrap gap-2">
+        {#each attachments.filesWithUrls as { file, url }, index (url)}
+          <div class="relative">
+            {#if file.type.startsWith('image/')}
+              <img src={url} alt={file.name} class="h-16 w-16 rounded-md object-cover" />
+            {:else if isVideoAttachmentFileCandidate(file)}
+              <!-- Browser renders the first frame as a thumbnail from the object URL -->
+              <video
+                data-testid="video-attachment-preview"
+                src="{url}#t=0.1"
+                preload="metadata"
+                muted
+                class="h-16 w-16 rounded-md object-cover"
+              ></video>
+            {:else if file.type.startsWith('audio/')}
+              <div
+                data-testid="audio-attachment-preview"
+                class="flex h-16 w-16 items-center justify-center rounded-md bg-surface-200"
+              >
+                <span class="iconify text-lg text-muted uil--music"></span>
+              </div>
+            {:else}
+              <div
+                data-testid="file-attachment-preview"
+                class="flex h-16 w-16 items-center justify-center rounded-md bg-surface-200"
+              >
+                <span class="text-xs text-muted">{file.name.split('.').pop()}</span>
+              </div>
+            {/if}
+            <button
+              type="button"
+              onclick={() => removeFile(index)}
+              class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white hover:bg-red-600"
+            >
+              ×
+            </button>
+          </div>
+        {/each}
+      </div>
     </div>
   {/if}
 
@@ -1449,10 +1477,7 @@
 </div>
 
 {#if mediaCaptureOpen}
-  <MediaCaptureDialog
-    onCaptured={handleMediaCaptured}
-    onClose={() => (mediaCaptureOpen = false)}
-  />
+  <MediaCaptureDialog onCaptured={handleMediaCaptured} onClose={() => (mediaCaptureOpen = false)} />
 {/if}
 
 {#if pendingRoleMentionConfirmation}

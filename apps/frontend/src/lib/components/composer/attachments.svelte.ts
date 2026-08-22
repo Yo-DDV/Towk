@@ -1,6 +1,13 @@
 import { toast } from '$lib/ui/toast';
 import { prepareFiles } from '$lib/attachments/prepareFiles';
 import {
+  applyImageQuality,
+  isQualityAdjustableImage,
+  loadImageQualityProfile,
+  saveImageQualityProfile,
+  type ImageQualityProfile
+} from '$lib/attachments/imageQuality';
+import {
   hasBlockedExecutableMetadata,
   hasUnsafeAttachmentFilename,
   inferredVideoAttachmentContentType,
@@ -10,7 +17,12 @@ import {
 } from '$lib/attachments/filePolicy';
 import * as m from '$lib/i18n/messages';
 
-export type FileWithUrl = { file: File; url: string };
+export type FileWithUrl = {
+  file: File;
+  url: string;
+  /** Source file kept so the quality profile can be changed after staging. */
+  sourceFile?: File;
+};
 
 export type AttachmentLimits = {
   maxUploadSize: number;
@@ -32,6 +44,7 @@ function fileWithInferredVideoContentType(file: File): File {
 export class AttachmentsState {
   filesWithUrls = $state<FileWithUrl[]>([]);
   pendingCount = $state(0);
+  imageQuality = $state<ImageQualityProfile>(loadImageQualityProfile());
   private generation = 0;
 
   constructor(private readonly getLimits: () => AttachmentLimits) {}
@@ -78,14 +91,42 @@ export class AttachmentsState {
     return accepted;
   }
 
-  filesToPreviewItems(files: File[]): FileWithUrl[] {
-    return files.map((file) => {
+  filesToPreviewItems(files: File[], sourceFiles?: File[]): FileWithUrl[] {
+    return files.map((file, index) => {
       const previewFile = fileWithInferredVideoContentType(file);
       return {
         file: previewFile,
-        url: URL.createObjectURL(previewFile)
+        url: URL.createObjectURL(previewFile),
+        sourceFile: sourceFiles?.[index] ?? file
       };
     });
+  }
+
+  /** True when at least one staged attachment can be re-encoded. */
+  get hasQualityAdjustableImages(): boolean {
+    return this.filesWithUrls.some(({ file, sourceFile }) =>
+      isQualityAdjustableImage(sourceFile ?? file)
+    );
+  }
+
+  /**
+   * Applies a quality profile to every staged image. Each preview is rebuilt
+   * from its source file, so switching back to the original profile restores
+   * the untouched attachment.
+   */
+  async setImageQuality(profile: ImageQualityProfile): Promise<void> {
+    if (profile === this.imageQuality) return;
+    this.imageQuality = profile;
+    saveImageQualityProfile(profile);
+    if (this.filesWithUrls.length === 0) return;
+
+    const generation = this.generation;
+    const sources = this.filesWithUrls.map(({ file, sourceFile }) => sourceFile ?? file);
+    const prepared = await Promise.all(sources.map((file) => applyImageQuality(file, profile)));
+    if (generation !== this.generation) return;
+
+    for (const { url } of this.filesWithUrls) URL.revokeObjectURL(url);
+    this.filesWithUrls = this.filesToPreviewItems(prepared, sources);
   }
 
   async stageFiles(files: File[]): Promise<void> {
@@ -125,8 +166,14 @@ export class AttachmentsState {
       if (safeFiles.length === 0) return;
 
       const prepared = await prepareFiles(safeFiles);
-      if (generation === this.generation && prepared.length > 0) {
-        this.filesWithUrls = [...this.filesWithUrls, ...this.filesToPreviewItems(prepared)];
+      const encoded = await Promise.all(
+        prepared.map((file) => applyImageQuality(file, this.imageQuality))
+      );
+      if (generation === this.generation && encoded.length > 0) {
+        this.filesWithUrls = [
+          ...this.filesWithUrls,
+          ...this.filesToPreviewItems(encoded, prepared)
+        ];
       }
     } catch (err) {
       console.error('Error preparing attachment files:', err);

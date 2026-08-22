@@ -61,6 +61,13 @@
       "all_room_members": "Alle Raummitglieder",
       "members_here": "Gerade anwesende Mitglieder",
       "role": "Rolle"
+    },
+    "attachment_quality": {
+      "label": "Bildqualität",
+      "auto": "Automatisch",
+      "sd": "Klein",
+      "hd": "Hoch",
+      "original": "Original"
     }
   }
 }

@@ -61,6 +61,13 @@
       "all_room_members": "Tous les membres du salon",
       "members_here": "Membres actuellement ici",
       "role": "Rôle"
+    },
+    "attachment_quality": {
+      "label": "Qualité des images",
+      "auto": "Automatique",
+      "sd": "Réduite",
+      "hd": "Haute",
+      "original": "Originale"
     }
   }
 }

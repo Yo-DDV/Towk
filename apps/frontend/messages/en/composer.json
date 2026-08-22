@@ -61,6 +61,13 @@
       "all_room_members": "All room members",
       "members_here": "Members currently here",
       "role": "Role"
+    },
+    "attachment_quality": {
+      "label": "Image quality",
+      "auto": "Automatic",
+      "sd": "Small",
+      "hd": "High",
+      "original": "Original"
     }
   }
 }
