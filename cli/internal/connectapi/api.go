@@ -165,6 +165,11 @@ func uploadRequestMaxBytes(maxUploadSize int64) int {
 }
 
 func assetUploadRequestMaxBytes() int {
-	const protobufOverhead = 64 * 1024
-	return core.AssetUploadMaxChunkSize + protobufOverhead
+	// The AssetUpload handler must accept the advertised max chunk in either
+	// Connect encoding. JSON encodes the chunk bytes as base64 (~4/3 expansion),
+	// so size the read limit for the base64-expanded chunk plus JSON envelope
+	// and framing overhead. Binary clients stay well under this bound.
+	const envelopeOverhead = 64 * 1024
+	base64ChunkBytes := (core.AssetUploadMaxChunkSize + 2) / 3 * 4
+	return base64ChunkBytes + envelopeOverhead
 }
