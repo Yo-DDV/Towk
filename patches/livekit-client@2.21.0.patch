@@ -18,8 +18,8 @@ index 8d95612db995744ff284fbd1b3b0fb981f2b2ce8..fb04924129fda6d8c3a774bb38518846
 +            }] : [];
 +          });
 +        }
-+        // Use a published Opus fmtp as the canonical value for remote audio
-+        // sections so an SFU stereo echo cannot invalidate the BUNDLE answer.
++        // Chromium rejects a BUNDLE answer when an SFU reintroduces `stereo=1`
++        // on recv-only sections. Other engines retain the server's SDP.
 +        const publishedAudioMids = new Set(this.trackBitrates.flatMap(trackbr => {
 +          var _trackbr$transceiver;
 +          const mid = (_trackbr$transceiver = trackbr.transceiver) === null || _trackbr$transceiver === void 0 ? void 0 : _trackbr$transceiver.mid;
@@ -27,7 +27,7 @@ index 8d95612db995744ff284fbd1b3b0fb981f2b2ce8..fb04924129fda6d8c3a774bb38518846
 +          const media = sdpParsed.media.find(candidate => candidate.type === 'audio' && getMidString(candidate.mid) === mid);
 +          return media ? [mid] : [];
 +        }));
-+        if (publishedAudioMids.size > 0) {
++        if (isChromiumBased() && publishedAudioMids.size > 0) {
 +          conformBundledCodecFmtp(sdpParsed.media, media => media.type === 'audio' && !publishedAudioMids.has(getMidString(media.mid)));
 +        }
          // The server's answer sets per-track codec params (e.g. opus `usedtx`) on
@@ -71,7 +71,14 @@ diff --git a/src/room/PCTransport.ts b/src/room/PCTransport.ts
 index be78f4aa0ee73a9eb43f6fb3158d168f1e21012b..0efd7782f49f8dabfadca11fd46ad25db6146db5 100644
 --- a/src/room/PCTransport.ts
 +++ b/src/room/PCTransport.ts
-@@ -260,6 +260,41 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
+@@ -6,5 +6,5 @@ import type TypedEmitter from 'typed-emitter';
+ import log, { LoggerNames, getLogger } from '../logger';
+ import { debounce } from './debounce';
+ import { NegotiationError, UnexpectedConnectionState } from './errors';
+ import type { LoggerOptions } from './types';
+-import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
++import { ddExtensionURI, isChromiumBased, isSVCCodec, isSafari } from './utils';
+@@ -260,6 +260,39 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
            });
          }
        });
@@ -89,10 +96,8 @@ index be78f4aa0ee73a9eb43f6fb3158d168f1e21012b..0efd7782f49f8dabfadca11fd46ad25d
 +          return config ? [{ ...fmtp, config }] : [];
 +        });
 +      }
-+      // Published microphone and screen-audio tracks use one Opus profile in
-+      // Towk. Use that published fmtp as the bundle canonical value for remote
-+      // audio sections too; SFU answers can otherwise reintroduce `stereo=1`
-+      // on recv sections and make Chromium reject the whole answer.
++      // Chromium rejects a BUNDLE answer when an SFU reintroduces `stereo=1`
++      // on recv-only sections. Other engines receive the server SDP unchanged.
 +      const publishedAudioMids = new Set(
 +        this.trackBitrates.flatMap((trackbr) => {
 +          const mid = trackbr.transceiver?.mid;
@@ -103,7 +108,7 @@ index be78f4aa0ee73a9eb43f6fb3158d168f1e21012b..0efd7782f49f8dabfadca11fd46ad25d
 +          return media ? [mid] : [];
 +        }),
 +      );
-+      if (publishedAudioMids.size > 0) {
++      if (isChromiumBased() && publishedAudioMids.size > 0) {
 +        conformBundledCodecFmtp(
 +          sdpParsed.media,
 +          (media) =>
