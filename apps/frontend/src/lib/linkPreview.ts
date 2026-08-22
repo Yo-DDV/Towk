@@ -149,8 +149,6 @@ export type LinkOrigin = {
   path: string;
   /** Single uppercase glyph used by the fallback tile. */
   monogram: string;
-  /** Stable hue derived from the host, so a site always tints identically. */
-  hue: number;
 };
 
 /**
@@ -171,16 +169,24 @@ export function describeLinkOrigin(rawUrl: string): LinkOrigin {
     host = rawUrl.replace(/^https?:\/\//i, '').split('/')[0]?.toLowerCase() ?? '';
   }
 
-  const monogram = (host.match(/[a-z0-9]/i)?.[0] ?? '?').toUpperCase();
+  const label = registrableLabel(host) ?? host;
+  const monogram = (label.match(/[a-z0-9]/i)?.[0] ?? '?').toUpperCase();
 
-  // FNV-1a over the host: stable across sessions, clients and reloads.
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < host.length; i++) {
-    hash ^= host.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
+  return { host, path, monogram };
+}
+
+/**
+ * Returns the label a reader recognises the site by, so `vm.tiktok.com` shows
+ * `T` rather than the letter of a routing subdomain. Two- and three-letter
+ * public suffixes such as `co.uk` are stepped over.
+ */
+function registrableLabel(host: string): string | undefined {
+  const labels = host.split('.').filter(Boolean);
+  if (labels.length < 2) return labels[0];
+  if (labels.length >= 3 && labels[labels.length - 2].length <= 3) {
+    return labels[labels.length - 3];
   }
-
-  return { host, path, monogram, hue: hash % 360 };
+  return labels[labels.length - 2];
 }
 
 function decodeDisplayPath(pathAndQuery: string): string {

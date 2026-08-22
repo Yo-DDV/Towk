@@ -1,9 +1,10 @@
 <!--
 @component
 
-Displays a link preview as a compact card: origin tile or thumbnail, site name,
-title and description. YouTube URLs render a YouTubeEmbed instead. Supports
-dismiss (composer) and delete (posted message) actions.
+Displays a link preview as a rich glass card: the site's presentation image
+leads when the server found one, followed by site name, title and description.
+YouTube URLs render a YouTubeEmbed instead. Supports dismiss (composer) and
+delete (posted message) actions.
 
 The card renders the same frame while the server metadata is still in flight,
 so the composer shows the link's origin immediately and the fetched title and
@@ -130,29 +131,32 @@ description land in place instead of replacing a differently sized skeleton.
     rel="noopener noreferrer"
     data-testid={pending ? 'link-preview-pending' : 'link-preview-card'}
     class="preview-card group/preview"
-    style="--preview-hue: {origin.hue}"
     oncontextmenu={handleContextMenu}
   >
-    <span class="preview-rail" aria-hidden="true"></span>
     {#if imageUrl}
-      <SkeletonImg src={imageUrl} alt="" class="preview-thumb" />
-    {:else}
-      <span class="preview-thumb preview-monogram" aria-hidden="true">{origin.monogram}</span>
+      <span class="preview-hero">
+        <SkeletonImg src={imageUrl} alt="" class="preview-hero-img" loading="lazy" decoding="async" />
+      </span>
     {/if}
     <span class="preview-body">
-      <span class="preview-site">{siteName}</span>
-      {#if pending}
-        <span class="preview-path">{origin.path || origin.host}</span>
-        <span class="preview-shimmer preview-shimmer-title" aria-hidden="true"></span>
-        <span class="preview-shimmer preview-shimmer-text" aria-hidden="true"></span>
-      {:else}
-        {#if title}
-          <span class="preview-title">{title}</span>
-        {/if}
-        {#if description}
-          <span class="preview-description">{description}</span>
-        {/if}
+      {#if !imageUrl}
+        <span class="preview-monogram" aria-hidden="true">{origin.monogram}</span>
       {/if}
+      <span class="preview-text">
+        <span class="preview-site">{siteName}</span>
+        {#if pending}
+          <span class="preview-path">{origin.path || origin.host}</span>
+          <span class="preview-shimmer preview-shimmer-title" aria-hidden="true"></span>
+          <span class="preview-shimmer preview-shimmer-text" aria-hidden="true"></span>
+        {:else}
+          {#if title}
+            <span class="preview-title">{title}</span>
+          {/if}
+          {#if description}
+            <span class="preview-description">{description}</span>
+          {/if}
+        {/if}
+      </span>
     </span>
     {#if showDismiss && onDismiss}
       <button
@@ -214,20 +218,19 @@ description land in place instead of replacing a differently sized skeleton.
 {/if}
 
 <style>
-  /* One compact row for every link: a message list stays scannable, and the
-     frame is identical while loading, so nothing reflows when metadata lands. */
+  /* A rich embed inside one liquid-glass frame: the presentation image leads
+     when the site offers one, and the frame is identical while loading, so
+     nothing reflows when the fetched metadata lands. */
   .preview-card {
     container-type: inline-size;
     position: relative;
     isolation: isolate;
     display: flex;
-    align-items: stretch;
-    gap: 0.75rem;
+    flex-direction: column;
     width: 100%;
-    max-width: 26rem;
+    max-width: 27rem;
     margin-block: 0.375rem;
-    padding: 0.625rem 0.75rem 0.625rem 1rem;
-    border-radius: 0.875rem;
+    border-radius: 1rem;
     overflow: hidden;
     text-decoration: none;
     color: inherit;
@@ -238,9 +241,7 @@ description land in place instead of replacing a differently sized skeleton.
       inset 0 -1px 0 var(--liquid-glass-edge-shadow),
       0 1px 2px var(--liquid-glass-key-shadow),
       0 10px 24px -20px var(--liquid-glass-ambient-shadow);
-    transition:
-      box-shadow 170ms ease,
-      transform 170ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition: box-shadow 170ms ease;
   }
 
   @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -260,40 +261,54 @@ description land in place instead of replacing a differently sized skeleton.
       0 16px 30px -22px var(--liquid-glass-ambient-shadow);
   }
 
-  /* The brand rail ties the card to the orange link colour of the message body. */
-  .preview-rail {
-    position: absolute;
-    inset-block: 0;
-    inset-inline-start: 0;
-    width: 0.1875rem;
-    background: linear-gradient(
-      180deg,
-      var(--color-link, currentColor),
-      color-mix(in srgb, var(--color-link, currentColor) 55%, transparent)
-    );
+  .preview-hero {
+    display: block;
+    width: 100%;
+    aspect-ratio: 40 / 21;
+    max-height: 14rem;
+    overflow: hidden;
+    box-shadow: inset 0 -1px 0 var(--liquid-glass-border);
   }
 
-  .preview-thumb {
-    flex: none;
-    width: 5rem;
-    height: 5rem;
-    border-radius: 0.625rem;
+  .preview-card :global(.preview-hero-img) {
+    display: block;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    background-color: color-mix(in oklch, oklch(0.62 0.14 var(--preview-hue)) 18%, transparent);
-    box-shadow: inset 0 0 0 1px var(--liquid-glass-border);
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
   }
 
-  .preview-monogram {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.75rem;
-    font-weight: 600;
-    line-height: 1;
-    color: oklch(0.62 0.14 var(--preview-hue));
+  .preview-card:hover :global(.preview-hero-img),
+  .preview-card:focus-visible :global(.preview-hero-img) {
+    transform: scale(1.02);
   }
 
   .preview-body {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem 0.75rem;
+  }
+
+  /* Fallback tile when the site publishes no image: the link colour on glass,
+     nothing else, so the palette stays surface + orange. */
+  .preview-monogram {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.75rem;
+    font-size: 1.375rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--color-link, currentColor);
+    background-color: color-mix(in srgb, var(--color-link, currentColor) 12%, transparent);
+    box-shadow: inset 0 0 0 1px var(--liquid-glass-border);
+  }
+
+  .preview-text {
     display: flex;
     min-width: 0;
     flex: 1 1 auto;
@@ -374,16 +389,17 @@ description land in place instead of replacing a differently sized skeleton.
     }
   }
 
-  /* Narrow bubbles: shrink the tile and drop the second description line.
+  /* Narrow bubbles: shorter hero, smaller tile, one description line.
      The query targets descendants; a container never matches itself. */
   @container (max-width: 20rem) {
-    .preview-thumb {
-      width: 3.5rem;
-      height: 3.5rem;
+    .preview-hero {
+      max-height: 10rem;
     }
 
     .preview-monogram {
-      font-size: 1.25rem;
+      width: 2.5rem;
+      height: 2.5rem;
+      font-size: 1.125rem;
     }
 
     .preview-description {
@@ -393,8 +409,14 @@ description land in place instead of replacing a differently sized skeleton.
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .preview-card {
+    .preview-card,
+    .preview-card :global(.preview-hero-img) {
       transition: none;
+    }
+
+    .preview-card:hover :global(.preview-hero-img),
+    .preview-card:focus-visible :global(.preview-hero-img) {
+      transform: none;
     }
 
     .preview-shimmer {

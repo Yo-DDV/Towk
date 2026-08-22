@@ -212,12 +212,9 @@ describe('describeLinkOrigin', () => {
     expect(describeLinkOrigin('https://example.com/').path).toBe('');
   });
 
-  it('derives a stable hue per host', () => {
-    const first = describeLinkOrigin('https://example.com/a').hue;
-    const second = describeLinkOrigin('https://example.com/b').hue;
-    expect(first).toBe(second);
-    expect(first).toBeGreaterThanOrEqual(0);
-    expect(first).toBeLessThan(360);
+  it('names a site by its registrable label rather than its subdomain', () => {
+    expect(describeLinkOrigin('https://vm.tiktok.com/ZNe3XYZ/').monogram).toBe('T');
+    expect(describeLinkOrigin('https://www.bbc.co.uk/news').monogram).toBe('B');
   });
 
   it('stays usable for an unparsable URL', () => {
