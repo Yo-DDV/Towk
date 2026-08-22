@@ -544,6 +544,8 @@ export class VoiceCallState {
   private audioLevelCache = new Map<string, AudioLevelInfo>();
   // eslint-disable-next-line svelte/prefer-svelte-reactivity -- imperative subscription registry
   private audioLevelListeners = new Set<AudioLevelListener>();
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- owns non-reactive media DOM nodes
+  private remoteAudioElements = new Map<RemoteTrack, HTMLAudioElement>();
 
   constructor(
     api: VoiceCallAPI,
@@ -1506,7 +1508,7 @@ export class VoiceCallState {
       room,
       deviceId
     );
-    const options = createVoiceAudioCaptureOptionsFor(this.microphoneProcessingPreferences);
+    const options = createCallAudioCaptureOptions(this.microphoneProcessingPreferences);
     const publication = await room.localParticipant
       .setMicrophoneEnabled(
         true,
@@ -1576,7 +1578,7 @@ export class VoiceCallState {
       const track = publication?.track as LocalAudioTrack | undefined;
       if (track) {
         await track.restartTrack(
-          createVoiceAudioCaptureOptionsFor(this.microphoneProcessingPreferences)
+          createCallAudioCaptureOptions(this.microphoneProcessingPreferences)
         );
         if (!shouldContinue()) throw initialError;
       }
@@ -2512,7 +2514,7 @@ export class VoiceCallState {
       // below. Keep LiveKit's room mixer disabled so its local microphone
       // processing retains the normal low-latency context.
       webAudioMix: false,
-      audioCaptureDefaults: createVoiceAudioCaptureOptionsFor(this.microphoneProcessingPreferences),
+      audioCaptureDefaults: createCallAudioCaptureOptions(this.microphoneProcessingPreferences),
       videoCaptureDefaults: createUncroppedCameraCaptureOptions(),
       publishDefaults: {
         audioPreset: AudioPresets.speech,
@@ -2755,12 +2757,17 @@ export class VoiceCallState {
           // Apply the hard mute before play() so a late subscription cannot
           // leak its first frames. The media element stays muted only while
           // Web Audio owns the best-effort speakerphone fallback.
+          this.remoteAudioElements.get(track)?.remove();
           const element = document.createElement('audio');
+          element.hidden = true;
+          element.setAttribute('aria-hidden', 'true');
+          document.body.append(element);
           element.muted =
             this.usesAndroidSpeakerphoneRoute() ||
             this.isOutputMuted ||
             this.isParticipantLocallyMuted(participant.identity);
           audioTrack.attach(element);
+          this.remoteAudioElements.set(track, element);
           if (this.usesAndroidSpeakerphoneRoute() && !this.isOutputMuted) {
             const audioContext = this.androidPlaybackAudioContext;
             this.audioPlaybackBlocked = audioContext?.state !== 'running';
@@ -2788,6 +2795,8 @@ export class VoiceCallState {
       RoomEvent.TrackUnsubscribed,
       (track: RemoteTrack, _publication: RemoteTrackPublication) => {
         track.detach();
+        this.remoteAudioElements.get(track)?.remove();
+        this.remoteAudioElements.delete(track);
         this.updateParticipants();
       }
     );
@@ -3569,6 +3578,8 @@ export class VoiceCallState {
     this.cancelRecovery();
     this.detachBrowserNetworkListeners();
     this.releaseCurrentRoom();
+    for (const element of this.remoteAudioElements.values()) element.remove();
+    this.remoteAudioElements.clear();
     if (!preserveAndroidPlaybackAcrossCleanup) this.closeAndroidPlaybackAudioContext();
     if (wasConnected && disconnectedRoomId && disconnectedCallId) {
       this.recentlyDisconnectedCall = {
@@ -4431,6 +4442,24 @@ function isMobileWebClient(): boolean {
   const navigatorWithHints = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
   if (navigatorWithHints.userAgentData?.mobile === true) return true;
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent ?? '');
+}
+
+function createCallAudioCaptureOptions(
+  preferences: MicrophoneProcessingPreferences
+): AudioCaptureOptions {
+  const options = createVoiceAudioCaptureOptionsFor(preferences);
+  if (!shouldAvoidSharedNativeMicrophoneGain()) return options;
+
+  // Firefox on macOS can let native AGC alter a microphone shared with another
+  // browser call. Keep gain processing inside Towk's own stream instead of
+  // changing the shared capture level.
+  return { ...options, autoGainControl: false };
+}
+
+function shouldAvoidSharedNativeMicrophoneGain(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const userAgent = navigator.userAgent ?? '';
+  return /Firefox\/\d+/i.test(userAgent) && /Macintosh|Mac OS X/i.test(userAgent);
 }
 
 function isWebKitBasedClient(): boolean {

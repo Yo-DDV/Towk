@@ -1369,6 +1369,23 @@ describe('VoiceCallState', () => {
     });
   });
 
+  it('keeps Firefox macOS automatic gain control local to the Towk stream', async () => {
+    vi.stubGlobal('navigator', {
+      mediaDevices: navigator.mediaDevices,
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 15.6; rv:154.0) Gecko/20100101 Firefox/154.0'
+    });
+
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(lastRoomOptions?.audioCaptureDefaults).toMatchObject({
+      autoGainControl: false,
+      echoCancellation: true,
+      noiseSuppression: true
+    });
+  });
+
   it('defaults Android calls to a playback AudioContext when sink selection is unavailable', async () => {
     const { audioContext, AudioContextMock, resume } = enableAndroidAudioRouteFallback();
     const state = new VoiceCallState(createVoiceCallClient());
@@ -3659,11 +3676,16 @@ describe('VoiceCallState', () => {
 
     roomEventHandlers.get('TrackSubscribed')?.(screenAudioTrack, {}, { identity: 'remote-device' });
     expect(screenAudioTrack.attach).toHaveBeenCalledOnce();
-    expect(screenAudioTrack.attach.mock.calls[0]?.[0]).toBeInstanceOf(HTMLAudioElement);
-    expect(screenAudioTrack.attach.mock.calls[0]?.[0].muted).toBe(false);
+    const attachedElement = screenAudioTrack.attach.mock.calls[0]?.[0];
+    expect(attachedElement).toBeInstanceOf(HTMLAudioElement);
+    expect(attachedElement.muted).toBe(false);
+    expect(attachedElement.hidden).toBe(true);
+    expect(attachedElement.getAttribute('aria-hidden')).toBe('true');
+    expect(attachedElement.isConnected).toBe(true);
 
     roomEventHandlers.get('TrackUnsubscribed')?.(screenAudioTrack, {});
     expect(screenAudioTrack.detach).toHaveBeenCalledOnce();
+    expect(attachedElement.isConnected).toBe(false);
   });
 
   it('pre-mutes newly subscribed audio while call output is muted', async () => {
