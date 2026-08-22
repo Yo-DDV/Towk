@@ -21,7 +21,17 @@ copy_example() {
 
 set_test_image() {
 	local environment_file=$1
-	sed -i "s#^TOWK_IMAGE=.*#TOWK_IMAGE=$image#" "$environment_file"
+	replace_env_value "$environment_file" TOWK_IMAGE "$image"
+}
+
+replace_env_value() {
+	local environment_file=$1
+	local key=$2
+	local value=$3
+	local replacement_file="$environment_file.tmp"
+
+	sed "s#^${key}=.*#${key}=${value}#" "$environment_file" > "$replacement_file"
+	mv "$replacement_file" "$environment_file"
 }
 
 assert_rendered_project() {
@@ -92,7 +102,7 @@ custom="$tmp/custom"
 copy_example "$custom"
 cp "$custom/env.example" "$custom/.env"
 set_test_image "$custom/.env"
-sed -i 's/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=my-towk/' "$custom/.env"
+replace_env_value "$custom/.env" COMPOSE_PROJECT_NAME my-towk
 assert_rendered_project "$custom" my-towk
 
 existing="$tmp/existing/dockercompose"
@@ -105,7 +115,7 @@ rename="$tmp/rename"
 copy_example "$rename"
 cp "$rename/env.example" "$rename/.env"
 set_test_image "$rename/.env"
-sed -i 's/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=renamed-towk/' "$rename/.env"
+replace_env_value "$rename/.env" COMPOSE_PROJECT_NAME renamed-towk
 cat >> "$rename/.env" <<'EOF'
 TOWK_EXISTING_NATS_VOLUME=dockercompose_nats_data
 TOWK_EXISTING_CADDY_DATA_VOLUME=dockercompose_caddy_data
@@ -117,7 +127,7 @@ unsafe_rename="$tmp/unsafe-rename"
 copy_example "$unsafe_rename"
 cp "$unsafe_rename/env.example" "$unsafe_rename/.env"
 set_test_image "$unsafe_rename/.env"
-sed -i 's/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=renamed-towk/' "$unsafe_rename/.env"
+replace_env_value "$unsafe_rename/.env" COMPOSE_PROJECT_NAME renamed-towk
 if (cd "$unsafe_rename" && docker compose \
 	-f compose.yml -f compose.project-name.override.yml config >/dev/null 2>&1); then
 	printf '%s\n' 'Rename override accepted missing existing-volume names.' >&2
