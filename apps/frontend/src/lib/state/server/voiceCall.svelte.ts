@@ -2523,12 +2523,9 @@ export class VoiceCallState {
         dtx: true,
         // Voice capture is deliberately mono. Forcing a stereo Opus stream
         // doubles the channel payload without adding useful speech detail and
-        // wastes bandwidth precisely when DTX resilience matters most.
+        // wastes bandwidth precisely when DTX/RED resilience matters most.
         forceStereo: false,
-        // LiveKit cannot unwrap RED into plain Opus after E2EE encrypts the
-        // payload. Firefox does not negotiate RED, so publishing it would
-        // leave its remote track permanently unbound and silent.
-        red: false,
+        red: true,
         simulcast: !isWebKitBasedClient(),
         videoCodec: preferredCallVideoCodec(),
         videoEncoding: CAMERA_ENCODING,
@@ -4554,9 +4551,7 @@ function createScreenSharePublishOptions(highFrameRate = false): TrackPublishOpt
     degradationPreference: 'balanced',
     dtx: true,
     forceStereo: false,
-    // Screen-share audio uses the same E2EE transport as the microphone and
-    // must remain subscribable by browsers that only negotiate plain Opus.
-    red: false,
+    red: true,
     screenShareEncoding: highFrameRate
       ? HIGH_FRAME_RATE_SCREEN_SHARE_ENCODING
       : SCREEN_SHARE_ENCODING,
