@@ -1343,7 +1343,7 @@ describe('VoiceCallState', () => {
       degradationPreference: 'maintain-framerate',
       dtx: true,
       forceStereo: false,
-      red: true,
+      red: false,
       videoCodec: 'h264',
       videoEncoding: { maxBitrate: 3_500_000, maxFramerate: 30, priority: 'high' },
       videoSimulcastLayers: [
@@ -3452,7 +3452,7 @@ describe('VoiceCallState', () => {
         degradationPreference: 'balanced',
         dtx: true,
         forceStereo: false,
-        red: true,
+        red: false,
         screenShareEncoding: { maxBitrate: 5_000_000, maxFramerate: 30, priority: 'high' },
         screenShareSimulcastLayers: [
           expect.objectContaining({
