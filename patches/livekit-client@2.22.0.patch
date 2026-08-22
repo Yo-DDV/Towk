@@ -1,8 +1,8 @@
 diff --git a/dist/livekit-client.esm.mjs b/dist/livekit-client.esm.mjs
-index 8d95612db995744ff284fbd1b3b0fb981f2b2ce8..1de9746c3e58860ebae459598ac19f3f25f71156 100644
+index 731beefaf7f814aadc346f0294208bb84a2683b8..8a71362d2c69da26bcb7d589f66157bac911bf0c 100644
 --- a/dist/livekit-client.esm.mjs
 +++ b/dist/livekit-client.esm.mjs
-@@ -18600,13 +18600,34 @@ class PCTransport extends eventsExports.EventEmitter {
+@@ -18719,13 +18719,34 @@ class PCTransport extends eventsExports.EventEmitter {
              });
            }
          });
@@ -43,41 +43,7 @@ index 8d95612db995744ff284fbd1b3b0fb981f2b2ce8..1de9746c3e58860ebae459598ac19f3f
            conformBundledCodecFmtp(sdpParsed.media, media => placeholderMids.has(getMidString(media.mid)));
          }
          mungedSDP = libExports.write(sdpParsed);
-@@ -18738,12 +18759,28 @@ class PCTransport extends eventsExports.EventEmitter {
-               if (isSVCCodec(trackbr.codec) && !isSafari()) {
-                 this.ensureVideoDDExtensionForSVC(media, sdpParsed);
-               }
--              // mung sdp for bitrate setting that can't apply by sendEncoding
--              // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE from starting too aggressively
--              // Screen share is not capped since text/UI clarity requires high bitrate from the start
--              // TODO: dynamically adjust start bitrate based on network conditions (e.g., use previous BWE estimate)
-+              // A payload type must carry identical fmtp parameters across every
-+              // m-line in a BUNDLE group. Apply one conservative hint everywhere.
-+              const payloadIsShared = sdpParsed.media.some(otherMedia => otherMedia !== media && otherMedia.rtp.some(rtp => rtp.payload === codecPayload));
-               const calculatedStartBitrate = Math.round(trackbr.maxbr * startBitrateMultiplier);
--              const startBitrate = trackbr.isScreenShare ? calculatedStartBitrate : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
-+              const startBitrate = Math.min(calculatedStartBitrate, maxStartBitrateKbps);
-+              if (payloadIsShared) {
-+                for (const bundledMedia of sdpParsed.media) {
-+                  if (!bundledMedia.rtp.some(rtp => rtp.payload === codecPayload)) continue;
-+                  const bundledFmtp = bundledMedia.fmtp.find(fmtp => fmtp.payload === codecPayload);
-+                  if (bundledFmtp) {
-+                    const retainedParameters = bundledFmtp.config.split(';').filter(parameter => !parameter.startsWith('x-google-start-bitrate='));
-+                    bundledFmtp.config = [...retainedParameters, `x-google-start-bitrate=${startBitrate}`].filter(Boolean).join(';');
-+                  } else {
-+                    bundledMedia.fmtp.push({
-+                      payload: codecPayload,
-+                      config: `x-google-start-bitrate=${startBitrate}`
-+                    });
-+                  }
-+                }
-+                return true;
-+              }
-+              // Keep the startup hint conservative for every source, including screen share.
-               let fmtpFound = false;
-               for (const fmtp of media.fmtp) {
-                 if (fmtp.payload === codecPayload) {
-@@ -18768,13 +18805,11 @@ class PCTransport extends eventsExports.EventEmitter {
+@@ -18858,13 +18879,11 @@ class PCTransport extends eventsExports.EventEmitter {
              });
            }
          });
@@ -96,7 +62,7 @@ index 8d95612db995744ff284fbd1b3b0fb981f2b2ce8..1de9746c3e58860ebae459598ac19f3f
          }
          if (this.latestOfferId > offerId) {
 diff --git a/src/room/PCTransport.ts b/src/room/PCTransport.ts
-index be78f4aa0ee73a9eb43f6fb3158d168f1e21012b..b7c8906396f1a4eeacb9bff7614789cfc4e3bb31 100644
+index 5908ff1b0f319e4137f1c5eedd9ec1fe300d3069..7b47c2f9d009102a0860ad4e46f6fb2b42440205 100644
 --- a/src/room/PCTransport.ts
 +++ b/src/room/PCTransport.ts
 @@ -7,7 +7,7 @@ import log, { LoggerNames, getLogger } from '../logger';
@@ -105,10 +71,10 @@ index be78f4aa0ee73a9eb43f6fb3158d168f1e21012b..b7c8906396f1a4eeacb9bff7614789cf
  import type { LoggerOptions } from './types';
 -import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
 +import { ddExtensionURI, isChromiumBased, isSVCCodec, isSafari } from './utils';
-
+ 
  /** @internal */
  interface TrackBitrateInfo {
-@@ -260,13 +260,43 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
+@@ -317,13 +317,43 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
            });
          }
        });
@@ -158,60 +124,7 @@ index be78f4aa0ee73a9eb43f6fb3158d168f1e21012b..b7c8906396f1a4eeacb9bff7614789cf
          conformBundledCodecFmtp(sdpParsed.media, (media) =>
            placeholderMids.has(getMidString(media.mid!)),
          );
-@@ -417,14 +447,45 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
-               this.ensureVideoDDExtensionForSVC(media, sdpParsed);
-             }
-
--            // mung sdp for bitrate setting that can't apply by sendEncoding
--            // Use 90% of target bitrate, capped at 1 Mbps for camera to prevent BWE from starting too aggressively
--            // Screen share is not capped since text/UI clarity requires high bitrate from the start
--            // TODO: dynamically adjust start bitrate based on network conditions (e.g., use previous BWE estimate)
-+            // A payload type must carry identical fmtp parameters across every
-+            // m-line in a BUNDLE group. Apply one conservative hint to every
-+            // section advertising the selected payload; a per-track hint makes
-+            // Chromium reject the SDP before the fallback can be applied.
-+            const payloadIsShared = sdpParsed.media.some(
-+              (otherMedia) =>
-+                otherMedia !== media &&
-+                otherMedia.rtp.some((rtp) => rtp.payload === codecPayload),
-+            );
-             const calculatedStartBitrate = Math.round(trackbr.maxbr * startBitrateMultiplier);
--            const startBitrate = trackbr.isScreenShare
--              ? calculatedStartBitrate
--              : Math.min(calculatedStartBitrate, maxStartBitrateKbps);
-+            const startBitrate = Math.min(calculatedStartBitrate, maxStartBitrateKbps);
-+            if (payloadIsShared) {
-+              for (const bundledMedia of sdpParsed.media) {
-+                if (!bundledMedia.rtp.some((rtp) => rtp.payload === codecPayload)) continue;
-+                const bundledFmtp = bundledMedia.fmtp.find(
-+                  (fmtp) => fmtp.payload === codecPayload,
-+                );
-+                if (bundledFmtp) {
-+                  const retainedParameters = bundledFmtp.config
-+                    .split(';')
-+                    .filter((parameter) => !parameter.startsWith('x-google-start-bitrate='));
-+                  bundledFmtp.config = [
-+                    ...retainedParameters,
-+                    `x-google-start-bitrate=${startBitrate}`,
-+                  ]
-+                    .filter(Boolean)
-+                    .join(';');
-+                } else {
-+                  bundledMedia.fmtp.push({
-+                    payload: codecPayload,
-+                    config: `x-google-start-bitrate=${startBitrate}`,
-+                  });
-+                }
-+              }
-+              return true;
-+            }
-+
-+            // Keep the startup hint conservative for every source, including
-+            // screen share. Sender encodings still expose the full target to BWE.
-
-             let fmtpFound = false;
-             for (const fmtp of media.fmtp) {
-@@ -450,13 +511,11 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
+@@ -482,13 +512,11 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
            });
          }
        });

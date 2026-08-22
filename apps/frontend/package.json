@@ -95,7 +95,7 @@
     "heic2any": "^0.0.4",
     "js-sha256": "^1.0.0",
     "linkify-it": "^6.1.0",
-    "livekit-client": "^2.21.0",
+    "livekit-client": "^2.22.0",
     "tlds": "^1.261.0",
     "vidstack": "^1.15.6"
   }
