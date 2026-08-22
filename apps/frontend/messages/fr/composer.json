@@ -67,7 +67,14 @@
       "auto": "Automatique",
       "sd": "Réduite",
       "hd": "Haute",
-      "original": "Originale"
+      "original": "Originale",
+      "auto_hint": "Recommandé : n'allège que les photos lourdes",
+      "sd_hint": "Envoi le plus rapide, lisible sur téléphone",
+      "hd_hint": "Conserve l'essentiel des détails",
+      "original_hint": "Envoie le fichier tel quel",
+      "summary_reduced": "{size} au lieu de {original}",
+      "summary_unchanged": "{size}, inchangé",
+      "summary_pending": "Préparation des images…"
     }
   }
 }

@@ -81,6 +81,16 @@ export function reencodedImageName(filename: string): string {
   return `${base || 'image'}.jpg`;
 }
 
+/** Compact upload size shown next to the quality choice. */
+export function formatAttachmentSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) {
+    const megabytes = bytes / (1024 * 1024);
+    return `${megabytes >= 10 ? Math.round(megabytes) : megabytes.toFixed(1)} MB`;
+  }
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
 export function loadImageQualityProfile(): ImageQualityProfile {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);

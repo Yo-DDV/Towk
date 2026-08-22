@@ -1649,6 +1649,17 @@ const msg_composer_attachment_quality_auto = (): LocalizedString => messages().c
 const msg_composer_attachment_quality_sd = (): LocalizedString => messages().composer_attachment_quality_sd(empty());
 const msg_composer_attachment_quality_hd = (): LocalizedString => messages().composer_attachment_quality_hd(empty());
 const msg_composer_attachment_quality_original = (): LocalizedString => messages().composer_attachment_quality_original(empty());
+const msg_composer_attachment_quality_auto_hint = (): LocalizedString => messages().composer_attachment_quality_auto_hint(empty());
+const msg_composer_attachment_quality_hd_hint = (): LocalizedString => messages().composer_attachment_quality_hd_hint(empty());
+const msg_composer_attachment_quality_original_hint = (): LocalizedString => messages().composer_attachment_quality_original_hint(empty());
+const msg_composer_attachment_quality_sd_hint = (): LocalizedString => messages().composer_attachment_quality_sd_hint(empty());
+const msg_composer_attachment_quality_summary_pending = (): LocalizedString => messages().composer_attachment_quality_summary_pending(empty());
+const msg_composer_attachment_quality_summary_reduced = (
+  inputs: Parameters<LocaleMessages['composer_attachment_quality_summary_reduced']>[0]
+): LocalizedString => messages().composer_attachment_quality_summary_reduced(inputs);
+const msg_composer_attachment_quality_summary_unchanged = (
+  inputs: Parameters<LocaleMessages['composer_attachment_quality_summary_unchanged']>[0]
+): LocalizedString => messages().composer_attachment_quality_summary_unchanged(inputs);
 const msg_capture_open = (): LocalizedString => messages().capture_open(empty());
 const msg_capture_title = (): LocalizedString => messages().capture_title(empty());
 const msg_capture_photo = (): LocalizedString => messages().capture_photo(empty());
@@ -3728,6 +3739,13 @@ export { msg_composer_attachment_quality_auto as 'composer.attachment_quality.au
 export { msg_composer_attachment_quality_sd as 'composer.attachment_quality.sd' };
 export { msg_composer_attachment_quality_hd as 'composer.attachment_quality.hd' };
 export { msg_composer_attachment_quality_original as 'composer.attachment_quality.original' };
+export { msg_composer_attachment_quality_auto_hint as 'composer.attachment_quality.auto_hint' };
+export { msg_composer_attachment_quality_hd_hint as 'composer.attachment_quality.hd_hint' };
+export { msg_composer_attachment_quality_original_hint as 'composer.attachment_quality.original_hint' };
+export { msg_composer_attachment_quality_sd_hint as 'composer.attachment_quality.sd_hint' };
+export { msg_composer_attachment_quality_summary_pending as 'composer.attachment_quality.summary_pending' };
+export { msg_composer_attachment_quality_summary_reduced as 'composer.attachment_quality.summary_reduced' };
+export { msg_composer_attachment_quality_summary_unchanged as 'composer.attachment_quality.summary_unchanged' };
 export { msg_capture_open as 'capture.open' };
 export { msg_capture_title as 'capture.title' };
 export { msg_capture_photo as 'capture.photo' };

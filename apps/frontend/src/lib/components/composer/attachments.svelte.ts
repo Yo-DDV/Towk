@@ -45,6 +45,8 @@ export class AttachmentsState {
   filesWithUrls = $state<FileWithUrl[]>([]);
   pendingCount = $state(0);
   imageQuality = $state<ImageQualityProfile>(loadImageQualityProfile());
+  /** True while staged images are being re-encoded for a new profile. */
+  imageQualityBusy = $state(false);
   private generation = 0;
 
   constructor(private readonly getLimits: () => AttachmentLimits) {}
@@ -109,6 +111,19 @@ export class AttachmentsState {
     );
   }
 
+  /** Total size of the files that would be uploaded right now. */
+  get stagedBytes(): number {
+    return this.filesWithUrls.reduce((total, { file }) => total + file.size, 0);
+  }
+
+  /** Total size of the same attachments before any re-encoding. */
+  get sourceBytes(): number {
+    return this.filesWithUrls.reduce(
+      (total, { file, sourceFile }) => total + (sourceFile ?? file).size,
+      0
+    );
+  }
+
   /**
    * Applies a quality profile to every staged image. Each preview is rebuilt
    * from its source file, so switching back to the original profile restores
@@ -122,7 +137,13 @@ export class AttachmentsState {
 
     const generation = this.generation;
     const sources = this.filesWithUrls.map(({ file, sourceFile }) => sourceFile ?? file);
-    const prepared = await Promise.all(sources.map((file) => applyImageQuality(file, profile)));
+    this.imageQualityBusy = true;
+    let prepared: File[];
+    try {
+      prepared = await Promise.all(sources.map((file) => applyImageQuality(file, profile)));
+    } finally {
+      if (generation === this.generation) this.imageQualityBusy = false;
+    }
     if (generation !== this.generation) return;
 
     for (const { url } of this.filesWithUrls) URL.revokeObjectURL(url);
